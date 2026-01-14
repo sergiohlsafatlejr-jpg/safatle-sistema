@@ -51,3 +51,5 @@
 - [x] Extrair CRM da tag numeroConselhoProfissional
 - [x] Extrair nome do médico da tag nomeProf
 - [x] Separar/agrupar guias por dia na visualização
+- [x] Filtro de pesquisa por nome do médico na tela de Itens Importados
+- [x] Filtro de pesquisa por CRM na tela de Itens Importados

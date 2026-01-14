@@ -17,6 +17,8 @@ export default function ItensImportados() {
   const [convenioId, setConvenioId] = useState<string>("");
   const [arquivoId, setArquivoId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [nomeMedico, setNomeMedico] = useState("");
+  const [crmMedico, setCrmMedico] = useState("");
   const [page, setPage] = useState(1);
   const [agruparPorDia, setAgruparPorDia] = useState(false);
   const pageSize = 50;
@@ -36,6 +38,8 @@ export default function ItensImportados() {
       arquivoId: arquivoId ? parseInt(arquivoId) : undefined,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
       search: searchTerm || undefined,
+      nomeMedico: nomeMedico || undefined,
+      crmMedico: crmMedico || undefined,
       page,
       pageSize,
     },
@@ -194,10 +198,10 @@ export default function ItensImportados() {
               <Filter className="h-5 w-5" />
               Filtros
             </CardTitle>
-            <CardDescription>Filtre os itens por convênio, arquivo ou busca</CardDescription>
+            <CardDescription>Filtre os itens por convênio, arquivo, médico ou busca</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={(value) => {
@@ -252,6 +256,30 @@ export default function ItensImportados() {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">Médico</label>
+                <Input
+                  placeholder="Nome do médico..."
+                  value={nomeMedico}
+                  onChange={(e) => {
+                    setNomeMedico(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">CRM</label>
+                <Input
+                  placeholder="Número do CRM..."
+                  value={crmMedico}
+                  onChange={(e) => {
+                    setCrmMedico(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Visualização</label>
                 <div className="flex items-center space-x-2 h-10">
                   <Switch
@@ -274,6 +302,8 @@ export default function ItensImportados() {
                     setConvenioId("");
                     setArquivoId("");
                     setSearchTerm("");
+                    setNomeMedico("");
+                    setCrmMedico("");
                     setPage(1);
                     setAgruparPorDia(false);
                   }}

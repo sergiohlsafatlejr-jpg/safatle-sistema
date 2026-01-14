@@ -344,6 +344,8 @@ export async function getProcedimentosPaginated(filters?: {
   arquivoId?: number;
   convenioId?: number;
   search?: string;
+  nomeMedico?: string;
+  crmMedico?: string;
   page?: number;
   pageSize?: number;
   userId?: number;
@@ -369,6 +371,14 @@ export async function getProcedimentosPaginated(filters?: {
         like(procedimentos.descricao, `%${filters.search}%`)
       )
     );
+  }
+
+  if (filters?.nomeMedico) {
+    conditions.push(like(procedimentos.nomeMedico, `%${filters.nomeMedico}%`));
+  }
+
+  if (filters?.crmMedico) {
+    conditions.push(like(procedimentos.crmMedico, `%${filters.crmMedico}%`));
   }
 
   // If convenioId is specified, we need to filter by arquivo's convenioId

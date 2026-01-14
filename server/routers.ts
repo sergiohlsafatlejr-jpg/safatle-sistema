@@ -485,6 +485,8 @@ export const appRouter = router({
             arquivoId: z.number().optional(),
             convenioId: z.number().optional(),
             search: z.string().optional(),
+            nomeMedico: z.string().optional(),
+            crmMedico: z.string().optional(),
             page: z.number().default(1),
             pageSize: z.number().default(20),
           })
@@ -495,6 +497,8 @@ export const appRouter = router({
           arquivoId: input?.arquivoId,
           convenioId: input?.convenioId,
           search: input?.search,
+          nomeMedico: input?.nomeMedico,
+          crmMedico: input?.crmMedico,
           page: input?.page || 1,
           pageSize: input?.pageSize || 20,
           userId: ctx.user.id,
