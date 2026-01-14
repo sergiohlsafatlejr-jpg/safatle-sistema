@@ -42,3 +42,6 @@
 ## Novas Funcionalidades
 
 - [x] Função para excluir arquivos importados
+- [x] Parser XML não extrai valores unitários e totais dos procedimentos
+- [x] Parser XML não extrai nome do médico
+- [x] Parser XML não extrai número das guias

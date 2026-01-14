@@ -70,6 +70,8 @@ export const procedimentos = mysqlTable("procedimentos", {
   pacienteNome: varchar("pacienteNome", { length: 255 }),
   pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),
   guiaNumero: varchar("guiaNumero", { length: 100 }),
+  nomeMedico: varchar("nomeMedico", { length: 255 }),
+  crmMedico: varchar("crmMedico", { length: 50 }),
   dadosExtras: json("dadosExtras"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

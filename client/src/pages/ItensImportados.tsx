@@ -46,14 +46,15 @@ export default function ItensImportados() {
   const handleExportCSV = () => {
     if (!procedimentos.length) return;
 
-    const headers = ["Código", "Descrição", "Quantidade", "Valor Unitário", "Valor Total", "Paciente", "Guia", "Arquivo"];
+    const headers = ["Código", "Descrição", "Quantidade", "Valor Unitário", "Valor Total", "Médico", "CRM", "Guia", "Arquivo"];
     const rows = procedimentos.map((p: any) => [
       p.codigo,
       p.descricao || "",
       p.quantidade,
       p.valorUnitario || "",
       p.valorTotal || "",
-      p.pacienteNome || "",
+      p.nomeMedico || "",
+      p.crmMedico || "",
       p.guiaNumero || "",
       p.arquivoNome || "",
     ]);
@@ -235,9 +236,9 @@ export default function ItensImportados() {
                         <TableHead className="text-center">Qtd</TableHead>
                         <TableHead className="text-right">Valor Unit.</TableHead>
                         <TableHead className="text-right">Valor Total</TableHead>
-                        <TableHead>Paciente</TableHead>
+                        <TableHead>Médico</TableHead>
+                        <TableHead>CRM</TableHead>
                         <TableHead>Guia</TableHead>
-                        <TableHead>Convênio</TableHead>
                         <TableHead>Arquivo</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -257,16 +258,14 @@ export default function ItensImportados() {
                           <TableCell className="text-right font-medium">
                             {proc.valorTotal ? `R$ ${parseFloat(proc.valorTotal).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
                           </TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={proc.pacienteNome || "-"}>
-                            {proc.pacienteNome || "-"}
+                          <TableCell className="max-w-[150px] truncate" title={proc.nomeMedico || "-"}>
+                            {proc.nomeMedico || "-"}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {proc.crmMedico || "-"}
                           </TableCell>
                           <TableCell className="font-mono text-sm">
                             {proc.guiaNumero || "-"}
-                          </TableCell>
-                          <TableCell>
-                            {proc.convenioNome ? (
-                              <Badge variant="outline">{proc.convenioNome}</Badge>
-                            ) : "-"}
                           </TableCell>
                           <TableCell className="max-w-[150px] truncate" title={proc.arquivoNome || "-"}>
                             {proc.arquivoNome || "-"}

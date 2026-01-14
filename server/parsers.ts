@@ -13,6 +13,8 @@ export interface ParsedProcedimento {
   pacienteNome?: string;
   pacienteCarteirinha?: string;
   guiaNumero?: string;
+  nomeMedico?: string;
+  crmMedico?: string;
   dadosExtras?: Record<string, unknown>;
 }
 
@@ -24,92 +26,85 @@ export interface ParseResult {
 }
 
 /**
- * Remove namespace prefixes from XML keys (e.g., ans:descricao -> descricao)
+ * Get text value from XML node (handles both string and object with _ property)
  */
-function removeNamespacePrefix(key: string): string {
-  const colonIndex = key.indexOf(":");
-  return colonIndex > -1 ? key.substring(colonIndex + 1) : key;
+function getTextValue(node: unknown): string | undefined {
+  if (node === null || node === undefined) return undefined;
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (typeof node === "object" && "_" in (node as Record<string, unknown>)) {
+    return String((node as Record<string, unknown>)["_"]);
+  }
+  return undefined;
 }
 
 /**
- * Recursively normalize object keys by removing namespace prefixes
+ * Parse number from various formats
  */
-function normalizeXmlObject(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  
-  if (Array.isArray(obj)) {
-    return obj.map(item => normalizeXmlObject(item));
-  }
-  
-  if (typeof obj === "object") {
-    const normalized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      const normalizedKey = removeNamespacePrefix(key);
-      normalized[normalizedKey] = normalizeXmlObject(value);
-    }
-    return normalized;
-  }
-  
-  return obj;
+function parseNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const str = getTextValue(value);
+  if (!str) return undefined;
+  const num = parseFloat(str.replace(",", "."));
+  return isNaN(num) ? undefined : num;
+}
+
+/**
+ * Parse date from string
+ */
+function parseDate(value: unknown): Date | undefined {
+  const str = getTextValue(value);
+  if (!str) return undefined;
+  const date = new Date(str);
+  return isNaN(date.getTime()) ? undefined : date;
 }
 
 /**
  * Parse XML file content (TISS format commonly used in Brazil)
+ * Completely rewritten to properly handle TISS XML structure
  */
 export async function parseXML(content: Buffer | string): Promise<ParseResult> {
   try {
-    // Configure parser to handle namespaces properly
+    // Configure parser to strip namespace prefixes
     const parser = new xml2js.Parser({ 
       explicitArray: false, 
       ignoreAttrs: false,
       tagNameProcessors: [xml2js.processors.stripPrefix],
       attrNameProcessors: [xml2js.processors.stripPrefix]
     });
-    const xmlString = typeof content === "string" ? content : content.toString("utf-8");
-    let result = await parser.parseStringPromise(xmlString);
     
-    // Additionally normalize any remaining namespace prefixes
-    result = normalizeXmlObject(result) as Record<string, unknown>;
+    const xmlString = typeof content === "string" ? content : content.toString("utf-8");
+    const result = await parser.parseStringPromise(xmlString);
     
     const procedimentos: ParsedProcedimento[] = [];
     
-    // Try to extract procedures from common TISS XML structures
-    const extractProcedimentos = (obj: unknown, path: string[] = []): void => {
-      if (!obj || typeof obj !== "object") return;
-      
-      const record = obj as Record<string, unknown>;
-      
-      // Look for procedure-related nodes
-      const procedureKeys = [
-        "procedimento", "procedimentos", "proc", "item", "itens",
-        "guia", "guias", "servico", "servicos", "ans:procedimento",
-        "ans:procedimentoExecutado", "procedimentoExecutado"
-      ];
-      
-      for (const key of Object.keys(record)) {
-        const value = record[key];
-        const lowerKey = key.toLowerCase();
-        
-        if (procedureKeys.some(pk => lowerKey.includes(pk.toLowerCase()))) {
-          if (Array.isArray(value)) {
-            for (const item of value) {
-              const proc = extractSingleProcedimento(item);
-              if (proc) procedimentos.push(proc);
-            }
-          } else if (typeof value === "object" && value !== null) {
-            const proc = extractSingleProcedimento(value);
-            if (proc) procedimentos.push(proc);
-          }
-        }
-        
-        // Recursively search
-        if (typeof value === "object" && value !== null) {
-          extractProcedimentos(value, [...path, key]);
-        }
-      }
-    };
+    // Navigate to guias in TISS structure
+    const guias = findGuias(result);
     
-    extractProcedimentos(result);
+    for (const guia of guias) {
+      const guiaNumero = extractGuiaNumero(guia);
+      const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+      
+      // Extract procedimentos executados
+      const procedimentosExecutados = extractProcedimentosExecutados(guia);
+      for (const proc of procedimentosExecutados) {
+        procedimentos.push({
+          ...proc,
+          guiaNumero: proc.guiaNumero || guiaNumero,
+          pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+        });
+      }
+      
+      // Extract outras despesas (servicosExecutados)
+      const outrasDespesas = extractOutrasDespesas(guia);
+      for (const proc of outrasDespesas) {
+        procedimentos.push({
+          ...proc,
+          guiaNumero: proc.guiaNumero || guiaNumero,
+          pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+        });
+      }
+    }
     
     return {
       success: true,
@@ -125,90 +120,252 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
   }
 }
 
-function extractSingleProcedimento(obj: unknown): ParsedProcedimento | null {
-  if (!obj || typeof obj !== "object") return null;
+/**
+ * Find all guias in the XML structure
+ * Navigates through: mensagemTISS -> prestadorParaOperadora -> loteGuias -> guiasTISS -> guiaSP-SADT/guiaConsulta/etc
+ */
+function findGuias(obj: unknown): unknown[] {
+  const guias: unknown[] = [];
   
-  const record = obj as Record<string, unknown>;
-  
-  // Try to find codigo - expanded list to handle various TISS formats
-  const codigoKeys = [
-    "codigo", "codigoProcedimento", "cd", "cod", "codigoTabela", 
-    "codigoTermo", "codigoItem", "codigoServico", "codigoPrincipal"
-  ];
-  let codigo: string | undefined;
-  
-  for (const key of codigoKeys) {
-    const value = findValueByKey(record, key);
-    if (value) {
-      codigo = String(value);
-      break;
+  function search(node: unknown, depth: number = 0): void {
+    if (!node || typeof node !== "object" || depth > 10) return;
+    
+    const record = node as Record<string, unknown>;
+    
+    for (const [key, value] of Object.entries(record)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Skip attributes and simple values
+      if (key === '$' || typeof value !== 'object' || value === null) continue;
+      
+      // Check if this is a guia node (guiaSP-SADT, guiaConsulta, etc.)
+      // Must start with "guia" but not be "guias" or "guiasTISS"
+      if (lowerKey.startsWith('guia') && lowerKey !== 'guiastiss' && !lowerKey.includes('numero')) {
+        if (Array.isArray(value)) {
+          guias.push(...value);
+        } else {
+          guias.push(value);
+        }
+      } else {
+        // Continue searching in nested objects
+        search(value, depth + 1);
+      }
     }
   }
   
-  if (!codigo) return null;
-  
-  // Extract other fields - expanded list to handle various TISS formats
-  const descricaoKeys = [
-    "descricao", "descricaoProcedimento", "descricaoItem", 
-    "descricaoServico", "nomeComercial", "descricaoDetalhada"
-  ];
-  let descricao: unknown;
-  for (const key of descricaoKeys) {
-    descricao = findValueByKey(record, key);
-    if (descricao) break;
-  }
-  const quantidade = parseNumber(findValueByKey(record, "quantidade") || findValueByKey(record, "qtd"));
-  const valorUnitario = parseNumber(findValueByKey(record, "valorUnitario") || findValueByKey(record, "vlUnitario"));
-  const valorTotal = parseNumber(findValueByKey(record, "valorTotal") || findValueByKey(record, "vlTotal"));
-  const pacienteNome = findValueByKey(record, "nomeBeneficiario") || findValueByKey(record, "paciente");
-  const pacienteCarteirinha = findValueByKey(record, "numeroCarteira") || findValueByKey(record, "carteirinha");
-  const guiaNumero = findValueByKey(record, "numeroGuia") || findValueByKey(record, "guia");
-  
-  return {
-    codigo,
-    descricao: descricao ? String(descricao) : undefined,
-    quantidade: quantidade || 1,
-    valorUnitario,
-    valorTotal,
-    pacienteNome: pacienteNome ? String(pacienteNome) : undefined,
-    pacienteCarteirinha: pacienteCarteirinha ? String(pacienteCarteirinha) : undefined,
-    guiaNumero: guiaNumero ? String(guiaNumero) : undefined,
-    dadosExtras: record,
-  };
+  search(obj);
+  return guias;
 }
 
-function findValueByKey(obj: Record<string, unknown>, targetKey: string): unknown {
-  const lowerTarget = targetKey.toLowerCase().replace(/^ans:/, "");
+/**
+ * Extract guia number from guia object
+ */
+function extractGuiaNumero(guia: unknown): string | undefined {
+  if (!guia || typeof guia !== "object") return undefined;
   
-  for (const [key, value] of Object.entries(obj)) {
-    // Remove namespace prefix from key for comparison
-    const normalizedKey = removeNamespacePrefix(key).toLowerCase();
-    
-    if (normalizedKey.includes(lowerTarget) || normalizedKey === lowerTarget) {
-      if (typeof value === "object" && value !== null && "_" in (value as Record<string, unknown>)) {
-        return (value as Record<string, unknown>)["_"];
-      }
-      return value;
-    }
+  const record = guia as Record<string, unknown>;
+  
+  // Try cabecalhoGuia first
+  const cabecalho = record["cabecalhoGuia"] as Record<string, unknown> | undefined;
+  if (cabecalho) {
+    const numero = getTextValue(cabecalho["numeroGuiaPrestador"]) || 
+                   getTextValue(cabecalho["guiaPrincipal"]);
+    if (numero) return numero;
   }
   
-  // Also try exact match with original key (for nested searches)
-  for (const [key, value] of Object.entries(obj)) {
-    if (key.toLowerCase() === lowerTarget || key.toLowerCase() === `ans:${lowerTarget}`) {
-      if (typeof value === "object" && value !== null && "_" in (value as Record<string, unknown>)) {
-        return (value as Record<string, unknown>)["_"];
-      }
-      return value;
-    }
+  // Try dadosAutorizacao
+  const autorizacao = record["dadosAutorizacao"] as Record<string, unknown> | undefined;
+  if (autorizacao) {
+    const numero = getTextValue(autorizacao["numeroGuiaOperadora"]);
+    if (numero) return numero;
   }
   
   return undefined;
 }
 
-function parseNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null) return undefined;
-  const num = typeof value === "number" ? value : parseFloat(String(value).replace(",", "."));
-  return isNaN(num) ? undefined : num;
+/**
+ * Extract paciente carteirinha from guia object
+ */
+function extractPacienteCarteirinha(guia: unknown): string | undefined {
+  if (!guia || typeof guia !== "object") return undefined;
+  
+  const record = guia as Record<string, unknown>;
+  const beneficiario = record["dadosBeneficiario"] as Record<string, unknown> | undefined;
+  
+  if (beneficiario) {
+    return getTextValue(beneficiario["numeroCarteira"]);
+  }
+  
+  return undefined;
+}
+
+/**
+ * Extract procedimentos executados from guia
+ */
+function extractProcedimentosExecutados(guia: unknown): ParsedProcedimento[] {
+  if (!guia || typeof guia !== "object") return [];
+  
+  const record = guia as Record<string, unknown>;
+  const procedimentos: ParsedProcedimento[] = [];
+  
+  // Find procedimentosExecutados container
+  const container = record["procedimentosExecutados"] as Record<string, unknown> | undefined;
+  if (!container) return [];
+  
+  // Get procedimentoExecutado items
+  let items = container["procedimentoExecutado"];
+  if (!items) return [];
+  
+  // Ensure it's an array
+  if (!Array.isArray(items)) {
+    items = [items];
+  }
+  
+  for (const item of items as unknown[]) {
+    const proc = extractProcedimentoFromNode(item);
+    if (proc) {
+      procedimentos.push(proc);
+    }
+  }
+  
+  return procedimentos;
+}
+
+/**
+ * Extract outras despesas (servicosExecutados) from guia
+ */
+function extractOutrasDespesas(guia: unknown): ParsedProcedimento[] {
+  if (!guia || typeof guia !== "object") return [];
+  
+  const record = guia as Record<string, unknown>;
+  const procedimentos: ParsedProcedimento[] = [];
+  
+  // Find outrasDespesas container
+  const outrasDespesas = record["outrasDespesas"] as Record<string, unknown> | undefined;
+  if (!outrasDespesas) return [];
+  
+  // Get despesa items
+  let despesas = outrasDespesas["despesa"];
+  if (!despesas) return [];
+  
+  // Ensure it's an array
+  if (!Array.isArray(despesas)) {
+    despesas = [despesas];
+  }
+  
+  for (const despesa of despesas as unknown[]) {
+    if (!despesa || typeof despesa !== "object") continue;
+    
+    const despesaRecord = despesa as Record<string, unknown>;
+    
+    // Get servicosExecutados
+    const servicos = despesaRecord["servicosExecutados"];
+    if (!servicos) continue;
+    
+    const proc = extractServicoFromNode(servicos);
+    if (proc) {
+      procedimentos.push(proc);
+    }
+  }
+  
+  return procedimentos;
+}
+
+/**
+ * Extract procedimento from procedimentoExecutado node
+ */
+function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
+  if (!node || typeof node !== "object") return null;
+  
+  const record = node as Record<string, unknown>;
+  
+  // Get procedimento details (nested in "procedimento" object)
+  const procedimentoNode = record["procedimento"] as Record<string, unknown> | undefined;
+  
+  let codigo: string | undefined;
+  let descricao: string | undefined;
+  
+  let codigoTabela: string | undefined;
+  
+  if (procedimentoNode) {
+    codigo = getTextValue(procedimentoNode["codigoProcedimento"]);
+    descricao = getTextValue(procedimentoNode["descricaoProcedimento"]);
+    codigoTabela = getTextValue(procedimentoNode["codigoTabela"]);
+  }
+  
+  // Fallback to direct properties
+  if (!codigo) {
+    codigo = getTextValue(record["codigoProcedimento"]) || getTextValue(record["codigo"]);
+  }
+  if (!descricao) {
+    descricao = getTextValue(record["descricaoProcedimento"]) || getTextValue(record["descricao"]);
+  }
+  if (!codigoTabela) {
+    codigoTabela = getTextValue(record["codigoTabela"]);
+  }
+  
+  // Use codigoProcedimento as main code, or codigoTabela as fallback
+  if (!codigo && codigoTabela) {
+    codigo = codigoTabela;
+  }
+  
+  if (!codigo) return null;
+  
+  // Extract values
+  const quantidade = parseNumber(record["quantidadeExecutada"]) || parseNumber(record["quantidade"]) || 1;
+  const valorUnitario = parseNumber(record["valorUnitario"]);
+  const valorTotal = parseNumber(record["valorTotal"]);
+  const dataExecucao = parseDate(record["dataExecucao"]);
+  
+  // Extract medico from equipeSadt
+  let nomeMedico: string | undefined;
+  let crmMedico: string | undefined;
+  
+  const equipeSadt = record["equipeSadt"] as Record<string, unknown> | undefined;
+  if (equipeSadt) {
+    nomeMedico = getTextValue(equipeSadt["nomeProf"]) || getTextValue(equipeSadt["nomeProfissional"]);
+    crmMedico = getTextValue(equipeSadt["numeroConselhoProfissional"]);
+  }
+  
+  return {
+    codigo,
+    descricao,
+    quantidade,
+    valorUnitario,
+    valorTotal,
+    dataExecucao,
+    nomeMedico,
+    crmMedico,
+    dadosExtras: record,
+  };
+}
+
+/**
+ * Extract procedimento from servicosExecutados node
+ */
+function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
+  if (!node || typeof node !== "object") return null;
+  
+  const record = node as Record<string, unknown>;
+  
+  const codigo = getTextValue(record["codigoProcedimento"]) || getTextValue(record["codigo"]);
+  if (!codigo) return null;
+  
+  const descricao = getTextValue(record["descricaoProcedimento"]) || getTextValue(record["descricao"]);
+  const quantidade = parseNumber(record["quantidadeExecutada"]) || parseNumber(record["quantidade"]) || 1;
+  const valorUnitario = parseNumber(record["valorUnitario"]);
+  const valorTotal = parseNumber(record["valorTotal"]);
+  const dataExecucao = parseDate(record["dataExecucao"]);
+  
+  return {
+    codigo,
+    descricao,
+    quantidade,
+    valorUnitario,
+    valorTotal,
+    dataExecucao,
+    dadosExtras: record,
+  };
 }
 
 /**
@@ -257,6 +414,8 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     pacienteNome: ["paciente", "nome_paciente", "beneficiario", "nome"],
     pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula"],
     guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero"],
+    nomeMedico: ["medico", "nome_medico", "profissional", "executante"],
+    crmMedico: ["crm", "crm_medico", "conselho"],
   };
   
   const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -288,6 +447,8 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     pacienteNome: findValue(columnMappings.pacienteNome) as string | undefined,
     pacienteCarteirinha: findValue(columnMappings.pacienteCarteirinha) as string | undefined,
     guiaNumero: findValue(columnMappings.guiaNumero) as string | undefined,
+    nomeMedico: findValue(columnMappings.nomeMedico) as string | undefined,
+    crmMedico: findValue(columnMappings.crmMedico) as string | undefined,
     dadosExtras: row,
   };
 }
@@ -311,61 +472,18 @@ export async function parsePDF(content: Buffer): Promise<ParseResult> {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
-        .map((item: any) => item.str)
+        .map((item: unknown) => (item as { str: string }).str)
         .join(" ");
-      text += pageText + "\n";
+      text += pageText + "\\n";
     }
     
-    const procedimentos: ParsedProcedimento[] = [];
-    
-    // Try to extract procedure codes from text using common patterns
-    // Pattern: código followed by numbers (e.g., "10101012" or "1.01.01.01-2")
-    const codePatterns = [
-      /\b(\d{8})\b/g, // 8-digit codes
-      /\b(\d{2}\.\d{2}\.\d{2}\.\d{2}-\d)\b/g, // TUSS format
-      /\b(\d{2}\.\d{2}\.\d{2}\.\d{2})\b/g, // TUSS without check digit
-    ];
-    
-    const foundCodes = new Set<string>();
-    
-    for (const pattern of codePatterns) {
-      const matches = Array.from(text.matchAll(pattern));
-      for (const match of matches) {
-        foundCodes.add(match[1]);
-      }
-    }
-    
-    // Try to extract values near codes
-    const lines = text.split("\n");
-    for (const line of lines) {
-      for (const code of Array.from(foundCodes)) {
-        if (line.includes(code)) {
-          // Try to find value in the same line
-          const valueMatch = line.match(/R?\$?\s*([\d.,]+)/);
-          const valor = valueMatch ? parseNumber(valueMatch[1]) : undefined;
-          
-          procedimentos.push({
-            codigo: code,
-            valorTotal: valor,
-            dadosExtras: { linha: line },
-          });
-          foundCodes.delete(code); // Avoid duplicates
-          break;
-        }
-      }
-    }
-    
-    // Add remaining codes without values
-    for (const code of Array.from(foundCodes)) {
-      procedimentos.push({
-        codigo: code,
-      });
-    }
+    // Try to extract procedures from text
+    const procedimentos = extractProcedimentosFromText(text);
     
     return {
       success: true,
       procedimentos,
-      rawData: { text, numpages: pdf.numPages },
+      rawData: { text, numPages: pdf.numPages },
     };
   } catch (error) {
     return {
@@ -376,17 +494,74 @@ export async function parsePDF(content: Buffer): Promise<ParseResult> {
   }
 }
 
+function extractProcedimentosFromText(text: string): ParsedProcedimento[] {
+  const procedimentos: ParsedProcedimento[] = [];
+  
+  // Try to find procedure codes (8 digits starting with specific patterns)
+  const codePatterns = [
+    /\\b(\\d{8})\\b/g,  // 8 digit codes
+    /\\b(\\d{2}\\.\\d{2}\\.\\d{2}\\.\\d{2})\\b/g,  // XX.XX.XX.XX format
+  ];
+  
+  for (const pattern of codePatterns) {
+    const matches = Array.from(text.matchAll(pattern));
+    for (const match of matches) {
+      const codigo = match[1].replace(/\\./g, "");
+      
+      // Check if this looks like a valid procedure code
+      if (codigo.length >= 8 && /^[0-9]+$/.test(codigo)) {
+        // Try to find associated description (text after the code)
+        const afterCode = text.substring(match.index! + match[0].length, match.index! + match[0].length + 100);
+        const descMatch = afterCode.match(/^\\s*[-:]?\\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\\s]{5,50})/);
+        
+        procedimentos.push({
+          codigo,
+          descricao: descMatch ? descMatch[1].trim() : undefined,
+          quantidade: 1,
+          dadosExtras: { sourceText: match[0] },
+        });
+      }
+    }
+  }
+  
+  return procedimentos;
+}
+
 /**
- * Parse file based on type
+ * Convert ParsedProcedimento to InsertProcedimento for database
  */
-export async function parseFile(
-  content: Buffer,
-  fileType: "xml" | "excel" | "pdf"
-): Promise<ParseResult> {
-  switch (fileType) {
+export function toProcedimentoInsert(
+  parsed: ParsedProcedimento,
+  arquivoId: number
+): InsertProcedimento {
+  return {
+    arquivoId,
+    codigo: parsed.codigo,
+    descricao: parsed.descricao,
+    quantidade: parsed.quantidade || 1,
+    valorUnitario: parsed.valorUnitario ? String(parsed.valorUnitario) : undefined,
+    valorTotal: parsed.valorTotal ? String(parsed.valorTotal) : undefined,
+    dataExecucao: parsed.dataExecucao,
+    pacienteNome: parsed.pacienteNome,
+    pacienteCarteirinha: parsed.pacienteCarteirinha,
+    guiaNumero: parsed.guiaNumero,
+    nomeMedico: parsed.nomeMedico,
+    crmMedico: parsed.crmMedico,
+    dadosExtras: parsed.dadosExtras,
+  };
+}
+
+/**
+ * Determine file type and parse accordingly
+ */
+export async function parseFile(content: Buffer, filename: string): Promise<ParseResult> {
+  const extension = filename.toLowerCase().split(".").pop();
+  
+  switch (extension) {
     case "xml":
       return parseXML(content);
-    case "excel":
+    case "xlsx":
+    case "xls":
       return parseExcel(content);
     case "pdf":
       return parsePDF(content);
@@ -394,29 +569,7 @@ export async function parseFile(
       return {
         success: false,
         procedimentos: [],
-        error: `Tipo de arquivo não suportado: ${fileType}`,
+        error: `Tipo de arquivo não suportado: ${extension}`,
       };
   }
-}
-
-/**
- * Convert parsed procedimentos to database insert format
- */
-export function toProcedimentoInsert(
-  parsed: ParsedProcedimento,
-  arquivoId: number
-): Omit<InsertProcedimento, "id" | "createdAt"> {
-  return {
-    arquivoId,
-    codigo: parsed.codigo,
-    descricao: parsed.descricao || null,
-    quantidade: parsed.quantidade || 1,
-    valorUnitario: parsed.valorUnitario?.toString() || null,
-    valorTotal: parsed.valorTotal?.toString() || null,
-    dataExecucao: parsed.dataExecucao || null,
-    pacienteNome: parsed.pacienteNome || null,
-    pacienteCarteirinha: parsed.pacienteCarteirinha || null,
-    guiaNumero: parsed.guiaNumero || null,
-    dadosExtras: parsed.dadosExtras || null,
-  };
 }
