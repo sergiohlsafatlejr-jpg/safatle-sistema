@@ -2,6 +2,7 @@ import * as xml2js from "xml2js";
 import * as XLSX from "xlsx";
 // pdf-parse will be dynamically imported due to ESM compatibility issues
 import { InsertProcedimento } from "../drizzle/schema";
+import { traduzirMotivoGlosa } from "../shared/glossaryGlosas";
 
 export interface ParsedProcedimento {
   codigo: string;
@@ -214,8 +215,11 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
             const motivoRecord = motivo as Record<string, unknown>;
             const descricao = getTextValue(motivoRecord["descricaoGlosa"]);
             const codigo = getTextValue(motivoRecord["codigoGlosa"]);
-            if (descricao) {
-              motivosGlosaGuia.push(codigo ? `${codigo}: ${descricao}` : descricao);
+            if (codigo) {
+              // Traduzir código de glosa para descrição legível
+              motivosGlosaGuia.push(traduzirMotivoGlosa(codigo));
+            } else if (descricao) {
+              motivosGlosaGuia.push(descricao);
             }
           }
         }
@@ -255,7 +259,8 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
           valorGlosado = parseNumber(relacaoGlosa["valorGlosa"]) || 0;
           const tipoGlosa = getTextValue(relacaoGlosa["tipoGlosa"]);
           if (tipoGlosa) {
-            motivoGlosa = `Código: ${tipoGlosa}`;
+            // Traduzir código de glosa para descrição legível
+            motivoGlosa = traduzirMotivoGlosa(tipoGlosa);
           }
         }
         
@@ -654,7 +659,9 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
   
   // Get situacao for dadosExtras
   const situacaoItem = findValue(columnMappings.situacaoItem) as string | undefined;
-  const motivoGlosa = findValue(columnMappings.motivoGlosa) as string | undefined;
+  const motivoGlosaRaw = findValue(columnMappings.motivoGlosa) as string | undefined;
+  // Traduzir código de glosa para descrição legível se for um código
+  const motivoGlosa = motivoGlosaRaw ? traduzirMotivoGlosa(motivoGlosaRaw) : undefined;
   const valorGlosado = parseNumber(findValue(columnMappings.valorGlosado));
   
   return {

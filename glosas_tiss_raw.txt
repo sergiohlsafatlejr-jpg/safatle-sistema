@@ -1,0 +1,235 @@
+# MOTIVOS DE GLOSAS - TISS (Tabela 38)
+
+## Elegibilidade (1001-1099)
+1001 - Número da carteira inválido
+1003 - A admissão do Beneficiário no prestador ocorreu antes da inclusão do Beneficiário na Operadora
+1005 - Atendimento anterior à inclusão do Beneficiário
+1006 - Atendimento após o desligamento do Beneficiário
+1007 - Atendimento dentro da carência do Beneficiário
+1008 - Assinatura divergente
+1009 - Beneficiário com pagamento em aberto
+1010 - Assinatura do Titular / Responsável inexistente
+1011 - Identificação do beneficiário não consistente
+1012 - Serviço Profissional Hospitalar não é coberto pelo plano do beneficiário
+1013 - Cadastro do beneficiário com problemas
+1014 - Beneficiário com data de exclusão
+1015 - Idade do Beneficiário acima idade limite
+1016 - Beneficiário com atendimento suspenso
+1017 - Data Validade Vencida
+1023 - Nome do titular inválido
+1099 - Outros
+
+## Protocolo (1102-1199)
+1102 - Protocolo é de re-apresentação
+1199 - Outros
+
+## Prestador (1201-1299)
+1201 - Atendimento fora da vigência do contrato com o credenciado
+1202 - Número do CNES inválido
+1203 - Código Prestador inválido
+1204 - Admissão anterior à inclusão do credenciado na rede
+1205 - Admissão após o desligamento do credenciado da rede
+1206 - CPF / CNPJ inválido
+1207 - Credenciado não pertence à Rede Credenciada
+1208 - Solicitação anterior à inclusão do Credenciado
+1209 - Solicitação após o desligamento do Credenciado
+1210 - Solicitante Credenciado não cadastrado
+1211 - Assinatura / Carimbo do Credenciado inexistente
+1212 - Atendimento / Referência fora da vigência do contrato
+1213 - CBO-S (especialidade) inválido
+1214 - Credenciado não habilitado a realizar o procedimento
+1216 - Especialidade não cadastrada
+1217 - Especialidade não cadastrada para o prestador
+1299 - Outros
+
+## Guia (1301-1399)
+1301 - Tipo guia inválido
+1302 - Código tipo Guia Principal e Número Guias Incompatíveis
+1303 - Não existe o Número Guia Principal informado
+1304 - Cobrança em guia indevida
+1305 - Item pago em outra Guia
+1306 - Não existe Número Guia Principal e/ou Código Guia Principal
+1307 - Número da guia inválido
+1308 - Guia já apresentada
+1309 - Procedimento contratado não está de acordo com o tipo de guia utilizado
+1310 - Serviço do tipo cirúrgico e invasivo. Equipe médica não informada na guia
+1311 - Prestador executante não informado
+1312 - Prestador contratado não informado
+1313 - Guia com rasura
+1314 - Guia sem assinatura e/ou carimbo do credenciado
+1315 - Guia sem data do ato cirúrgico
+1316 - Guia com local de atendimento preenchido incorretamente
+1317 - Guia sem data do atendimento
+
+1318 - Guia com código de serviço preenchido incorretamente
+1319 - Guia sem assinatura do assistido
+1320 - Identificação do assistido incompleta
+1321 - Validade da guia expirada
+1399 - Outros
+
+## Autorização/Solicitação (1401-1499)
+1402 - Procedimento não autorizado
+1403 - Não existe informação sobre a senha de autorização do procedimento
+1404 - Não existe guia de autorização relacionada
+1406 - Número da Senha informado diferente do liberado
+1407 - Serviço solicitado não possui cobertura
+1408 - Quantidade Serviço solicitada acima da Autorizada
+1409 - Quantidade Serviço solicitada acima coberta
+1410 - Serviço solicitado em Carência
+1411 - Solicitante não Informado
+1415 - Procedimento não autorizado para o Beneficiário
+1416 - Solicitante não Cadastrado
+1417 - Solicitante não habilitado
+1418 - Solicitante suspenso
+1419 - Serviço solicitado já autorizado
+1420 - Serviço solicitado fora da cobertura
+1421 - Serviço solicitado é de pré-existência
+1422 - Especialidade não cadastrada para o Solicitante
+1423 - Quantidade solicitada acima da quantidade permitida
+1424 - Quantidade autorizada acima da quantidade permitida
+1425 - Necessita pré-autorização da empresa
+1426 - Não autorizada pela auditoria médica
+1427 - Necessidade da auditoria médica
+1428 - Falta de autorização da empresa de conectividade
+1429 - CBO-S (especialidade) não autorizado a realizar o serviço
+1499 - Outros
+
+## Diagnóstico (1502-1599)
+1502 - Tipo de doença inválido
+1504 - Caráter de Internação Inválido
+1505 - Regime de internação inválido
+1506 - Tipo de Internação inválido
+1507 - Urgência não aplicável
+1508 - Código CID não Informado
+1509 - Código CID inválido
+1599 - Outros
+
+## Atendimento (1601-1699)
+1601 - Reincidência no atendimento
+1602 - Tipo de atendimento inválido ou não informado
+1603 - Tipo de consulta inválido
+1604 - Tipo de saída inválido
+1605 - Intervenção anterior a Admissão
+1606 - Final da Intervenção anterior ao Início da Intervenção
+1607 - Alta Hospitalar anterior ao Final da Intervenção
+1608 - Alta anterior à data de Internação
+1609 - Motivo Saída Inválido
+1610 - Óbito Mulher Inválido
+1611 - Intervenção anterior a Internação
+1612 - Serviço não pode ser realizado no local especificado
+1613 - Consulta não autorizada
+1614 - Serviço ambulatorial não autorizado
+1615 - Internação não autorizada
+1699 - Outros
+
+## Regra de Valorização (1701-1799)
+1701 - Cobrança fora do prazo de validade
+1702 - Cobrança de procedimento em duplicidade
+1703 - Honorário do atendimento não está na faixa de urgência / atendimento
+1704 - Valor cobrado superior ao acordado em pacote
+1705 - Valor apresentado a maior
+1706 - Valor apresentado a menor
+1707 - Não existe informação sobre a tabela que será utilizada na Valoração. Verifique o Contrato do Prestador
+1708 - Não existe valor para o procedimento realizado
+1709 - Falta prescrição médica
+1710 - Falta visto da Enfermagem
+1711 - Procedimento pertence a um pacote acordado e já cobrado
+1712 - Assinatura do Médico responsável pelo exame inexistente
+1713 - Faturamento Inválido
+1714 - Valor do serviço superior ao valor de tabela
+
+1715 - Valor do serviço inferior ao valor de tabela
+1716 - Percentual de redução / acréscimo fora dos valores definidos em tabela
+1799 - Outros
+
+## Procedimento (1801-1899)
+1801 - Procedimento inválido
+1802 - Procedimento incompatível com o sexo do Beneficiário
+1803 - Idade do Beneficiário incompatível com o Procedimento
+1804 - Números de dias liberados / sessões autorizadas não informadas
+1805 - Valor total do procedimento diferente do valor Processado
+1806 - Quantidade de procedimento deve ser maior que zero
+1807 - Procedimentos médicos duplicados
+1808 - Procedimento não conforme com o CID
+1809 - Cobrança de procedimento não executado
+1810 - Cobrança de procedimento não solicitado pelo médico
+1811 - Procedimento sem registro de execução
+1812 - Cobrança de procedimento não correlacionado ao relatório específico
+1813 - Cobrança de procedimento sem justificativa para realização ou com justificativa insuficiente
+1814 - Cobrança de procedimento com data de autorização posterior à do atendimento
+1815 - Procedimento não autorizado
+1816 - Cobrança de procedimento em quantidade incompatível com o procedimento / evolução clínica
+1817 - Cobrança de procedimento incluso no procedimento principal
+1818 - Cobrança de procedimento que exige autorização prévia
+1819 - Cobrança de procedimento com história clínica / hipótese diagnóstica não compatível
+1820 - Cobrança de procedimento em quantidade acima da máxima permitida / autorizada
+1821 - Cobrança de procedimento não compatível com a idade
+1822 - Cobrança de procedimento com ausência de resultado ou laudo técnico
+1823 - Procedimento realizado pelo mesmo profissional, na mesma especialidade, no prazo inferior ao estipulado sem justificativa adequada
+1824 - Procedimento cobrado não corresponde ao exame executado
+1825 - Cobrança de procedimento ambulatorial com data de autorização posterior à do atendimento
+1899 - Outros
+
+## Diária (1901-1999)
+1901 - Acomodação informada não está de acordo com acomodação contratada
+1902 - Permanência hospitalar incompatível com a evolução clínica
+1903 - Permanência hospitalar incompatível com o procedimento autorizado
+1904 - Quantidade de diárias deve ser maior que zero
+1905 - Acomodação não informada
+1906 - Quantidade UTI não prevista para procedimento
+1907 - Usuário não possui cobertura de UTI
+1908 - Acomodação não autorizada
+1909 - Cobrança de diárias em locais de acomodações diferentes, no mesmo dia
+1910 - Permanência hospitalar para investigação injustificada
+
+1911 - Evolução clínica não compatível com a permanência em UTI
+1912 - Código de diária incompatível com o local de atendimento
+1913 - Cobrança de diária em quantidade incompatível com a permanência hospitalar
+1914 - Mudança de acomodação sem comunicação ao paciente, familiar ou acompanhante, ou sem solicitação destes
+1915 - Cobrança de diárias de UTI incompatível com diagnóstico e evolução clínica
+1999 - Outros
+
+## Material (2001-2099)
+2001 - Material inválido
+2002 - Material sem cobertura para atendimento ambulatorial
+2003 - Material não especificado
+2004 - Material sem nota fiscal do fornecedor
+2005 - Quantidade de material deve ser maior que zero
+2006 - Material informado não coberto
+2007 - Cobrança de material em quantidade incompatível com a permanência
+2008 - Cobrança de material em quantidades incompatíveis com o procedimento realizado
+2009 - Cobrança de material superior a quantidade coberta
+2010 - Cobranças de materiais inclusos nas taxas
+2011 - Cobrança de material incluso no pacote negociado
+2012 - Cobrança de material incompatível com o relatório técnico
+2013 - Cobrança de material em permanência hospitalar não autorizada
+2014 - Cobrança de material não utilizado
+2099 - Outros
+
+## Medicamento (2101-2199)
+2101 - Medicamento inválido
+2102 - Medicamento sem cobertura para atendimento ambulatorial
+2103 - Medicamento não especificado
+2104 - Medicamento sem nota fiscal do fornecedor
+2105 - Quantidade de medicamentos deve ser maior que zero
+2106 - Medicamento informado não coberto
+2107 - Cobrança de medicamento em quantidade incompatível com a permanência
+2108 - Cobrança de medicamento em quantidades incompatíveis com o procedimento realizado
+2109 - Quantidade de medicamento superior a quantidade coberta
+2110 - Cobrança de medicamento inclusos nas taxas
+2111 - Cobrança de medicamento incluso no pacote negociado
+2112 - Cobrança de medicamento incompatível com o relatório técnico
+2113 - Cobrança de medicamento em permanência hospitalar não autorizada
+2114 - Cobrança de medicamento não autorizado
+2199 - Outros
+
+## OPM - Órtese, Prótese e Materiais Especiais (2201-2299)
+2202 - OPM sem cobertura para atendimento ambulatorial
+2203 - OPM sem nota fiscal do prestador
+2204 - Quantidade de OPM deve ser maior que zero
+2205 - OPM informado não coberto
+2206 - OPM informado não autorizado
+2207 - Cobrança de OPM não utilizado
+2208 - Cobrança de OPM no item material e medicamentos
+2209 - Cobrança de OPM em desacordo com relatório técnico
+2210 - Cobrança de OPM em quantidade incompatível com o procedimento realizado

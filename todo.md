@@ -86,3 +86,4 @@
 - [x] Corrigir gráficos de Faturamento - usar valores do arquivo de retorno para Total Recebido
 - [x] Corrigir filtros para aplicar no backend antes da paginação (todas as telas)
 - [x] Corrigir importação de arquivos XML de retorno que não trazem itens
+- [x] Criar dicionário de códigos de glosa TISS para traduzir em descrições legíveis
