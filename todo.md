@@ -45,3 +45,5 @@
 - [x] Parser XML não extrai valores unitários e totais dos procedimentos
 - [x] Parser XML não extrai nome do médico
 - [x] Parser XML não extrai número das guias
+- [x] Suporte a drag and drop na tela de upload
+- [x] Upload múltiplo de até 30 arquivos de uma vez

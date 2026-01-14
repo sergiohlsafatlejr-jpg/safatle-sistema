@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
-import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, Plus, Loader2 } from "lucide-react";
-import { useState, useRef } from "react";
+import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, Plus, Loader2, X, Files } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -18,16 +19,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+interface FileItem {
+  file: File;
+  status: "pending" | "uploading" | "success" | "error";
+  error?: string;
+}
+
+const MAX_FILES = 30;
+
 export default function Upload() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [tipoArquivo, setTipoArquivo] = useState<"xml" | "excel" | "pdf">("xml");
+  const [selectedFiles, setSelectedFiles] = useState<FileItem[]>([]);
   const [direcao, setDirecao] = useState<"enviado" | "retornado">("enviado");
   const [convenioId, setConvenioId] = useState<string>("");
   const [dataReferencia, setDataReferencia] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [novoConvenioNome, setNovoConvenioNome] = useState("");
   const [novoConvenioCodigo, setNovoConvenioCodigo] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: convenios, refetch: refetchConvenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
@@ -35,67 +45,155 @@ export default function Upload() {
   const criarConvenioMutation = trpc.convenios.create.useMutation();
   const utils = trpc.useUtils();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+  const detectFileType = (file: File): "xml" | "excel" | "pdf" => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xml") return "xml";
+    if (ext === "xlsx" || ext === "xls") return "excel";
+    if (ext === "pdf") return "pdf";
+    return "xml";
+  };
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validExtensions = [".xml", ".xlsx", ".xls", ".pdf"];
+    
+    const validFiles = fileArray.filter(file => {
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      return validExtensions.includes(ext);
+    });
+
+    if (validFiles.length !== fileArray.length) {
+      toast.warning("Alguns arquivos foram ignorados. Formatos aceitos: XML, Excel, PDF");
+    }
+
+    setSelectedFiles(prev => {
+      const newFiles = validFiles.map(file => ({ file, status: "pending" as const }));
+      const combined = [...prev, ...newFiles];
       
-      // Auto-detect file type
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      if (ext === "xml") {
-        setTipoArquivo("xml");
-      } else if (ext === "xlsx" || ext === "xls") {
-        setTipoArquivo("excel");
-      } else if (ext === "pdf") {
-        setTipoArquivo("pdf");
+      if (combined.length > MAX_FILES) {
+        toast.error(`Máximo de ${MAX_FILES} arquivos permitidos. Alguns arquivos foram ignorados.`);
+        return combined.slice(0, MAX_FILES);
       }
+      
+      return combined;
+    });
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      addFiles(files);
+    }
+    // Reset input to allow selecting same files again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      addFiles(files);
+    }
+  }, [addFiles]);
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllFiles = () => {
+    setSelectedFiles([]);
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile || !convenioId) {
-      toast.error("Por favor, selecione um arquivo e um convênio");
+    if (selectedFiles.length === 0 || !convenioId) {
+      toast.error("Por favor, selecione pelo menos um arquivo e um convênio");
       return;
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
 
-    try {
-      // Convert file to base64
-      const buffer = await selectedFile.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-      );
+    const pendingFiles = selectedFiles.filter(f => f.status === "pending" || f.status === "error");
+    let successCount = 0;
+    let errorCount = 0;
 
-      await uploadMutation.mutateAsync({
-        nome: selectedFile.name,
-        tipoArquivo,
-        direcao,
-        convenioId: parseInt(convenioId),
-        conteudo: base64,
-        dataReferencia: dataReferencia || undefined,
-      });
-
-      toast.success("Arquivo enviado com sucesso!");
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const fileItem = pendingFiles[i];
+      const fileIndex = selectedFiles.findIndex(f => f.file === fileItem.file);
       
-      // Reset form
-      setSelectedFile(null);
-      setDataReferencia("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      // Update status to uploading
+      setSelectedFiles(prev => prev.map((f, idx) => 
+        idx === fileIndex ? { ...f, status: "uploading" as const } : f
+      ));
+
+      try {
+        // Convert file to base64
+        const buffer = await fileItem.file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+        );
+
+        await uploadMutation.mutateAsync({
+          nome: fileItem.file.name,
+          tipoArquivo: detectFileType(fileItem.file),
+          direcao,
+          convenioId: parseInt(convenioId),
+          conteudo: base64,
+          dataReferencia: dataReferencia || undefined,
+        });
+
+        // Update status to success
+        setSelectedFiles(prev => prev.map((f, idx) => 
+          idx === fileIndex ? { ...f, status: "success" as const } : f
+        ));
+        successCount++;
+      } catch (error) {
+        console.error("Upload error:", error);
+        // Update status to error
+        setSelectedFiles(prev => prev.map((f, idx) => 
+          idx === fileIndex ? { ...f, status: "error" as const, error: "Erro ao enviar" } : f
+        ));
+        errorCount++;
       }
-      
-      // Invalidate queries
-      utils.arquivos.list.invalidate();
-      utils.arquivos.stats.invalidate();
-      utils.dashboard.resumo.invalidate();
-      utils.dashboard.ultimosArquivos.invalidate();
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Erro ao enviar arquivo. Tente novamente.");
-    } finally {
-      setIsUploading(false);
+
+      // Update progress
+      setUploadProgress(Math.round(((i + 1) / pendingFiles.length) * 100));
     }
+
+    // Show summary toast
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`${successCount} arquivo(s) enviado(s) com sucesso!`);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`${successCount} arquivo(s) enviado(s), ${errorCount} com erro`);
+    } else if (errorCount > 0) {
+      toast.error(`Erro ao enviar ${errorCount} arquivo(s)`);
+    }
+
+    // Invalidate queries
+    utils.arquivos.list.invalidate();
+    utils.arquivos.stats.invalidate();
+    utils.dashboard.resumo.invalidate();
+    utils.dashboard.ultimosArquivos.invalidate();
+    utils.procedimentos.list.invalidate();
+
+    setIsUploading(false);
   };
 
   const handleCriarConvenio = async () => {
@@ -121,13 +219,17 @@ export default function Upload() {
     }
   };
 
+  const pendingCount = selectedFiles.filter(f => f.status === "pending").length;
+  const successCount = selectedFiles.filter(f => f.status === "success").length;
+  const errorCount = selectedFiles.filter(f => f.status === "error").length;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Upload de Arquivos</h1>
           <p className="text-slate-500">
-            Envie arquivos XML, Excel ou PDF para processamento
+            Envie até {MAX_FILES} arquivos XML, Excel ou PDF de uma vez
           </p>
         </div>
 
@@ -135,20 +237,32 @@ export default function Upload() {
           {/* Upload Form */}
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>Enviar Arquivo</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Enviar Arquivos</span>
+                {selectedFiles.length > 0 && (
+                  <span className="text-sm font-normal text-slate-500">
+                    {selectedFiles.length}/{MAX_FILES} arquivos
+                  </span>
+                )}
+              </CardTitle>
               <CardDescription>
-                Selecione o arquivo e preencha as informações necessárias
+                Arraste e solte os arquivos ou clique para selecionar
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* File Drop Zone */}
               <div
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-                  selectedFile 
-                    ? "border-green-300 bg-green-50" 
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
+                  isDragOver
+                    ? "border-primary bg-primary/5 scale-[1.02]"
+                    : selectedFiles.length > 0
+                    ? "border-green-300 bg-green-50"
                     : "border-slate-200 hover:border-primary hover:bg-slate-50"
                 }`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
                 <input
                   ref={fileInputRef}
@@ -156,52 +270,117 @@ export default function Upload() {
                   accept=".xml,.xlsx,.xls,.pdf"
                   onChange={handleFileChange}
                   className="hidden"
+                  multiple
                 />
-                {selectedFile ? (
+                {isDragOver ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Files className="h-12 w-12 text-primary animate-bounce" />
+                    <p className="font-medium text-primary">Solte os arquivos aqui</p>
+                  </div>
+                ) : selectedFiles.length > 0 ? (
                   <div className="flex flex-col items-center gap-3">
                     <CheckCircle2 className="h-12 w-12 text-green-500" />
                     <div>
-                      <p className="font-medium text-slate-900">{selectedFile.name}</p>
+                      <p className="font-medium text-slate-900">
+                        {selectedFiles.length} arquivo(s) selecionado(s)
+                      </p>
                       <p className="text-sm text-slate-500">
-                        {(selectedFile.size / 1024).toFixed(2)} KB
+                        Clique ou arraste para adicionar mais
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}>
-                      Remover
-                    </Button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <UploadIcon className="h-12 w-12 text-slate-400" />
                     <div>
-                      <p className="font-medium text-slate-900">Clique para selecionar</p>
-                      <p className="text-sm text-slate-500">ou arraste o arquivo aqui</p>
+                      <p className="font-medium text-slate-900">Arraste e solte os arquivos aqui</p>
+                      <p className="text-sm text-slate-500">ou clique para selecionar</p>
                     </div>
-                    <p className="text-xs text-slate-400">XML, Excel (.xlsx) ou PDF</p>
+                    <p className="text-xs text-slate-400">XML, Excel (.xlsx) ou PDF • Até {MAX_FILES} arquivos</p>
                   </div>
                 )}
               </div>
 
+              {/* File List */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Arquivos selecionados</Label>
+                    <Button variant="ghost" size="sm" onClick={clearAllFiles} className="text-xs h-auto py-1">
+                      Limpar todos
+                    </Button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                    {selectedFiles.map((item, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between p-2 rounded-lg text-sm ${
+                          item.status === "success"
+                            ? "bg-green-50 text-green-700"
+                            : item.status === "error"
+                            ? "bg-red-50 text-red-700"
+                            : item.status === "uploading"
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {item.status === "uploading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                          ) : item.status === "success" ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          ) : item.status === "error" ? (
+                            <AlertCircle className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <FileText className="h-4 w-4 shrink-0" />
+                          )}
+                          <span className="truncate">{item.file.name}</span>
+                        </div>
+                        {item.status === "pending" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile(index);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {(successCount > 0 || errorCount > 0) && (
+                    <div className="flex gap-4 text-xs text-slate-500 pt-2">
+                      {successCount > 0 && (
+                        <span className="text-green-600">✓ {successCount} enviado(s)</span>
+                      )}
+                      {errorCount > 0 && (
+                        <span className="text-red-600">✗ {errorCount} com erro</span>
+                      )}
+                      {pendingCount > 0 && (
+                        <span>• {pendingCount} pendente(s)</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Progress */}
+              {isUploading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Enviando arquivos...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
+
               {/* Form Fields */}
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="tipoArquivo">Tipo de Arquivo</Label>
-                  <Select value={tipoArquivo} onValueChange={(v) => setTipoArquivo(v as typeof tipoArquivo)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="xml">XML</SelectItem>
-                      <SelectItem value="excel">Excel</SelectItem>
-                      <SelectItem value="pdf">PDF</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="direcao">Direção</Label>
                   <Select value={direcao} onValueChange={(v) => setDirecao(v as typeof direcao)}>
@@ -214,71 +393,71 @@ export default function Upload() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="convenio">Convênio</Label>
-                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-auto py-1 px-2 text-xs">
-                        <Plus className="h-3 w-3 mr-1" />
-                        Novo
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Novo Convênio</DialogTitle>
-                        <DialogDescription>
-                          Adicione um novo convênio ao sistema
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="nomeConvenio">Nome do Convênio</Label>
-                          <Input
-                            id="nomeConvenio"
-                            value={novoConvenioNome}
-                            onChange={(e) => setNovoConvenioNome(e.target.value)}
-                            placeholder="Ex: Unimed, Bradesco Saúde..."
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="codigoConvenio">Código (opcional)</Label>
-                          <Input
-                            id="codigoConvenio"
-                            value={novoConvenioCodigo}
-                            onChange={(e) => setNovoConvenioCodigo(e.target.value)}
-                            placeholder="Ex: 001, UNI..."
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                          Cancelar
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="convenio">Convênio</Label>
+                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-auto py-1 px-2 text-xs">
+                          <Plus className="h-3 w-3 mr-1" />
+                          Novo
                         </Button>
-                        <Button onClick={handleCriarConvenio} disabled={criarConvenioMutation.isPending}>
-                          {criarConvenioMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : null}
-                          Criar Convênio
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Novo Convênio</DialogTitle>
+                          <DialogDescription>
+                            Adicione um novo convênio ao sistema
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="nomeConvenio">Nome do Convênio</Label>
+                            <Input
+                              id="nomeConvenio"
+                              value={novoConvenioNome}
+                              onChange={(e) => setNovoConvenioNome(e.target.value)}
+                              placeholder="Ex: Unimed, Bradesco Saúde..."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="codigoConvenio">Código (opcional)</Label>
+                            <Input
+                              id="codigoConvenio"
+                              value={novoConvenioCodigo}
+                              onChange={(e) => setNovoConvenioCodigo(e.target.value)}
+                              placeholder="Ex: 001, UNI..."
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={handleCriarConvenio} disabled={criarConvenioMutation.isPending}>
+                            {criarConvenioMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : null}
+                            Criar Convênio
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <Select value={convenioId} onValueChange={setConvenioId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um convênio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {convenios?.map((conv) => (
+                        <SelectItem key={conv.id} value={conv.id.toString()}>
+                          {conv.nome} {conv.codigo ? `(${conv.codigo})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={convenioId} onValueChange={setConvenioId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um convênio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {convenios?.map((conv) => (
-                      <SelectItem key={conv.id} value={conv.id.toString()}>
-                        {conv.nome} {conv.codigo ? `(${conv.codigo})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="space-y-2">
@@ -295,17 +474,17 @@ export default function Upload() {
                 className="w-full" 
                 size="lg"
                 onClick={handleUpload}
-                disabled={!selectedFile || !convenioId || isUploading}
+                disabled={selectedFiles.length === 0 || !convenioId || isUploading || pendingCount === 0}
               >
                 {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Enviando...
+                    Enviando {selectedFiles.filter(f => f.status === "uploading").length > 0 ? "..." : ""}
                   </>
                 ) : (
                   <>
                     <UploadIcon className="h-4 w-4 mr-2" />
-                    Enviar Arquivo
+                    Enviar {pendingCount > 0 ? `${pendingCount} Arquivo(s)` : "Arquivos"}
                   </>
                 )}
               </Button>
@@ -324,9 +503,9 @@ export default function Upload() {
                     <span className="text-sm font-medium text-blue-600">1</span>
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Selecione o arquivo</p>
+                    <p className="font-medium text-slate-900">Arraste ou selecione os arquivos</p>
                     <p className="text-sm text-slate-500">
-                      Formatos aceitos: XML (TISS), Excel (.xlsx) e PDF
+                      Até {MAX_FILES} arquivos por vez: XML (TISS), Excel (.xlsx) e PDF
                     </p>
                   </div>
                 </div>
@@ -337,7 +516,7 @@ export default function Upload() {
                   <div>
                     <p className="font-medium text-slate-900">Informe a direção</p>
                     <p className="text-sm text-slate-500">
-                      Indique se o arquivo foi enviado ou retornado do convênio
+                      Indique se os arquivos foram enviados ou retornados do convênio
                     </p>
                   </div>
                 </div>
@@ -348,7 +527,7 @@ export default function Upload() {
                   <div>
                     <p className="font-medium text-slate-900">Selecione o convênio</p>
                     <p className="text-sm text-slate-500">
-                      Escolha o convênio relacionado ao arquivo
+                      Todos os arquivos serão associados ao convênio selecionado
                     </p>
                   </div>
                 </div>
@@ -359,7 +538,7 @@ export default function Upload() {
                   <div>
                     <p className="font-medium text-slate-900">Processamento automático</p>
                     <p className="text-sm text-slate-500">
-                      O sistema extrairá automaticamente os procedimentos do arquivo
+                      O sistema extrairá automaticamente os procedimentos de cada arquivo
                     </p>
                   </div>
                 </div>
