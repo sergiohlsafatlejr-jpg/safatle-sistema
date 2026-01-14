@@ -47,3 +47,7 @@
 - [x] Parser XML não extrai número das guias
 - [x] Suporte a drag and drop na tela de upload
 - [x] Upload múltiplo de até 30 arquivos de uma vez
+- [x] Extrair data de execução dos procedimentos
+- [x] Extrair CRM da tag numeroConselhoProfissional
+- [x] Extrair nome do médico da tag nomeProf
+- [x] Separar/agrupar guias por dia na visualização

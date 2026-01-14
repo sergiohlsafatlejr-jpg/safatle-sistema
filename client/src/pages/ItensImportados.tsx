@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { FileSearch, Download, Filter, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { FileSearch, Download, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, User, Hash } from "lucide-react";
+import { useState, useMemo } from "react";
 
 export default function ItensImportados() {
   const { user } = useAuth();
@@ -16,7 +18,8 @@ export default function ItensImportados() {
   const [arquivoId, setArquivoId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [agruparPorDia, setAgruparPorDia] = useState(false);
+  const pageSize = 50;
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
@@ -43,16 +46,40 @@ export default function ItensImportados() {
   const totalItems = procedimentosData?.total || 0;
   const totalPages = Math.ceil(totalItems / pageSize);
 
+  // Agrupar procedimentos por data de execução
+  const procedimentosAgrupados = useMemo(() => {
+    if (!agruparPorDia) return null;
+    
+    const grupos: Record<string, typeof procedimentos> = {};
+    procedimentos.forEach((p: any) => {
+      const dataKey = p.dataExecucao 
+        ? new Date(p.dataExecucao).toLocaleDateString("pt-BR") 
+        : "Sem data";
+      if (!grupos[dataKey]) grupos[dataKey] = [];
+      grupos[dataKey].push(p);
+    });
+    
+    // Ordenar por data (mais recente primeiro)
+    return Object.entries(grupos).sort((a, b) => {
+      if (a[0] === "Sem data") return 1;
+      if (b[0] === "Sem data") return -1;
+      const dateA = a[0].split("/").reverse().join("-");
+      const dateB = b[0].split("/").reverse().join("-");
+      return dateB.localeCompare(dateA);
+    });
+  }, [procedimentos, agruparPorDia]);
+
   const handleExportCSV = () => {
     if (!procedimentos.length) return;
 
-    const headers = ["Código", "Descrição", "Quantidade", "Valor Unitário", "Valor Total", "Médico", "CRM", "Guia", "Arquivo"];
+    const headers = ["Código", "Descrição", "Quantidade", "Valor Unitário", "Valor Total", "Data Execução", "Médico", "CRM", "Guia", "Arquivo"];
     const rows = procedimentos.map((p: any) => [
       p.codigo,
       p.descricao || "",
       p.quantidade,
       p.valorUnitario || "",
       p.valorTotal || "",
+      p.dataExecucao ? new Date(p.dataExecucao).toLocaleDateString("pt-BR") : "",
       p.nomeMedico || "",
       p.crmMedico || "",
       p.guiaNumero || "",
@@ -71,6 +98,72 @@ export default function ItensImportados() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "-";
+    try {
+      return new Date(dateStr).toLocaleDateString("pt-BR");
+    } catch {
+      return "-";
+    }
+  };
+
+  const renderTable = (items: any[], showDateColumn = true) => (
+    <div className="rounded-md border overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Código</TableHead>
+            <TableHead>Descrição</TableHead>
+            <TableHead className="text-center">Qtd</TableHead>
+            <TableHead className="text-right">Valor Unit.</TableHead>
+            <TableHead className="text-right">Valor Total</TableHead>
+            {showDateColumn && <TableHead>Data Exec.</TableHead>}
+            <TableHead>Médico</TableHead>
+            <TableHead>CRM</TableHead>
+            <TableHead>Guia</TableHead>
+            <TableHead>Arquivo</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((proc: any) => (
+            <TableRow key={proc.id}>
+              <TableCell className="font-mono text-sm">
+                {proc.codigo}
+              </TableCell>
+              <TableCell className="max-w-[200px] truncate" title={proc.descricao || "-"}>
+                {proc.descricao || <span className="text-muted-foreground italic">Sem descrição</span>}
+              </TableCell>
+              <TableCell className="text-center">{proc.quantidade}</TableCell>
+              <TableCell className="text-right">
+                {proc.valorUnitario ? `R$ ${parseFloat(proc.valorUnitario).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                {proc.valorTotal ? `R$ ${parseFloat(proc.valorTotal).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
+              </TableCell>
+              {showDateColumn && (
+                <TableCell className="whitespace-nowrap">
+                  {formatDate(proc.dataExecucao)}
+                </TableCell>
+              )}
+              <TableCell className="max-w-[150px] truncate" title={proc.nomeMedico || "-"}>
+                {proc.nomeMedico || "-"}
+              </TableCell>
+              <TableCell className="font-mono text-sm">
+                {proc.crmMedico || "-"}
+              </TableCell>
+              <TableCell className="font-mono text-sm">
+                {proc.guiaNumero || "-"}
+              </TableCell>
+              <TableCell className="max-w-[150px] truncate" title={proc.arquivoNome || "-"}>
+                {proc.arquivoNome || "-"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <DashboardLayout>
@@ -104,7 +197,7 @@ export default function ItensImportados() {
             <CardDescription>Filtre os itens por convênio, arquivo ou busca</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={(value) => {
@@ -159,6 +252,20 @@ export default function ItensImportados() {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">Visualização</label>
+                <div className="flex items-center space-x-2 h-10">
+                  <Switch
+                    id="agrupar-dia"
+                    checked={agruparPorDia}
+                    onCheckedChange={setAgruparPorDia}
+                  />
+                  <Label htmlFor="agrupar-dia" className="text-sm cursor-pointer">
+                    Agrupar por dia
+                  </Label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">&nbsp;</label>
                 <Button 
                   variant="outline" 
@@ -168,6 +275,7 @@ export default function ItensImportados() {
                     setArquivoId("");
                     setSearchTerm("");
                     setPage(1);
+                    setAgruparPorDia(false);
                   }}
                 >
                   Limpar Filtros
@@ -178,10 +286,13 @@ export default function ItensImportados() {
         </Card>
 
         {/* Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{totalItems}</div>
+              <div className="flex items-center gap-2">
+                <Hash className="h-4 w-4 text-muted-foreground" />
+                <div className="text-2xl font-bold">{totalItems}</div>
+              </div>
               <p className="text-xs text-muted-foreground">Total de itens</p>
             </CardContent>
           </Card>
@@ -201,6 +312,17 @@ export default function ItensImportados() {
               <p className="text-xs text-muted-foreground">Valor total (página atual)</p>
             </CardContent>
           </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <div className="text-2xl font-bold">
+                  {new Set(procedimentos.filter((p: any) => p.nomeMedico).map((p: any) => p.nomeMedico)).size}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Médicos identificados</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Tabela de Itens */}
@@ -209,6 +331,12 @@ export default function ItensImportados() {
             <CardTitle className="flex items-center gap-2">
               <FileSearch className="h-5 w-5" />
               Procedimentos Importados
+              {agruparPorDia && procedimentosAgrupados && (
+                <Badge variant="secondary" className="ml-2">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {procedimentosAgrupados.length} dia(s)
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               {totalItems} item(ns) encontrado(s)
@@ -225,56 +353,27 @@ export default function ItensImportados() {
                 <p>Nenhum item encontrado</p>
                 <p className="text-sm">Importe arquivos para ver os procedimentos aqui</p>
               </div>
+            ) : agruparPorDia && procedimentosAgrupados ? (
+              <div className="space-y-6">
+                {procedimentosAgrupados.map(([data, items]) => (
+                  <div key={data} className="space-y-3">
+                    <div className="flex items-center gap-3 sticky top-0 bg-background py-2 z-10">
+                      <Badge variant="outline" className="text-sm px-3 py-1">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        {data}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {items.length} procedimento(s) • 
+                        R$ {items.reduce((acc: number, p: any) => acc + parseFloat(p.valorTotal || "0"), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {renderTable(items, false)}
+                  </div>
+                ))}
+              </div>
             ) : (
               <>
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead className="text-center">Qtd</TableHead>
-                        <TableHead className="text-right">Valor Unit.</TableHead>
-                        <TableHead className="text-right">Valor Total</TableHead>
-                        <TableHead>Médico</TableHead>
-                        <TableHead>CRM</TableHead>
-                        <TableHead>Guia</TableHead>
-                        <TableHead>Arquivo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {procedimentos.map((proc: any) => (
-                        <TableRow key={proc.id}>
-                          <TableCell className="font-mono text-sm">
-                            {proc.codigo}
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={proc.descricao || "-"}>
-                            {proc.descricao || <span className="text-muted-foreground italic">Sem descrição</span>}
-                          </TableCell>
-                          <TableCell className="text-center">{proc.quantidade}</TableCell>
-                          <TableCell className="text-right">
-                            {proc.valorUnitario ? `R$ ${parseFloat(proc.valorUnitario).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {proc.valorTotal ? `R$ ${parseFloat(proc.valorTotal).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-"}
-                          </TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={proc.nomeMedico || "-"}>
-                            {proc.nomeMedico || "-"}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {proc.crmMedico || "-"}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {proc.guiaNumero || "-"}
-                          </TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={proc.arquivoNome || "-"}>
-                            {proc.arquivoNome || "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                {renderTable(procedimentos)}
 
                 {/* Paginação */}
                 {totalPages > 1 && (

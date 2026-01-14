@@ -317,14 +317,34 @@ function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
   const valorTotal = parseNumber(record["valorTotal"]);
   const dataExecucao = parseDate(record["dataExecucao"]);
   
-  // Extract medico from equipeSadt
+  // Extract medico from equipeSadt or identEquipe/identificacaoEquipe
   let nomeMedico: string | undefined;
   let crmMedico: string | undefined;
   
+  // Try equipeSadt first (guiaSP-SADT)
   const equipeSadt = record["equipeSadt"] as Record<string, unknown> | undefined;
   if (equipeSadt) {
     nomeMedico = getTextValue(equipeSadt["nomeProf"]) || getTextValue(equipeSadt["nomeProfissional"]);
     crmMedico = getTextValue(equipeSadt["numeroConselhoProfissional"]);
+  }
+  
+  // Try identEquipe (guiaResumoInternacao)
+  if (!nomeMedico) {
+    const identEquipe = record["identEquipe"] as Record<string, unknown> | undefined;
+    if (identEquipe) {
+      // identEquipe can contain identificacaoEquipe directly or as array
+      let identificacaoEquipe = identEquipe["identificacaoEquipe"] as Record<string, unknown> | Record<string, unknown>[] | undefined;
+      
+      // If it's an array, take the first one
+      if (Array.isArray(identificacaoEquipe)) {
+        identificacaoEquipe = identificacaoEquipe[0] as Record<string, unknown>;
+      }
+      
+      if (identificacaoEquipe) {
+        nomeMedico = getTextValue(identificacaoEquipe["nomeProf"]) || getTextValue(identificacaoEquipe["nomeProfissional"]);
+        crmMedico = getTextValue(identificacaoEquipe["numeroConselhoProfissional"]);
+      }
+    }
   }
   
   return {
