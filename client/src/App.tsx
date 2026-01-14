@@ -19,6 +19,7 @@ import RecursosGlosa from "./pages/RecursosGlosa";
 import Tendencias from "./pages/Tendencias";
 import Demonstrativo from "./pages/Demonstrativo";
 import Repasse from "./pages/Repasse";
+import DicionarioGlosas from "./pages/DicionarioGlosas";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function Router() {
       <Route path={"/tendencias"} component={Tendencias} />
       <Route path={"/demonstrativo"} component={Demonstrativo} />
       <Route path={"/repasse"} component={Repasse} />
+      <Route path={"/dicionario-glosas"} component={DicionarioGlosas} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

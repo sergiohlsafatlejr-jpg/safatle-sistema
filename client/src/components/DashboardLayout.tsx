@@ -38,7 +38,8 @@ import {
   Gavel,
   TrendingUp,
   FileSpreadsheet,
-  Receipt
+  Receipt,
+  BookOpen
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -57,6 +58,7 @@ const menuItems = [
   { icon: TrendingUp, label: "Tendências", path: "/tendencias" },
   { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo" },
   { icon: Receipt, label: "Repasse", path: "/repasse" },
+  { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas" },
   { icon: GitCompare, label: "Comparações", path: "/comparacoes" },
   { icon: AlertTriangle, label: "Divergências", path: "/divergencias" },
   { icon: FileText, label: "Relatórios", path: "/relatorios" },
