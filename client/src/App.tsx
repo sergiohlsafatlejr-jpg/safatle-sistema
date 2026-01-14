@@ -16,6 +16,7 @@ import Conciliacao from "./pages/Conciliacao";
 import Faturamento from "./pages/Faturamento";
 import AnaliseGlosa from "./pages/AnaliseGlosa";
 import RecursosGlosa from "./pages/RecursosGlosa";
+import Tendencias from "./pages/Tendencias";
 
 function Router() {
   return (
@@ -32,6 +33,7 @@ function Router() {
       <Route path={"/faturamento"} component={Faturamento} />
       <Route path={"/analise-glosa"} component={AnaliseGlosa} />
       <Route path={"/recursos"} component={RecursosGlosa} />
+      <Route path={"/tendencias"} component={Tendencias} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

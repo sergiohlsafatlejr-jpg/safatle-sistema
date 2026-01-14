@@ -911,6 +911,39 @@ export const appRouter = router({
         });
       }),
   }),
+
+  // ============ TENDÊNCIAS DE GLOSA ============
+  tendencias: router({
+    // Tendências de glosa por convênio
+    porConvenio: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          meses: z.number().optional().default(6),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getTendenciasGlosa({
+          userId: ctx.user.id,
+          convenioId: input?.convenioId,
+          meses: input?.meses || 6,
+        });
+      }),
+
+    // Tendência geral (todos os convênios)
+    geral: protectedProcedure
+      .input(
+        z.object({
+          meses: z.number().optional().default(6),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getTendenciaGeral({
+          userId: ctx.user.id,
+          meses: input?.meses || 6,
+        });
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

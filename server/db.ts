@@ -1910,3 +1910,332 @@ export async function getResumoConciliacao(filters: {
 
   return resultado.sort((a, b) => b.valorTotalFaturado - a.valorTotalFaturado);
 }
+
+
+// ============ TENDÊNCIAS DE GLOSA FUNCTIONS ============
+
+export interface TendenciaMensal {
+  mes: string;
+  ano: number;
+  mesAno: string;
+  valorFaturado: number;
+  valorPago: number;
+  valorGlosado: number;
+  percentualGlosa: number;
+  quantidadeEnviados: number;
+  quantidadeGlosados: number;
+}
+
+export interface TendenciaConvenio {
+  convenioId: number;
+  convenioNome: string;
+  tendencias: TendenciaMensal[];
+  totalFaturado: number;
+  totalGlosado: number;
+  mediaPercentualGlosa: number;
+  tendenciaGlosa: "aumentando" | "diminuindo" | "estavel";
+}
+
+const MESES_PT = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+export async function getTendenciasGlosa(filters: {
+  userId: number;
+  convenioId?: number;
+  meses?: number;
+}): Promise<TendenciaConvenio[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const numMeses = filters.meses || 6;
+  const dataLimite = new Date();
+  dataLimite.setMonth(dataLimite.getMonth() - numMeses);
+
+  // Buscar convênios
+  let convList;
+  if (filters.convenioId) {
+    convList = await db
+      .select()
+      .from(convenios)
+      .where(eq(convenios.id, filters.convenioId));
+  } else {
+    convList = await db
+      .select()
+      .from(convenios)
+      .where(eq(convenios.ativo, "sim"));
+  }
+
+  const resultado: TendenciaConvenio[] = [];
+
+  for (const conv of convList) {
+    // Buscar arquivos enviados do convênio nos últimos X meses
+    const arquivosEnviados = await db
+      .select()
+      .from(arquivos)
+      .where(
+        and(
+          eq(arquivos.convenioId, conv.id),
+          eq(arquivos.direcao, "enviado"),
+          eq(arquivos.status, "processado"),
+          eq(arquivos.userId, filters.userId),
+          gte(arquivos.createdAt, dataLimite)
+        )
+      );
+
+    // Buscar arquivos retornados do convênio nos últimos X meses
+    const arquivosRetornados = await db
+      .select()
+      .from(arquivos)
+      .where(
+        and(
+          eq(arquivos.convenioId, conv.id),
+          eq(arquivos.direcao, "retornado"),
+          eq(arquivos.status, "processado"),
+          eq(arquivos.userId, filters.userId),
+          gte(arquivos.createdAt, dataLimite)
+        )
+      );
+
+    // Agrupar procedimentos por mês
+    const dadosPorMes: { [key: string]: TendenciaMensal } = {};
+
+    // Inicializar os últimos X meses
+    for (let i = 0; i < numMeses; i++) {
+      const data = new Date();
+      data.setMonth(data.getMonth() - i);
+      const mes = data.getMonth();
+      const ano = data.getFullYear();
+      const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+      
+      dadosPorMes[chave] = {
+        mes: MESES_PT[mes],
+        ano,
+        mesAno: `${MESES_PT[mes].substring(0, 3)}/${ano}`,
+        valorFaturado: 0,
+        valorPago: 0,
+        valorGlosado: 0,
+        percentualGlosa: 0,
+        quantidadeEnviados: 0,
+        quantidadeGlosados: 0,
+      };
+    }
+
+    // Processar procedimentos enviados
+    for (const arq of arquivosEnviados) {
+      const procs = await db
+        .select()
+        .from(procedimentos)
+        .where(eq(procedimentos.arquivoId, arq.id));
+
+      for (const proc of procs) {
+        const dataProc = proc.dataExecucao || arq.createdAt;
+        if (!dataProc) continue;
+
+        const data = new Date(dataProc);
+        const mes = data.getMonth();
+        const ano = data.getFullYear();
+        const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+        if (dadosPorMes[chave]) {
+          dadosPorMes[chave].valorFaturado += parseFloat(proc.valorTotal || "0");
+          dadosPorMes[chave].quantidadeEnviados++;
+        }
+      }
+    }
+
+    // Processar procedimentos retornados
+    for (const arq of arquivosRetornados) {
+      const procs = await db
+        .select()
+        .from(procedimentos)
+        .where(eq(procedimentos.arquivoId, arq.id));
+
+      for (const proc of procs) {
+        const dataProc = proc.dataExecucao || arq.createdAt;
+        if (!dataProc) continue;
+
+        const data = new Date(dataProc);
+        const mes = data.getMonth();
+        const ano = data.getFullYear();
+        const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+        if (dadosPorMes[chave]) {
+          dadosPorMes[chave].valorPago += parseFloat(proc.valorTotal || "0");
+        }
+      }
+    }
+
+    // Calcular glosas e percentuais
+    let totalFaturado = 0;
+    let totalGlosado = 0;
+    const tendencias: TendenciaMensal[] = [];
+
+    for (const chave of Object.keys(dadosPorMes).sort()) {
+      const dados = dadosPorMes[chave];
+      
+      // Calcular glosa como diferença entre faturado e pago
+      dados.valorGlosado = Math.max(0, dados.valorFaturado - dados.valorPago);
+      dados.percentualGlosa = dados.valorFaturado > 0 
+        ? (dados.valorGlosado / dados.valorFaturado) * 100 
+        : 0;
+      dados.quantidadeGlosados = dados.valorGlosado > 0 ? 1 : 0;
+
+      totalFaturado += dados.valorFaturado;
+      totalGlosado += dados.valorGlosado;
+
+      tendencias.push(dados);
+    }
+
+    // Determinar tendência (comparando últimos 3 meses com 3 meses anteriores)
+    let tendenciaGlosa: "aumentando" | "diminuindo" | "estavel" = "estavel";
+    if (tendencias.length >= 4) {
+      const metade = Math.floor(tendencias.length / 2);
+      const primeiraParte = tendencias.slice(0, metade);
+      const segundaParte = tendencias.slice(metade);
+
+      const mediaPrimeira = primeiraParte.reduce((acc, t) => acc + t.percentualGlosa, 0) / primeiraParte.length;
+      const mediaSegunda = segundaParte.reduce((acc, t) => acc + t.percentualGlosa, 0) / segundaParte.length;
+
+      if (mediaSegunda > mediaPrimeira * 1.1) {
+        tendenciaGlosa = "aumentando";
+      } else if (mediaSegunda < mediaPrimeira * 0.9) {
+        tendenciaGlosa = "diminuindo";
+      }
+    }
+
+    // Só adicionar se tiver dados
+    if (totalFaturado > 0 || totalGlosado > 0) {
+      resultado.push({
+        convenioId: conv.id,
+        convenioNome: conv.nome,
+        tendencias,
+        totalFaturado,
+        totalGlosado,
+        mediaPercentualGlosa: totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0,
+        tendenciaGlosa,
+      });
+    }
+  }
+
+  return resultado.sort((a, b) => b.totalGlosado - a.totalGlosado);
+}
+
+export async function getTendenciaGeral(filters: {
+  userId: number;
+  meses?: number;
+}): Promise<TendenciaMensal[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const numMeses = filters.meses || 6;
+  const dataLimite = new Date();
+  dataLimite.setMonth(dataLimite.getMonth() - numMeses);
+
+  // Inicializar os últimos X meses
+  const dadosPorMes: { [key: string]: TendenciaMensal } = {};
+  for (let i = 0; i < numMeses; i++) {
+    const data = new Date();
+    data.setMonth(data.getMonth() - i);
+    const mes = data.getMonth();
+    const ano = data.getFullYear();
+    const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+    
+    dadosPorMes[chave] = {
+      mes: MESES_PT[mes],
+      ano,
+      mesAno: `${MESES_PT[mes].substring(0, 3)}/${ano}`,
+      valorFaturado: 0,
+      valorPago: 0,
+      valorGlosado: 0,
+      percentualGlosa: 0,
+      quantidadeEnviados: 0,
+      quantidadeGlosados: 0,
+    };
+  }
+
+  // Buscar todos os arquivos enviados nos últimos X meses
+  const arquivosEnviados = await db
+    .select()
+    .from(arquivos)
+    .where(
+      and(
+        eq(arquivos.direcao, "enviado"),
+        eq(arquivos.status, "processado"),
+        eq(arquivos.userId, filters.userId),
+        gte(arquivos.createdAt, dataLimite)
+      )
+    );
+
+  // Buscar todos os arquivos retornados nos últimos X meses
+  const arquivosRetornados = await db
+    .select()
+    .from(arquivos)
+    .where(
+      and(
+        eq(arquivos.direcao, "retornado"),
+        eq(arquivos.status, "processado"),
+        eq(arquivos.userId, filters.userId),
+        gte(arquivos.createdAt, dataLimite)
+      )
+    );
+
+  // Processar procedimentos enviados
+  for (const arq of arquivosEnviados) {
+    const procs = await db
+      .select()
+      .from(procedimentos)
+      .where(eq(procedimentos.arquivoId, arq.id));
+
+    for (const proc of procs) {
+      const dataProc = proc.dataExecucao || arq.createdAt;
+      if (!dataProc) continue;
+
+      const data = new Date(dataProc);
+      const mes = data.getMonth();
+      const ano = data.getFullYear();
+      const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+      if (dadosPorMes[chave]) {
+        dadosPorMes[chave].valorFaturado += parseFloat(proc.valorTotal || "0");
+        dadosPorMes[chave].quantidadeEnviados++;
+      }
+    }
+  }
+
+  // Processar procedimentos retornados
+  for (const arq of arquivosRetornados) {
+    const procs = await db
+      .select()
+      .from(procedimentos)
+      .where(eq(procedimentos.arquivoId, arq.id));
+
+    for (const proc of procs) {
+      const dataProc = proc.dataExecucao || arq.createdAt;
+      if (!dataProc) continue;
+
+      const data = new Date(dataProc);
+      const mes = data.getMonth();
+      const ano = data.getFullYear();
+      const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+      if (dadosPorMes[chave]) {
+        dadosPorMes[chave].valorPago += parseFloat(proc.valorTotal || "0");
+      }
+    }
+  }
+
+  // Calcular glosas e percentuais
+  const tendencias: TendenciaMensal[] = [];
+  for (const chave of Object.keys(dadosPorMes).sort()) {
+    const dados = dadosPorMes[chave];
+    dados.valorGlosado = Math.max(0, dados.valorFaturado - dados.valorPago);
+    dados.percentualGlosa = dados.valorFaturado > 0 
+      ? (dados.valorGlosado / dados.valorFaturado) * 100 
+      : 0;
+    tendencias.push(dados);
+  }
+
+  return tendencias;
+}
