@@ -1,0 +1,34 @@
+# Hospital File Manager - TODO
+
+## Funcionalidades Principais
+
+- [x] Sistema de upload e armazenamento de arquivos XML enviados aos convênios
+- [x] Sistema de upload e armazenamento de arquivos retornados (Excel, PDF, XML)
+- [x] Parser automático para extrair dados de arquivos XML
+- [x] Parser automático para extrair dados de arquivos Excel
+- [x] Parser automático para extrair dados de arquivos PDF
+- [x] Módulo de comparação entre arquivos enviados e retornados
+- [x] Identificação de divergências em procedimentos e valores
+- [x] Dashboard para visualização de arquivos processados
+- [x] Visualização de status de comparações
+- [x] Sistema de busca por data
+- [x] Sistema de busca por convênio
+- [x] Sistema de busca por tipo de arquivo
+- [x] Sistema de busca por status de divergência
+- [x] Filtros avançados combinados
+- [x] Geração de relatórios comparativos em tabelas
+- [x] Geração de relatórios comparativos em gráficos
+- [x] Sistema de alertas visuais para divergências
+- [x] Inclusão manual de itens e procedimentos
+- [x] Painel administrativo para gerenciar códigos de procedimentos
+- [x] Campos de comparação configuráveis
+
+## Infraestrutura
+
+- [x] Esquema do banco de dados (arquivos, convênios, procedimentos, comparações)
+- [x] Rotas tRPC para upload de arquivos
+- [x] Rotas tRPC para listagem e busca
+- [x] Rotas tRPC para comparação
+- [x] Rotas tRPC para relatórios
+- [x] Rotas tRPC para administração
+- [x] Testes unitários das rotas principais
