@@ -58,3 +58,7 @@
 - [x] Conciliação automática entre valores enviados e retornados
 - [x] Identificar divergências de valores na conciliação
 - [x] Interface para visualizar resultado da conciliação
+- [x] Painel de controle de faturamento e glosa por convênio
+- [x] Gráficos de faturamento por período
+- [x] Métricas de glosa (valor glosado, percentual)
+- [x] Comparativo entre convênios

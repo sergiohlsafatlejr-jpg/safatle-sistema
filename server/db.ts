@@ -719,3 +719,257 @@ export async function deleteItemManual(id: number) {
 
   await db.delete(itensManuals).where(eq(itensManuals.id, id));
 }
+
+// ============ FATURAMENTO E GLOSA FUNCTIONS ============
+
+export interface FaturamentoConvenio {
+  convenioId: number;
+  convenioNome: string;
+  totalEnviado: number;
+  totalRetornado: number;
+  totalGlosado: number;
+  percentualGlosa: number;
+  quantidadeArquivos: number;
+  quantidadeProcedimentos: number;
+}
+
+export interface FaturamentoPorMes {
+  mes: string;
+  ano: number;
+  totalEnviado: number;
+  totalRetornado: number;
+  totalGlosado: number;
+}
+
+export async function getFaturamentoPorConvenio(userId?: number): Promise<FaturamentoConvenio[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Buscar todos os convênios
+  const convList = await db.select().from(convenios).where(eq(convenios.ativo, "sim"));
+  
+  const resultado: FaturamentoConvenio[] = [];
+
+  for (const conv of convList) {
+    // Buscar arquivos enviados do convênio
+    const conditions = [
+      eq(arquivos.convenioId, conv.id),
+      eq(arquivos.direcao, "enviado"),
+      eq(arquivos.status, "processado"),
+    ];
+    
+    if (userId) {
+      conditions.push(eq(arquivos.userId, userId));
+    }
+
+    const arquivosEnviados = await db
+      .select()
+      .from(arquivos)
+      .where(and(...conditions));
+
+    // Buscar procedimentos dos arquivos enviados
+    let totalEnviado = 0;
+    let quantidadeProcedimentos = 0;
+
+    for (const arq of arquivosEnviados) {
+      const procs = await db
+        .select()
+        .from(procedimentos)
+        .where(eq(procedimentos.arquivoId, arq.id));
+
+      for (const proc of procs) {
+        totalEnviado += parseFloat(proc.valorTotal || "0");
+        quantidadeProcedimentos++;
+      }
+    }
+
+    // Buscar comparações do convênio para calcular glosa
+    const compConditions = [eq(comparacoes.convenioId, conv.id)];
+    if (userId) {
+      compConditions.push(eq(comparacoes.userId, userId));
+    }
+
+    const comps = await db
+      .select()
+      .from(comparacoes)
+      .where(and(...compConditions));
+
+    let totalRetornado = 0;
+    for (const comp of comps) {
+      totalRetornado += parseFloat(comp.valorTotalRetornado || "0");
+    }
+
+    // Se não houver comparações, usar o valor enviado como retornado (sem glosa)
+    if (comps.length === 0) {
+      totalRetornado = totalEnviado;
+    }
+
+    const totalGlosado = totalEnviado - totalRetornado;
+    const percentualGlosa = totalEnviado > 0 ? (totalGlosado / totalEnviado) * 100 : 0;
+
+    resultado.push({
+      convenioId: conv.id,
+      convenioNome: conv.nome,
+      totalEnviado,
+      totalRetornado,
+      totalGlosado,
+      percentualGlosa,
+      quantidadeArquivos: arquivosEnviados.length,
+      quantidadeProcedimentos,
+    });
+  }
+
+  return resultado.filter(r => r.quantidadeArquivos > 0);
+}
+
+export async function getFaturamentoPorMes(
+  userId?: number,
+  convenioId?: number,
+  meses: number = 12
+): Promise<FaturamentoPorMes[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const resultado: FaturamentoPorMes[] = [];
+  const hoje = new Date();
+
+  for (let i = 0; i < meses; i++) {
+    const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const mes = data.toLocaleString("pt-BR", { month: "short" });
+    const ano = data.getFullYear();
+    const inicioMes = new Date(data.getFullYear(), data.getMonth(), 1);
+    const fimMes = new Date(data.getFullYear(), data.getMonth() + 1, 0, 23, 59, 59);
+
+    // Buscar arquivos do mês
+    const conditions: any[] = [
+      eq(arquivos.direcao, "enviado"),
+      eq(arquivos.status, "processado"),
+      gte(arquivos.createdAt, inicioMes),
+      lte(arquivos.createdAt, fimMes),
+    ];
+
+    if (userId) {
+      conditions.push(eq(arquivos.userId, userId));
+    }
+    if (convenioId) {
+      conditions.push(eq(arquivos.convenioId, convenioId));
+    }
+
+    const arquivosMes = await db
+      .select()
+      .from(arquivos)
+      .where(and(...conditions));
+
+    let totalEnviado = 0;
+    for (const arq of arquivosMes) {
+      const procs = await db
+        .select()
+        .from(procedimentos)
+        .where(eq(procedimentos.arquivoId, arq.id));
+
+      for (const proc of procs) {
+        totalEnviado += parseFloat(proc.valorTotal || "0");
+      }
+    }
+
+    // Buscar comparações do mês
+    const compConditions: any[] = [
+      gte(comparacoes.createdAt, inicioMes),
+      lte(comparacoes.createdAt, fimMes),
+    ];
+
+    if (userId) {
+      compConditions.push(eq(comparacoes.userId, userId));
+    }
+    if (convenioId) {
+      compConditions.push(eq(comparacoes.convenioId, convenioId));
+    }
+
+    const compsMes = await db
+      .select()
+      .from(comparacoes)
+      .where(and(...compConditions));
+
+    let totalRetornado = 0;
+    for (const comp of compsMes) {
+      totalRetornado += parseFloat(comp.valorTotalRetornado || "0");
+    }
+
+    // Se não houver comparações, usar o valor enviado
+    if (compsMes.length === 0) {
+      totalRetornado = totalEnviado;
+    }
+
+    resultado.push({
+      mes: mes.charAt(0).toUpperCase() + mes.slice(1),
+      ano,
+      totalEnviado,
+      totalRetornado,
+      totalGlosado: totalEnviado - totalRetornado,
+    });
+  }
+
+  return resultado.reverse();
+}
+
+export async function getResumoGeral(userId?: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Total de arquivos
+  const arquivosConditions: any[] = [];
+  if (userId) {
+    arquivosConditions.push(eq(arquivos.userId, userId));
+  }
+
+  const totalArquivos = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(arquivos)
+    .where(arquivosConditions.length > 0 ? and(...arquivosConditions) : undefined);
+
+  // Total de procedimentos
+  const procQuery = db
+    .select({ 
+      count: sql<number>`count(*)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
+    })
+    .from(procedimentos)
+    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id));
+
+  if (userId) {
+    procQuery.where(eq(arquivos.userId, userId));
+  }
+
+  const procStats = await procQuery;
+
+  // Total de comparações e divergências
+  const compConditions: any[] = [];
+  if (userId) {
+    compConditions.push(eq(comparacoes.userId, userId));
+  }
+
+  const compStats = await db
+    .select({
+      total: sql<number>`count(*)`,
+      totalDivergencias: sql<number>`COALESCE(SUM(${comparacoes.totalDivergencias}), 0)`,
+      valorRetornado: sql<number>`COALESCE(SUM(CAST(${comparacoes.valorTotalRetornado} AS DECIMAL(15,2))), 0)`,
+      valorEnviado: sql<number>`COALESCE(SUM(CAST(${comparacoes.valorTotalEnviado} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(comparacoes)
+    .where(compConditions.length > 0 ? and(...compConditions) : undefined);
+
+  const valorTotalEnviado = Number(procStats[0]?.valorTotal) || 0;
+  const valorTotalRetornado = Number(compStats[0]?.valorRetornado) || 0;
+  const valorGlosado = Number(compStats[0]?.valorEnviado || 0) - valorTotalRetornado;
+
+  return {
+    totalArquivos: Number(totalArquivos[0]?.count) || 0,
+    totalProcedimentos: Number(procStats[0]?.count) || 0,
+    totalComparacoes: Number(compStats[0]?.total) || 0,
+    totalDivergencias: Number(compStats[0]?.totalDivergencias) || 0,
+    valorTotalEnviado,
+    valorTotalRetornado,
+    valorGlosado: valorGlosado > 0 ? valorGlosado : 0,
+    percentualGlosa: valorTotalEnviado > 0 ? (valorGlosado / valorTotalEnviado) * 100 : 0,
+  };
+}

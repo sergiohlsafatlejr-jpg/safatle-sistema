@@ -32,7 +32,8 @@ import {
   Settings,
   FileText,
   List,
-  Scale
+  Scale,
+  BarChart3
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -45,6 +46,7 @@ const menuItems = [
   { icon: FileSearch, label: "Arquivos", path: "/arquivos" },
   { icon: List, label: "Itens Importados", path: "/itens-importados" },
   { icon: Scale, label: "Conciliação", path: "/conciliacao" },
+  { icon: BarChart3, label: "Faturamento", path: "/faturamento" },
   { icon: GitCompare, label: "Comparações", path: "/comparacoes" },
   { icon: AlertTriangle, label: "Divergências", path: "/divergencias" },
   { icon: FileText, label: "Relatórios", path: "/relatorios" },

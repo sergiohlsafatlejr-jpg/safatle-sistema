@@ -534,6 +534,32 @@ export const appRouter = router({
         return arquivos.slice(0, input?.limit || 10);
       }),
   }),
+
+  // ============ FATURAMENTO ============
+  faturamento: router({
+    porConvenio: protectedProcedure.query(async ({ ctx }) => {
+      return db.getFaturamentoPorConvenio(ctx.user.id);
+    }),
+
+    porMes: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          meses: z.number().default(12),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getFaturamentoPorMes(
+          ctx.user.id,
+          input?.convenioId,
+          input?.meses || 12
+        );
+      }),
+
+    resumoGeral: protectedProcedure.query(async ({ ctx }) => {
+      return db.getResumoGeral(ctx.user.id);
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
