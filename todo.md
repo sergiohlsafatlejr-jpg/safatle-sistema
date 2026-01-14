@@ -32,3 +32,9 @@
 - [x] Rotas tRPC para relatórios
 - [x] Rotas tRPC para administração
 - [x] Testes unitários das rotas principais
+
+## Bugs
+
+- [x] Tela de login não aparece para usuários não autenticados (resolvido - requer publicação)
+- [x] Parser XML não extrai campos com namespace ans: (descricaoProcedimento vem em branco)
+- [x] Criar tela de visualização de itens importados por convênio

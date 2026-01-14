@@ -324,6 +324,91 @@ export async function getProcedimentosByArquivoId(arquivoId: number) {
     .where(eq(procedimentos.arquivoId, arquivoId));
 }
 
+export async function getProcedimentosPaginated(filters?: {
+  arquivoId?: number;
+  convenioId?: number;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  userId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const page = filters?.page || 1;
+  const pageSize = filters?.pageSize || 20;
+  const offset = (page - 1) * pageSize;
+
+  // Build conditions
+  const conditions = [];
+
+  if (filters?.arquivoId) {
+    conditions.push(eq(procedimentos.arquivoId, filters.arquivoId));
+  }
+
+  if (filters?.search) {
+    conditions.push(
+      or(
+        like(procedimentos.codigo, `%${filters.search}%`),
+        like(procedimentos.descricao, `%${filters.search}%`)
+      )
+    );
+  }
+
+  // If convenioId is specified, we need to filter by arquivo's convenioId
+  let baseQuery = db
+    .select({
+      id: procedimentos.id,
+      arquivoId: procedimentos.arquivoId,
+      codigo: procedimentos.codigo,
+      descricao: procedimentos.descricao,
+      quantidade: procedimentos.quantidade,
+      valorUnitario: procedimentos.valorUnitario,
+      valorTotal: procedimentos.valorTotal,
+      dataExecucao: procedimentos.dataExecucao,
+      pacienteNome: procedimentos.pacienteNome,
+      pacienteCarteirinha: procedimentos.pacienteCarteirinha,
+      guiaNumero: procedimentos.guiaNumero,
+      createdAt: procedimentos.createdAt,
+      arquivoNome: arquivos.nome,
+      arquivoConvenioId: arquivos.convenioId,
+      convenioNome: convenios.nome,
+    })
+    .from(procedimentos)
+    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .leftJoin(convenios, eq(arquivos.convenioId, convenios.id));
+
+  // Add convenioId filter
+  if (filters?.convenioId) {
+    conditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+
+  // Add userId filter (only show procedures from user's files)
+  if (filters?.userId) {
+    conditions.push(eq(arquivos.userId, filters.userId));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(procedimentos)
+    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .where(whereClause);
+
+  const total = countResult[0]?.count || 0;
+
+  // Get paginated items
+  const items = await baseQuery
+    .where(whereClause)
+    .orderBy(desc(procedimentos.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { items, total };
+}
+
 // ============ COMPARACAO FUNCTIONS ============
 
 export async function createComparacao(data: InsertComparacao) {

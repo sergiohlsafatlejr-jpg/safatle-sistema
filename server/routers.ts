@@ -455,6 +455,32 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ PROCEDIMENTOS ============
+  procedimentos: router({
+    list: protectedProcedure
+      .input(
+        z
+          .object({
+            arquivoId: z.number().optional(),
+            convenioId: z.number().optional(),
+            search: z.string().optional(),
+            page: z.number().default(1),
+            pageSize: z.number().default(20),
+          })
+          .optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getProcedimentosPaginated({
+          arquivoId: input?.arquivoId,
+          convenioId: input?.convenioId,
+          search: input?.search,
+          page: input?.page || 1,
+          pageSize: input?.pageSize || 20,
+          userId: ctx.user.id,
+        });
+      }),
+  }),
+
   // ============ DASHBOARD ============
   dashboard: router({
     resumo: protectedProcedure.query(async ({ ctx }) => {

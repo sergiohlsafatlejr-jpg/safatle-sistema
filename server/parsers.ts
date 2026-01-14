@@ -24,13 +24,52 @@ export interface ParseResult {
 }
 
 /**
+ * Remove namespace prefixes from XML keys (e.g., ans:descricao -> descricao)
+ */
+function removeNamespacePrefix(key: string): string {
+  const colonIndex = key.indexOf(":");
+  return colonIndex > -1 ? key.substring(colonIndex + 1) : key;
+}
+
+/**
+ * Recursively normalize object keys by removing namespace prefixes
+ */
+function normalizeXmlObject(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => normalizeXmlObject(item));
+  }
+  
+  if (typeof obj === "object") {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const normalizedKey = removeNamespacePrefix(key);
+      normalized[normalizedKey] = normalizeXmlObject(value);
+    }
+    return normalized;
+  }
+  
+  return obj;
+}
+
+/**
  * Parse XML file content (TISS format commonly used in Brazil)
  */
 export async function parseXML(content: Buffer | string): Promise<ParseResult> {
   try {
-    const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: false });
+    // Configure parser to handle namespaces properly
+    const parser = new xml2js.Parser({ 
+      explicitArray: false, 
+      ignoreAttrs: false,
+      tagNameProcessors: [xml2js.processors.stripPrefix],
+      attrNameProcessors: [xml2js.processors.stripPrefix]
+    });
     const xmlString = typeof content === "string" ? content : content.toString("utf-8");
-    const result = await parser.parseStringPromise(xmlString);
+    let result = await parser.parseStringPromise(xmlString);
+    
+    // Additionally normalize any remaining namespace prefixes
+    result = normalizeXmlObject(result) as Record<string, unknown>;
     
     const procedimentos: ParsedProcedimento[] = [];
     
@@ -91,8 +130,11 @@ function extractSingleProcedimento(obj: unknown): ParsedProcedimento | null {
   
   const record = obj as Record<string, unknown>;
   
-  // Try to find codigo
-  const codigoKeys = ["codigo", "codigoProcedimento", "cd", "cod", "codigoTabela", "ans:codigo"];
+  // Try to find codigo - expanded list to handle various TISS formats
+  const codigoKeys = [
+    "codigo", "codigoProcedimento", "cd", "cod", "codigoTabela", 
+    "codigoTermo", "codigoItem", "codigoServico", "codigoPrincipal"
+  ];
   let codigo: string | undefined;
   
   for (const key of codigoKeys) {
@@ -105,8 +147,16 @@ function extractSingleProcedimento(obj: unknown): ParsedProcedimento | null {
   
   if (!codigo) return null;
   
-  // Extract other fields
-  const descricao = findValueByKey(record, "descricao") || findValueByKey(record, "descricaoProcedimento");
+  // Extract other fields - expanded list to handle various TISS formats
+  const descricaoKeys = [
+    "descricao", "descricaoProcedimento", "descricaoItem", 
+    "descricaoServico", "nomeComercial", "descricaoDetalhada"
+  ];
+  let descricao: unknown;
+  for (const key of descricaoKeys) {
+    descricao = findValueByKey(record, key);
+    if (descricao) break;
+  }
   const quantidade = parseNumber(findValueByKey(record, "quantidade") || findValueByKey(record, "qtd"));
   const valorUnitario = parseNumber(findValueByKey(record, "valorUnitario") || findValueByKey(record, "vlUnitario"));
   const valorTotal = parseNumber(findValueByKey(record, "valorTotal") || findValueByKey(record, "vlTotal"));
@@ -128,10 +178,23 @@ function extractSingleProcedimento(obj: unknown): ParsedProcedimento | null {
 }
 
 function findValueByKey(obj: Record<string, unknown>, targetKey: string): unknown {
-  const lowerTarget = targetKey.toLowerCase();
+  const lowerTarget = targetKey.toLowerCase().replace(/^ans:/, "");
   
   for (const [key, value] of Object.entries(obj)) {
-    if (key.toLowerCase().includes(lowerTarget)) {
+    // Remove namespace prefix from key for comparison
+    const normalizedKey = removeNamespacePrefix(key).toLowerCase();
+    
+    if (normalizedKey.includes(lowerTarget) || normalizedKey === lowerTarget) {
+      if (typeof value === "object" && value !== null && "_" in (value as Record<string, unknown>)) {
+        return (value as Record<string, unknown>)["_"];
+      }
+      return value;
+    }
+  }
+  
+  // Also try exact match with original key (for nested searches)
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.toLowerCase() === lowerTarget || key.toLowerCase() === `ans:${lowerTarget}`) {
       if (typeof value === "object" && value !== null && "_" in (value as Record<string, unknown>)) {
         return (value as Record<string, unknown>)["_"];
       }
