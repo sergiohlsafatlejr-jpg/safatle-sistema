@@ -560,6 +560,47 @@ export const appRouter = router({
       return db.getResumoGeral(ctx.user.id);
     }),
   }),
+
+  // ============ ANÁLISE DE GLOSA ============
+  glosa: router({
+    porConvenio: protectedProcedure.query(async ({ ctx }) => {
+      return db.getGlosaPorConvenio(ctx.user.id);
+    }),
+
+    porProcedimento: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          limit: z.number().default(20),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getGlosaPorProcedimento(
+          ctx.user.id,
+          input?.convenioId,
+          input?.limit || 20
+        );
+      }),
+
+    tendencia: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          meses: z.number().default(12),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getTendenciaGlosa(
+          ctx.user.id,
+          input?.convenioId,
+          input?.meses || 12
+        );
+      }),
+
+    resumo: protectedProcedure.query(async ({ ctx }) => {
+      return db.getResumoGlosa(ctx.user.id);
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

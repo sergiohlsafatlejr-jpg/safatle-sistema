@@ -116,6 +116,18 @@ export const divergencias = mysqlTable("divergencias", {
   valorRetornado: text("valorRetornado"),
   diferenca: decimal("diferenca", { precision: 10, scale: 2 }),
   descricao: text("descricao"),
+  motivoGlosa: varchar("motivoGlosa", { length: 255 }),
+  categoriaGlosa: mysqlEnum("categoriaGlosa", [
+    "valor_divergente",
+    "procedimento_nao_autorizado",
+    "documentacao_incompleta",
+    "prazo_excedido",
+    "duplicidade",
+    "codigo_invalido",
+    "quantidade_excedente",
+    "paciente_nao_elegivel",
+    "outros"
+  ]),
   resolvido: mysqlEnum("resolvido", ["sim", "nao"]).default("nao").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

@@ -973,3 +973,379 @@ export async function getResumoGeral(userId?: number) {
     percentualGlosa: valorTotalEnviado > 0 ? (valorGlosado / valorTotalEnviado) * 100 : 0,
   };
 }
+
+// ============ ANÁLISE DE GLOSA FUNCTIONS ============
+
+export interface GlosaPorMotivo {
+  categoriaGlosa: string;
+  quantidade: number;
+  valorTotal: number;
+  percentual: number;
+}
+
+export interface GlosaPorConvenio {
+  convenioId: number;
+  convenioNome: string;
+  totalDivergencias: number;
+  valorGlosado: number;
+  motivosPrincipais: GlosaPorMotivo[];
+}
+
+export interface GlosaPorProcedimento {
+  codigo: string;
+  descricao: string;
+  quantidadeGlosas: number;
+  valorGlosado: number;
+  motivoPrincipal: string;
+}
+
+export interface TendenciaGlosa {
+  mes: string;
+  ano: number;
+  totalGlosas: number;
+  valorGlosado: number;
+  categorias: { [key: string]: number };
+}
+
+const CATEGORIAS_GLOSA_LABELS: { [key: string]: string } = {
+  valor_divergente: "Valor Divergente",
+  procedimento_nao_autorizado: "Procedimento Não Autorizado",
+  documentacao_incompleta: "Documentação Incompleta",
+  prazo_excedido: "Prazo Excedido",
+  duplicidade: "Duplicidade",
+  codigo_invalido: "Código Inválido",
+  quantidade_excedente: "Quantidade Excedente",
+  paciente_nao_elegivel: "Paciente Não Elegível",
+  outros: "Outros",
+};
+
+export async function getGlosaPorConvenio(userId?: number): Promise<GlosaPorConvenio[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Buscar todos os convênios ativos
+  const convList = await db.select().from(convenios).where(eq(convenios.ativo, "sim"));
+  const resultado: GlosaPorConvenio[] = [];
+
+  for (const conv of convList) {
+    // Buscar comparações do convênio
+    const compConditions: any[] = [eq(comparacoes.convenioId, conv.id)];
+    if (userId) {
+      compConditions.push(eq(comparacoes.userId, userId));
+    }
+
+    const comps = await db
+      .select()
+      .from(comparacoes)
+      .where(and(...compConditions));
+
+    if (comps.length === 0) continue;
+
+    // Buscar divergências das comparações
+    let totalDivergencias = 0;
+    let valorGlosado = 0;
+    const motivosCount: { [key: string]: { quantidade: number; valor: number } } = {};
+
+    for (const comp of comps) {
+      const divs = await db
+        .select()
+        .from(divergencias)
+        .where(eq(divergencias.comparacaoId, comp.id));
+
+      for (const div of divs) {
+        totalDivergencias++;
+        const diferenca = parseFloat(div.diferenca || "0");
+        valorGlosado += Math.abs(diferenca);
+
+        // Determinar categoria baseada no tipo se não tiver categoria definida
+        let categoria = div.categoriaGlosa || "outros";
+        if (!div.categoriaGlosa) {
+          switch (div.tipo) {
+            case "valor":
+              categoria = "valor_divergente";
+              break;
+            case "quantidade":
+              categoria = "quantidade_excedente";
+              break;
+            case "ausente_retorno":
+              categoria = "procedimento_nao_autorizado";
+              break;
+            case "ausente_envio":
+              categoria = "outros";
+              break;
+            case "dados":
+              categoria = "documentacao_incompleta";
+              break;
+          }
+        }
+
+        if (!motivosCount[categoria]) {
+          motivosCount[categoria] = { quantidade: 0, valor: 0 };
+        }
+        motivosCount[categoria].quantidade++;
+        motivosCount[categoria].valor += Math.abs(diferenca);
+      }
+    }
+
+    if (totalDivergencias === 0) continue;
+
+    // Converter para array e calcular percentuais
+    const motivosPrincipais: GlosaPorMotivo[] = Object.entries(motivosCount)
+      .map(([cat, data]) => ({
+        categoriaGlosa: CATEGORIAS_GLOSA_LABELS[cat] || cat,
+        quantidade: data.quantidade,
+        valorTotal: data.valor,
+        percentual: (data.quantidade / totalDivergencias) * 100,
+      }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 5);
+
+    resultado.push({
+      convenioId: conv.id,
+      convenioNome: conv.nome,
+      totalDivergencias,
+      valorGlosado,
+      motivosPrincipais,
+    });
+  }
+
+  return resultado.sort((a, b) => b.valorGlosado - a.valorGlosado);
+}
+
+export async function getGlosaPorProcedimento(
+  userId?: number,
+  convenioId?: number,
+  limit: number = 20
+): Promise<GlosaPorProcedimento[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Buscar comparações
+  const compConditions: any[] = [];
+  if (userId) {
+    compConditions.push(eq(comparacoes.userId, userId));
+  }
+  if (convenioId) {
+    compConditions.push(eq(comparacoes.convenioId, convenioId));
+  }
+
+  const comps = await db
+    .select()
+    .from(comparacoes)
+    .where(compConditions.length > 0 ? and(...compConditions) : undefined);
+
+  const procedimentosGlosados: {
+    [key: string]: {
+      codigo: string;
+      descricao: string;
+      quantidade: number;
+      valor: number;
+      motivos: { [key: string]: number };
+    };
+  } = {};
+
+  for (const comp of comps) {
+    const divs = await db
+      .select()
+      .from(divergencias)
+      .where(eq(divergencias.comparacaoId, comp.id));
+
+    for (const div of divs) {
+      if (!div.procedimentoEnviadoId) continue;
+
+      // Buscar procedimento
+      const proc = await db
+        .select()
+        .from(procedimentos)
+        .where(eq(procedimentos.id, div.procedimentoEnviadoId))
+        .limit(1);
+
+      if (proc.length === 0) continue;
+
+      const p = proc[0];
+      const key = p.codigo;
+      const diferenca = Math.abs(parseFloat(div.diferenca || "0"));
+
+      if (!procedimentosGlosados[key]) {
+        procedimentosGlosados[key] = {
+          codigo: p.codigo,
+          descricao: p.descricao || "",
+          quantidade: 0,
+          valor: 0,
+          motivos: {},
+        };
+      }
+
+      procedimentosGlosados[key].quantidade++;
+      procedimentosGlosados[key].valor += diferenca;
+
+      const categoria = div.categoriaGlosa || div.tipo || "outros";
+      procedimentosGlosados[key].motivos[categoria] =
+        (procedimentosGlosados[key].motivos[categoria] || 0) + 1;
+    }
+  }
+
+  // Converter para array e ordenar
+  return Object.values(procedimentosGlosados)
+    .map((p) => {
+      const motivoPrincipal = Object.entries(p.motivos).sort(
+        (a, b) => b[1] - a[1]
+      )[0];
+      return {
+        codigo: p.codigo,
+        descricao: p.descricao,
+        quantidadeGlosas: p.quantidade,
+        valorGlosado: p.valor,
+        motivoPrincipal: CATEGORIAS_GLOSA_LABELS[motivoPrincipal?.[0]] || motivoPrincipal?.[0] || "Outros",
+      };
+    })
+    .sort((a, b) => b.valorGlosado - a.valorGlosado)
+    .slice(0, limit);
+}
+
+export async function getTendenciaGlosa(
+  userId?: number,
+  convenioId?: number,
+  meses: number = 12
+): Promise<TendenciaGlosa[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const resultado: TendenciaGlosa[] = [];
+  const hoje = new Date();
+
+  for (let i = 0; i < meses; i++) {
+    const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const mes = data.toLocaleString("pt-BR", { month: "short" });
+    const ano = data.getFullYear();
+    const inicioMes = new Date(data.getFullYear(), data.getMonth(), 1);
+    const fimMes = new Date(data.getFullYear(), data.getMonth() + 1, 0, 23, 59, 59);
+
+    // Buscar comparações do mês
+    const compConditions: any[] = [
+      gte(comparacoes.createdAt, inicioMes),
+      lte(comparacoes.createdAt, fimMes),
+    ];
+
+    if (userId) {
+      compConditions.push(eq(comparacoes.userId, userId));
+    }
+    if (convenioId) {
+      compConditions.push(eq(comparacoes.convenioId, convenioId));
+    }
+
+    const compsMes = await db
+      .select()
+      .from(comparacoes)
+      .where(and(...compConditions));
+
+    let totalGlosas = 0;
+    let valorGlosado = 0;
+    const categorias: { [key: string]: number } = {};
+
+    for (const comp of compsMes) {
+      const divs = await db
+        .select()
+        .from(divergencias)
+        .where(eq(divergencias.comparacaoId, comp.id));
+
+      for (const div of divs) {
+        totalGlosas++;
+        valorGlosado += Math.abs(parseFloat(div.diferenca || "0"));
+
+        const categoria = div.categoriaGlosa || div.tipo || "outros";
+        categorias[categoria] = (categorias[categoria] || 0) + 1;
+      }
+    }
+
+    resultado.push({
+      mes: mes.charAt(0).toUpperCase() + mes.slice(1),
+      ano,
+      totalGlosas,
+      valorGlosado,
+      categorias,
+    });
+  }
+
+  return resultado.reverse();
+}
+
+export async function getResumoGlosa(userId?: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Buscar todas as divergências
+  const compConditions: any[] = [];
+  if (userId) {
+    compConditions.push(eq(comparacoes.userId, userId));
+  }
+
+  const comps = await db
+    .select()
+    .from(comparacoes)
+    .where(compConditions.length > 0 ? and(...compConditions) : undefined);
+
+  let totalDivergencias = 0;
+  let valorTotalGlosado = 0;
+  const categorias: { [key: string]: { quantidade: number; valor: number } } = {};
+
+  for (const comp of comps) {
+    const divs = await db
+      .select()
+      .from(divergencias)
+      .where(eq(divergencias.comparacaoId, comp.id));
+
+    for (const div of divs) {
+      totalDivergencias++;
+      const diferenca = Math.abs(parseFloat(div.diferenca || "0"));
+      valorTotalGlosado += diferenca;
+
+      let categoria = div.categoriaGlosa || "outros";
+      if (!div.categoriaGlosa) {
+        switch (div.tipo) {
+          case "valor":
+            categoria = "valor_divergente";
+            break;
+          case "quantidade":
+            categoria = "quantidade_excedente";
+            break;
+          case "ausente_retorno":
+            categoria = "procedimento_nao_autorizado";
+            break;
+          default:
+            categoria = "outros";
+        }
+      }
+
+      if (!categorias[categoria]) {
+        categorias[categoria] = { quantidade: 0, valor: 0 };
+      }
+      categorias[categoria].quantidade++;
+      categorias[categoria].valor += diferenca;
+    }
+  }
+
+  // Encontrar categoria principal
+  const categoriaPrincipal = Object.entries(categorias).sort(
+    (a, b) => b[1].quantidade - a[1].quantidade
+  )[0];
+
+  return {
+    totalDivergencias,
+    valorTotalGlosado,
+    categoriaPrincipal: categoriaPrincipal
+      ? {
+          nome: CATEGORIAS_GLOSA_LABELS[categoriaPrincipal[0]] || categoriaPrincipal[0],
+          quantidade: categoriaPrincipal[1].quantidade,
+          valor: categoriaPrincipal[1].valor,
+          percentual: (categoriaPrincipal[1].quantidade / totalDivergencias) * 100,
+        }
+      : null,
+    categorias: Object.entries(categorias).map(([cat, data]) => ({
+      categoria: CATEGORIAS_GLOSA_LABELS[cat] || cat,
+      quantidade: data.quantidade,
+      valor: data.valor,
+      percentual: totalDivergencias > 0 ? (data.quantidade / totalDivergencias) * 100 : 0,
+    })),
+  };
+}

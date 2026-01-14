@@ -1,0 +1,2 @@
+ALTER TABLE `divergencias` ADD `motivoGlosa` varchar(255);--> statement-breakpoint
+ALTER TABLE `divergencias` ADD `categoriaGlosa` enum('valor_divergente','procedimento_nao_autorizado','documentacao_incompleta','prazo_excedido','duplicidade','codigo_invalido','quantidade_excedente','paciente_nao_elegivel','outros');

@@ -62,3 +62,7 @@
 - [x] Gráficos de faturamento por período
 - [x] Métricas de glosa (valor glosado, percentual)
 - [x] Comparativo entre convênios
+- [x] Relatório detalhado de motivos de glosa por convênio
+- [x] Identificação de padrões de glosa
+- [x] Gráficos de análise de glosa por categoria/motivo
+- [x] Ranking de procedimentos mais glosados
