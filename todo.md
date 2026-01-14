@@ -71,3 +71,4 @@
 - [x] Acompanhamento de status de cada recurso (pendente, enviado, deferido, indeferido)
 - [x] Histórico de interações por recurso
 - [x] Interface de gerenciamento de recursos
+- [x] Botão na página de Divergências para criar recurso de glosa automaticamente

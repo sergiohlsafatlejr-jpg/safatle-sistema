@@ -10,10 +10,12 @@ import {
   ArrowLeftRight,
   TrendingDown,
   TrendingUp,
-  Filter
+  Filter,
+  Gavel,
+  Plus
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import {
   Table,
   TableBody,
@@ -26,23 +28,43 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Divergencias() {
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const comparacaoIdParam = params.get("comparacaoId");
+  const [, navigate] = useLocation();
 
   const [selectedComparacaoId, setSelectedComparacaoId] = useState<string>(comparacaoIdParam || "");
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [filtroResolvido, setFiltroResolvido] = useState<string>("todos");
+  
+  // Estado para criar recurso
+  const [showCriarRecurso, setShowCriarRecurso] = useState(false);
+  const [divergenciaSelecionada, setDivergenciaSelecionada] = useState<any>(null);
+  const [justificativaRecurso, setJustificativaRecurso] = useState("");
+  const [documentosAnexos, setDocumentosAnexos] = useState("");
 
   const { data: comparacoes } = trpc.comparacoes.list.useQuery({});
   const { data: comparacao, isLoading } = trpc.comparacoes.get.useQuery(
     { id: parseInt(selectedComparacaoId) },
     { enabled: !!selectedComparacaoId }
   );
+  const { data: convenios } = trpc.convenios.list.useQuery();
 
   const resolverMutation = trpc.comparacoes.resolverDivergencia.useMutation();
+  const criarRecursoMutation = trpc.recursos.create.useMutation();
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -61,6 +83,90 @@ export default function Divergencias() {
       utils.comparacoes.get.invalidate({ id: parseInt(selectedComparacaoId) });
     } catch (error) {
       toast.error("Erro ao atualizar divergência");
+    }
+  };
+
+  const handleAbrirCriarRecurso = (divergencia: any) => {
+    setDivergenciaSelecionada(divergencia);
+    // Preencher justificativa com dados da divergência
+    const valorEnviado = divergencia.valorEnviado || "N/A";
+    const valorRetornado = divergencia.valorRetornado || "N/A";
+    const diferenca = divergencia.diferenca 
+      ? `R$ ${parseFloat(divergencia.diferenca).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+      : "N/A";
+    
+    setJustificativaRecurso(
+      `Solicitamos a revisão da glosa referente ao procedimento abaixo:\n\n` +
+      `Descrição: ${divergencia.descricao}\n` +
+      `Tipo de divergência: ${getTipoLabel(divergencia.tipo)}\n` +
+      `Valor cobrado: ${valorEnviado}\n` +
+      `Valor pago: ${valorRetornado}\n` +
+      `Diferença: ${diferenca}\n\n` +
+      `Justificativa:\n` +
+      `[Descreva aqui a justificativa para contestação da glosa]`
+    );
+    setDocumentosAnexos("");
+    setShowCriarRecurso(true);
+  };
+
+  const handleCriarRecurso = async () => {
+    if (!divergenciaSelecionada || !justificativaRecurso) {
+      toast.error("Preencha a justificativa do recurso");
+      return;
+    }
+
+    // Encontrar o convênio da comparação
+    // Buscar convênio da comparação
+    const convenioId = comparacao?.arquivoEnviadoId 
+      ? 1 // Usar convênio padrão ou buscar do arquivo
+      : undefined;
+
+    if (!convenioId) {
+      toast.error("Não foi possível identificar o convênio");
+      return;
+    }
+
+    try {
+      const valorGlosado = divergenciaSelecionada.diferenca 
+        ? Math.abs(parseFloat(divergenciaSelecionada.diferenca)).toString()
+        : "0";
+
+      await criarRecursoMutation.mutateAsync({
+        convenioId,
+        divergenciaId: divergenciaSelecionada.id,
+        codigoProcedimento: divergenciaSelecionada.campo || "",
+        descricaoProcedimento: divergenciaSelecionada.descricao || "",
+        valorGlosado,
+        // motivoGlosa será definido automaticamente
+        justificativaRecurso,
+        // documentosAnexos será adicionado posteriormente
+        prioridade: parseFloat(valorGlosado) > 500 ? "alta" : "media",
+      });
+
+      toast.success("Recurso criado com sucesso!");
+      setShowCriarRecurso(false);
+      setDivergenciaSelecionada(null);
+      setJustificativaRecurso("");
+      setDocumentosAnexos("");
+      
+      // Marcar divergência como resolvida (recurso criado)
+      await resolverMutation.mutateAsync({
+        id: divergenciaSelecionada.id,
+        resolvido: "sim",
+      });
+      utils.comparacoes.get.invalidate({ id: parseInt(selectedComparacaoId) });
+    } catch (error) {
+      toast.error("Erro ao criar recurso");
+    }
+  };
+
+  const getTipoLabel = (tipo: string) => {
+    switch (tipo) {
+      case "valor": return "Divergência de Valor";
+      case "quantidade": return "Divergência de Quantidade";
+      case "ausente_retorno": return "Procedimento Ausente no Retorno";
+      case "ausente_envio": return "Procedimento Ausente no Envio";
+      default: return "Divergência de Dados";
     }
   };
 
@@ -270,6 +376,7 @@ export default function Divergencias() {
                           <TableHead>Valor Enviado</TableHead>
                           <TableHead>Valor Retornado</TableHead>
                           <TableHead>Diferença</TableHead>
+                          <TableHead className="w-[120px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -318,6 +425,19 @@ export default function Divergencias() {
                                 "-"
                               )}
                             </TableCell>
+                            <TableCell>
+                              {div.resolvido !== "sim" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1 text-xs"
+                                  onClick={() => handleAbrirCriarRecurso(div)}
+                                >
+                                  <Gavel className="h-3 w-3" />
+                                  Recurso
+                                </Button>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -340,6 +460,90 @@ export default function Divergencias() {
           </Card>
         )}
       </div>
+
+      {/* Modal Criar Recurso */}
+      <Dialog open={showCriarRecurso} onOpenChange={setShowCriarRecurso}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gavel className="h-5 w-5 text-amber-600" />
+              Criar Recurso de Glosa
+            </DialogTitle>
+            <DialogDescription>
+              Crie um recurso para contestar esta divergência junto ao convênio
+            </DialogDescription>
+          </DialogHeader>
+
+          {divergenciaSelecionada && (
+            <div className="space-y-4">
+              {/* Resumo da Divergência */}
+              <Card className="bg-slate-50 border-0">
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-500">Tipo</p>
+                      <p className="font-medium">{getTipoLabel(divergenciaSelecionada.tipo)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Diferença</p>
+                      <p className="font-medium text-red-600">
+                        {divergenciaSelecionada.diferenca 
+                          ? `R$ ${Math.abs(parseFloat(divergenciaSelecionada.diferenca)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                          : "N/A"
+                        }
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-slate-500">Descrição</p>
+                      <p className="font-medium">{divergenciaSelecionada.descricao}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Formulário */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="justificativa">Justificativa do Recurso *</Label>
+                  <Textarea
+                    id="justificativa"
+                    value={justificativaRecurso}
+                    onChange={(e) => setJustificativaRecurso(e.target.value)}
+                    rows={10}
+                    className="mt-1 font-mono text-sm"
+                    placeholder="Descreva a justificativa para contestação..."
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="documentos">Documentos Anexos (opcional)</Label>
+                  <Input
+                    id="documentos"
+                    value={documentosAnexos}
+                    onChange={(e) => setDocumentosAnexos(e.target.value)}
+                    className="mt-1"
+                    placeholder="Liste os documentos que serão anexados ao recurso"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCriarRecurso(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCriarRecurso}
+              disabled={criarRecursoMutation.isPending}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              {criarRecursoMutation.isPending ? "Criando..." : "Criar Recurso"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
