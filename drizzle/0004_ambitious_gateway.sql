@@ -1,0 +1,40 @@
+CREATE TABLE `historicoRecursos` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`recursoId` int NOT NULL,
+	`userId` int NOT NULL,
+	`tipo` enum('criacao','edicao','envio','resposta_convenio','anexo_adicionado','status_alterado','comentario','lembrete') NOT NULL,
+	`statusAnterior` varchar(50),
+	`statusNovo` varchar(50),
+	`descricao` text NOT NULL,
+	`dadosExtras` json,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `historicoRecursos_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `recursosGlosa` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`divergenciaId` int,
+	`convenioId` int NOT NULL,
+	`userId` int NOT NULL,
+	`codigoProcedimento` varchar(50),
+	`descricaoProcedimento` text,
+	`guiaNumero` varchar(100),
+	`pacienteNome` varchar(255),
+	`valorCobrado` decimal(10,2),
+	`valorGlosado` decimal(10,2),
+	`valorRecuperado` decimal(10,2),
+	`motivoGlosaConvenio` text,
+	`justificativaRecurso` text NOT NULL,
+	`documentosAnexos` json,
+	`status` enum('rascunho','pendente_envio','enviado','em_analise','deferido','deferido_parcial','indeferido','cancelado') NOT NULL DEFAULT 'rascunho',
+	`prioridade` enum('baixa','media','alta','urgente') NOT NULL DEFAULT 'media',
+	`dataGlosa` timestamp,
+	`dataEnvioRecurso` timestamp,
+	`dataPrazoResposta` timestamp,
+	`dataResposta` timestamp,
+	`protocoloRecurso` varchar(100),
+	`respostaConvenio` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `recursosGlosa_id` PRIMARY KEY(`id`)
+);

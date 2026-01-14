@@ -15,6 +15,7 @@ import ItensImportados from "./pages/ItensImportados";
 import Conciliacao from "./pages/Conciliacao";
 import Faturamento from "./pages/Faturamento";
 import AnaliseGlosa from "./pages/AnaliseGlosa";
+import RecursosGlosa from "./pages/RecursosGlosa";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path={"/conciliacao"} component={Conciliacao} />
       <Route path={"/faturamento"} component={Faturamento} />
       <Route path={"/analise-glosa"} component={AnaliseGlosa} />
+      <Route path={"/recursos"} component={RecursosGlosa} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

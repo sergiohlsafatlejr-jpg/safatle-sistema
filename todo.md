@@ -66,3 +66,8 @@
 - [x] Identificação de padrões de glosa
 - [x] Gráficos de análise de glosa por categoria/motivo
 - [x] Ranking de procedimentos mais glosados
+- [x] Sistema de recursos/justificativas de glosa
+- [x] Registro de contestações enviadas aos convênios
+- [x] Acompanhamento de status de cada recurso (pendente, enviado, deferido, indeferido)
+- [x] Histórico de interações por recurso
+- [x] Interface de gerenciamento de recursos

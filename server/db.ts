@@ -1349,3 +1349,243 @@ export async function getResumoGlosa(userId?: number) {
     })),
   };
 }
+
+// ============ RECURSOS DE GLOSA FUNCTIONS ============
+
+import { recursosGlosa, historicoRecursos, InsertRecursoGlosa, InsertHistoricoRecurso } from "../drizzle/schema";
+
+export async function createRecursoGlosa(recurso: InsertRecursoGlosa) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(recursosGlosa).values(recurso);
+  const insertId = result[0].insertId;
+
+  // Criar histórico de criação
+  await db.insert(historicoRecursos).values({
+    recursoId: insertId,
+    userId: recurso.userId,
+    tipo: "criacao",
+    statusNovo: recurso.status || "rascunho",
+    descricao: "Recurso criado",
+  });
+
+  return insertId;
+}
+
+export async function updateRecursoGlosa(
+  id: number,
+  userId: number,
+  data: Partial<InsertRecursoGlosa>,
+  descricaoAlteracao?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Buscar status anterior
+  const [recursoAtual] = await db
+    .select()
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.id, id))
+    .limit(1);
+
+  if (!recursoAtual) throw new Error("Recurso não encontrado");
+
+  // Atualizar recurso
+  await db.update(recursosGlosa).set(data).where(eq(recursosGlosa.id, id));
+
+  // Registrar histórico se status mudou
+  if (data.status && data.status !== recursoAtual.status) {
+    await db.insert(historicoRecursos).values({
+      recursoId: id,
+      userId,
+      tipo: "status_alterado",
+      statusAnterior: recursoAtual.status,
+      statusNovo: data.status,
+      descricao: descricaoAlteracao || `Status alterado de ${recursoAtual.status} para ${data.status}`,
+    });
+  } else if (descricaoAlteracao) {
+    await db.insert(historicoRecursos).values({
+      recursoId: id,
+      userId,
+      tipo: "edicao",
+      descricao: descricaoAlteracao,
+    });
+  }
+}
+
+export async function getRecursosGlosa(
+  userId: number,
+  filters?: {
+    convenioId?: number;
+    status?: string;
+    prioridade?: string;
+    dataInicio?: Date;
+    dataFim?: Date;
+    busca?: string;
+  },
+  page: number = 1,
+  limit: number = 20
+) {
+  const db = await getDb();
+  if (!db) return { recursos: [], total: 0 };
+
+  const conditions: any[] = [eq(recursosGlosa.userId, userId)];
+
+  if (filters?.convenioId) {
+    conditions.push(eq(recursosGlosa.convenioId, filters.convenioId));
+  }
+  if (filters?.status) {
+    conditions.push(eq(recursosGlosa.status, filters.status as any));
+  }
+  if (filters?.prioridade) {
+    conditions.push(eq(recursosGlosa.prioridade, filters.prioridade as any));
+  }
+  if (filters?.dataInicio) {
+    conditions.push(gte(recursosGlosa.createdAt, filters.dataInicio));
+  }
+  if (filters?.dataFim) {
+    conditions.push(lte(recursosGlosa.createdAt, filters.dataFim));
+  }
+  if (filters?.busca) {
+    conditions.push(
+      or(
+        like(recursosGlosa.codigoProcedimento, `%${filters.busca}%`),
+        like(recursosGlosa.descricaoProcedimento, `%${filters.busca}%`),
+        like(recursosGlosa.guiaNumero, `%${filters.busca}%`),
+        like(recursosGlosa.pacienteNome, `%${filters.busca}%`),
+        like(recursosGlosa.protocoloRecurso, `%${filters.busca}%`)
+      )
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Contar total
+  const allRecursos = await db
+    .select()
+    .from(recursosGlosa)
+    .where(whereClause);
+
+  const total = allRecursos.length;
+
+  // Buscar com paginação
+  const recursos = await db
+    .select()
+    .from(recursosGlosa)
+    .where(whereClause)
+    .orderBy(desc(recursosGlosa.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  // Enriquecer com nome do convênio
+  const recursosEnriquecidos = await Promise.all(
+    recursos.map(async (r) => {
+      const [conv] = await db
+        .select()
+        .from(convenios)
+        .where(eq(convenios.id, r.convenioId))
+        .limit(1);
+      return {
+        ...r,
+        convenioNome: conv?.nome || "Desconhecido",
+      };
+    })
+  );
+
+  return { recursos: recursosEnriquecidos, total };
+}
+
+export async function getRecursoById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [recurso] = await db
+    .select()
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.id, id))
+    .limit(1);
+
+  if (!recurso) return null;
+
+  // Buscar convênio
+  const [conv] = await db
+    .select()
+    .from(convenios)
+    .where(eq(convenios.id, recurso.convenioId))
+    .limit(1);
+
+  // Buscar histórico
+  const historico = await db
+    .select()
+    .from(historicoRecursos)
+    .where(eq(historicoRecursos.recursoId, id))
+    .orderBy(desc(historicoRecursos.createdAt));
+
+  return {
+    ...recurso,
+    convenioNome: conv?.nome || "Desconhecido",
+    historico,
+  };
+}
+
+export async function deleteRecursoGlosa(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Deletar histórico primeiro
+  await db.delete(historicoRecursos).where(eq(historicoRecursos.recursoId, id));
+  // Deletar recurso
+  await db.delete(recursosGlosa).where(eq(recursosGlosa.id, id));
+}
+
+export async function addHistoricoRecurso(historico: InsertHistoricoRecurso) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(historicoRecursos).values(historico);
+}
+
+export async function getEstatisticasRecursos(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const recursos = await db
+    .select()
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.userId, userId));
+
+  const stats = {
+    total: recursos.length,
+    porStatus: {} as { [key: string]: number },
+    valorTotalGlosado: 0,
+    valorRecuperado: 0,
+    taxaRecuperacao: 0,
+    pendentes: 0,
+    emAnalise: 0,
+    deferidos: 0,
+    indeferidos: 0,
+  };
+
+  for (const r of recursos) {
+    stats.porStatus[r.status] = (stats.porStatus[r.status] || 0) + 1;
+    stats.valorTotalGlosado += parseFloat(r.valorGlosado || "0");
+    stats.valorRecuperado += parseFloat(r.valorRecuperado || "0");
+
+    if (r.status === "pendente_envio" || r.status === "rascunho") {
+      stats.pendentes++;
+    } else if (r.status === "enviado" || r.status === "em_analise") {
+      stats.emAnalise++;
+    } else if (r.status === "deferido" || r.status === "deferido_parcial") {
+      stats.deferidos++;
+    } else if (r.status === "indeferido") {
+      stats.indeferidos++;
+    }
+  }
+
+  if (stats.valorTotalGlosado > 0) {
+    stats.taxaRecuperacao = (stats.valorRecuperado / stats.valorTotalGlosado) * 100;
+  }
+
+  return stats;
+}

@@ -187,3 +187,88 @@ export const itensManuals = mysqlTable("itensManuals", {
 
 export type ItemManual = typeof itensManuals.$inferSelect;
 export type InsertItemManual = typeof itensManuals.$inferInsert;
+
+/**
+ * Recursos de Glosa - Contestações enviadas aos convênios
+ */
+export const recursosGlosa = mysqlTable("recursosGlosa", {
+  id: int("id").autoincrement().primaryKey(),
+  divergenciaId: int("divergenciaId"),
+  convenioId: int("convenioId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Dados do procedimento contestado
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  descricaoProcedimento: text("descricaoProcedimento"),
+  guiaNumero: varchar("guiaNumero", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  
+  // Valores
+  valorCobrado: decimal("valorCobrado", { precision: 10, scale: 2 }),
+  valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
+  valorRecuperado: decimal("valorRecuperado", { precision: 10, scale: 2 }),
+  
+  // Justificativa e recurso
+  motivoGlosaConvenio: text("motivoGlosaConvenio"),
+  justificativaRecurso: text("justificativaRecurso").notNull(),
+  documentosAnexos: json("documentosAnexos"),
+  
+  // Status e datas
+  status: mysqlEnum("status", [
+    "rascunho",
+    "pendente_envio",
+    "enviado",
+    "em_analise",
+    "deferido",
+    "deferido_parcial",
+    "indeferido",
+    "cancelado"
+  ]).default("rascunho").notNull(),
+  
+  prioridade: mysqlEnum("prioridade", ["baixa", "media", "alta", "urgente"]).default("media").notNull(),
+  
+  dataGlosa: timestamp("dataGlosa"),
+  dataEnvioRecurso: timestamp("dataEnvioRecurso"),
+  dataPrazoResposta: timestamp("dataPrazoResposta"),
+  dataResposta: timestamp("dataResposta"),
+  
+  protocoloRecurso: varchar("protocoloRecurso", { length: 100 }),
+  respostaConvenio: text("respostaConvenio"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RecursoGlosa = typeof recursosGlosa.$inferSelect;
+export type InsertRecursoGlosa = typeof recursosGlosa.$inferInsert;
+
+/**
+ * Histórico de interações dos recursos de glosa
+ */
+export const historicoRecursos = mysqlTable("historicoRecursos", {
+  id: int("id").autoincrement().primaryKey(),
+  recursoId: int("recursoId").notNull(),
+  userId: int("userId").notNull(),
+  
+  tipo: mysqlEnum("tipo", [
+    "criacao",
+    "edicao",
+    "envio",
+    "resposta_convenio",
+    "anexo_adicionado",
+    "status_alterado",
+    "comentario",
+    "lembrete"
+  ]).notNull(),
+  
+  statusAnterior: varchar("statusAnterior", { length: 50 }),
+  statusNovo: varchar("statusNovo", { length: 50 }),
+  
+  descricao: text("descricao").notNull(),
+  dadosExtras: json("dadosExtras"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoRecurso = typeof historicoRecursos.$inferSelect;
+export type InsertHistoricoRecurso = typeof historicoRecursos.$inferInsert;

@@ -601,6 +601,199 @@ export const appRouter = router({
       return db.getResumoGlosa(ctx.user.id);
     }),
   }),
+
+  // ============ RECURSOS DE GLOSA ============
+  recursos: router({
+    list: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          status: z.string().optional(),
+          prioridade: z.string().optional(),
+          dataInicio: z.date().optional(),
+          dataFim: z.date().optional(),
+          busca: z.string().optional(),
+          page: z.number().default(1),
+          limit: z.number().default(20),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getRecursosGlosa(
+          ctx.user.id,
+          {
+            convenioId: input?.convenioId,
+            status: input?.status,
+            prioridade: input?.prioridade,
+            dataInicio: input?.dataInicio,
+            dataFim: input?.dataFim,
+            busca: input?.busca,
+          },
+          input?.page || 1,
+          input?.limit || 20
+        );
+      }),
+
+    byId: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getRecursoById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(
+        z.object({
+          divergenciaId: z.number().optional(),
+          convenioId: z.number(),
+          codigoProcedimento: z.string().optional(),
+          descricaoProcedimento: z.string().optional(),
+          guiaNumero: z.string().optional(),
+          pacienteNome: z.string().optional(),
+          valorCobrado: z.string().optional(),
+          valorGlosado: z.string().optional(),
+          motivoGlosaConvenio: z.string().optional(),
+          justificativaRecurso: z.string(),
+          prioridade: z.enum(["baixa", "media", "alta", "urgente"]).default("media"),
+          dataGlosa: z.date().optional(),
+          dataPrazoResposta: z.date().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const id = await db.createRecursoGlosa({
+          ...input,
+          userId: ctx.user.id,
+          status: "rascunho",
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          data: z.object({
+            codigoProcedimento: z.string().optional(),
+            descricaoProcedimento: z.string().optional(),
+            guiaNumero: z.string().optional(),
+            pacienteNome: z.string().optional(),
+            valorCobrado: z.string().optional(),
+            valorGlosado: z.string().optional(),
+            valorRecuperado: z.string().optional(),
+            motivoGlosaConvenio: z.string().optional(),
+            justificativaRecurso: z.string().optional(),
+            prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+            status: z.enum([
+              "rascunho",
+              "pendente_envio",
+              "enviado",
+              "em_analise",
+              "deferido",
+              "deferido_parcial",
+              "indeferido",
+              "cancelado"
+            ]).optional(),
+            dataGlosa: z.date().optional(),
+            dataEnvioRecurso: z.date().optional(),
+            dataPrazoResposta: z.date().optional(),
+            dataResposta: z.date().optional(),
+            protocoloRecurso: z.string().optional(),
+            respostaConvenio: z.string().optional(),
+          }),
+          descricao: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.updateRecursoGlosa(
+          input.id,
+          ctx.user.id,
+          input.data,
+          input.descricao
+        );
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteRecursoGlosa(input.id);
+        return { success: true };
+      }),
+
+    addHistorico: protectedProcedure
+      .input(
+        z.object({
+          recursoId: z.number(),
+          tipo: z.enum([
+            "criacao",
+            "edicao",
+            "envio",
+            "resposta_convenio",
+            "anexo_adicionado",
+            "status_alterado",
+            "comentario",
+            "lembrete"
+          ]),
+          descricao: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.addHistoricoRecurso({
+          recursoId: input.recursoId,
+          userId: ctx.user.id,
+          tipo: input.tipo,
+          descricao: input.descricao,
+        });
+        return { success: true };
+      }),
+
+    estatisticas: protectedProcedure.query(async ({ ctx }) => {
+      return db.getEstatisticasRecursos(ctx.user.id);
+    }),
+
+    enviar: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          protocoloRecurso: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.updateRecursoGlosa(
+          input.id,
+          ctx.user.id,
+          {
+            status: "enviado",
+            dataEnvioRecurso: new Date(),
+            protocoloRecurso: input.protocoloRecurso,
+          },
+          "Recurso enviado ao convênio"
+        );
+        return { success: true };
+      }),
+
+    registrarResposta: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          status: z.enum(["deferido", "deferido_parcial", "indeferido"]),
+          respostaConvenio: z.string(),
+          valorRecuperado: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.updateRecursoGlosa(
+          input.id,
+          ctx.user.id,
+          {
+            status: input.status,
+            dataResposta: new Date(),
+            respostaConvenio: input.respostaConvenio,
+            valorRecuperado: input.valorRecuperado,
+          },
+          `Resposta do convênio: ${input.status}`
+        );
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
