@@ -318,7 +318,17 @@ export async function createProcedimentos(data: InsertProcedimento[]) {
 
   if (data.length === 0) return { count: 0 };
 
-  await db.insert(procedimentos).values(data);
+  // Insert in batches to avoid "Maximum call stack size exceeded" error
+  const BATCH_SIZE = 500;
+  let inserted = 0;
+  
+  for (let i = 0; i < data.length; i += BATCH_SIZE) {
+    const batch = data.slice(i, i + BATCH_SIZE);
+    await db.insert(procedimentos).values(batch);
+    inserted += batch.length;
+    console.log(`[DB] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${data.length} procedimentos`);
+  }
+  
   return { count: data.length };
 }
 

@@ -425,17 +425,20 @@ export async function parseExcel(content: Buffer): Promise<ParseResult> {
 
 function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedimento | null {
   // Map common column names to our fields
+  // Includes Unimed format: Item, Item Desc, Número Guia, Nome Beneficiário, Valor Pagamento, etc.
   const columnMappings: Record<string, string[]> = {
-    codigo: ["codigo", "cod", "código", "cod_proc", "codigo_procedimento", "procedimento"],
-    descricao: ["descricao", "descrição", "desc", "nome", "procedimento_nome"],
+    codigo: ["codigo", "cod", "código", "cod_proc", "codigo_procedimento", "procedimento", "item", "cod_item", "codigo_item"],
+    descricao: ["descricao", "descrição", "desc", "procedimento_nome", "item_desc", "itemdesc", "descricao_item", "descricaoitem"],
     quantidade: ["quantidade", "qtd", "qtde", "quant"],
-    valorUnitario: ["valor_unitario", "vl_unitario", "vlunitario", "preco", "valor"],
-    valorTotal: ["valor_total", "vl_total", "vltotal", "total"],
-    pacienteNome: ["paciente", "nome_paciente", "beneficiario", "nome"],
-    pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula"],
-    guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero"],
-    nomeMedico: ["medico", "nome_medico", "profissional", "executante"],
-    crmMedico: ["crm", "crm_medico", "conselho"],
+    valorUnitario: ["valor_unitario", "vl_unitario", "vlunitario", "preco"],
+    valorTotal: ["valor_total", "vl_total", "vltotal", "total", "valor_pagamento", "valorpagamento", "valor"],
+    pacienteNome: ["paciente", "nome_paciente", "nome_beneficiario", "nomebeneficiario"],
+    pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula", "beneficiario", "beneficiário"],
+    guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero", "numeroguia", "número_guia"],
+    nomeMedico: ["medico", "nome_medico", "profissional", "executante", "nome_prestador_executante", "nomeprestadorexecutante"],
+    crmMedico: ["crm", "crm_medico", "conselho", "prestador_executante", "prestadorexecutante"],
+    dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao"],
+    situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "status", "situacao"],
   };
   
   const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -458,18 +461,36 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
   const codigo = findValue(columnMappings.codigo);
   if (!codigo) return null;
   
+  // Parse data de execução (pode ser número serial do Excel ou string)
+  let dataExecucao: Date | undefined;
+  const dataExecucaoRaw = findValue(columnMappings.dataExecucao);
+  if (dataExecucaoRaw !== undefined) {
+    if (typeof dataExecucaoRaw === 'number') {
+      // Excel serial date: days since 1900-01-01 (with Excel bug for 1900 leap year)
+      // Excel serial 1 = 1900-01-01, but we need to adjust for the bug
+      const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+      dataExecucao = new Date(excelEpoch.getTime() + dataExecucaoRaw * 24 * 60 * 60 * 1000);
+    } else {
+      dataExecucao = parseDate(dataExecucaoRaw);
+    }
+  }
+  
+  // Get situacao for dadosExtras
+  const situacaoItem = findValue(columnMappings.situacaoItem) as string | undefined;
+  
   return {
     codigo: String(codigo),
     descricao: findValue(columnMappings.descricao) as string | undefined,
     quantidade: parseNumber(findValue(columnMappings.quantidade)) || 1,
     valorUnitario: parseNumber(findValue(columnMappings.valorUnitario)),
     valorTotal: parseNumber(findValue(columnMappings.valorTotal)),
-    pacienteNome: findValue(columnMappings.pacienteNome) as string | undefined,
+    dataExecucao,
+    pacienteNome: (findValue(columnMappings.pacienteNome) || (row as Record<string, unknown>)["Nome Beneficiário"]) as string | undefined,
     pacienteCarteirinha: findValue(columnMappings.pacienteCarteirinha) as string | undefined,
     guiaNumero: findValue(columnMappings.guiaNumero) as string | undefined,
     nomeMedico: findValue(columnMappings.nomeMedico) as string | undefined,
     crmMedico: findValue(columnMappings.crmMedico) as string | undefined,
-    dadosExtras: row,
+    dadosExtras: { ...row, situacaoItem },
   };
 }
 

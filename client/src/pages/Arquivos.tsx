@@ -13,7 +13,8 @@ import {
   Eye,
   Download,
   Loader2,
-  Trash2
+  Trash2,
+  RefreshCw
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -57,6 +58,7 @@ export default function Arquivos() {
   const [selectedArquivo, setSelectedArquivo] = useState<number | null>(null);
   const [arquivoToDelete, setArquivoToDelete] = useState<{ id: number; nome: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -88,6 +90,25 @@ export default function Arquivos() {
       setIsDeleting(false);
     },
   });
+
+  const reprocessarArquivo = trpc.arquivos.reprocessar.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.message);
+      utils.arquivos.list.invalidate();
+      utils.arquivos.stats.invalidate();
+      utils.dashboard.resumo.invalidate();
+      setIsReprocessing(null);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao reprocessar arquivo");
+      setIsReprocessing(null);
+    },
+  });
+
+  const handleReprocessar = (arquivoId: number) => {
+    setIsReprocessing(arquivoId);
+    reprocessarArquivo.mutate({ id: arquivoId });
+  };
 
   const handleDeleteArquivo = () => {
     if (!arquivoToDelete) return;
@@ -309,6 +330,20 @@ export default function Arquivos() {
                               onClick={() => window.open(arquivo.s3Url, "_blank")}
                             >
                               <Download className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              onClick={() => handleReprocessar(arquivo.id)}
+                              disabled={isReprocessing === arquivo.id}
+                              title="Reprocessar arquivo"
+                            >
+                              {isReprocessing === arquivo.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
                             </Button>
                             <Button 
                               variant="ghost" 

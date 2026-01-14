@@ -212,6 +212,69 @@ export const appRouter = router({
         
         return { success: true };
       }),
+
+    reprocessar: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        // Get the arquivo
+        const arquivo = await db.getArquivoById(input.id);
+        if (!arquivo) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo não encontrado" });
+        }
+        if (arquivo.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para reprocessar este arquivo" });
+        }
+        
+        // Delete existing procedimentos
+        await db.deleteProcedimentosByArquivoId(input.id);
+        
+        // Download file from S3
+        const response = await fetch(arquivo.s3Url);
+        if (!response.ok) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao baixar arquivo do S3" });
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        
+        // Parse file and extract procedimentos
+        try {
+          console.log('[Reprocessar] Parsing file:', arquivo.nome);
+          const parseResult = await parseFile(buffer, arquivo.nome);
+          
+          console.log('[Reprocessar] Parse result:', {
+            success: parseResult.success,
+            procedimentosCount: parseResult.procedimentos.length,
+          });
+          
+          if (parseResult.success && parseResult.procedimentos.length > 0) {
+            const procedimentosToInsert = parseResult.procedimentos.map((p) =>
+              toProcedimentoInsert(p, input.id)
+            );
+            
+            await db.createProcedimentos(procedimentosToInsert);
+            await db.updateArquivoStatus(input.id, "processado");
+            
+            return { 
+              success: true, 
+              procedimentosCount: procedimentosToInsert.length,
+              message: `Arquivo reprocessado com sucesso. ${procedimentosToInsert.length} procedimentos extraídos.`
+            };
+          } else if (!parseResult.success) {
+            await db.updateArquivoStatus(input.id, "erro");
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: parseResult.error || "Erro ao processar arquivo" });
+          } else {
+            await db.updateArquivoStatus(input.id, "processado");
+            return { 
+              success: true, 
+              procedimentosCount: 0,
+              message: "Arquivo processado, mas nenhum procedimento encontrado."
+            };
+          }
+        } catch (error) {
+          console.error("Error reprocessing file:", error);
+          await db.updateArquivoStatus(input.id, "erro");
+          throw error;
+        }
+      }),
   }),
 
   // ============ COMPARACOES ============

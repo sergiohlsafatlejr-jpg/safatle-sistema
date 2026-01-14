@@ -1,0 +1,8 @@
+{
+  "query": "SELECT a.id, a.nome, a.status, a.tipo_arquivo, COUNT(p.id) as total_procedimentos\nFROM arquivos a\nLEFT JOIN procedimentos p ON p.arquivo_id = a.id\nWHERE a.nome LIKE '%demonstrativo%'\nGROUP BY a.id, a.nome, a.status, a.tipo_arquivo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.status, a.tipo_arquivo, COUNT(p.id) as total_procedimentos\nFROM arquivos a\nLEFT JOIN procedimentos p ON p.arquivo_id = a.id\nWHERE a.nome LIKE '%demonstrativo%'\nGROUP BY a.id, a.nome, a.status, a.tipo_arquivo;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'p.arquivo_id' in 'on clause'"
+  ]
+}

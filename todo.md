@@ -74,3 +74,4 @@
 - [x] Botão na página de Divergências para criar recurso de glosa automaticamente
 - [x] Corrigir extração de médico e CRM nos arquivos XML (campos não estão sendo preenchidos)
 - [x] Destacar visualmente procedimentos com médico associado na interface
+- [x] Corrigir erro na importação de arquivos Excel (.xlsx)
