@@ -302,6 +302,14 @@ export async function getArquivosStats(userId?: number) {
   };
 }
 
+export async function deleteArquivo(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(arquivos).where(eq(arquivos.id, id));
+  return { success: true };
+}
+
 // ============ PROCEDIMENTO FUNCTIONS ============
 
 export async function createProcedimentos(data: InsertProcedimento[]) {
@@ -322,6 +330,14 @@ export async function getProcedimentosByArquivoId(arquivoId: number) {
     .select()
     .from(procedimentos)
     .where(eq(procedimentos.arquivoId, arquivoId));
+}
+
+export async function deleteProcedimentosByArquivoId(arquivoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  return { success: true };
 }
 
 export async function getProcedimentosPaginated(filters?: {

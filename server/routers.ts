@@ -172,6 +172,27 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getProcedimentosByArquivoId(input.arquivoId);
       }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        // Verify the file belongs to the user
+        const arquivo = await db.getArquivoById(input.id);
+        if (!arquivo) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo não encontrado" });
+        }
+        if (arquivo.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para excluir este arquivo" });
+        }
+        
+        // Delete associated procedimentos first
+        await db.deleteProcedimentosByArquivoId(input.id);
+        
+        // Delete the arquivo record
+        await db.deleteArquivo(input.id);
+        
+        return { success: true };
+      }),
   }),
 
   // ============ COMPARACOES ============

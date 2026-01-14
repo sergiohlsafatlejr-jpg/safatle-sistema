@@ -12,10 +12,12 @@ import {
   ArrowDownRight,
   Eye,
   Download,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -30,7 +32,18 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -42,6 +55,10 @@ export default function Arquivos() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroConvenio, setFiltroConvenio] = useState<string>("todos");
   const [selectedArquivo, setSelectedArquivo] = useState<number | null>(null);
+  const [arquivoToDelete, setArquivoToDelete] = useState<{ id: number; nome: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const utils = trpc.useUtils();
 
   const { data: arquivos, isLoading } = trpc.arquivos.list.useQuery({
     busca: busca || undefined,
@@ -56,6 +73,27 @@ export default function Arquivos() {
     { arquivoId: selectedArquivo! },
     { enabled: !!selectedArquivo }
   );
+
+  const deleteArquivo = trpc.arquivos.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Arquivo excluído com sucesso");
+      utils.arquivos.list.invalidate();
+      utils.arquivos.stats.invalidate();
+      utils.dashboard.resumo.invalidate();
+      setArquivoToDelete(null);
+      setIsDeleting(false);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir arquivo");
+      setIsDeleting(false);
+    },
+  });
+
+  const handleDeleteArquivo = () => {
+    if (!arquivoToDelete) return;
+    setIsDeleting(true);
+    deleteArquivo.mutate({ id: arquivoToDelete.id });
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -272,6 +310,14 @@ export default function Arquivos() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setArquivoToDelete({ id: arquivo.id, nome: arquivo.nome })}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -341,6 +387,38 @@ export default function Arquivos() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!arquivoToDelete} onOpenChange={() => !isDeleting && setArquivoToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o arquivo <strong>"{arquivoToDelete?.nome}"</strong>?
+              <br /><br />
+              Esta ação irá remover permanentemente o arquivo e todos os procedimentos extraídos dele.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteArquivo}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                "Excluir Arquivo"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

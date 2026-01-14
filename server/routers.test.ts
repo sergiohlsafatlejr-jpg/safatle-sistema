@@ -34,6 +34,8 @@ vi.mock("./db", () => ({
   getCodigosProcedimentos: vi.fn().mockResolvedValue([]),
   getCamposComparacao: vi.fn().mockResolvedValue([]),
   getItensManuals: vi.fn().mockResolvedValue([]),
+  deleteArquivo: vi.fn().mockResolvedValue({ success: true }),
+  deleteProcedimentosByArquivoId: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
@@ -184,5 +186,22 @@ describe("dashboard.resumo", () => {
     expect(result).toHaveProperty("comparacoes");
     expect(result.arquivos?.total).toBe(10);
     expect(result.comparacoes?.total).toBe(5);
+  });
+});
+
+describe("arquivos.delete", () => {
+  it("throws for unauthenticated users", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.arquivos.delete({ id: 1 })).rejects.toThrow();
+  });
+
+  it("throws NOT_FOUND when arquivo does not exist", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // getArquivoById is mocked to return null by default
+    await expect(caller.arquivos.delete({ id: 999 })).rejects.toThrow("Arquivo não encontrado");
   });
 });
