@@ -63,7 +63,7 @@ function parseDate(value: unknown): Date | undefined {
 
 /**
  * Parse XML file content (TISS format commonly used in Brazil)
- * Completely rewritten to properly handle TISS XML structure
+ * Supports both sent files (prestadorParaOperadora) and return files (operadoraParaPrestador)
  */
 export async function parseXML(content: Buffer | string): Promise<ParseResult> {
   try {
@@ -80,31 +80,41 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
     
     const procedimentos: ParsedProcedimento[] = [];
     
-    // Navigate to guias in TISS structure
-    const guias = findGuias(result);
-    
-    for (const guia of guias) {
-      const guiaNumero = extractGuiaNumero(guia);
-      const pacienteCarteirinha = extractPacienteCarteirinha(guia);
-      
-      // Extract procedimentos executados
-      const procedimentosExecutados = extractProcedimentosExecutados(guia);
-      for (const proc of procedimentosExecutados) {
-        procedimentos.push({
-          ...proc,
-          guiaNumero: proc.guiaNumero || guiaNumero,
-          pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-        });
+    // Check if this is a demonstrativo de retorno (operadoraParaPrestador)
+    const demonstrativos = findDemonstrativosRetorno(result);
+    if (demonstrativos.length > 0) {
+      // Process demonstrativo de retorno
+      for (const demonstrativo of demonstrativos) {
+        const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
+        procedimentos.push(...procsRetorno);
       }
+    } else {
+      // Process regular guias (prestadorParaOperadora)
+      const guias = findGuias(result);
       
-      // Extract outras despesas (servicosExecutados)
-      const outrasDespesas = extractOutrasDespesas(guia);
-      for (const proc of outrasDespesas) {
-        procedimentos.push({
-          ...proc,
-          guiaNumero: proc.guiaNumero || guiaNumero,
-          pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-        });
+      for (const guia of guias) {
+        const guiaNumero = extractGuiaNumero(guia);
+        const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+        
+        // Extract procedimentos executados
+        const procedimentosExecutados = extractProcedimentosExecutados(guia);
+        for (const proc of procedimentosExecutados) {
+          procedimentos.push({
+            ...proc,
+            guiaNumero: proc.guiaNumero || guiaNumero,
+            pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+          });
+        }
+        
+        // Extract outras despesas (servicosExecutados)
+        const outrasDespesas = extractOutrasDespesas(guia);
+        for (const proc of outrasDespesas) {
+          procedimentos.push({
+            ...proc,
+            guiaNumero: proc.guiaNumero || guiaNumero,
+            pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+          });
+        }
       }
     }
     
@@ -120,6 +130,169 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
       error: error instanceof Error ? error.message : "Erro ao processar XML",
     };
   }
+}
+
+/**
+ * Find demonstrativos de retorno in the XML structure
+ * Path: mensagemTISS -> operadoraParaPrestador -> demonstrativosRetorno -> demonstrativoAnaliseConta
+ */
+function findDemonstrativosRetorno(obj: unknown): unknown[] {
+  const demonstrativos: unknown[] = [];
+  
+  function search(node: unknown, depth: number = 0): void {
+    if (!node || typeof node !== "object" || depth > 10) return;
+    
+    const record = node as Record<string, unknown>;
+    
+    for (const [key, value] of Object.entries(record)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Skip attributes and simple values
+      if (key === '$' || typeof value !== 'object' || value === null) continue;
+      
+      // Check for demonstrativoAnaliseConta
+      if (lowerKey === 'demonstrativoanaliseconta') {
+        if (Array.isArray(value)) {
+          demonstrativos.push(...value);
+        } else {
+          demonstrativos.push(value);
+        }
+      } else {
+        // Continue searching in nested objects
+        search(value, depth + 1);
+      }
+    }
+  }
+  
+  search(obj);
+  return demonstrativos;
+}
+
+/**
+ * Extract procedimentos from demonstrativo de retorno
+ * Structure: dadosConta -> dadosProtocolo -> relacaoGuias -> detalhesGuia
+ */
+function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedProcedimento[] {
+  if (!demonstrativo || typeof demonstrativo !== "object") return [];
+  
+  const procedimentos: ParsedProcedimento[] = [];
+  const record = demonstrativo as Record<string, unknown>;
+  
+  // Get dadosConta
+  const dadosConta = record["dadosConta"] as Record<string, unknown> | undefined;
+  if (!dadosConta) return [];
+  
+  // Get dadosProtocolo (can be array or single)
+  let protocolos = dadosConta["dadosProtocolo"];
+  if (!protocolos) return [];
+  if (!Array.isArray(protocolos)) protocolos = [protocolos];
+  
+  for (const protocolo of protocolos as unknown[]) {
+    if (!protocolo || typeof protocolo !== "object") continue;
+    const protocoloRecord = protocolo as Record<string, unknown>;
+    
+    // Get relacaoGuias (can be array or single)
+    let guias = protocoloRecord["relacaoGuias"];
+    if (!guias) continue;
+    if (!Array.isArray(guias)) guias = [guias];
+    
+    for (const guia of guias as unknown[]) {
+      if (!guia || typeof guia !== "object") continue;
+      const guiaRecord = guia as Record<string, unknown>;
+      
+      const guiaNumero = getTextValue(guiaRecord["numeroGuiaPrestador"]) || 
+                         getTextValue(guiaRecord["numeroGuiaOperadora"]);
+      const pacienteCarteirinha = getTextValue(guiaRecord["numeroCarteira"]);
+      
+      // Get motivos de glosa da guia
+      let motivosGlosaGuia: string[] = [];
+      let motivoGlosaGuiaItems = guiaRecord["motivoGlosaGuia"];
+      if (motivoGlosaGuiaItems) {
+        if (!Array.isArray(motivoGlosaGuiaItems)) motivoGlosaGuiaItems = [motivoGlosaGuiaItems];
+        for (const motivo of motivoGlosaGuiaItems as unknown[]) {
+          if (motivo && typeof motivo === "object") {
+            const motivoRecord = motivo as Record<string, unknown>;
+            const descricao = getTextValue(motivoRecord["descricaoGlosa"]);
+            const codigo = getTextValue(motivoRecord["codigoGlosa"]);
+            if (descricao) {
+              motivosGlosaGuia.push(codigo ? `${codigo}: ${descricao}` : descricao);
+            }
+          }
+        }
+      }
+      
+      // Get detalhesGuia (can be array or single)
+      let detalhes = guiaRecord["detalhesGuia"];
+      if (!detalhes) continue;
+      if (!Array.isArray(detalhes)) detalhes = [detalhes];
+      
+      for (const detalhe of detalhes as unknown[]) {
+        if (!detalhe || typeof detalhe !== "object") continue;
+        const detalheRecord = detalhe as Record<string, unknown>;
+        
+        // Get procedimento info
+        const procedimentoNode = detalheRecord["procedimento"] as Record<string, unknown> | undefined;
+        const codigo = procedimentoNode ? 
+          getTextValue(procedimentoNode["codigoProcedimento"]) : 
+          getTextValue(detalheRecord["codigoProcedimento"]);
+        const descricao = procedimentoNode ? 
+          getTextValue(procedimentoNode["descricaoProcedimento"]) : 
+          getTextValue(detalheRecord["descricaoProcedimento"]);
+        
+        if (!codigo) continue;
+        
+        const dataRealizacao = parseDate(detalheRecord["dataRealizacao"]);
+        const valorInformado = parseNumber(detalheRecord["valorInformado"]);
+        const valorProcessado = parseNumber(detalheRecord["valorProcessado"]);
+        const valorLiberado = parseNumber(detalheRecord["valorLiberado"]);
+        const quantidade = parseNumber(detalheRecord["qtdExecutada"]) || 1;
+        
+        // Get glosa info from relacaoGlosa
+        let valorGlosado = 0;
+        let motivoGlosa = "";
+        const relacaoGlosa = detalheRecord["relacaoGlosa"] as Record<string, unknown> | undefined;
+        if (relacaoGlosa) {
+          valorGlosado = parseNumber(relacaoGlosa["valorGlosa"]) || 0;
+          const tipoGlosa = getTextValue(relacaoGlosa["tipoGlosa"]);
+          if (tipoGlosa) {
+            motivoGlosa = `Código: ${tipoGlosa}`;
+          }
+        }
+        
+        // If no specific glosa but there are guia-level glosas, use those
+        if (!motivoGlosa && motivosGlosaGuia.length > 0) {
+          motivoGlosa = motivosGlosaGuia.join("; ");
+        }
+        
+        // Calculate glosa from difference if not explicit
+        if (valorGlosado === 0 && valorInformado && valorLiberado !== undefined) {
+          valorGlosado = Math.max(0, valorInformado - valorLiberado);
+        }
+        
+        procedimentos.push({
+          codigo,
+          descricao,
+          quantidade,
+          valorUnitario: valorInformado ? valorInformado / quantidade : undefined,
+          valorTotal: valorLiberado !== undefined ? valorLiberado : valorInformado,
+          dataExecucao: dataRealizacao,
+          guiaNumero,
+          pacienteCarteirinha,
+          motivoGlosa: motivoGlosa || undefined,
+          valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
+          dadosExtras: {
+            valorInformado,
+            valorProcessado,
+            valorLiberado,
+            valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
+            motivoGlosa: motivoGlosa || undefined,
+          },
+        });
+      }
+    }
+  }
+  
+  return procedimentos;
 }
 
 /**
