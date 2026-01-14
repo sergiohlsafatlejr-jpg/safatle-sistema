@@ -17,6 +17,8 @@ import Faturamento from "./pages/Faturamento";
 import AnaliseGlosa from "./pages/AnaliseGlosa";
 import RecursosGlosa from "./pages/RecursosGlosa";
 import Tendencias from "./pages/Tendencias";
+import Demonstrativo from "./pages/Demonstrativo";
+import Repasse from "./pages/Repasse";
 
 function Router() {
   return (
@@ -34,6 +36,8 @@ function Router() {
       <Route path={"/analise-glosa"} component={AnaliseGlosa} />
       <Route path={"/recursos"} component={RecursosGlosa} />
       <Route path={"/tendencias"} component={Tendencias} />
+      <Route path={"/demonstrativo"} component={Demonstrativo} />
+      <Route path={"/repasse"} component={Repasse} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

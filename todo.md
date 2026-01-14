@@ -80,3 +80,7 @@
 - [x] Criar relatório de tendências de glosas por convênio nos últimos 6 meses
 - [x] Gráficos de evolução mensal de valores glosados
 - [x] Comparativo entre convênios ao longo do tempo
+- [x] Otimizar tela de Conciliação - corrigir lentidão e filtros que não abrem
+- [x] Criar tela de Demonstrativo - exibir arquivo de retorno com itens pagos, glosados e motivos de glosa
+- [x] Criar tela de Repasse - comparar itens faturados vs recebidos (médico, valor pago, data, código, paciente, guia)
+- [x] Corrigir gráficos de Faturamento - usar valores do arquivo de retorno para Total Recebido

@@ -1,4 +1,4 @@
-import { eq, and, desc, like, sql, gte, lte, or } from "drizzle-orm";
+import { eq, and, desc, like, sql, gte, lte, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -939,20 +939,59 @@ export async function getResumoGeral(userId?: number) {
     .from(arquivos)
     .where(arquivosConditions.length > 0 ? and(...arquivosConditions) : undefined);
 
-  // Total de procedimentos
-  const procQuery = db
-    .select({ 
-      count: sql<number>`count(*)`,
-      valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
-    })
-    .from(procedimentos)
-    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id));
+  // Total de procedimentos ENVIADOS (XMLs)
+  const arquivosEnviadosConditions = userId 
+    ? [eq(arquivos.userId, userId), eq(arquivos.direcao, "enviado"), eq(arquivos.status, "processado")]
+    : [eq(arquivos.direcao, "enviado"), eq(arquivos.status, "processado")];
 
-  if (userId) {
-    procQuery.where(eq(arquivos.userId, userId));
+  const arquivosEnviados = await db
+    .select({ id: arquivos.id })
+    .from(arquivos)
+    .where(and(...arquivosEnviadosConditions));
+
+  let valorTotalEnviado = 0;
+  let totalProcedimentosEnviados = 0;
+
+  if (arquivosEnviados.length > 0) {
+    const enviadosIds = arquivosEnviados.map(a => a.id);
+    const procEnviadosStats = await db
+      .select({ 
+        count: sql<number>`count(*)`,
+        valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
+      })
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, enviadosIds));
+    
+    valorTotalEnviado = Number(procEnviadosStats[0]?.valorTotal) || 0;
+    totalProcedimentosEnviados = Number(procEnviadosStats[0]?.count) || 0;
   }
 
-  const procStats = await procQuery;
+  // Total de procedimentos RETORNADOS (Excel)
+  const arquivosRetornadosConditions = userId 
+    ? [eq(arquivos.userId, userId), eq(arquivos.direcao, "retornado"), eq(arquivos.status, "processado")]
+    : [eq(arquivos.direcao, "retornado"), eq(arquivos.status, "processado")];
+
+  const arquivosRetornados = await db
+    .select({ id: arquivos.id })
+    .from(arquivos)
+    .where(and(...arquivosRetornadosConditions));
+
+  let valorTotalRetornado = 0;
+  let totalProcedimentosRetornados = 0;
+
+  if (arquivosRetornados.length > 0) {
+    const retornadosIds = arquivosRetornados.map(a => a.id);
+    const procRetornadosStats = await db
+      .select({ 
+        count: sql<number>`count(*)`,
+        valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
+      })
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, retornadosIds));
+    
+    valorTotalRetornado = Number(procRetornadosStats[0]?.valorTotal) || 0;
+    totalProcedimentosRetornados = Number(procRetornadosStats[0]?.count) || 0;
+  }
 
   // Total de comparações e divergências
   const compConditions: any[] = [];
@@ -964,24 +1003,24 @@ export async function getResumoGeral(userId?: number) {
     .select({
       total: sql<number>`count(*)`,
       totalDivergencias: sql<number>`COALESCE(SUM(${comparacoes.totalDivergencias}), 0)`,
-      valorRetornado: sql<number>`COALESCE(SUM(CAST(${comparacoes.valorTotalRetornado} AS DECIMAL(15,2))), 0)`,
-      valorEnviado: sql<number>`COALESCE(SUM(CAST(${comparacoes.valorTotalEnviado} AS DECIMAL(15,2))), 0)`,
     })
     .from(comparacoes)
     .where(compConditions.length > 0 ? and(...compConditions) : undefined);
 
-  const valorTotalEnviado = Number(procStats[0]?.valorTotal) || 0;
-  const valorTotalRetornado = Number(compStats[0]?.valorRetornado) || 0;
-  const valorGlosado = Number(compStats[0]?.valorEnviado || 0) - valorTotalRetornado;
+  // Calcular glosa baseado nos valores reais
+  const valorGlosado = valorTotalEnviado > valorTotalRetornado 
+    ? valorTotalEnviado - valorTotalRetornado 
+    : 0;
 
   return {
     totalArquivos: Number(totalArquivos[0]?.count) || 0,
-    totalProcedimentos: Number(procStats[0]?.count) || 0,
+    totalProcedimentos: totalProcedimentosEnviados,
+    totalProcedimentosRetornados,
     totalComparacoes: Number(compStats[0]?.total) || 0,
     totalDivergencias: Number(compStats[0]?.totalDivergencias) || 0,
     valorTotalEnviado,
     valorTotalRetornado,
-    valorGlosado: valorGlosado > 0 ? valorGlosado : 0,
+    valorGlosado,
     percentualGlosa: valorTotalEnviado > 0 ? (valorGlosado / valorTotalEnviado) * 100 : 0,
   };
 }
@@ -2238,4 +2277,169 @@ export async function getTendenciaGeral(filters: {
   }
 
   return tendencias;
+}
+
+// ============ REPASSE MÉDICO ============
+export interface RepasseItem {
+  id: number;
+  guiaNumero: string;
+  dataExecucao: Date | null;
+  codigo: string;
+  descricao: string;
+  pacienteNome: string;
+  nomeMedico: string;
+  crmMedico: string;
+  convenioNome: string;
+  valorFaturado: string;
+  valorPago: string;
+  valorGlosado: string;
+}
+
+export async function getRepasseData(filters: {
+  userId: number;
+  convenioId?: number;
+  dataInicio?: Date;
+  dataFim?: Date;
+  page: number;
+  pageSize: number;
+}): Promise<{ items: RepasseItem[]; total: number }> {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  // Buscar arquivos enviados do usuário
+  const arquivosConditions = [
+    eq(arquivos.userId, filters.userId),
+    eq(arquivos.direcao, "enviado"),
+    eq(arquivos.status, "processado"),
+  ];
+
+  if (filters.convenioId) {
+    arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+
+  const arquivosEnviados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...arquivosConditions));
+
+  if (arquivosEnviados.length === 0) {
+    return { items: [], total: 0 };
+  }
+
+  const arquivoIds = arquivosEnviados.map(a => a.id);
+
+  // Buscar procedimentos enviados
+  const procConditions: any[] = [
+    inArray(procedimentos.arquivoId, arquivoIds),
+  ];
+
+  if (filters.dataInicio) {
+    procConditions.push(gte(procedimentos.dataExecucao, filters.dataInicio));
+  }
+  if (filters.dataFim) {
+    procConditions.push(lte(procedimentos.dataExecucao, filters.dataFim));
+  }
+
+  // Contar total
+  const [{ count: total }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(procedimentos)
+    .where(and(...procConditions));
+
+  // Buscar procedimentos com paginação
+  const offset = (filters.page - 1) * filters.pageSize;
+  const procsEnviados = await db
+    .select()
+    .from(procedimentos)
+    .where(and(...procConditions))
+    .orderBy(desc(procedimentos.dataExecucao))
+    .limit(filters.pageSize)
+    .offset(offset);
+
+  // Buscar arquivos retornados para comparar
+  const arquivosRetornadosConditions = [
+    eq(arquivos.userId, filters.userId),
+    eq(arquivos.direcao, "retornado"),
+    eq(arquivos.status, "processado"),
+  ];
+
+  if (filters.convenioId) {
+    arquivosRetornadosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+
+  const arquivosRetornados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...arquivosRetornadosConditions));
+
+  // Criar mapa de procedimentos retornados
+  const retornadosMap = new Map<string, any>();
+  
+  for (const arq of arquivosRetornados) {
+    const procs = await db
+      .select()
+      .from(procedimentos)
+      .where(eq(procedimentos.arquivoId, arq.id));
+    
+    for (const proc of procs) {
+      const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
+      if (!retornadosMap.has(chave)) {
+        retornadosMap.set(chave, proc);
+      }
+    }
+  }
+
+  // Buscar convênios para nomes
+  const convList = await db.select().from(convenios);
+  const convMap = new Map(convList.map(c => [c.id, c.nome]));
+
+  // Mapear arquivo para convênio
+  const arquivoConvenioMap = new Map(arquivosEnviados.map(a => [a.id, a.convenioId]));
+
+  // Processar itens de repasse
+  const items: RepasseItem[] = procsEnviados.map(proc => {
+    const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
+    const retornado = retornadosMap.get(chave);
+    
+    const valorFaturado = parseFloat(proc.valorTotal || "0");
+    let valorPago = 0;
+    let valorGlosado = 0;
+
+    if (retornado) {
+      valorPago = parseFloat(retornado.valorTotal || "0");
+      
+      // Verificar se há valor glosado nos dados extras
+      if (retornado.dadosExtras) {
+        const extras = typeof retornado.dadosExtras === "string" 
+          ? JSON.parse(retornado.dadosExtras) 
+          : retornado.dadosExtras;
+        valorGlosado = parseFloat(extras.valorGlosado || "0");
+        if (valorGlosado > 0) {
+          valorPago = valorFaturado - valorGlosado;
+        }
+      }
+    } else {
+      // Não encontrado no retorno - considerar glosado
+      valorGlosado = valorFaturado;
+    }
+
+    const convenioId = arquivoConvenioMap.get(proc.arquivoId);
+
+    return {
+      id: proc.id,
+      guiaNumero: proc.guiaNumero || "",
+      dataExecucao: proc.dataExecucao,
+      codigo: proc.codigo,
+      descricao: proc.descricao || "",
+      pacienteNome: proc.pacienteNome || "",
+      nomeMedico: proc.nomeMedico || "",
+      crmMedico: proc.crmMedico || "",
+      convenioNome: convenioId ? convMap.get(convenioId) || "" : "",
+      valorFaturado: valorFaturado.toFixed(2),
+      valorPago: valorPago.toFixed(2),
+      valorGlosado: valorGlosado.toFixed(2),
+    };
+  });
+
+  return { items, total: Number(total) };
 }

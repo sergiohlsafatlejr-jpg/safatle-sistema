@@ -36,7 +36,9 @@ import {
   BarChart3,
   PieChart,
   Gavel,
-  TrendingUp
+  TrendingUp,
+  FileSpreadsheet,
+  Receipt
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -53,6 +55,8 @@ const menuItems = [
   { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa" },
   { icon: Gavel, label: "Recursos de Glosa", path: "/recursos" },
   { icon: TrendingUp, label: "Tendências", path: "/tendencias" },
+  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo" },
+  { icon: Receipt, label: "Repasse", path: "/repasse" },
   { icon: GitCompare, label: "Comparações", path: "/comparacoes" },
   { icon: AlertTriangle, label: "Divergências", path: "/divergencias" },
   { icon: FileText, label: "Relatórios", path: "/relatorios" },

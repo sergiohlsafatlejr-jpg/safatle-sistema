@@ -944,6 +944,30 @@ export const appRouter = router({
         });
       }),
   }),
+
+  // ============ REPASSE MÉDICO ============
+  repasse: router({
+    list: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          dataInicio: z.string().optional(),
+          dataFim: z.string().optional(),
+          page: z.number().optional().default(1),
+          pageSize: z.number().optional().default(50),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getRepasseData({
+          userId: ctx.user.id,
+          convenioId: input?.convenioId,
+          dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
+          page: input?.page || 1,
+          pageSize: input?.pageSize || 50,
+        });
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
