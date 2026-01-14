@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { 
@@ -31,10 +32,24 @@ import {
   MessageSquare,
   Calendar,
   Building2,
-  TrendingUp
+  TrendingUp,
+  Sparkles,
+  BookOpen,
+  Copy,
+  Lightbulb,
+  History,
+  Zap
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { 
+  GLOSAS_TISS, 
+  obterInfoGlosa, 
+  obterArgumentoContestacao,
+  obterAcoesRecomendadas,
+  obterDocumentosSugeridos,
+  traduzirCodigoGlosa
+} from "../../../shared/glossaryGlosas";
 
 const STATUS_CONFIG: { [key: string]: { label: string; color: string; icon: any } } = {
   rascunho: { label: "Rascunho", color: "bg-gray-100 text-gray-800", icon: FileText },
@@ -81,10 +96,16 @@ export default function RecursosGlosa() {
     pacienteNome: "",
     valorCobrado: "",
     valorGlosado: "",
+    codigoGlosa: "",
     motivoGlosaConvenio: "",
     justificativaRecurso: "",
     prioridade: "media" as "baixa" | "media" | "alta" | "urgente",
   });
+  
+  // Estados de sugestão IA
+  const [sugestaoIA, setSugestaoIA] = useState<any>(null);
+  const [loadingIA, setLoadingIA] = useState(false);
+  const [showSugestoes, setShowSugestoes] = useState(false);
   
   const [protocoloEnvio, setProtocoloEnvio] = useState("");
   const [resposta, setResposta] = useState({
@@ -121,6 +142,18 @@ export default function RecursosGlosa() {
     },
     onError: (error) => {
       toast.error("Erro ao criar recurso: " + error.message);
+    },
+  });
+
+  const sugerirIAMutation = trpc.recursos.sugerirArgumentoIA.useMutation({
+    onSuccess: (data) => {
+      setSugestaoIA(data);
+      setLoadingIA(false);
+      toast.success("Sugestão gerada com sucesso!");
+    },
+    onError: (error) => {
+      setLoadingIA(false);
+      toast.error("Erro ao gerar sugestão: " + error.message);
     },
   });
 
@@ -165,6 +198,19 @@ export default function RecursosGlosa() {
     },
   });
 
+  // Efeito para atualizar descrição da glosa quando código muda
+  useEffect(() => {
+    if (novoRecurso.codigoGlosa) {
+      const descricao = traduzirCodigoGlosa(novoRecurso.codigoGlosa);
+      if (descricao !== novoRecurso.codigoGlosa) {
+        setNovoRecurso(prev => ({
+          ...prev,
+          motivoGlosaConvenio: `${prev.codigoGlosa} - ${descricao}`
+        }));
+      }
+    }
+  }, [novoRecurso.codigoGlosa]);
+
   const resetNovoRecurso = () => {
     setNovoRecurso({
       convenioId: "",
@@ -174,10 +220,13 @@ export default function RecursosGlosa() {
       pacienteNome: "",
       valorCobrado: "",
       valorGlosado: "",
+      codigoGlosa: "",
       motivoGlosaConvenio: "",
       justificativaRecurso: "",
       prioridade: "media",
     });
+    setSugestaoIA(null);
+    setShowSugestoes(false);
   };
 
   const handleCriarRecurso = () => {
@@ -189,6 +238,54 @@ export default function RecursosGlosa() {
       ...novoRecurso,
       convenioId: parseInt(novoRecurso.convenioId),
     });
+  };
+
+  const handleBuscarSugestao = () => {
+    if (!novoRecurso.codigoGlosa) {
+      // Buscar sugestão do dicionário
+      toast.error("Informe o código da glosa");
+      return;
+    }
+    
+    const info = obterInfoGlosa(novoRecurso.codigoGlosa);
+    const argumento = obterArgumentoContestacao(novoRecurso.codigoGlosa);
+    const acoes = obterAcoesRecomendadas(novoRecurso.codigoGlosa);
+    const docs = obterDocumentosSugeridos(novoRecurso.codigoGlosa);
+    
+    setSugestaoIA({
+      argumento,
+      origem: "dicionario",
+      acoesRecomendadas: acoes,
+      documentosSugeridos: docs,
+      estatisticas: null,
+      confianca: info?.probabilidadeSucesso || 50,
+    });
+    setShowSugestoes(true);
+  };
+
+  const handleGerarComIA = () => {
+    if (!novoRecurso.codigoGlosa || !novoRecurso.convenioId) {
+      toast.error("Informe o código da glosa e o convênio");
+      return;
+    }
+    
+    setLoadingIA(true);
+    sugerirIAMutation.mutate({
+      codigoGlosa: novoRecurso.codigoGlosa,
+      convenioId: parseInt(novoRecurso.convenioId),
+      codigoProcedimento: novoRecurso.codigoProcedimento || undefined,
+      valorGlosado: novoRecurso.valorGlosado || undefined,
+    });
+  };
+
+  const handleUsarSugestao = () => {
+    if (sugestaoIA?.argumento) {
+      setNovoRecurso(prev => ({
+        ...prev,
+        justificativaRecurso: sugestaoIA.argumento
+      }));
+      toast.success("Sugestão aplicada!");
+    }
   };
 
   const handleEnviarRecurso = () => {
@@ -256,6 +353,9 @@ export default function RecursosGlosa() {
 
   const totalPages = Math.ceil((recursosData?.total || 0) / 15);
 
+  // Lista de códigos de glosa para autocomplete
+  const codigosGlosa = Object.keys(GLOSAS_TISS);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -264,7 +364,7 @@ export default function RecursosGlosa() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Recursos de Glosa</h1>
             <p className="text-muted-foreground">
-              Gerencie contestações e acompanhe o status de cada recurso
+              Gerencie contestações com sugestões inteligentes de argumentos
             </p>
           </div>
           <div className="flex gap-2">
@@ -276,130 +376,355 @@ export default function RecursosGlosa() {
               <Download className="h-4 w-4 mr-2" />
               Exportar
             </Button>
-            <Dialog open={showNovoRecurso} onOpenChange={setShowNovoRecurso}>
+            <Dialog open={showNovoRecurso} onOpenChange={(open) => {
+              setShowNovoRecurso(open);
+              if (!open) resetNovoRecurso();
+            }}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
                   Novo Recurso
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Novo Recurso de Glosa</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    Novo Recurso de Glosa com IA
+                  </DialogTitle>
                   <DialogDescription>
-                    Registre uma nova contestação para enviar ao convênio
+                    Registre uma contestação com sugestões inteligentes de argumentos
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+                  {/* Coluna Esquerda - Formulário */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Convênio *</Label>
+                        <Select
+                          value={novoRecurso.convenioId}
+                          onValueChange={(v) => setNovoRecurso({ ...novoRecurso, convenioId: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {convenios?.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Prioridade</Label>
+                        <Select
+                          value={novoRecurso.prioridade}
+                          onValueChange={(v: any) => setNovoRecurso({ ...novoRecurso, prioridade: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="baixa">Baixa</SelectItem>
+                            <SelectItem value="media">Média</SelectItem>
+                            <SelectItem value="alta">Alta</SelectItem>
+                            <SelectItem value="urgente">Urgente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    {/* Código de Glosa com busca */}
                     <div className="space-y-2">
-                      <Label>Convênio *</Label>
-                      <Select
-                        value={novoRecurso.convenioId}
-                        onValueChange={(v) => setNovoRecurso({ ...novoRecurso, convenioId: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {convenios?.map((c) => (
-                            <SelectItem key={c.id} value={String(c.id)}>
-                              {c.nome}
-                            </SelectItem>
+                      <Label className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        Código da Glosa TISS
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={novoRecurso.codigoGlosa}
+                          onChange={(e) => setNovoRecurso({ ...novoRecurso, codigoGlosa: e.target.value })}
+                          placeholder="Ex: 2108"
+                          list="codigos-glosa"
+                          className="flex-1"
+                        />
+                        <datalist id="codigos-glosa">
+                          {codigosGlosa.map(codigo => (
+                            <option key={codigo} value={codigo}>
+                              {traduzirCodigoGlosa(codigo)}
+                            </option>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </datalist>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={handleBuscarSugestao}
+                          disabled={!novoRecurso.codigoGlosa}
+                        >
+                          <Lightbulb className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="default"
+                          onClick={handleGerarComIA}
+                          disabled={!novoRecurso.codigoGlosa || !novoRecurso.convenioId || loadingIA}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          {loadingIA ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                          <span className="ml-1">IA</span>
+                        </Button>
+                      </div>
+                      {novoRecurso.codigoGlosa && (
+                        <p className="text-sm text-muted-foreground">
+                          {traduzirCodigoGlosa(novoRecurso.codigoGlosa)}
+                        </p>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label>Prioridade</Label>
-                      <Select
-                        value={novoRecurso.prioridade}
-                        onValueChange={(v: any) => setNovoRecurso({ ...novoRecurso, prioridade: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="baixa">Baixa</SelectItem>
-                          <SelectItem value="media">Média</SelectItem>
-                          <SelectItem value="alta">Alta</SelectItem>
-                          <SelectItem value="urgente">Urgente</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Código do Procedimento</Label>
+                        <Input
+                          value={novoRecurso.codigoProcedimento}
+                          onChange={(e) => setNovoRecurso({ ...novoRecurso, codigoProcedimento: e.target.value })}
+                          placeholder="Ex: 10101039"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Número da Guia</Label>
+                        <Input
+                          value={novoRecurso.guiaNumero}
+                          onChange={(e) => setNovoRecurso({ ...novoRecurso, guiaNumero: e.target.value })}
+                          placeholder="Ex: 123456"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                    
                     <div className="space-y-2">
-                      <Label>Código do Procedimento</Label>
+                      <Label>Descrição do Procedimento</Label>
                       <Input
-                        value={novoRecurso.codigoProcedimento}
-                        onChange={(e) => setNovoRecurso({ ...novoRecurso, codigoProcedimento: e.target.value })}
-                        placeholder="Ex: 10101039"
+                        value={novoRecurso.descricaoProcedimento}
+                        onChange={(e) => setNovoRecurso({ ...novoRecurso, descricaoProcedimento: e.target.value })}
+                        placeholder="Ex: Consulta em pronto socorro"
                       />
                     </div>
+                    
                     <div className="space-y-2">
-                      <Label>Número da Guia</Label>
+                      <Label>Nome do Paciente</Label>
                       <Input
-                        value={novoRecurso.guiaNumero}
-                        onChange={(e) => setNovoRecurso({ ...novoRecurso, guiaNumero: e.target.value })}
-                        placeholder="Ex: 123456"
+                        value={novoRecurso.pacienteNome}
+                        onChange={(e) => setNovoRecurso({ ...novoRecurso, pacienteNome: e.target.value })}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor Cobrado (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={novoRecurso.valorCobrado}
+                          onChange={(e) => setNovoRecurso({ ...novoRecurso, valorCobrado: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Valor Glosado (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={novoRecurso.valorGlosado}
+                          onChange={(e) => setNovoRecurso({ ...novoRecurso, valorGlosado: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Motivo da Glosa (informado pelo convênio)</Label>
+                      <Textarea
+                        value={novoRecurso.motivoGlosaConvenio}
+                        onChange={(e) => setNovoRecurso({ ...novoRecurso, motivoGlosaConvenio: e.target.value })}
+                        placeholder="Descreva o motivo informado pelo convênio para a glosa"
+                        rows={2}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Justificativa do Recurso *</Label>
+                        {sugestaoIA && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={handleUsarSugestao}
+                            className="text-purple-600"
+                          >
+                            <Zap className="h-4 w-4 mr-1" />
+                            Usar Sugestão
+                          </Button>
+                        )}
+                      </div>
+                      <Textarea
+                        value={novoRecurso.justificativaRecurso}
+                        onChange={(e) => setNovoRecurso({ ...novoRecurso, justificativaRecurso: e.target.value })}
+                        placeholder="Descreva a justificativa para contestar a glosa"
+                        rows={6}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Descrição do Procedimento</Label>
-                    <Input
-                      value={novoRecurso.descricaoProcedimento}
-                      onChange={(e) => setNovoRecurso({ ...novoRecurso, descricaoProcedimento: e.target.value })}
-                      placeholder="Ex: Consulta em pronto socorro"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Nome do Paciente</Label>
-                    <Input
-                      value={novoRecurso.pacienteNome}
-                      onChange={(e) => setNovoRecurso({ ...novoRecurso, pacienteNome: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Valor Cobrado (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={novoRecurso.valorCobrado}
-                        onChange={(e) => setNovoRecurso({ ...novoRecurso, valorCobrado: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valor Glosado (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={novoRecurso.valorGlosado}
-                        onChange={(e) => setNovoRecurso({ ...novoRecurso, valorGlosado: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Motivo da Glosa (informado pelo convênio)</Label>
-                    <Textarea
-                      value={novoRecurso.motivoGlosaConvenio}
-                      onChange={(e) => setNovoRecurso({ ...novoRecurso, motivoGlosaConvenio: e.target.value })}
-                      placeholder="Descreva o motivo informado pelo convênio para a glosa"
-                      rows={2}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Justificativa do Recurso *</Label>
-                    <Textarea
-                      value={novoRecurso.justificativaRecurso}
-                      onChange={(e) => setNovoRecurso({ ...novoRecurso, justificativaRecurso: e.target.value })}
-                      placeholder="Descreva a justificativa para contestar a glosa"
-                      rows={4}
-                    />
+                  
+                  {/* Coluna Direita - Sugestões */}
+                  <div className="space-y-4">
+                    {sugestaoIA ? (
+                      <Card className="border-purple-200 bg-purple-50/50">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            {sugestaoIA.origem === "ia_sugestao" ? (
+                              <>
+                                <Sparkles className="h-5 w-5 text-purple-500" />
+                                Sugestão Gerada por IA
+                              </>
+                            ) : (
+                              <>
+                                <BookOpen className="h-5 w-5 text-blue-500" />
+                                Sugestão do Dicionário
+                              </>
+                            )}
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Confiança:</span>
+                            <Progress value={sugestaoIA.confianca} className="w-24 h-2" />
+                            <span className="text-sm font-medium">{sugestaoIA.confianca}%</span>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <Label className="text-sm font-medium">Argumento Sugerido</Label>
+                            <div className="mt-1 p-3 bg-white rounded-md border text-sm max-h-40 overflow-y-auto">
+                              {sugestaoIA.argumento}
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="mt-2"
+                              onClick={() => {
+                                navigator.clipboard.writeText(sugestaoIA.argumento);
+                                toast.success("Argumento copiado!");
+                              }}
+                            >
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copiar
+                            </Button>
+                          </div>
+                          
+                          {sugestaoIA.acoesRecomendadas && sugestaoIA.acoesRecomendadas.length > 0 && (
+                            <div>
+                              <Label className="text-sm font-medium">Ações Recomendadas</Label>
+                              <ul className="mt-1 space-y-1">
+                                {sugestaoIA.acoesRecomendadas.map((acao: string, i: number) => (
+                                  <li key={i} className="text-sm flex items-start gap-2">
+                                    <span className="text-purple-500 font-bold">{i + 1}.</span>
+                                    {acao}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {sugestaoIA.documentosSugeridos && sugestaoIA.documentosSugeridos.length > 0 && (
+                            <div>
+                              <Label className="text-sm font-medium">Documentos Sugeridos</Label>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {sugestaoIA.documentosSugeridos.map((doc: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {doc}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {sugestaoIA.estatisticas && (
+                            <div className="pt-2 border-t">
+                              <Label className="text-sm font-medium">Estatísticas do Código</Label>
+                              <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">Total contestações:</span>
+                                  <span className="ml-1 font-medium">{sugestaoIA.estatisticas.total}</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Taxa sucesso:</span>
+                                  <span className="ml-1 font-medium text-green-600">{sugestaoIA.estatisticas.taxaSucesso}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {sugestaoIA.argumentosHistorico && sugestaoIA.argumentosHistorico.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <Label className="text-sm font-medium flex items-center gap-1">
+                                <History className="h-4 w-4" />
+                                Argumentos que Funcionaram
+                              </Label>
+                              <div className="mt-1 space-y-2 max-h-32 overflow-y-auto">
+                                {sugestaoIA.argumentosHistorico.map((arg: any, i: number) => (
+                                  <div key={i} className="p-2 bg-green-50 rounded text-xs border border-green-200">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <Badge variant="outline" className="text-green-600 border-green-300">
+                                        {arg.resultado === "deferido" ? "Deferido" : "Deferido Parcial"}
+                                      </Badge>
+                                      <span className="text-muted-foreground">{arg.convenioNome}</span>
+                                    </div>
+                                    <p className="line-clamp-2">{arg.argumentoUtilizado}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-dashed">
+                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                          <Sparkles className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                          <h3 className="font-medium mb-2">Sugestões Inteligentes</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Informe o código da glosa e clique em <Lightbulb className="inline h-4 w-4" /> para ver sugestões do dicionário ou <Sparkles className="inline h-4 w-4" /> para gerar com IA
+                          </p>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleBuscarSugestao}
+                              disabled={!novoRecurso.codigoGlosa}
+                            >
+                              <Lightbulb className="h-4 w-4 mr-1" />
+                              Dicionário
+                            </Button>
+                            <Button 
+                              size="sm"
+                              onClick={handleGerarComIA}
+                              disabled={!novoRecurso.codigoGlosa || !novoRecurso.convenioId || loadingIA}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              <Sparkles className="h-4 w-4 mr-1" />
+                              Gerar com IA
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 </div>
+                
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowNovoRecurso(false)}>
                     Cancelar
@@ -463,12 +788,12 @@ export default function RecursosGlosa() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Taxa Recuperação</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {(estatisticas?.taxaRecuperacao || 0).toFixed(1)}%
+                  <p className="text-sm text-muted-foreground">Valor Recuperado</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(estatisticas?.valorRecuperado || 0)}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-blue-500 opacity-80" />
+                <TrendingUp className="h-8 w-8 text-green-500 opacity-80" />
               </div>
             </CardContent>
           </Card>
@@ -480,7 +805,7 @@ export default function RecursosGlosa() {
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar por código, guia, paciente..."
                     value={busca}
@@ -494,7 +819,7 @@ export default function RecursosGlosa() {
                   <SelectValue placeholder="Convênio" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos convênios</SelectItem>
+                  <SelectItem value="todos">Todos Convênios</SelectItem>
                   {convenios?.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.nome}
@@ -507,7 +832,7 @@ export default function RecursosGlosa() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos status</SelectItem>
+                  <SelectItem value="todos">Todos Status</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([key, config]) => (
                     <SelectItem key={key} value={key}>
                       {config.label}
@@ -534,137 +859,109 @@ export default function RecursosGlosa() {
 
         {/* Tabela de Recursos */}
         <Card>
-          <CardHeader>
-            <CardTitle>Lista de Recursos</CardTitle>
-            <CardDescription>
-              {recursosData?.total || 0} recursos encontrados
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => (
+              <div className="space-y-4">
+                {[...Array(5)].map((_, i) => (
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : recursosData?.recursos && recursosData.recursos.length > 0 ? (
+            ) : (
               <>
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Convênio</TableHead>
-                        <TableHead>Procedimento</TableHead>
-                        <TableHead>Guia</TableHead>
-                        <TableHead className="text-right">Valor Glosado</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Prioridade</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recursosData.recursos.map((recurso) => {
-                        const statusConfig = STATUS_CONFIG[recurso.status] || STATUS_CONFIG.rascunho;
-                        const prioridadeConfig = PRIORIDADE_CONFIG[recurso.prioridade] || PRIORIDADE_CONFIG.media;
-                        const StatusIcon = statusConfig.icon;
-                        return (
-                          <TableRow key={recurso.id}>
-                            <TableCell className="font-medium">{recurso.convenioNome}</TableCell>
-                            <TableCell>
-                              <div>
-                                <span className="font-mono text-sm">{recurso.codigoProcedimento || "-"}</span>
-                                {recurso.descricaoProcedimento && (
-                                  <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                                    {recurso.descricaoProcedimento}
-                                  </p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{recurso.guiaNumero || "-"}</TableCell>
-                            <TableCell className="text-right font-medium text-red-600">
-                              {formatCurrency(recurso.valorGlosado)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={statusConfig.color}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {statusConfig.label}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={prioridadeConfig.color}>
-                                {prioridadeConfig.label}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{formatDate(recurso.createdAt)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Convênio</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Guia</TableHead>
+                      <TableHead>Paciente</TableHead>
+                      <TableHead className="text-right">Valor Glosado</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Prioridade</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recursosData?.recursos?.map((recurso) => {
+                      const StatusIcon = STATUS_CONFIG[recurso.status]?.icon || FileText;
+                      return (
+                        <TableRow key={recurso.id}>
+                          <TableCell className="font-medium">{recurso.convenioNome}</TableCell>
+                          <TableCell>{recurso.codigoProcedimento || "-"}</TableCell>
+                          <TableCell>{recurso.guiaNumero || "-"}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{recurso.pacienteNome || "-"}</TableCell>
+                          <TableCell className="text-right font-medium text-red-600">
+                            {formatCurrency(recurso.valorGlosado)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_CONFIG[recurso.status]?.color}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {STATUS_CONFIG[recurso.status]?.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={PRIORIDADE_CONFIG[recurso.prioridade]?.color}>
+                              {PRIORIDADE_CONFIG[recurso.prioridade]?.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(recurso.createdAt)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setRecursoSelecionado(recurso.id);
+                                  setShowDetalhes(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {recurso.status === "rascunho" && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => {
-                                    setRecursoSelecionado(recurso.id);
-                                    setShowDetalhes(true);
-                                  }}
+                                  onClick={() => deleteMutation.mutate({ id: recurso.id })}
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4 text-red-500" />
                                 </Button>
-                                {recurso.status === "rascunho" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-red-600"
-                                    onClick={() => {
-                                      if (confirm("Excluir este recurso?")) {
-                                        deleteMutation.mutate({ id: recurso.id });
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
                 {/* Paginação */}
                 {totalPages > 1 && (
-                  <div className="flex justify-center gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      Anterior
-                    </Button>
-                    <span className="flex items-center px-4 text-sm">
-                      Página {page} de {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                    >
-                      Próxima
-                    </Button>
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Mostrando {((page - 1) * 15) + 1} a {Math.min(page * 15, recursosData?.total || 0)} de {recursosData?.total || 0} recursos
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                      >
+                        Próximo
+                      </Button>
+                    </div>
                   </div>
                 )}
               </>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhum recurso encontrado</p>
-                <Button className="mt-4" onClick={() => setShowNovoRecurso(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeiro Recurso
-                </Button>
-              </div>
             )}
           </CardContent>
         </Card>
@@ -675,13 +972,14 @@ export default function RecursosGlosa() {
             <DialogHeader>
               <DialogTitle>Detalhes do Recurso</DialogTitle>
             </DialogHeader>
-            {recursoDetalhes ? (
+            {recursoDetalhes && (
               <Tabs defaultValue="info" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="info">Informações</TabsTrigger>
-                  <TabsTrigger value="justificativa">Justificativa</TabsTrigger>
                   <TabsTrigger value="historico">Histórico</TabsTrigger>
+                  <TabsTrigger value="acoes">Ações</TabsTrigger>
                 </TabsList>
+                
                 <TabsContent value="info" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -690,29 +988,25 @@ export default function RecursosGlosa() {
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Status</Label>
-                      <Badge className={STATUS_CONFIG[recursoDetalhes.status]?.color || ""}>
-                        {STATUS_CONFIG[recursoDetalhes.status]?.label || recursoDetalhes.status}
+                      <Badge className={STATUS_CONFIG[recursoDetalhes.status]?.color}>
+                        {STATUS_CONFIG[recursoDetalhes.status]?.label}
                       </Badge>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">Código</Label>
-                      <p className="font-mono">{recursoDetalhes.codigoProcedimento || "-"}</p>
+                      <Label className="text-muted-foreground">Código Procedimento</Label>
+                      <p className="font-medium">{recursoDetalhes.codigoProcedimento || "-"}</p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">Guia</Label>
-                      <p>{recursoDetalhes.guiaNumero || "-"}</p>
+                      <Label className="text-muted-foreground">Número da Guia</Label>
+                      <p className="font-medium">{recursoDetalhes.guiaNumero || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Paciente</Label>
-                      <p>{recursoDetalhes.pacienteNome || "-"}</p>
+                      <p className="font-medium">{recursoDetalhes.pacienteNome || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Protocolo</Label>
-                      <p>{recursoDetalhes.protocoloRecurso || "-"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Valor Cobrado</Label>
-                      <p className="font-medium">{formatCurrency(recursoDetalhes.valorCobrado)}</p>
+                      <p className="font-medium">{recursoDetalhes.protocoloRecurso || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Valor Glosado</Label>
@@ -722,175 +1016,135 @@ export default function RecursosGlosa() {
                       <Label className="text-muted-foreground">Valor Recuperado</Label>
                       <p className="font-medium text-green-600">{formatCurrency(recursoDetalhes.valorRecuperado)}</p>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground">Data Envio</Label>
-                      <p>{formatDate(recursoDetalhes.dataEnvioRecurso)}</p>
-                    </div>
                   </div>
+                  
+                  <div>
+                    <Label className="text-muted-foreground">Motivo da Glosa</Label>
+                    <p className="mt-1 p-3 bg-muted rounded-md">{recursoDetalhes.motivoGlosaConvenio || "-"}</p>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-muted-foreground">Justificativa do Recurso</Label>
+                    <p className="mt-1 p-3 bg-muted rounded-md whitespace-pre-wrap">{recursoDetalhes.justificativaRecurso}</p>
+                  </div>
+                  
                   {recursoDetalhes.respostaConvenio && (
                     <div>
                       <Label className="text-muted-foreground">Resposta do Convênio</Label>
                       <p className="mt-1 p-3 bg-muted rounded-md">{recursoDetalhes.respostaConvenio}</p>
                     </div>
                   )}
-                  <div className="flex gap-2 pt-4">
-                    {(recursoDetalhes.status === "rascunho" || recursoDetalhes.status === "pendente_envio") && (
-                      <Button onClick={() => setShowEnviar(true)}>
-                        <Send className="h-4 w-4 mr-2" />
-                        Enviar Recurso
-                      </Button>
-                    )}
-                    {(recursoDetalhes.status === "enviado" || recursoDetalhes.status === "em_analise") && (
-                      <Button onClick={() => setShowResposta(true)}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Registrar Resposta
-                      </Button>
-                    )}
-                  </div>
                 </TabsContent>
-                <TabsContent value="justificativa" className="space-y-4">
-                  <div>
-                    <Label className="text-muted-foreground">Motivo da Glosa (Convênio)</Label>
-                    <p className="mt-1 p-3 bg-red-50 rounded-md text-red-800">
-                      {recursoDetalhes.motivoGlosaConvenio || "Não informado"}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Justificativa do Recurso</Label>
-                    <p className="mt-1 p-3 bg-blue-50 rounded-md text-blue-800">
-                      {recursoDetalhes.justificativaRecurso}
-                    </p>
-                  </div>
-                </TabsContent>
-                <TabsContent value="historico" className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Adicionar comentário..."
-                        value={novoComentario}
-                        onChange={(e) => setNovoComentario(e.target.value)}
-                      />
-                      <Button onClick={handleAddComentario} disabled={!novoComentario}>
-                        Adicionar
-                      </Button>
-                    </div>
-                  </div>
-                  <ScrollArea className="h-[300px]">
-                    <div className="space-y-3">
+                
+                <TabsContent value="historico">
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-4">
                       {recursoDetalhes.historico?.map((h: any) => (
-                        <div key={h.id} className="border-l-2 border-blue-200 pl-4 py-2">
-                          <div className="flex justify-between items-start">
-                            <Badge variant="outline" className="text-xs">
-                              {h.tipo}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(h.createdAt)}
-                            </span>
+                        <div key={h.id} className="flex gap-3 p-3 border rounded-lg">
+                          <div className="flex-shrink-0">
+                            <MessageSquare className="h-5 w-5 text-muted-foreground" />
                           </div>
-                          <p className="mt-1 text-sm">{h.descricao}</p>
-                          {h.statusAnterior && h.statusNovo && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {STATUS_CONFIG[h.statusAnterior]?.label} → {STATUS_CONFIG[h.statusNovo]?.label}
-                            </p>
-                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium">{h.tipo}</p>
+                              <span className="text-sm text-muted-foreground">
+                                {formatDate(h.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">{h.descricao}</p>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </ScrollArea>
+                  
+                  <div className="mt-4 flex gap-2">
+                    <Input
+                      placeholder="Adicionar comentário..."
+                      value={novoComentario}
+                      onChange={(e) => setNovoComentario(e.target.value)}
+                    />
+                    <Button onClick={handleAddComentario} disabled={!novoComentario}>
+                      Adicionar
+                    </Button>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="acoes" className="space-y-4">
+                  {(recursoDetalhes.status === "rascunho" || recursoDetalhes.status === "pendente_envio") && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Enviar Recurso</CardTitle>
+                        <CardDescription>Registre o envio do recurso ao convênio</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Protocolo de Envio (opcional)</Label>
+                          <Input
+                            value={protocoloEnvio}
+                            onChange={(e) => setProtocoloEnvio(e.target.value)}
+                            placeholder="Número do protocolo"
+                          />
+                        </div>
+                        <Button onClick={handleEnviarRecurso} disabled={enviarMutation.isPending}>
+                          <Send className="h-4 w-4 mr-2" />
+                          {enviarMutation.isPending ? "Enviando..." : "Registrar Envio"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {(recursoDetalhes.status === "enviado" || recursoDetalhes.status === "em_analise") && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Registrar Resposta</CardTitle>
+                        <CardDescription>Registre a resposta do convênio</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Resultado</Label>
+                          <Select
+                            value={resposta.status}
+                            onValueChange={(v: any) => setResposta({ ...resposta, status: v })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="deferido">Deferido</SelectItem>
+                              <SelectItem value="deferido_parcial">Deferido Parcial</SelectItem>
+                              <SelectItem value="indeferido">Indeferido</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {(resposta.status === "deferido" || resposta.status === "deferido_parcial") && (
+                          <div className="space-y-2">
+                            <Label>Valor Recuperado (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={resposta.valorRecuperado}
+                              onChange={(e) => setResposta({ ...resposta, valorRecuperado: e.target.value })}
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label>Resposta do Convênio</Label>
+                          <Textarea
+                            value={resposta.respostaConvenio}
+                            onChange={(e) => setResposta({ ...resposta, respostaConvenio: e.target.value })}
+                            rows={3}
+                          />
+                        </div>
+                        <Button onClick={handleRegistrarResposta} disabled={respostaMutation.isPending}>
+                          {respostaMutation.isPending ? "Registrando..." : "Registrar Resposta"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
               </Tabs>
-            ) : (
-              <Skeleton className="h-[400px] w-full" />
             )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal de Enviar */}
-        <Dialog open={showEnviar} onOpenChange={setShowEnviar}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Enviar Recurso</DialogTitle>
-              <DialogDescription>
-                Registre o envio do recurso ao convênio
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Número do Protocolo (opcional)</Label>
-                <Input
-                  value={protocoloEnvio}
-                  onChange={(e) => setProtocoloEnvio(e.target.value)}
-                  placeholder="Ex: PROT-2024-001234"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEnviar(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleEnviarRecurso} disabled={enviarMutation.isPending}>
-                <Send className="h-4 w-4 mr-2" />
-                {enviarMutation.isPending ? "Enviando..." : "Confirmar Envio"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal de Resposta */}
-        <Dialog open={showResposta} onOpenChange={setShowResposta}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Registrar Resposta do Convênio</DialogTitle>
-              <DialogDescription>
-                Informe o resultado da análise do recurso
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Resultado</Label>
-                <Select
-                  value={resposta.status}
-                  onValueChange={(v: any) => setResposta({ ...resposta, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="deferido">Deferido (Aceito)</SelectItem>
-                    <SelectItem value="deferido_parcial">Deferido Parcialmente</SelectItem>
-                    <SelectItem value="indeferido">Indeferido (Negado)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {(resposta.status === "deferido" || resposta.status === "deferido_parcial") && (
-                <div className="space-y-2">
-                  <Label>Valor Recuperado (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={resposta.valorRecuperado}
-                    onChange={(e) => setResposta({ ...resposta, valorRecuperado: e.target.value })}
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Resposta do Convênio *</Label>
-                <Textarea
-                  value={resposta.respostaConvenio}
-                  onChange={(e) => setResposta({ ...resposta, respostaConvenio: e.target.value })}
-                  placeholder="Descreva a resposta recebida do convênio"
-                  rows={4}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowResposta(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleRegistrarResposta} disabled={respostaMutation.isPending}>
-                {respostaMutation.isPending ? "Salvando..." : "Registrar Resposta"}
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

@@ -19,6 +19,8 @@ import {
   InsertCodigoProcedimento,
   InsertCampoComparacao,
   InsertItemManual,
+  historicoContestacoes,
+  argumentosConvenio,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2513,4 +2515,302 @@ export async function getRepasseData(filters: {
   const paginatedItems = items.slice(offset, offset + filters.pageSize);
 
   return { items: paginatedItems, total: items.length, resumo };
+}
+
+
+// ============ HISTÓRICO DE CONTESTAÇÕES E IA ============
+
+import { invokeLLM } from "./_core/llm";
+import { 
+  obterInfoGlosa, 
+  obterArgumentoContestacao, 
+  obterAcoesRecomendadas,
+  obterDocumentosSugeridos,
+  traduzirCodigoGlosa
+} from "../shared/glossaryGlosas";
+import type { SQL } from "drizzle-orm";
+
+export async function registrarHistoricoContestacao(data: {
+  recursoId?: number;
+  convenioId: number;
+  userId: number;
+  codigoGlosa: string;
+  descricaoGlosa?: string;
+  codigoProcedimento?: string;
+  descricaoProcedimento?: string;
+  valorGlosado?: string;
+  valorRecuperado?: string;
+  argumentoUtilizado: string;
+  argumentoOrigem: "dicionario" | "ia_sugestao" | "manual" | "historico";
+  resultado: "pendente" | "deferido" | "deferido_parcial" | "indeferido";
+  argumentoEfetivo?: "sim" | "nao" | "parcial";
+  documentosAnexados?: any;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(historicoContestacoes).values({
+    recursoId: data.recursoId,
+    convenioId: data.convenioId,
+    userId: data.userId,
+    codigoGlosa: data.codigoGlosa,
+    descricaoGlosa: data.descricaoGlosa,
+    codigoProcedimento: data.codigoProcedimento,
+    descricaoProcedimento: data.descricaoProcedimento,
+    valorGlosado: data.valorGlosado,
+    valorRecuperado: data.valorRecuperado,
+    argumentoUtilizado: data.argumentoUtilizado,
+    argumentoOrigem: data.argumentoOrigem,
+    resultado: data.resultado,
+    argumentoEfetivo: data.argumentoEfetivo,
+    documentosAnexados: data.documentosAnexados,
+    dataResultado: data.resultado !== "pendente" ? new Date() : null,
+  });
+  return (result as any).insertId || (result as any)[0]?.insertId;
+}
+
+export async function getHistoricoContestacoes(params: {
+  userId: number;
+  convenioId?: number;
+  codigoGlosa?: string;
+  resultado?: string;
+  page: number;
+  limit: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0, page: 1, totalPages: 0 };
+  
+  const conditions: SQL[] = [];
+  
+  if (params.convenioId) {
+    conditions.push(eq(historicoContestacoes.convenioId, params.convenioId));
+  }
+  if (params.codigoGlosa) {
+    conditions.push(eq(historicoContestacoes.codigoGlosa, params.codigoGlosa));
+  }
+  if (params.resultado) {
+    conditions.push(eq(historicoContestacoes.resultado, params.resultado as any));
+  }
+
+  const offset = (params.page - 1) * params.limit;
+
+  const [items, countResult] = await Promise.all([
+    db
+      .select({
+        id: historicoContestacoes.id,
+        codigoGlosa: historicoContestacoes.codigoGlosa,
+        descricaoGlosa: historicoContestacoes.descricaoGlosa,
+        codigoProcedimento: historicoContestacoes.codigoProcedimento,
+        descricaoProcedimento: historicoContestacoes.descricaoProcedimento,
+        valorGlosado: historicoContestacoes.valorGlosado,
+        valorRecuperado: historicoContestacoes.valorRecuperado,
+        argumentoUtilizado: historicoContestacoes.argumentoUtilizado,
+        argumentoOrigem: historicoContestacoes.argumentoOrigem,
+        resultado: historicoContestacoes.resultado,
+        argumentoEfetivo: historicoContestacoes.argumentoEfetivo,
+        dataContestacao: historicoContestacoes.dataContestacao,
+        dataResultado: historicoContestacoes.dataResultado,
+        convenioNome: convenios.nome,
+      })
+      .from(historicoContestacoes)
+      .leftJoin(convenios, eq(historicoContestacoes.convenioId, convenios.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(historicoContestacoes.createdAt))
+      .limit(params.limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(historicoContestacoes)
+      .where(conditions.length > 0 ? and(...conditions) : undefined),
+  ]);
+
+  return {
+    items,
+    total: countResult[0]?.count || 0,
+    page: params.page,
+    totalPages: Math.ceil((countResult[0]?.count || 0) / params.limit),
+  };
+}
+
+export async function getEstatisticasContestacaoPorCodigo(params: {
+  codigoGlosa: string;
+  convenioId?: number;
+  userId: number;
+}) {
+  const db = await getDb();
+  if (!db) return { codigoGlosa: params.codigoGlosa, descricao: '', total: 0, deferidos: 0, deferidosParcial: 0, indeferidos: 0, pendentes: 0, taxaSucesso: 0, valorTotalGlosado: 0, valorTotalRecuperado: 0 };
+  
+  const conditions: SQL[] = [eq(historicoContestacoes.codigoGlosa, params.codigoGlosa)];
+  
+  if (params.convenioId) {
+    conditions.push(eq(historicoContestacoes.convenioId, params.convenioId));
+  }
+
+  const stats = await db
+    .select({
+      total: sql<number>`count(*)`,
+      deferidos: sql<number>`sum(case when resultado = 'deferido' then 1 else 0 end)`,
+      deferidosParcial: sql<number>`sum(case when resultado = 'deferido_parcial' then 1 else 0 end)`,
+      indeferidos: sql<number>`sum(case when resultado = 'indeferido' then 1 else 0 end)`,
+      pendentes: sql<number>`sum(case when resultado = 'pendente' then 1 else 0 end)`,
+      valorTotalGlosado: sql<number>`sum(CAST(valor_glosado AS DECIMAL(10,2)))`,
+      valorTotalRecuperado: sql<number>`sum(CAST(valor_recuperado AS DECIMAL(10,2)))`,
+    })
+    .from(historicoContestacoes)
+    .where(and(...conditions));
+
+  const total = stats[0]?.total || 0;
+  const deferidos = stats[0]?.deferidos || 0;
+  const deferidosParcial = stats[0]?.deferidosParcial || 0;
+  
+  return {
+    codigoGlosa: params.codigoGlosa,
+    descricao: traduzirCodigoGlosa(params.codigoGlosa),
+    total,
+    deferidos,
+    deferidosParcial,
+    indeferidos: stats[0]?.indeferidos || 0,
+    pendentes: stats[0]?.pendentes || 0,
+    taxaSucesso: total > 0 ? Math.round(((deferidos + deferidosParcial) / total) * 100) : 0,
+    valorTotalGlosado: stats[0]?.valorTotalGlosado || 0,
+    valorTotalRecuperado: stats[0]?.valorTotalRecuperado || 0,
+  };
+}
+
+export async function getMelhoresArgumentos(params: {
+  codigoGlosa: string;
+  convenioId?: number;
+  userId: number;
+  limit: number;
+}) {
+  const conditions: SQL[] = [
+    eq(historicoContestacoes.codigoGlosa, params.codigoGlosa),
+    or(
+      eq(historicoContestacoes.resultado, "deferido"),
+      eq(historicoContestacoes.resultado, "deferido_parcial")
+    )!,
+  ];
+  
+  if (params.convenioId) {
+    conditions.push(eq(historicoContestacoes.convenioId, params.convenioId));
+  }
+
+  const db = await getDb();
+  if (!db) return [];
+  
+  const argumentos = await db
+    .select({
+      argumentoUtilizado: historicoContestacoes.argumentoUtilizado,
+      resultado: historicoContestacoes.resultado,
+      valorRecuperado: historicoContestacoes.valorRecuperado,
+      convenioNome: convenios.nome,
+      dataContestacao: historicoContestacoes.dataContestacao,
+    })
+    .from(historicoContestacoes)
+    .leftJoin(convenios, eq(historicoContestacoes.convenioId, convenios.id))
+    .where(and(...conditions))
+    .orderBy(desc(historicoContestacoes.dataContestacao))
+    .limit(params.limit);
+
+  return argumentos;
+}
+
+export async function sugerirArgumentoComIA(params: {
+  codigoGlosa: string;
+  convenioId: number;
+  codigoProcedimento?: string;
+  valorGlosado?: string;
+  userId: number;
+}) {
+  // Buscar informações do dicionário
+  const infoGlosa = obterInfoGlosa(params.codigoGlosa);
+  const argumentoPadrao = obterArgumentoContestacao(params.codigoGlosa);
+  const acoesRecomendadas = obterAcoesRecomendadas(params.codigoGlosa);
+  const documentosSugeridos = obterDocumentosSugeridos(params.codigoGlosa);
+  
+  // Buscar histórico de argumentos bem-sucedidos
+  const argumentosSucesso = await getMelhoresArgumentos({
+    codigoGlosa: params.codigoGlosa,
+    convenioId: params.convenioId,
+    userId: params.userId,
+    limit: 3,
+  });
+  
+  // Buscar estatísticas
+  const estatisticas = await getEstatisticasContestacaoPorCodigo({
+    codigoGlosa: params.codigoGlosa,
+    convenioId: params.convenioId,
+    userId: params.userId,
+  });
+  
+  // Buscar nome do convênio
+  const convenio = await getConvenioById(params.convenioId);
+  
+  // Se não há histórico suficiente, retornar argumento do dicionário
+  if (argumentosSucesso.length === 0) {
+    return {
+      argumento: argumentoPadrao,
+      origem: "dicionario" as const,
+      acoesRecomendadas,
+      documentosSugeridos,
+      estatisticas,
+      confianca: infoGlosa?.probabilidadeSucesso || 50,
+    };
+  }
+  
+  // Usar IA para gerar argumento personalizado
+  try {
+    const prompt = `Você é um especialista em recursos de glosa hospitalar. Gere um argumento de contestação para a seguinte situação:
+
+CÓDIGO DE GLOSA: ${params.codigoGlosa}
+DESCRIÇÃO DA GLOSA: ${infoGlosa?.descricao || traduzirCodigoGlosa(params.codigoGlosa)}
+CONVÊNIO: ${convenio?.nome || "Não especificado"}
+${params.codigoProcedimento ? `CÓDIGO DO PROCEDIMENTO: ${params.codigoProcedimento}` : ""}
+${params.valorGlosado ? `VALOR GLOSADO: R$ ${params.valorGlosado}` : ""}
+
+ARGUMENTO PADRÃO DO DICIONÁRIO:
+${argumentoPadrao}
+
+ARGUMENTOS QUE FUNCIONARAM ANTERIORMENTE PARA ESTE CÓDIGO:
+${argumentosSucesso.map((a: { argumentoUtilizado: string | null; resultado: string }, i: number) => `${i + 1}. ${a.argumentoUtilizado} (Resultado: ${a.resultado})`).join("\n")}
+
+ESTATÍSTICAS:
+- Total de contestações: ${estatisticas.total}
+- Taxa de sucesso: ${estatisticas.taxaSucesso}%
+- Valor recuperado: R$ ${estatisticas.valorTotalRecuperado}
+
+Gere um argumento de contestação personalizado, técnico e persuasivo, incorporando os elementos que funcionaram nos casos anteriores. O argumento deve ser formal, citar legislação quando aplicável, e ser específico para o convênio ${convenio?.nome || "informado"}.
+
+Responda APENAS com o texto do argumento, sem explicações adicionais.`;
+
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: "Você é um especialista em faturamento hospitalar e recursos de glosa. Gere argumentos técnicos, formais e persuasivos." },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const argumentoIA = response.choices[0]?.message?.content || argumentoPadrao;
+
+    return {
+      argumento: argumentoIA,
+      origem: "ia_sugestao" as const,
+      acoesRecomendadas,
+      documentosSugeridos,
+      estatisticas,
+      argumentosHistorico: argumentosSucesso,
+      confianca: Math.min(estatisticas.taxaSucesso + 10, 95),
+    };
+  } catch (error) {
+    // Em caso de erro na IA, retornar argumento do dicionário
+    return {
+      argumento: argumentoPadrao,
+      origem: "dicionario" as const,
+      acoesRecomendadas,
+      documentosSugeridos,
+      estatisticas,
+      confianca: infoGlosa?.probabilidadeSucesso || 50,
+      erro: "Não foi possível gerar sugestão com IA, usando argumento padrão.",
+    };
+  }
 }

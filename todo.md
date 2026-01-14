@@ -89,3 +89,7 @@
 - [x] Criar dicionário de códigos de glosa TISS para traduzir em descrições legíveis
 - [x] Adicionar sugestões de argumentos e ações de contestação para cada código de glosa
 - [x] Criar interface para visualizar e usar as sugestões de contestação
+- [x] Criar tabela de histórico de contestações no banco de dados
+- [x] Integrar sugestões do dicionário de glosas na tela de criação de recursos
+- [x] Implementar IA para sugerir argumentos baseados no histórico de sucesso
+- [x] Criar interface de histórico de contestações com argumentos usados e resultados

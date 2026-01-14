@@ -875,7 +875,104 @@ export const appRouter = router({
           },
           `Resposta do convênio: ${input.status}`
         );
+        
+        // Registrar no histórico de contestações para aprendizado da IA
+        const recurso = await db.getRecursoById(input.id);
+        if (recurso) {
+          await db.registrarHistoricoContestacao({
+            recursoId: input.id,
+            convenioId: recurso.convenioId,
+            userId: ctx.user.id,
+            codigoGlosa: recurso.motivoGlosaConvenio?.match(/\d{4}/)?.[0] || "0000",
+            descricaoGlosa: recurso.motivoGlosaConvenio || "",
+            codigoProcedimento: recurso.codigoProcedimento || undefined,
+            descricaoProcedimento: recurso.descricaoProcedimento || undefined,
+            valorGlosado: recurso.valorGlosado || undefined,
+            valorRecuperado: input.valorRecuperado || undefined,
+            argumentoUtilizado: recurso.justificativaRecurso,
+            argumentoOrigem: "manual",
+            resultado: input.status,
+            argumentoEfetivo: input.status === "deferido" ? "sim" : input.status === "deferido_parcial" ? "parcial" : "nao",
+          });
+        }
+        
         return { success: true };
+      }),
+
+    // Sugerir argumento com IA baseado no histórico
+    sugerirArgumentoIA: protectedProcedure
+      .input(
+        z.object({
+          codigoGlosa: z.string(),
+          convenioId: z.number(),
+          codigoProcedimento: z.string().optional(),
+          valorGlosado: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        return db.sugerirArgumentoComIA({
+          codigoGlosa: input.codigoGlosa,
+          convenioId: input.convenioId,
+          codigoProcedimento: input.codigoProcedimento,
+          valorGlosado: input.valorGlosado,
+          userId: ctx.user.id,
+        });
+      }),
+
+    // Listar histórico de contestações
+    historicoContestacoes: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          codigoGlosa: z.string().optional(),
+          resultado: z.string().optional(),
+          page: z.number().default(1),
+          limit: z.number().default(20),
+        }).optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getHistoricoContestacoes({
+          userId: ctx.user.id,
+          convenioId: input?.convenioId,
+          codigoGlosa: input?.codigoGlosa,
+          resultado: input?.resultado,
+          page: input?.page || 1,
+          limit: input?.limit || 20,
+        });
+      }),
+
+    // Obter estatísticas de contestações por código de glosa
+    estatisticasPorCodigo: protectedProcedure
+      .input(
+        z.object({
+          codigoGlosa: z.string(),
+          convenioId: z.number().optional(),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getEstatisticasContestacaoPorCodigo({
+          codigoGlosa: input.codigoGlosa,
+          convenioId: input.convenioId,
+          userId: ctx.user.id,
+        });
+      }),
+
+    // Obter melhores argumentos para um código de glosa
+    melhoresArgumentos: protectedProcedure
+      .input(
+        z.object({
+          codigoGlosa: z.string(),
+          convenioId: z.number().optional(),
+          limit: z.number().default(5),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getMelhoresArgumentos({
+          codigoGlosa: input.codigoGlosa,
+          convenioId: input.convenioId,
+          userId: ctx.user.id,
+          limit: input.limit,
+        });
       }),
   }),
 

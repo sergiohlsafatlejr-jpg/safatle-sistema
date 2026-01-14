@@ -272,3 +272,92 @@ export const historicoRecursos = mysqlTable("historicoRecursos", {
 
 export type HistoricoRecurso = typeof historicoRecursos.$inferSelect;
 export type InsertHistoricoRecurso = typeof historicoRecursos.$inferInsert;
+
+/**
+ * Histórico de Contestações de Glosa - Registra argumentos usados e resultados
+ * para aprendizado de IA e sugestões automáticas
+ */
+export const historicoContestacoes = mysqlTable("historicoContestacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referências
+  recursoId: int("recursoId"),
+  convenioId: int("convenioId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Código de glosa TISS
+  codigoGlosa: varchar("codigoGlosa", { length: 20 }).notNull(),
+  descricaoGlosa: text("descricaoGlosa"),
+  
+  // Dados do procedimento
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  descricaoProcedimento: text("descricaoProcedimento"),
+  
+  // Valores envolvidos
+  valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
+  valorRecuperado: decimal("valorRecuperado", { precision: 10, scale: 2 }),
+  
+  // Argumento utilizado
+  argumentoUtilizado: text("argumentoUtilizado").notNull(),
+  argumentoOrigem: mysqlEnum("argumentoOrigem", [
+    "dicionario",      // Veio do dicionário padrão
+    "ia_sugestao",     // Sugerido pela IA
+    "manual",          // Digitado manualmente
+    "historico"        // Copiado de outro recurso
+  ]).default("manual").notNull(),
+  
+  // Documentos anexados
+  documentosAnexados: json("documentosAnexados"),
+  
+  // Resultado da contestação
+  resultado: mysqlEnum("resultado", [
+    "pendente",
+    "deferido",
+    "deferido_parcial",
+    "indeferido"
+  ]).default("pendente").notNull(),
+  
+  // Feedback para aprendizado
+  argumentoEfetivo: mysqlEnum("argumentoEfetivo", ["sim", "nao", "parcial"]),
+  feedbackUsuario: text("feedbackUsuario"),
+  
+  // Métricas para IA
+  taxaSucessoCalculada: decimal("taxaSucessoCalculada", { precision: 5, scale: 2 }),
+  
+  dataContestacao: timestamp("dataContestacao").defaultNow().notNull(),
+  dataResultado: timestamp("dataResultado"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HistoricoContestacao = typeof historicoContestacoes.$inferSelect;
+export type InsertHistoricoContestacao = typeof historicoContestacoes.$inferInsert;
+
+/**
+ * Argumentos personalizados por convênio - Argumentos que funcionaram melhor para cada convênio
+ */
+export const argumentosConvenio = mysqlTable("argumentosConvenio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId").notNull(),
+  codigoGlosa: varchar("codigoGlosa", { length: 20 }).notNull(),
+  
+  // Argumento customizado para este convênio
+  argumentoCustomizado: text("argumentoCustomizado").notNull(),
+  
+  // Estatísticas
+  vezesUtilizado: int("vezesUtilizado").default(0),
+  vezesDeferido: int("vezesDeferido").default(0),
+  vezesIndeferido: int("vezesIndeferido").default(0),
+  taxaSucesso: decimal("taxaSucesso", { precision: 5, scale: 2 }),
+  
+  // Ativo
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ArgumentoConvenio = typeof argumentosConvenio.$inferSelect;
+export type InsertArgumentoConvenio = typeof argumentosConvenio.$inferInsert;

@@ -36,6 +36,13 @@
       "when": 1768406550405,
       "tag": "0004_ambitious_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1768421955819,
+      "tag": "0005_chunky_wendigo",
+      "breakpoints": true
     }
   ]
 }

@@ -39,7 +39,8 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Receipt,
-  BookOpen
+  BookOpen,
+  History
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -59,6 +60,7 @@ const menuItems = [
   { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo" },
   { icon: Receipt, label: "Repasse", path: "/repasse" },
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas" },
+  { icon: History, label: "Histórico Contestações", path: "/historico-contestacoes" },
   { icon: GitCompare, label: "Comparações", path: "/comparacoes" },
   { icon: AlertTriangle, label: "Divergências", path: "/divergencias" },
   { icon: FileText, label: "Relatórios", path: "/relatorios" },
