@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { FileSearch, Download, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, User, Hash } from "lucide-react";
+import { FileSearch, Download, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, User, Hash, FileSpreadsheet } from "lucide-react";
 import { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 
 export default function ItensImportados() {
   const { user } = useAuth();
@@ -103,6 +104,51 @@ export default function ItensImportados() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportExcel = () => {
+    if (!procedimentos.length) return;
+
+    // Preparar dados para Excel
+    const excelData = procedimentos.map((p: any) => ({
+      "Código": p.codigo || "",
+      "Descrição": p.descricao || "",
+      "Quantidade": p.quantidade || 0,
+      "Valor Unitário": p.valorUnitario ? parseFloat(p.valorUnitario) : 0,
+      "Valor Total": p.valorTotal ? parseFloat(p.valorTotal) : 0,
+      "Data Execução": p.dataExecucao ? new Date(p.dataExecucao).toLocaleDateString("pt-BR") : "",
+      "Médico": p.nomeMedico || "",
+      "CRM": p.crmMedico || "",
+      "Guia": p.guiaNumero || "",
+      "Convênio": p.convenioNome || "",
+      "Arquivo": p.arquivoNome || "",
+    }));
+
+    // Criar workbook e worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Definir largura das colunas
+    ws["!cols"] = [
+      { wch: 15 },  // Código
+      { wch: 50 },  // Descrição
+      { wch: 12 },  // Quantidade
+      { wch: 15 },  // Valor Unitário
+      { wch: 15 },  // Valor Total
+      { wch: 15 },  // Data Execução
+      { wch: 30 },  // Médico
+      { wch: 12 },  // CRM
+      { wch: 15 },  // Guia
+      { wch: 20 },  // Convênio
+      { wch: 40 },  // Arquivo
+    ];
+
+    // Adicionar worksheet ao workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Itens Importados");
+
+    // Gerar arquivo e fazer download
+    const fileName = `itens_importados_${new Date().toISOString().split("T")[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "-";
     try {
@@ -184,9 +230,13 @@ export default function ItensImportados() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <Button onClick={handleExportCSV} disabled={!procedimentos.length}>
+            <Button variant="outline" onClick={handleExportCSV} disabled={!procedimentos.length}>
               <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
+              CSV
+            </Button>
+            <Button onClick={handleExportExcel} disabled={!procedimentos.length}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
             </Button>
           </div>
         </div>
