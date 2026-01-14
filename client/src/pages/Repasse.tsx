@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { 
@@ -13,12 +12,10 @@ import {
   Loader2,
   Search,
   DollarSign,
-  User,
-  Calendar,
   FileText,
   Stethoscope
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -28,18 +25,34 @@ export default function Repasse() {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [busca, setBusca] = useState<string>("");
+  const [buscaDebounced, setBuscaDebounced] = useState<string>("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  // Debounce da busca
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBuscaDebounced(busca);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [busca]);
+
+  // Resetar página quando filtros mudam
+  useEffect(() => {
+    setPage(1);
+  }, [convenioId, dataInicio, dataFim]);
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
-  // Buscar dados de repasse
+  // Buscar dados de repasse com filtros no backend
   const { data: repasseData, isLoading } = trpc.repasse.list.useQuery(
     { 
       convenioId: convenioId ? parseInt(convenioId) : undefined,
       dataInicio: dataInicio || undefined,
       dataFim: dataFim || undefined,
+      search: buscaDebounced || undefined,
       page,
       pageSize,
     },
@@ -55,47 +68,6 @@ export default function Repasse() {
     const d = typeof date === "string" ? new Date(date) : date;
     return d.toLocaleDateString("pt-BR");
   };
-
-  // Filtrar itens
-  const itensFiltrados = useMemo(() => {
-    if (!repasseData?.items) return [];
-    
-    if (!busca) return repasseData.items;
-    
-    const termoBusca = busca.toLowerCase();
-    return repasseData.items.filter((item: any) => 
-      item.codigo?.toLowerCase().includes(termoBusca) ||
-      item.descricao?.toLowerCase().includes(termoBusca) ||
-      item.guiaNumero?.toLowerCase().includes(termoBusca) ||
-      item.pacienteNome?.toLowerCase().includes(termoBusca) ||
-      item.nomeMedico?.toLowerCase().includes(termoBusca)
-    );
-  }, [repasseData?.items, busca]);
-
-  // Calcular resumo
-  const resumo = useMemo(() => {
-    if (!repasseData?.items) return null;
-    
-    let totalFaturado = 0;
-    let totalPago = 0;
-    let totalGlosado = 0;
-    const medicos = new Set<string>();
-
-    for (const item of repasseData.items as any[]) {
-      totalFaturado += parseFloat(item.valorFaturado || "0");
-      totalPago += parseFloat(item.valorPago || "0");
-      totalGlosado += parseFloat(item.valorGlosado || "0");
-      if (item.nomeMedico) medicos.add(item.nomeMedico);
-    }
-
-    return {
-      totalFaturado,
-      totalPago,
-      totalGlosado,
-      totalItens: repasseData.total || 0,
-      totalMedicos: medicos.size,
-    };
-  }, [repasseData]);
 
   const handleExportExcel = () => {
     if (!repasseData?.items || repasseData.items.length === 0) {
@@ -129,6 +101,9 @@ export default function Repasse() {
     toast.success("Arquivo exportado com sucesso!");
   };
 
+  const resumo = repasseData?.resumo;
+  const totalPages = Math.ceil((repasseData?.total || 0) / pageSize);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -151,7 +126,7 @@ export default function Repasse() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId} onValueChange={(v) => { setConvenioId(v === "all" ? "" : v); setPage(1); }}>
+                <Select value={convenioId} onValueChange={(v) => setConvenioId(v === "all" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
@@ -171,7 +146,7 @@ export default function Repasse() {
                 <Input 
                   type="date" 
                   value={dataInicio} 
-                  onChange={(e) => { setDataInicio(e.target.value); setPage(1); }}
+                  onChange={(e) => setDataInicio(e.target.value)}
                 />
               </div>
 
@@ -180,7 +155,7 @@ export default function Repasse() {
                 <Input 
                   type="date" 
                   value={dataFim} 
-                  onChange={(e) => { setDataFim(e.target.value); setPage(1); }}
+                  onChange={(e) => setDataFim(e.target.value)}
                 />
               </div>
 
@@ -277,9 +252,9 @@ export default function Repasse() {
           <CardHeader>
             <CardTitle>
               Itens para Repasse
-              {itensFiltrados.length > 0 && (
+              {repasseData?.total !== undefined && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({itensFiltrados.length} itens)
+                  ({repasseData.total} itens)
                 </span>
               )}
             </CardTitle>
@@ -292,7 +267,7 @@ export default function Repasse() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : itensFiltrados.length > 0 ? (
+            ) : repasseData?.items && repasseData.items.length > 0 ? (
               <>
                 <div className="rounded-md border overflow-x-auto">
                   <Table>
@@ -311,7 +286,7 @@ export default function Repasse() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {itensFiltrados.map((item: any, idx: number) => (
+                      {(repasseData.items as any[]).map((item: any, idx: number) => (
                         <TableRow 
                           key={item.id || idx}
                           className={parseFloat(item.valorGlosado || "0") > 0 ? "bg-red-50" : ""}
@@ -353,10 +328,10 @@ export default function Repasse() {
                 </div>
 
                 {/* Paginação */}
-                {repasseData && repasseData.total > pageSize && (
+                {totalPages > 1 && (
                   <div className="flex items-center justify-between mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Página {page} de {Math.ceil(repasseData.total / pageSize)}
+                      Página {page} de {totalPages}
                     </p>
                     <div className="flex gap-2">
                       <Button 
@@ -370,7 +345,7 @@ export default function Repasse() {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        disabled={page >= Math.ceil(repasseData.total / pageSize)}
+                        disabled={page >= totalPages}
                         onClick={() => setPage(p => p + 1)}
                       >
                         Próxima

@@ -84,3 +84,4 @@
 - [x] Criar tela de Demonstrativo - exibir arquivo de retorno com itens pagos, glosados e motivos de glosa
 - [x] Criar tela de Repasse - comparar itens faturados vs recebidos (médico, valor pago, data, código, paciente, guia)
 - [x] Corrigir gráficos de Faturamento - usar valores do arquivo de retorno para Total Recebido
+- [x] Corrigir filtros para aplicar no backend antes da paginação (todas as telas)

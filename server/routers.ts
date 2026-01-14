@@ -569,6 +569,7 @@ export const appRouter = router({
             search: z.string().optional(),
             nomeMedico: z.string().optional(),
             crmMedico: z.string().optional(),
+            statusGlosa: z.enum(["todos", "pago", "glosado", "parcial"]).optional(),
             page: z.number().default(1),
             pageSize: z.number().default(20),
           })
@@ -581,6 +582,7 @@ export const appRouter = router({
           search: input?.search,
           nomeMedico: input?.nomeMedico,
           crmMedico: input?.crmMedico,
+          statusGlosa: input?.statusGlosa,
           page: input?.page || 1,
           pageSize: input?.pageSize || 20,
           userId: ctx.user.id,
@@ -953,6 +955,7 @@ export const appRouter = router({
           convenioId: z.number().optional(),
           dataInicio: z.string().optional(),
           dataFim: z.string().optional(),
+          search: z.string().optional(),
           page: z.number().optional().default(1),
           pageSize: z.number().optional().default(50),
         }).optional()
@@ -963,6 +966,7 @@ export const appRouter = router({
           convenioId: input?.convenioId,
           dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
+          search: input?.search,
           page: input?.page || 1,
           pageSize: input?.pageSize || 50,
         });

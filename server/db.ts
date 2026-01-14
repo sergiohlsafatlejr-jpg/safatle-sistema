@@ -356,12 +356,13 @@ export async function getProcedimentosPaginated(filters?: {
   search?: string;
   nomeMedico?: string;
   crmMedico?: string;
+  statusGlosa?: string;
   page?: number;
   pageSize?: number;
   userId?: number;
 }) {
   const db = await getDb();
-  if (!db) return { items: [], total: 0 };
+  if (!db) return { items: [], total: 0, resumo: null };
 
   const page = filters?.page || 1;
   const pageSize = filters?.pageSize || 20;
@@ -378,7 +379,9 @@ export async function getProcedimentosPaginated(filters?: {
     conditions.push(
       or(
         like(procedimentos.codigo, `%${filters.search}%`),
-        like(procedimentos.descricao, `%${filters.search}%`)
+        like(procedimentos.descricao, `%${filters.search}%`),
+        like(procedimentos.guiaNumero, `%${filters.search}%`),
+        like(procedimentos.pacienteNome, `%${filters.search}%`)
       )
     );
   }
@@ -391,8 +394,20 @@ export async function getProcedimentosPaginated(filters?: {
     conditions.push(like(procedimentos.crmMedico, `%${filters.crmMedico}%`));
   }
 
-  // If convenioId is specified, we need to filter by arquivo's convenioId
-  let baseQuery = db
+  // Add convenioId filter
+  if (filters?.convenioId) {
+    conditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+
+  // Add userId filter (only show procedures from user's files)
+  if (filters?.userId) {
+    conditions.push(eq(arquivos.userId, filters.userId));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get ALL items first to filter by statusGlosa and calculate resumo
+  const allItems = await db
     .select({
       id: procedimentos.id,
       arquivoId: procedimentos.arquivoId,
@@ -407,6 +422,7 @@ export async function getProcedimentosPaginated(filters?: {
       guiaNumero: procedimentos.guiaNumero,
       nomeMedico: procedimentos.nomeMedico,
       crmMedico: procedimentos.crmMedico,
+      dadosExtras: procedimentos.dadosExtras,
       createdAt: procedimentos.createdAt,
       arquivoNome: arquivos.nome,
       arquivoConvenioId: arquivos.convenioId,
@@ -414,37 +430,62 @@ export async function getProcedimentosPaginated(filters?: {
     })
     .from(procedimentos)
     .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
-    .leftJoin(convenios, eq(arquivos.convenioId, convenios.id));
-
-  // Add convenioId filter
-  if (filters?.convenioId) {
-    conditions.push(eq(arquivos.convenioId, filters.convenioId));
-  }
-
-  // Add userId filter (only show procedures from user's files)
-  if (filters?.userId) {
-    conditions.push(eq(arquivos.userId, filters.userId));
-  }
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  // Get total count
-  const countResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(procedimentos)
-    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
-    .where(whereClause);
-
-  const total = countResult[0]?.count || 0;
-
-  // Get paginated items
-  const items = await baseQuery
+    .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
     .where(whereClause)
-    .orderBy(desc(procedimentos.createdAt))
-    .limit(pageSize)
-    .offset(offset);
+    .orderBy(desc(procedimentos.createdAt));
 
-  return { items, total };
+  // Calculate resumo from all items
+  let totalPago = 0;
+  let totalGlosado = 0;
+  let quantidadePagos = 0;
+  let quantidadeGlosados = 0;
+  let quantidadeParciais = 0;
+
+  // Filter by statusGlosa if specified
+  const filteredItems = allItems.filter((item: any) => {
+    const valor = parseFloat(item.valorTotal || "0");
+    const extras = item.dadosExtras ? 
+      (typeof item.dadosExtras === "string" ? JSON.parse(item.dadosExtras) : item.dadosExtras) : {};
+    const valorGlosado = parseFloat(extras.valorGlosado || "0");
+    
+    // Determine status
+    let status = "pago";
+    if (valorGlosado > 0 && valorGlosado >= valor) {
+      status = "glosado";
+      quantidadeGlosados++;
+      totalGlosado += valorGlosado;
+    } else if (valorGlosado > 0) {
+      status = "parcial";
+      quantidadeParciais++;
+      totalGlosado += valorGlosado;
+      totalPago += valor - valorGlosado;
+    } else {
+      quantidadePagos++;
+      totalPago += valor;
+    }
+
+    // Apply statusGlosa filter
+    if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
+      return status === filters.statusGlosa;
+    }
+    return true;
+  });
+
+  const total = filteredItems.length;
+
+  // Apply pagination to filtered items
+  const paginatedItems = filteredItems.slice(offset, offset + pageSize);
+
+  const resumo = {
+    totalPago,
+    totalGlosado,
+    quantidadePagos,
+    quantidadeGlosados,
+    quantidadeParciais,
+    total: allItems.length,
+  };
+
+  return { items: paginatedItems, total, resumo };
 }
 
 // ============ COMPARACAO FUNCTIONS ============
@@ -2300,11 +2341,12 @@ export async function getRepasseData(filters: {
   convenioId?: number;
   dataInicio?: Date;
   dataFim?: Date;
+  search?: string;
   page: number;
   pageSize: number;
-}): Promise<{ items: RepasseItem[]; total: number }> {
+}): Promise<{ items: RepasseItem[]; total: number; resumo: any }> {
   const db = await getDb();
-  if (!db) return { items: [], total: 0 };
+  if (!db) return { items: [], total: 0, resumo: null };
 
   // Buscar arquivos enviados do usuário
   const arquivosConditions = [
@@ -2323,7 +2365,7 @@ export async function getRepasseData(filters: {
     .where(and(...arquivosConditions));
 
   if (arquivosEnviados.length === 0) {
-    return { items: [], total: 0 };
+    return { items: [], total: 0, resumo: null };
   }
 
   const arquivoIds = arquivosEnviados.map(a => a.id);
@@ -2340,21 +2382,25 @@ export async function getRepasseData(filters: {
     procConditions.push(lte(procedimentos.dataExecucao, filters.dataFim));
   }
 
-  // Contar total
-  const [{ count: total }] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(procedimentos)
-    .where(and(...procConditions));
+  // Adicionar filtro de busca
+  if (filters.search) {
+    procConditions.push(
+      or(
+        like(procedimentos.codigo, `%${filters.search}%`),
+        like(procedimentos.descricao, `%${filters.search}%`),
+        like(procedimentos.guiaNumero, `%${filters.search}%`),
+        like(procedimentos.pacienteNome, `%${filters.search}%`),
+        like(procedimentos.nomeMedico, `%${filters.search}%`)
+      )
+    );
+  }
 
-  // Buscar procedimentos com paginação
-  const offset = (filters.page - 1) * filters.pageSize;
-  const procsEnviados = await db
+  // Buscar TODOS os procedimentos para calcular resumo
+  const allProcsEnviados = await db
     .select()
     .from(procedimentos)
     .where(and(...procConditions))
-    .orderBy(desc(procedimentos.dataExecucao))
-    .limit(filters.pageSize)
-    .offset(offset);
+    .orderBy(desc(procedimentos.dataExecucao));
 
   // Buscar arquivos retornados para comparar
   const arquivosRetornadosConditions = [
@@ -2397,7 +2443,7 @@ export async function getRepasseData(filters: {
   const arquivoConvenioMap = new Map(arquivosEnviados.map(a => [a.id, a.convenioId]));
 
   // Processar itens de repasse
-  const items: RepasseItem[] = procsEnviados.map(proc => {
+  const items: RepasseItem[] = allProcsEnviados.map((proc: any) => {
     const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
     const retornado = retornadosMap.get(chave);
     
@@ -2441,5 +2487,30 @@ export async function getRepasseData(filters: {
     };
   });
 
-  return { items, total: Number(total) };
+  // Calcular resumo de todos os itens
+  let totalFaturado = 0;
+  let totalPago = 0;
+  let totalGlosado = 0;
+  const medicos = new Set<string>();
+
+  for (const item of items) {
+    totalFaturado += parseFloat(item.valorFaturado);
+    totalPago += parseFloat(item.valorPago);
+    totalGlosado += parseFloat(item.valorGlosado);
+    if (item.nomeMedico) medicos.add(item.nomeMedico);
+  }
+
+  const resumo = {
+    totalFaturado,
+    totalPago,
+    totalGlosado,
+    totalItens: items.length,
+    totalMedicos: medicos.size,
+  };
+
+  // Aplicar paginação
+  const offset = (filters.page - 1) * filters.pageSize;
+  const paginatedItems = items.slice(offset, offset + filters.pageSize);
+
+  return { items: paginatedItems, total: items.length, resumo };
 }
