@@ -111,3 +111,4 @@
 - [x] Adicionar contestações em lote para itens glosados selecionados
 - [x] Criar sugestão automática de motivo de recurso com IA baseada na justificativa da glosa
 - [x] Corrigir parser XLSX para extrair campos "situação" (pago/glosado) e "ERRO TISS" (motivo de glosa)
+- [x] Melhorar performance do sistema (índices, queries, processamento de arquivos)

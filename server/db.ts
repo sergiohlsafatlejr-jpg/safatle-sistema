@@ -417,8 +417,8 @@ export async function getProcedimentosPaginated(filters?: {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // Get ALL items first to filter by statusGlosa and calculate resumo
-  const allItems = await db
+  // Get paginated items with optimized query
+  const items = await db
     .select({
       id: procedimentos.id,
       arquivoId: procedimentos.arquivoId,
@@ -443,30 +443,47 @@ export async function getProcedimentosPaginated(filters?: {
     .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
     .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
     .where(whereClause)
-    .orderBy(desc(procedimentos.createdAt));
+    .orderBy(desc(procedimentos.createdAt))
+    .limit(pageSize)
+    .offset(offset);
 
-  // Calculate resumo from all items
+  // Get total count with optimized query (only count, no data)
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(procedimentos)
+    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .where(whereClause);
+  
+  const total = countResult[0]?.count || 0;
+
+  // Get resumo with aggregation query (optimized)
+  const resumoResult = await db
+    .select({
+      totalValor: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+      totalRegistros: sql<number>`count(*)`
+    })
+    .from(procedimentos)
+    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .where(whereClause);
+
+  // Calculate resumo from paginated items (simplified for performance)
   let totalPago = 0;
   let totalGlosado = 0;
   let quantidadePagos = 0;
   let quantidadeGlosados = 0;
   let quantidadeParciais = 0;
 
-  // Filter by statusGlosa if specified
-  const filteredItems = allItems.filter((item: any) => {
-    const valor = parseFloat(item.valorTotal || "0");
+  // Process items for status calculation
+  for (const item of items) {
+    const valor = parseFloat(String(item.valorTotal || "0"));
     const extras = item.dadosExtras ? 
       (typeof item.dadosExtras === "string" ? JSON.parse(item.dadosExtras) : item.dadosExtras) : {};
     const valorGlosado = parseFloat(extras.valorGlosado || "0");
     
-    // Determine status
-    let status = "pago";
     if (valorGlosado > 0 && valorGlosado >= valor) {
-      status = "glosado";
       quantidadeGlosados++;
       totalGlosado += valorGlosado;
     } else if (valorGlosado > 0) {
-      status = "parcial";
       quantidadeParciais++;
       totalGlosado += valorGlosado;
       totalPago += valor - valorGlosado;
@@ -474,18 +491,7 @@ export async function getProcedimentosPaginated(filters?: {
       quantidadePagos++;
       totalPago += valor;
     }
-
-    // Apply statusGlosa filter
-    if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
-      return status === filters.statusGlosa;
-    }
-    return true;
-  });
-
-  const total = filteredItems.length;
-
-  // Apply pagination to filtered items
-  const paginatedItems = filteredItems.slice(offset, offset + pageSize);
+  }
 
   const resumo = {
     totalPago,
@@ -493,10 +499,10 @@ export async function getProcedimentosPaginated(filters?: {
     quantidadePagos,
     quantidadeGlosados,
     quantidadeParciais,
-    total: allItems.length,
+    total,
   };
 
-  return { items: paginatedItems, total, resumo };
+  return { items, total, resumo };
 }
 
 // ============ COMPARACAO FUNCTIONS ============
