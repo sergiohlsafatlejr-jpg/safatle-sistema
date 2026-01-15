@@ -655,13 +655,18 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     quantidade: ["quantidade", "qtd", "qtde", "quant", "quantidadesolicitada", "quantidadeliberada"],
     valorUnitario: ["valor_unitario", "vl_unitario", "vlunitario", "preco"],
     valorTotal: ["valor_total", "vl_total", "vltotal", "total", "valor_pagamento", "valorpagamento", "valor", "valorprocessado", "valorpago", "valorr"],
-    pacienteNome: ["paciente", "nome_paciente", "nome_beneficiario", "nomebeneficiario", "associado", "nome"],
-    pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula", "beneficiario", "beneficiário"],
-    guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero", "numeroguia", "número_guia", "guiaoperadorasenha", "guiaoperadora", "docoriginal"],
+    // Adicionado "nomebeneficirio" (sem acento) para Unimed
+    pacienteNome: ["paciente", "nome_paciente", "nome_beneficiario", "nomebeneficiario", "nomebeneficirio", "associado", "nome"],
+    // Adicionado "beneficirio" (sem acento) para Unimed
+    pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula", "beneficiario", "beneficiário", "beneficirio"],
+    // Adicionado "nmeroguia" (sem acento) para Unimed
+    guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero", "numeroguia", "número_guia", "nmeroguia", "guiaoperadorasenha", "guiaoperadora", "docoriginal"],
     nomeMedico: ["medico", "nome_medico", "profissional", "executante", "nome_prestador_executante", "nomeprestadorexecutante", "profissionalexecutante"],
     crmMedico: ["crm", "crm_medico", "conselho", "prestador_executante", "prestadorexecutante"],
-    dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao", "datadoevento", "dataatendimento", "dataevento"],
-    situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "status", "situacao"],
+    // Adicionado "dataexecuo" (sem acento) para Unimed
+    dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao", "dataexecuo", "datadoevento", "dataatendimento", "dataevento"],
+    // Adicionado "situaoitem" (sem acento) para Unimed
+    situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "situaoitem", "status", "situacao"],
     // Adicionado "erro_tiss" e "errotiss" para capturar motivo de glosa do demonstrativo Unimed
     motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa", "erro_tiss", "errotiss"],
     valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado", "glosa_valor", "valor_glosa", "valorglosa"],
