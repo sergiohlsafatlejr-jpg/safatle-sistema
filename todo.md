@@ -100,3 +100,6 @@
 - [x] Criar sistema multi-estabelecimento (separar dados por hospital)
 - [x] Melhorar tela de Análise de Glosa - puxar itens glosados automaticamente e criar recursos na mesma tela
 - [x] Ajustar filtro do Demonstrativo para filtrar por convênio em vez de arquivo
+- [ ] Corrigir erro de importação de PDF Saúde Caixa
+- [ ] Corrigir erro de importação de XML GEAP
+- [x] Implementar regra Bradesco: itens não encontrados na conciliação = pago

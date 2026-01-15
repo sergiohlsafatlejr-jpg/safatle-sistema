@@ -1826,21 +1826,43 @@ export async function getConciliacaoPorConvenio(filters: {
     valorTotalFaturado += valorEnviado;
 
     if (retornados.length === 0) {
-      // Não encontrado no retorno - glosado total
-      itensConciliados.push({
-        guiaNumero: env.guiaNumero || "",
-        dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-        codigo: env.codigo,
-        descricao: env.descricao || "",
-        pacienteNome: env.pacienteNome || "",
-        valorFaturado: valorEnviado,
-        valorPago: 0,
-        valorGlosado: valorEnviado,
-        motivoGlosa: "Procedimento não encontrado no retorno",
-        status: "nao_encontrado",
-      });
-      totalGlosados++;
-      valorTotalGlosado += valorEnviado;
+      // Não encontrado no retorno
+      // Para Bradesco: considerar como pago (o retorno só lista glosas)
+      const isBradesco = convenio.nome.toLowerCase().includes("bradesco");
+      
+      if (isBradesco) {
+        // Bradesco: itens não encontrados no retorno são considerados pagos
+        itensConciliados.push({
+          guiaNumero: env.guiaNumero || "",
+          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+          codigo: env.codigo,
+          descricao: env.descricao || "",
+          pacienteNome: env.pacienteNome || "",
+          valorFaturado: valorEnviado,
+          valorPago: valorEnviado,
+          valorGlosado: 0,
+          motivoGlosa: "",
+          status: "ok",
+        });
+        totalConciliados++;
+        valorTotalPago += valorEnviado;
+      } else {
+        // Outros convênios: glosado total
+        itensConciliados.push({
+          guiaNumero: env.guiaNumero || "",
+          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+          codigo: env.codigo,
+          descricao: env.descricao || "",
+          pacienteNome: env.pacienteNome || "",
+          valorFaturado: valorEnviado,
+          valorPago: 0,
+          valorGlosado: valorEnviado,
+          motivoGlosa: "Procedimento não encontrado no retorno",
+          status: "nao_encontrado",
+        });
+        totalGlosados++;
+        valorTotalGlosado += valorEnviado;
+      }
     } else {
       // Encontrado - comparar valores
       const ret = retornados[0];
