@@ -22,6 +22,7 @@ import Repasse from "./pages/Repasse";
 import DicionarioGlosas from "./pages/DicionarioGlosas";
 import HistoricoContestacoes from "./pages/HistoricoContestacoes";
 import Estabelecimentos from "./pages/Estabelecimentos";
+import RegrasConciliacao from "./pages/RegrasConciliacao";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function Router() {
       <Route path={"/faturamento"} component={Faturamento} />
       <Route path={"/analise-glosa"} component={AnaliseGlosa} />
       <Route path={"/recursos"} component={RecursosGlosa} />
+      <Route path={"/regras-conciliacao"} component={RegrasConciliacao} />
       <Route path={"/tendencias"} component={Tendencias} />
       <Route path={"/demonstrativo"} component={Demonstrativo} />
       <Route path={"/repasse"} component={Repasse} />

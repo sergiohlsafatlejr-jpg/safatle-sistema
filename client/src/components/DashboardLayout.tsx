@@ -41,7 +41,8 @@ import {
   Receipt,
   BookOpen,
   History,
-  Building2
+  Building2,
+  Sliders
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -67,6 +68,7 @@ const menuItems = [
   { icon: FileText, label: "Relatórios", path: "/relatorios" },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
   { icon: Building2, label: "Estabelecimentos", path: "/estabelecimentos" },
+  { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

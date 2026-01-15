@@ -378,3 +378,55 @@ export const argumentosConvenio = mysqlTable("argumentosConvenio", {
 
 export type ArgumentoConvenio = typeof argumentosConvenio.$inferSelect;
 export type InsertArgumentoConvenio = typeof argumentosConvenio.$inferInsert;
+
+/**
+ * Regras de Conciliação por Convênio - Configurações específicas para cada convênio
+ */
+export const regrasConciliacao = mysqlTable("regrasConciliacao", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId").notNull().unique(),
+  
+  // Comportamento para itens não encontrados no retorno
+  itensNaoEncontrados: mysqlEnum("itensNaoEncontrados", [
+    "glosado",      // Considerar como glosado (padrão)
+    "pago",         // Considerar como pago (ex: Bradesco)
+    "divergente"    // Marcar como divergente para análise manual
+  ]).default("glosado").notNull(),
+  
+  // Tolerância de diferença de valores (em reais)
+  toleranciaValor: decimal("toleranciaValor", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Tolerância percentual de diferença
+  toleranciaPercentual: decimal("toleranciaPercentual", { precision: 5, scale: 2 }).default("0.00"),
+  
+  // Campos para comparação (quais campos usar para match)
+  usarCodigo: mysqlEnum("usarCodigo", ["sim", "nao"]).default("sim").notNull(),
+  usarGuia: mysqlEnum("usarGuia", ["sim", "nao"]).default("sim").notNull(),
+  usarData: mysqlEnum("usarData", ["sim", "nao"]).default("nao").notNull(),
+  usarPaciente: mysqlEnum("usarPaciente", ["sim", "nao"]).default("nao").notNull(),
+  
+  // Formato do arquivo de retorno esperado
+  formatoRetorno: mysqlEnum("formatoRetorno", [
+    "excel_completo",    // Excel com todos os itens (pagos e glosados)
+    "excel_glosas",      // Excel só com glosas (ex: Bradesco)
+    "xml_tiss",          // XML padrão TISS
+    "csv",               // CSV
+    "pdf"                // PDF
+  ]).default("excel_completo").notNull(),
+  
+  // Prazo padrão para recurso (em dias)
+  prazoRecursoDias: int("prazoRecursoDias").default(30),
+  
+  // Observações
+  observacoes: text("observacoes"),
+  
+  // Ativo
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RegraConciliacao = typeof regrasConciliacao.$inferSelect;
+export type InsertRegraConciliacao = typeof regrasConciliacao.$inferInsert;

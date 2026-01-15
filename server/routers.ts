@@ -113,6 +113,47 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ REGRAS DE CONCILIAÇÃO ============
+  regrasConciliacao: router({
+    list: protectedProcedure
+      .query(async () => {
+        return db.getRegrasConciliacao();
+      }),
+
+    get: protectedProcedure
+      .input(z.object({ convenioId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getRegraConciliacaoPorConvenio(input.convenioId);
+      }),
+
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          itensNaoEncontrados: z.enum(["glosado", "pago", "divergente"]).optional(),
+          toleranciaValor: z.string().optional(),
+          toleranciaPercentual: z.string().optional(),
+          usarCodigo: z.enum(["sim", "nao"]).optional(),
+          usarGuia: z.enum(["sim", "nao"]).optional(),
+          usarData: z.enum(["sim", "nao"]).optional(),
+          usarPaciente: z.enum(["sim", "nao"]).optional(),
+          formatoRetorno: z.enum(["excel_completo", "excel_glosas", "xml_tiss", "csv", "pdf"]).optional(),
+          prazoRecursoDias: z.number().optional(),
+          observacoes: z.string().optional(),
+          ativo: z.enum(["sim", "nao"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return db.upsertRegraConciliacao(input);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteRegraConciliacao(input.id);
+      }),
+  }),
+
   // ============ ARQUIVOS ============
   arquivos: router({
     list: protectedProcedure

@@ -103,3 +103,4 @@
 - [ ] Corrigir erro de importação de PDF Saúde Caixa
 - [ ] Corrigir erro de importação de XML GEAP
 - [x] Implementar regra Bradesco: itens não encontrados na conciliação = pago
+- [x] Criar tela de configuração de regras de conciliação por convênio

@@ -22,6 +22,8 @@ import {
   historicoContestacoes,
   argumentosConvenio,
   estabelecimentos,
+  regrasConciliacao,
+  InsertRegraConciliacao,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1733,6 +1735,9 @@ export async function getConciliacaoPorConvenio(filters: {
 
   if (!convenio) return { itens: [], resumo: null };
 
+  // Buscar regras de conciliação configuradas para este convênio
+  const regra = await getRegraConciliacaoPorConvenio(filters.convenioId);
+
   // Buscar arquivos enviados (XMLs)
   const arquivosEnviadosConditions = [
     eq(arquivos.convenioId, filters.convenioId),
@@ -1826,12 +1831,12 @@ export async function getConciliacaoPorConvenio(filters: {
     valorTotalFaturado += valorEnviado;
 
     if (retornados.length === 0) {
-      // Não encontrado no retorno
-      // Para Bradesco: considerar como pago (o retorno só lista glosas)
-      const isBradesco = convenio.nome.toLowerCase().includes("bradesco");
+      // Não encontrado no retorno - usar regra configurada ou fallback para Bradesco
+      const comportamento = regra?.itensNaoEncontrados || 
+        (convenio.nome.toLowerCase().includes("bradesco") ? "pago" : "glosado");
       
-      if (isBradesco) {
-        // Bradesco: itens não encontrados no retorno são considerados pagos
+      if (comportamento === "pago") {
+        // Itens não encontrados são considerados pagos
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
@@ -1846,8 +1851,23 @@ export async function getConciliacaoPorConvenio(filters: {
         });
         totalConciliados++;
         valorTotalPago += valorEnviado;
+      } else if (comportamento === "divergente") {
+        // Marcar para análise manual
+        itensConciliados.push({
+          guiaNumero: env.guiaNumero || "",
+          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+          codigo: env.codigo,
+          descricao: env.descricao || "",
+          pacienteNome: env.pacienteNome || "",
+          valorFaturado: valorEnviado,
+          valorPago: 0,
+          valorGlosado: 0,
+          motivoGlosa: "Procedimento não encontrado - requer análise",
+          status: "divergente",
+        });
+        totalDivergentes++;
       } else {
-        // Outros convênios: glosado total
+        // Glosado total (padrão)
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
@@ -2872,4 +2892,93 @@ export async function updateEstabelecimento(id: number, data: Partial<{ nome: st
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(estabelecimentos).set(data).where(eq(estabelecimentos.id, id));
+}
+
+
+// ============ REGRAS DE CONCILIAÇÃO FUNCTIONS ============
+
+export async function getRegrasConciliacao() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const regras = await db
+    .select({
+      id: regrasConciliacao.id,
+      convenioId: regrasConciliacao.convenioId,
+      itensNaoEncontrados: regrasConciliacao.itensNaoEncontrados,
+      toleranciaValor: regrasConciliacao.toleranciaValor,
+      toleranciaPercentual: regrasConciliacao.toleranciaPercentual,
+      usarCodigo: regrasConciliacao.usarCodigo,
+      usarGuia: regrasConciliacao.usarGuia,
+      usarData: regrasConciliacao.usarData,
+      usarPaciente: regrasConciliacao.usarPaciente,
+      formatoRetorno: regrasConciliacao.formatoRetorno,
+      prazoRecursoDias: regrasConciliacao.prazoRecursoDias,
+      observacoes: regrasConciliacao.observacoes,
+      ativo: regrasConciliacao.ativo,
+      convenioNome: convenios.nome,
+      convenioCodigo: convenios.codigo,
+    })
+    .from(regrasConciliacao)
+    .leftJoin(convenios, eq(regrasConciliacao.convenioId, convenios.id))
+    .orderBy(convenios.nome);
+  
+  return regras;
+}
+
+export async function getRegraConciliacaoPorConvenio(convenioId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [regra] = await db
+    .select()
+    .from(regrasConciliacao)
+    .where(eq(regrasConciliacao.convenioId, convenioId))
+    .limit(1);
+  
+  return regra || null;
+}
+
+export async function createRegraConciliacao(regra: InsertRegraConciliacao) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(regrasConciliacao).values(regra);
+  return { id: Number(result[0].insertId) };
+}
+
+export async function updateRegraConciliacao(id: number, regra: Partial<InsertRegraConciliacao>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(regrasConciliacao)
+    .set(regra)
+    .where(eq(regrasConciliacao.id, id));
+  
+  return { success: true };
+}
+
+export async function deleteRegraConciliacao(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(regrasConciliacao).where(eq(regrasConciliacao.id, id));
+  return { success: true };
+}
+
+export async function upsertRegraConciliacao(regra: InsertRegraConciliacao) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Verificar se já existe regra para este convênio
+  const existente = await getRegraConciliacaoPorConvenio(regra.convenioId);
+  
+  if (existente) {
+    await updateRegraConciliacao(existente.id, regra);
+    return { id: existente.id, updated: true };
+  } else {
+    const result = await createRegraConciliacao(regra);
+    return { id: result.id, updated: false };
+  }
 }
