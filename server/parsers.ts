@@ -81,40 +81,51 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
     
     const procedimentos: ParsedProcedimento[] = [];
     
-    // Check if this is a demonstrativo de retorno (operadoraParaPrestador)
-    const demonstrativos = findDemonstrativosRetorno(result);
-    if (demonstrativos.length > 0) {
-      // Process demonstrativo de retorno
-      for (const demonstrativo of demonstrativos) {
-        const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
-        procedimentos.push(...procsRetorno);
+    // Check if this is a GEAP Portal format (GuiaPortalXml)
+    const guiasGEAP = findGuiasGEAP(result);
+    if (guiasGEAP.length > 0) {
+      console.log('[Parser] Detected GEAP Portal format, found', guiasGEAP.length, 'guias');
+      for (const guiaPortal of guiasGEAP) {
+        const procsGEAP = extractProcedimentosFromGEAP(guiaPortal);
+        procedimentos.push(...procsGEAP);
       }
-    } else {
-      // Process regular guias (prestadorParaOperadora)
-      const guias = findGuias(result);
-      
-      for (const guia of guias) {
-        const guiaNumero = extractGuiaNumero(guia);
-        const pacienteCarteirinha = extractPacienteCarteirinha(guia);
-        
-        // Extract procedimentos executados
-        const procedimentosExecutados = extractProcedimentosExecutados(guia);
-        for (const proc of procedimentosExecutados) {
-          procedimentos.push({
-            ...proc,
-            guiaNumero: proc.guiaNumero || guiaNumero,
-            pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-          });
+    }
+    // Check if this is a demonstrativo de retorno (operadoraParaPrestador)
+    else {
+      const demonstrativos = findDemonstrativosRetorno(result);
+      if (demonstrativos.length > 0) {
+        // Process demonstrativo de retorno
+        for (const demonstrativo of demonstrativos) {
+          const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
+          procedimentos.push(...procsRetorno);
         }
+      } else {
+        // Process regular guias (prestadorParaOperadora)
+        const guias = findGuias(result);
         
-        // Extract outras despesas (servicosExecutados)
-        const outrasDespesas = extractOutrasDespesas(guia);
-        for (const proc of outrasDespesas) {
-          procedimentos.push({
-            ...proc,
-            guiaNumero: proc.guiaNumero || guiaNumero,
-            pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-          });
+        for (const guia of guias) {
+          const guiaNumero = extractGuiaNumero(guia);
+          const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+          
+          // Extract procedimentos executados
+          const procedimentosExecutados = extractProcedimentosExecutados(guia);
+          for (const proc of procedimentosExecutados) {
+            procedimentos.push({
+              ...proc,
+              guiaNumero: proc.guiaNumero || guiaNumero,
+              pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+            });
+          }
+          
+          // Extract outras despesas (servicosExecutados)
+          const outrasDespesas = extractOutrasDespesas(guia);
+          for (const proc of outrasDespesas) {
+            procedimentos.push({
+              ...proc,
+              guiaNumero: proc.guiaNumero || guiaNumero,
+              pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+            });
+          }
         }
       }
     }
@@ -1109,4 +1120,166 @@ function parseHierarchicalCSV(lines: string[], separator: string): ParseResult {
     procedimentos,
     rawData: { format: "hierarchical", lines: lines.length },
   };
+}
+
+
+// ============ GEAP PORTAL XML PARSER ============
+
+/**
+ * Find GuiaPortalXml elements in the XML structure (GEAP format)
+ */
+function findGuiasGEAP(obj: unknown): unknown[] {
+  const guias: unknown[] = [];
+  
+  function search(node: unknown, depth: number = 0): void {
+    if (!node || typeof node !== "object" || depth > 15) return;
+    
+    const record = node as Record<string, unknown>;
+    
+    for (const [key, value] of Object.entries(record)) {
+      // Skip attributes
+      if (key === '$' || typeof value !== 'object' || value === null) continue;
+      
+      // Check for GuiaPortalXml
+      if (key.toLowerCase() === 'guiaportalxml') {
+        if (Array.isArray(value)) {
+          guias.push(...value);
+        } else {
+          guias.push(value);
+        }
+      } else {
+        // Continue searching in nested objects
+        search(value, depth + 1);
+      }
+    }
+  }
+  
+  search(obj);
+  return guias;
+}
+
+/**
+ * Extract procedimentos from GEAP Portal XML format
+ * Structure: GuiaPortalXml -> Guia (header) + ItemGuias -> ItemGuiaPortal (items)
+ */
+function extractProcedimentosFromGEAP(guiaPortal: unknown): ParsedProcedimento[] {
+  if (!guiaPortal || typeof guiaPortal !== "object") return [];
+  
+  const procedimentos: ParsedProcedimento[] = [];
+  const record = guiaPortal as Record<string, unknown>;
+  
+  // Extract guia header info
+  const guia = record.Guia as Record<string, unknown> | undefined;
+  const guiaNumero = getTextValue(guia?.NroGsp) || getTextValue(guia?.NroGspContratado);
+  const pacienteNome = getTextValue(guia?.NmeCliente);
+  const nroInscricao = getTextValue(guia?.NroInscricao);
+  const existeGlosas = getTextValue(guia?.ExisteGlosas) === 'true';
+  const dtaQuitada = getTextValue(guia?.DtaQuitada);
+  
+  // Extract items
+  const itemGuias = record.ItemGuias as Record<string, unknown> | undefined;
+  if (!itemGuias) return procedimentos;
+  
+  let items: unknown[] = [];
+  const itemGuiaPortal = itemGuias.ItemGuiaPortal;
+  
+  if (Array.isArray(itemGuiaPortal)) {
+    items = itemGuiaPortal;
+  } else if (itemGuiaPortal) {
+    items = [itemGuiaPortal];
+  }
+  
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    
+    const itemRecord = item as Record<string, unknown>;
+    
+    const codigo = getTextValue(itemRecord.NroServico);
+    if (!codigo) continue;
+    
+    const descricao = getTextValue(itemRecord.NmeServico);
+    const quantidade = parseNumber(itemRecord.QtdServico) || 1;
+    const valorInformado = parseValorGEAP(itemRecord.VlrInformado);
+    const valorCalculado = parseValorGEAP(itemRecord.VlrCalculado);
+    const valorGlosado = parseValorGEAP(itemRecord.VlrGlosado);
+    const ehGlosado = getTextValue(itemRecord.EhGlosado) === 'true';
+    const nroJustificativa = getTextValue(itemRecord.NroJustificativa);
+    const nroCarteira = getTextValue(itemRecord.NroCarteira);
+    
+    // Parse date in format DD/MM/YYYY or MM/DD/YYYY
+    const dtaAtendimento = getTextValue(itemRecord.DtaAtendimento);
+    let dataExecucao: Date | undefined;
+    if (dtaAtendimento) {
+      dataExecucao = parseDataGEAP(dtaAtendimento);
+    }
+    
+    // Determine motivo de glosa
+    let motivoGlosa: string | undefined;
+    if (ehGlosado && nroJustificativa) {
+      motivoGlosa = traduzirMotivoGlosa(nroJustificativa);
+    } else if (valorGlosado > 0) {
+      motivoGlosa = nroJustificativa ? traduzirMotivoGlosa(nroJustificativa) : 'Glosa sem justificativa';
+    }
+    
+    procedimentos.push({
+      codigo,
+      descricao,
+      quantidade,
+      valorUnitario: valorInformado / quantidade,
+      valorTotal: valorInformado,
+      dataExecucao,
+      pacienteNome,
+      pacienteCarteirinha: nroCarteira || nroInscricao,
+      guiaNumero,
+      motivoGlosa,
+      valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
+      dadosExtras: {
+        formato: 'geap_portal',
+        valorInformado,
+        valorCalculado,
+        valorGlosado,
+        ehGlosado,
+        nroJustificativa,
+        nroInscricao,
+        existeGlosas,
+        dtaQuitada,
+      },
+    });
+  }
+  
+  return procedimentos;
+}
+
+/**
+ * Parse GEAP value format (comma as decimal separator)
+ */
+function parseValorGEAP(value: unknown): number {
+  const str = getTextValue(value);
+  if (!str) return 0;
+  // GEAP uses comma as decimal separator
+  return parseFloat(str.replace('.', '').replace(',', '.')) || 0;
+}
+
+/**
+ * Parse GEAP date format (DD/MM/YYYY or MM/DD/YYYY)
+ */
+function parseDataGEAP(dateStr: string): Date | undefined {
+  if (!dateStr) return undefined;
+  
+  // Try DD/MM/YYYY format first
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return undefined;
+  
+  const [part1, part2, year] = parts.map(Number);
+  
+  // If first part > 12, it's DD/MM/YYYY
+  if (part1 > 12) {
+    return new Date(year, part2 - 1, part1);
+  }
+  // If second part > 12, it's MM/DD/YYYY
+  if (part2 > 12) {
+    return new Date(year, part1 - 1, part2);
+  }
+  // Assume DD/MM/YYYY (Brazilian format)
+  return new Date(year, part2 - 1, part1);
 }
