@@ -86,6 +86,8 @@ export const procedimentos = mysqlTable("procedimentos", {
   quantidade: int("quantidade").default(1),
   valorUnitario: decimal("valorUnitario", { precision: 10, scale: 2 }),
   valorTotal: decimal("valorTotal", { precision: 10, scale: 2 }),
+  valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
+  motivoGlosa: text("motivoGlosa"),
   dataExecucao: timestamp("dataExecucao"),
   pacienteNome: varchar("pacienteNome", { length: 255 }),
   pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),

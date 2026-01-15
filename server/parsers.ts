@@ -965,6 +965,8 @@ export function toProcedimentoInsert(
     quantidade: parsed.quantidade || 1,
     valorUnitario: parsed.valorUnitario ? String(parsed.valorUnitario) : undefined,
     valorTotal: parsed.valorTotal ? String(parsed.valorTotal) : undefined,
+    valorGlosado: parsed.valorGlosado ? String(parsed.valorGlosado) : undefined,
+    motivoGlosa: parsed.motivoGlosa,
     dataExecucao: parsed.dataExecucao,
     pacienteNome: parsed.pacienteNome,
     pacienteCarteirinha: parsed.pacienteCarteirinha,

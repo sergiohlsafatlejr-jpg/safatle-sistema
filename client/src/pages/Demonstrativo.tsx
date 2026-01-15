@@ -73,10 +73,12 @@ export default function Demonstrativo() {
     }
 
     const excelData = (procedimentosData.items as any[]).map((proc: any) => {
+      // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
       const extras = proc.dadosExtras ? 
         (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-      const valorGlosado = parseFloat(extras.valorGlosado || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
       const valor = parseFloat(proc.valorTotal || "0");
+      const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
       
       let status = "Pago";
       if (valorGlosado > 0 && valorGlosado >= valor) {
@@ -94,7 +96,7 @@ export default function Demonstrativo() {
         "Quantidade": proc.quantidade || 1,
         "Valor Pago": valor - valorGlosado,
         "Valor Glosado": valorGlosado,
-        "Motivo Glosa": extras.motivoGlosa || "",
+        "Motivo Glosa": motivoGlosa,
         "Status": status,
       };
     });
@@ -114,9 +116,10 @@ export default function Demonstrativo() {
   };
 
   const getStatusBadge = (proc: any) => {
+    // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
     const extras = proc.dadosExtras ? 
       (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-    const valorGlosado = parseFloat(extras.valorGlosado || "0");
+    const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
     const valor = parseFloat(proc.valorTotal || "0");
 
     if (valorGlosado > 0 && valorGlosado >= valor) {
@@ -312,11 +315,13 @@ export default function Demonstrativo() {
                       </TableHeader>
                       <TableBody>
                         {(procedimentosData.items as any[]).map((proc: any) => {
+                          // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
                           const extras = proc.dadosExtras ? 
                             (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-                          const valorGlosado = parseFloat(extras.valorGlosado || "0");
+                          const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
                           const valor = parseFloat(proc.valorTotal || "0");
                           const valorPago = valor - valorGlosado;
+                          const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
 
                           return (
                             <TableRow 
@@ -343,8 +348,8 @@ export default function Demonstrativo() {
                               <TableCell className="text-right font-mono text-red-600">
                                 {valorGlosado > 0 ? formatCurrency(valorGlosado) : "-"}
                               </TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={extras.motivoGlosa || ""}>
-                                {extras.motivoGlosa || "-"}
+                              <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={motivoGlosa}>
+                                {motivoGlosa || "-"}
                               </TableCell>
                               <TableCell className="text-center">
                                 {getStatusBadge(proc)}

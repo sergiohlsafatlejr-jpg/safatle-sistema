@@ -117,3 +117,5 @@
 - [x] Corrigir processamento do arquivo XML GEAP que não importou procedimentos (usar botão Reprocessar)
 - [x] Otimizar velocidade de processamento de arquivos XLSX grandes (batch 2000, parser otimizado)
 - [x] Corrigir parser XLSX demonstrativo-0278119 para extrair glosas e valores corretamente
+- [x] Corrigir tela Demonstrativo - dados de glosa não exibidos corretamente para Unimed
+- [x] Corrigir tela Demonstrativo - dados de glosa em branco para Bradesco
