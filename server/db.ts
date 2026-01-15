@@ -1887,21 +1887,30 @@ export async function getConciliacaoPorConvenio(filters: {
       // Encontrado - comparar valores
       const ret = retornados[0];
       const valorRetornado = parseFloat(ret.valorTotal || "0");
-      const diferenca = valorEnviado - valorRetornado;
       
-      // Extrair motivo de glosa do dadosExtras se existir
+      // Extrair motivo de glosa e valor glosado do dadosExtras se existir
       let motivoGlosa = "";
+      let valorGlosadoExplicito = 0;
       if (ret.dadosExtras) {
         const extras = typeof ret.dadosExtras === "string" 
           ? JSON.parse(ret.dadosExtras) 
           : ret.dadosExtras;
         motivoGlosa = extras.motivoGlosa || extras.observacao || extras.glosa || "";
+        valorGlosadoExplicito = parseFloat(extras.valorGlosado || "0") || 0;
       }
-
-      valorTotalPago += valorRetornado;
-
-      if (Math.abs(diferenca) < 0.01) {
-        // Valores iguais - OK
+      
+      // Verificar se o convênio é Bradesco ou similar (retorno só lista glosas)
+      const isBradescoStyle = convenio.nome.toLowerCase().includes("bradesco") || 
+                              regra?.formatoRetorno === "excel_glosas";
+      
+      // Para Bradesco: se item aparece no XML com valorGlosado > 0 = glosado, senão = pago
+      // Para outros: comparar valores normalmente
+      if (isBradescoStyle && valorGlosadoExplicito > 0) {
+        // Item com glosa explícita no retorno
+        const valorPago = valorEnviado - valorGlosadoExplicito;
+        valorTotalPago += valorPago;
+        valorTotalGlosado += valorGlosadoExplicito;
+        
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
@@ -1909,43 +1918,81 @@ export async function getConciliacaoPorConvenio(filters: {
           descricao: env.descricao || "",
           pacienteNome: env.pacienteNome || "",
           valorFaturado: valorEnviado,
-          valorPago: valorRetornado,
+          valorPago: valorPago,
+          valorGlosado: valorGlosadoExplicito,
+          motivoGlosa: motivoGlosa || "Glosa identificada no retorno",
+          status: "glosado",
+        });
+        totalGlosados++;
+      } else if (isBradescoStyle && valorGlosadoExplicito === 0) {
+        // Item aparece no retorno sem glosa = pago integralmente
+        valorTotalPago += valorEnviado;
+        
+        itensConciliados.push({
+          guiaNumero: env.guiaNumero || "",
+          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+          codigo: env.codigo,
+          descricao: env.descricao || "",
+          pacienteNome: env.pacienteNome || "",
+          valorFaturado: valorEnviado,
+          valorPago: valorEnviado,
           valorGlosado: 0,
           motivoGlosa: "",
           status: "ok",
         });
         totalConciliados++;
-      } else if (diferenca > 0) {
-        // Glosa parcial
-        itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
-          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
-          valorFaturado: valorEnviado,
-          valorPago: valorRetornado,
-          valorGlosado: diferenca,
-          motivoGlosa: motivoGlosa || "Valor divergente",
-          status: "glosado",
-        });
-        totalGlosados++;
-        valorTotalGlosado += diferenca;
       } else {
-        // Valor retornado maior que enviado (divergência)
-        itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
-          dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
-          valorFaturado: valorEnviado,
-          valorPago: valorRetornado,
-          valorGlosado: 0,
-          motivoGlosa: motivoGlosa || "",
-          status: "divergente",
-        });
-        totalDivergentes++;
+        // Lógica padrão: comparar valores
+        const diferenca = valorEnviado - valorRetornado;
+        valorTotalPago += valorRetornado;
+
+        if (Math.abs(diferenca) < 0.01) {
+          // Valores iguais - OK
+          itensConciliados.push({
+            guiaNumero: env.guiaNumero || "",
+            dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+            codigo: env.codigo,
+            descricao: env.descricao || "",
+            pacienteNome: env.pacienteNome || "",
+            valorFaturado: valorEnviado,
+            valorPago: valorRetornado,
+            valorGlosado: 0,
+            motivoGlosa: "",
+            status: "ok",
+          });
+          totalConciliados++;
+        } else if (diferenca > 0) {
+          // Glosa parcial
+          itensConciliados.push({
+            guiaNumero: env.guiaNumero || "",
+            dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+            codigo: env.codigo,
+            descricao: env.descricao || "",
+            pacienteNome: env.pacienteNome || "",
+            valorFaturado: valorEnviado,
+            valorPago: valorRetornado,
+            valorGlosado: diferenca,
+            motivoGlosa: motivoGlosa || "Valor divergente",
+            status: "glosado",
+          });
+          totalGlosados++;
+          valorTotalGlosado += diferenca;
+        } else {
+          // Valor retornado maior que enviado (divergência)
+          itensConciliados.push({
+            guiaNumero: env.guiaNumero || "",
+            dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
+            codigo: env.codigo,
+            descricao: env.descricao || "",
+            pacienteNome: env.pacienteNome || "",
+            valorFaturado: valorEnviado,
+            valorPago: valorRetornado,
+            valorGlosado: 0,
+            motivoGlosa: motivoGlosa || "",
+            status: "divergente",
+          });
+          totalDivergentes++;
+        }
       }
     }
   }

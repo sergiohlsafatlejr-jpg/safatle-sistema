@@ -104,3 +104,4 @@
 - [ ] Corrigir erro de importação de XML GEAP
 - [x] Implementar regra Bradesco: itens não encontrados na conciliação = pago
 - [x] Criar tela de configuração de regras de conciliação por convênio
+- [x] Corrigir lógica Bradesco: itens no XML verificar glosa, itens não listados = pago
