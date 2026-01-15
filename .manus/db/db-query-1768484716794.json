@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, nome, s3Url, status, createdAt FROM arquivos WHERE tipoArquivo = 'pdf' ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, s3Url, status, createdAt FROM arquivos WHERE tipoArquivo = 'pdf' ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "150042",
+      "nome": "Demonstrativo+de+análise+de+conta_14_01_2026_11_57_32.pdf",
+      "s3Url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/nT1MlEn8Ndd5xRV3zKs67-Demonstrativo+de+análise+de+conta_14_01_2026_11_57_32.pdf.pdf",
+      "status": "erro",
+      "createdAt": "2026-01-15 13:36:18"
+    },
+    {
+      "id": "150002",
+      "nome": "Demonstrativo+de+análise+de+conta_14_01_2026_11_57_00.pdf",
+      "s3Url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/16t3_PIvugC5HJwiY1DOk-Demonstrativo+de+análise+de+conta_14_01_2026_11_57_00.pdf.pdf",
+      "status": "erro",
+      "createdAt": "2026-01-15 12:37:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ts3Url\tstatus\tcreatedAt\n150042\tDemonstrativo+de+análise+de+conta_14_01_2026_11_57_32.pdf\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/nT1MlEn8Ndd5xRV3zKs67-Demonstrativo+de+análise+de+conta_14_01_2026_11_57_32.pdf.pdf\terro\t2026-01-15 13:36:18\n150002\tDemonstrativo+de+análise+de+conta_14_01_2026_11_57_00.pdf\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/16t3_PIvugC5HJwiY1DOk-Demonstrativo+de+análise+de+conta_14_01_2026_11_57_00.pdf.pdf\terro\t2026-01-15 12:37:16\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

@@ -684,11 +684,12 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
 
 /**
  * Parse PDF file content (extracts text and tries to find structured data)
+ * Supports multiple formats including Saúde Caixa demonstrativos
  */
 export async function parsePDF(content: Buffer): Promise<ParseResult> {
   try {
-    // Use pdfjs-dist for PDF parsing
-    const pdfjsLib = await import("pdfjs-dist");
+    // Use pdfjs-dist legacy build for Node.js compatibility
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
     
     // Load the PDF document
     const uint8Array = new Uint8Array(content);
@@ -703,7 +704,7 @@ export async function parsePDF(content: Buffer): Promise<ParseResult> {
       const pageText = textContent.items
         .map((item: unknown) => (item as { str: string }).str)
         .join(" ");
-      text += pageText + "\\n";
+      text += pageText + "\n";
     }
     
     // Try to extract procedures from text
@@ -726,22 +727,27 @@ export async function parsePDF(content: Buffer): Promise<ParseResult> {
 function extractProcedimentosFromText(text: string): ParsedProcedimento[] {
   const procedimentos: ParsedProcedimento[] = [];
   
+  // Check if this is a Saúde Caixa demonstrativo (Benner system)
+  if (text.includes('Sistema Benner-Saúde') || text.includes('DEMONSTRATIVO DE ANÁLISE DE CONTA')) {
+    return extractSaudeCaixaProcedimentos(text);
+  }
+  
   // Try to find procedure codes (8 digits starting with specific patterns)
   const codePatterns = [
-    /\\b(\\d{8})\\b/g,  // 8 digit codes
-    /\\b(\\d{2}\\.\\d{2}\\.\\d{2}\\.\\d{2})\\b/g,  // XX.XX.XX.XX format
+    /\b(\d{8})\b/g,  // 8 digit codes
+    /\b(\d{2}\.\d{2}\.\d{2}\.\d{2})\b/g,  // XX.XX.XX.XX format
   ];
   
   for (const pattern of codePatterns) {
     const matches = Array.from(text.matchAll(pattern));
     for (const match of matches) {
-      const codigo = match[1].replace(/\\./g, "");
+      const codigo = match[1].replace(/\./g, "");
       
       // Check if this looks like a valid procedure code
       if (codigo.length >= 8 && /^[0-9]+$/.test(codigo)) {
         // Try to find associated description (text after the code)
         const afterCode = text.substring(match.index! + match[0].length, match.index! + match[0].length + 100);
-        const descMatch = afterCode.match(/^\\s*[-:]?\\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\\s]{5,50})/);
+        const descMatch = afterCode.match(/^\s*[-:]?\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]{5,50})/);
         
         procedimentos.push({
           codigo,
@@ -754,6 +760,137 @@ function extractProcedimentosFromText(text: string): ParsedProcedimento[] {
   }
   
   return procedimentos;
+}
+
+/**
+ * Extract procedimentos from Saúde Caixa (Benner) PDF format
+ * Format: Date | Table | Code (X.XX.XX.XXX) | Description | Values...
+ */
+function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
+  const procedimentos: ParsedProcedimento[] = [];
+  const lines = text.split('\n');
+  
+  let currentPaciente: string | undefined;
+  let currentCarteirinha: string | undefined;
+  let currentGuia: string | undefined;
+  
+  // Pattern for procedure lines: date, table, code (X.XX.XX.XXX), description, values
+  // Example: 31/10/2025 22 4.03.04.370 Hemossedimentação, (VHS) - pesquisa 5,02 1 5,02 0,00 5,02 1702
+  const procPattern = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2})\s+(\d\.\d{2}\.\d{2}\.\d{3})\s+([^\d]+?)\s+(\d+[,.]\d{2})\s+(\d+)\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})(?:\s+(\d+))?/g;
+  
+  // Process the entire text
+  const fullText = lines.join(' ');
+  
+  // In Saude Caixa PDFs, patient info appears in a specific pattern:
+  // GuiaOperadora (8 digits) followed by Senha (9 digits) followed by Nome (uppercase letters)
+  // followed by Carteirinha (16 digits)
+  // Example: 66054097 716665905 ALVARO LUIS FARIA RABELO 0101326784020234
+  
+  // Find all patient blocks in the document
+  const patientBlocks: Array<{guia: string, paciente: string, carteirinha: string, startIndex: number}> = [];
+  
+  // Pattern: 8-digit guia, 9-digit senha, NAME IN CAPS, 16-digit carteirinha
+  const patientBlockPattern = /(\d{8})\s+(\d{9})\s+([A-Z][A-Z\s]+[A-Z])\s+(\d{16})/g;
+  let patientMatch;
+  while ((patientMatch = patientBlockPattern.exec(fullText)) !== null) {
+    patientBlocks.push({
+      guia: patientMatch[1],
+      paciente: patientMatch[3].trim(),
+      carteirinha: patientMatch[4],
+      startIndex: patientMatch.index
+    });
+  }
+  
+  // If we found patient blocks, use the first one as default
+  if (patientBlocks.length > 0) {
+    currentGuia = patientBlocks[0].guia;
+    currentPaciente = patientBlocks[0].paciente;
+    currentCarteirinha = patientBlocks[0].carteirinha;
+  }
+  
+  // Find all procedure lines
+  let match;
+  while ((match = procPattern.exec(fullText)) !== null) {
+    const dataExecucao = parseDataBR(match[1]);
+    const tabela = match[2];
+    const codigo = match[3].replace(/\./g, ''); // Remove dots from code
+    const descricao = match[4].trim();
+    const valorInformado = parseValorBR(match[5]);
+    const quantidade = parseInt(match[6], 10) || 1;
+    const valorProcessado = parseValorBR(match[7]);
+    const valorLiberado = parseValorBR(match[8]);
+    const valorGlosa = parseValorBR(match[9]);
+    const codigoGlosa = match[10] || undefined;
+    
+    // Translate glosa code if present
+    const motivoGlosa = codigoGlosa ? traduzirMotivoGlosa(codigoGlosa) : undefined;
+    
+    procedimentos.push({
+      codigo,
+      descricao,
+      quantidade,
+      valorUnitario: valorInformado / quantidade,
+      valorTotal: valorInformado,
+      dataExecucao,
+      pacienteNome: currentPaciente,
+      pacienteCarteirinha: currentCarteirinha,
+      guiaNumero: currentGuia,
+      motivoGlosa,
+      valorGlosado: valorGlosa,
+      dadosExtras: {
+        tabela,
+        valorInformado,
+        valorProcessado,
+        valorLiberado,
+        valorGlosa,
+        codigoGlosa,
+        formato: 'saude_caixa_benner'
+      },
+    });
+  }
+  
+  // If no procedures found with the main pattern, try alternative extraction
+  if (procedimentos.length === 0) {
+    // Try to find TUSS codes in format X.XX.XX.XXX
+    const tussPattern = /(\d\.\d{2}\.\d{2}\.\d{3})\s+([A-Za-zÀ-ÿ][^\d]{5,80})\s+(\d+[,.]\d{2})/g;
+    
+    while ((match = tussPattern.exec(fullText)) !== null) {
+      const codigo = match[1].replace(/\./g, '');
+      const descricao = match[2].trim();
+      const valor = parseValorBR(match[3]);
+      
+      procedimentos.push({
+        codigo,
+        descricao,
+        quantidade: 1,
+        valorTotal: valor,
+        pacienteNome: currentPaciente,
+        pacienteCarteirinha: currentCarteirinha,
+        guiaNumero: currentGuia,
+        dadosExtras: { formato: 'saude_caixa_benner_alt' },
+      });
+    }
+  }
+  
+  return procedimentos;
+}
+
+/**
+ * Parse Brazilian date format (DD/MM/YYYY)
+ */
+function parseDataBR(dateStr: string): Date | undefined {
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return undefined;
+  const [day, month, year] = parts.map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Parse Brazilian number format (comma as decimal separator)
+ */
+function parseValorBR(valorStr: string): number {
+  if (!valorStr) return 0;
+  return parseFloat(valorStr.replace('.', '').replace(',', '.')) || 0;
 }
 
 /**
