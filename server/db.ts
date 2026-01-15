@@ -235,12 +235,29 @@ export async function getArquivoById(id: number) {
 
 export async function updateArquivoStatus(
   id: number,
-  status: "pendente" | "processado" | "erro"
+  status: "pendente" | "processado" | "erro" | "processando"
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   await db.update(arquivos).set({ status }).where(eq(arquivos.id, id));
+}
+
+export async function updateArquivoProgresso(
+  id: number,
+  progresso: number,
+  itensProcessados: number,
+  totalItens?: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updateData: any = { progresso, itensProcessados };
+  if (totalItens !== undefined) {
+    updateData.totalItens = totalItens;
+  }
+
+  await db.update(arquivos).set(updateData).where(eq(arquivos.id, id));
 }
 
 export async function getArquivosStats(userId?: number) {
@@ -317,7 +334,11 @@ export async function deleteArquivo(id: number) {
 
 // ============ PROCEDIMENTO FUNCTIONS ============
 
-export async function createProcedimentos(data: InsertProcedimento[]) {
+export async function createProcedimentos(
+  data: InsertProcedimento[],
+  arquivoId?: number,
+  onProgress?: (progresso: number, itensProcessados: number, totalItens: number) => Promise<void>
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -326,12 +347,21 @@ export async function createProcedimentos(data: InsertProcedimento[]) {
   // Insert in batches to avoid "Maximum call stack size exceeded" error
   const BATCH_SIZE = 500;
   let inserted = 0;
+  const totalItens = data.length;
   
   for (let i = 0; i < data.length; i += BATCH_SIZE) {
     const batch = data.slice(i, i + BATCH_SIZE);
     await db.insert(procedimentos).values(batch);
     inserted += batch.length;
-    console.log(`[DB] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${data.length} procedimentos`);
+    
+    // Calculate progress percentage
+    const progresso = Math.round((inserted / totalItens) * 100);
+    console.log(`[DB] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${totalItens} procedimentos (${progresso}%)`);
+    
+    // Report progress if callback provided
+    if (onProgress) {
+      await onProgress(progresso, inserted, totalItens);
+    }
   }
   
   return { count: data.length };

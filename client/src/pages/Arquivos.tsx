@@ -68,6 +68,13 @@ export default function Arquivos() {
     direcao: filtroDirecao !== "todos" ? filtroDirecao as "enviado" | "retornado" : undefined,
     status: filtroStatus !== "todos" ? filtroStatus as "pendente" | "processado" | "erro" : undefined,
     convenioId: filtroConvenio !== "todos" ? parseInt(filtroConvenio) : undefined,
+  }, {
+    // Poll every 2 seconds if there are files being processed
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasProcessing = data?.some((a) => a.status === "processando" || a.status === "pendente");
+      return hasProcessing ? 2000 : false;
+    },
   });
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
@@ -116,12 +123,26 @@ export default function Arquivos() {
     deleteArquivo.mutate({ id: arquivoToDelete.id });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (arquivo: any) => {
+    const { status, progresso, itensProcessados, totalItens } = arquivo;
     switch (status) {
       case "processado":
         return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Processado</Badge>;
       case "erro":
         return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Erro</Badge>;
+      case "processando":
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 animate-pulse">
+              Processando {progresso || 0}%
+            </Badge>
+            {totalItens > 0 && (
+              <span className="text-xs text-slate-500">
+                {itensProcessados || 0}/{totalItens} itens
+              </span>
+            )}
+          </div>
+        );
       default:
         return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pendente</Badge>;
     }
@@ -309,7 +330,7 @@ export default function Arquivos() {
                             {convenios?.find(c => c.id === arquivo.convenioId)?.nome || "-"}
                           </span>
                         </TableCell>
-                        <TableCell>{getStatusBadge(arquivo.status)}</TableCell>
+                        <TableCell>{getStatusBadge(arquivo)}</TableCell>
                         <TableCell>
                           <span className="text-sm text-slate-500">
                             {new Date(arquivo.createdAt).toLocaleDateString("pt-BR")}

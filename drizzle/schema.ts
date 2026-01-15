@@ -63,7 +63,10 @@ export const arquivos = mysqlTable("arquivos", {
   s3Key: varchar("s3Key", { length: 512 }).notNull(),
   s3Url: text("s3Url").notNull(),
   tamanho: int("tamanho"),
-  status: mysqlEnum("status", ["pendente", "processado", "erro"]).default("pendente").notNull(),
+  status: mysqlEnum("status", ["pendente", "processado", "erro", "processando"]).default("pendente").notNull(),
+  progresso: int("progresso").default(0), // Percentual de progresso (0-100)
+  totalItens: int("totalItens"), // Total de itens a processar
+  itensProcessados: int("itensProcessados").default(0), // Itens já processados
   dataReferencia: timestamp("dataReferencia"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

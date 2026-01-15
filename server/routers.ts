@@ -276,6 +276,10 @@ export const appRouter = router({
         // Parse file and extract procedimentos
         try {
           console.log('[Upload] Parsing file:', input.nome);
+          
+          // Set status to processing
+          await db.updateArquivoStatus(arquivoId, "processando");
+          
           const parseResult = await parseFile(buffer, input.nome);
           
           console.log('[Upload] Parse result:', {
@@ -289,6 +293,9 @@ export const appRouter = router({
               toProcedimentoInsert(p, arquivoId)
             );
             
+            // Update total items to process
+            await db.updateArquivoProgresso(arquivoId, 0, 0, procedimentosToInsert.length);
+            
             // Log procedimentos com médico
             const comMedico = procedimentosToInsert.filter(p => p.nomeMedico);
             console.log('[Upload] Procedimentos com médico a inserir:', comMedico.length);
@@ -300,12 +307,22 @@ export const appRouter = router({
               });
             }
             
-            await db.createProcedimentos(procedimentosToInsert);
+            // Create procedimentos with progress callback
+            await db.createProcedimentos(
+              procedimentosToInsert,
+              arquivoId,
+              async (progresso, itensProcessados, totalItens) => {
+                await db.updateArquivoProgresso(arquivoId, progresso, itensProcessados, totalItens);
+              }
+            );
+            
             await db.updateArquivoStatus(arquivoId, "processado");
+            await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
           } else if (!parseResult.success) {
             await db.updateArquivoStatus(arquivoId, "erro");
           } else {
             await db.updateArquivoStatus(arquivoId, "processado");
+            await db.updateArquivoProgresso(arquivoId, 100, 0, 0);
           }
         } catch (error) {
           console.error("Error parsing file:", error);
