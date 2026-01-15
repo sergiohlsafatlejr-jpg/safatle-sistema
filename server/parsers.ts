@@ -619,7 +619,8 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     crmMedico: ["crm", "crm_medico", "conselho", "prestador_executante", "prestadorexecutante"],
     dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao", "datadoevento", "dataatendimento", "dataevento"],
     situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "status", "situacao"],
-    motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa"],
+    // Adicionado "erro_tiss" e "errotiss" para capturar motivo de glosa do demonstrativo Unimed
+    motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa", "erro_tiss", "errotiss"],
     valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado", "glosa_valor", "valor_glosa", "valorglosa"],
   };
   
@@ -662,14 +663,23 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
   const motivoGlosaRaw = findValue(columnMappings.motivoGlosa) as string | undefined;
   // Traduzir código de glosa para descrição legível se for um código
   const motivoGlosa = motivoGlosaRaw ? traduzirMotivoGlosa(motivoGlosaRaw) : undefined;
-  const valorGlosado = parseNumber(findValue(columnMappings.valorGlosado));
+  
+  // Calcular valorGlosado: se existe coluna específica, usar; senão, se situação é GLOSADO, usar valorTotal
+  let valorGlosado = parseNumber(findValue(columnMappings.valorGlosado));
+  const valorTotal = parseNumber(findValue(columnMappings.valorTotal));
+  
+  // Se situação é GLOSADO e não tem valorGlosado específico, usar valorTotal como valorGlosado
+  const situacaoUpper = situacaoItem?.toUpperCase() || '';
+  if (!valorGlosado && situacaoUpper.includes('GLOS') && valorTotal) {
+    valorGlosado = valorTotal;
+  }
   
   return {
     codigo: String(codigo),
     descricao: findValue(columnMappings.descricao) as string | undefined,
     quantidade: parseNumber(findValue(columnMappings.quantidade)) || 1,
     valorUnitario: parseNumber(findValue(columnMappings.valorUnitario)),
-    valorTotal: parseNumber(findValue(columnMappings.valorTotal)),
+    valorTotal,
     dataExecucao,
     pacienteNome: (findValue(columnMappings.pacienteNome) || (row as Record<string, unknown>)["Nome Beneficiário"]) as string | undefined,
     pacienteCarteirinha: findValue(columnMappings.pacienteCarteirinha) as string | undefined,
