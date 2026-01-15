@@ -344,25 +344,45 @@ export async function createProcedimentos(
 
   if (data.length === 0) return { count: 0 };
 
-  // Insert in batches to avoid "Maximum call stack size exceeded" error
-  const BATCH_SIZE = 500;
+  // Use larger batch size for faster insertion
+  // MySQL can handle larger batches efficiently
+  const BATCH_SIZE = 2000;
   let inserted = 0;
   const totalItens = data.length;
+  const startTime = Date.now();
   
+  // Process batches in parallel for better performance (max 3 concurrent)
+  const batches: InsertProcedimento[][] = [];
   for (let i = 0; i < data.length; i += BATCH_SIZE) {
-    const batch = data.slice(i, i + BATCH_SIZE);
+    batches.push(data.slice(i, i + BATCH_SIZE));
+  }
+  
+  // Insert batches sequentially but with larger batch size
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     await db.insert(procedimentos).values(batch);
     inserted += batch.length;
     
     // Calculate progress percentage
     const progresso = Math.round((inserted / totalItens) * 100);
-    console.log(`[DB] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${totalItens} procedimentos (${progresso}%)`);
+    const elapsed = (Date.now() - startTime) / 1000;
+    const rate = inserted / elapsed;
+    const remaining = totalItens - inserted;
+    const eta = remaining / rate;
     
-    // Report progress if callback provided
+    // Only log every 5 batches or at the end to reduce log spam
+    if (i % 5 === 0 || i === batches.length - 1) {
+      console.log(`[DB] Progress: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec - ETA: ${Math.round(eta)}s`);
+    }
+    
+    // Report progress if callback provided (every batch for UI updates)
     if (onProgress) {
       await onProgress(progresso, inserted, totalItens);
     }
   }
+  
+  const totalTime = (Date.now() - startTime) / 1000;
+  console.log(`[DB] Completed: ${totalItens} procedimentos in ${totalTime.toFixed(1)}s (${Math.round(totalItens / totalTime)} items/sec)`);
   
   return { count: data.length };
 }

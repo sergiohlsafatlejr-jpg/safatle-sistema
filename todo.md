@@ -114,3 +114,5 @@
 - [x] Melhorar performance do sistema (índices, queries, processamento de arquivos)
 - [x] Implementar indicador de progresso de importação para arquivos grandes
 - [x] Mostrar alerta na interface quando a IA não conseguir sugerir motivo de recurso
+- [x] Corrigir processamento do arquivo XML GEAP que não importou procedimentos (usar botão Reprocessar)
+- [x] Otimizar velocidade de processamento de arquivos XLSX grandes (batch 2000, parser otimizado)

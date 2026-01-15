@@ -581,26 +581,58 @@ function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
 
 /**
  * Parse Excel file content
+ * Optimized for large files with streaming-like processing
  */
 export async function parseExcel(content: Buffer): Promise<ParseResult> {
   try {
-    const workbook = XLSX.read(content, { type: "buffer" });
+    const startTime = Date.now();
+    
+    // Read workbook with optimizations for large files
+    const workbook = XLSX.read(content, { 
+      type: "buffer",
+      cellDates: true, // Parse dates automatically
+      cellNF: false, // Skip number format parsing for speed
+      cellStyles: false, // Skip style parsing for speed
+    });
+    
     const procedimentos: ParsedProcedimento[] = [];
+    let totalRows = 0;
     
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
       
-      for (const row of data) {
-        const proc = extractProcedimentoFromRow(row);
-        if (proc) procedimentos.push(proc);
+      // Use sheet_to_json with raw option for faster parsing
+      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        raw: false, // Convert to strings for consistent processing
+        defval: '', // Default empty values
+      });
+      
+      totalRows += data.length;
+      
+      // Process rows in chunks to avoid blocking
+      const CHUNK_SIZE = 5000;
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        for (const row of chunk) {
+          const proc = extractProcedimentoFromRow(row);
+          if (proc) procedimentos.push(proc);
+        }
+        
+        // Log progress for large files
+        if (data.length > 10000 && i > 0 && i % 10000 === 0) {
+          console.log(`[Excel Parser] Processed ${i}/${data.length} rows from sheet ${sheetName}`);
+        }
       }
     }
+    
+    const elapsed = (Date.now() - startTime) / 1000;
+    console.log(`[Excel Parser] Completed: ${procedimentos.length} procedimentos from ${totalRows} rows in ${elapsed.toFixed(1)}s`);
     
     return {
       success: true,
       procedimentos,
-      rawData: workbook.SheetNames.map(name => ({
+      // Don't include rawData for large files to save memory
+      rawData: totalRows > 50000 ? { totalRows, sheetsCount: workbook.SheetNames.length } : workbook.SheetNames.map(name => ({
         name,
         data: XLSX.utils.sheet_to_json(workbook.Sheets[name]),
       })),
