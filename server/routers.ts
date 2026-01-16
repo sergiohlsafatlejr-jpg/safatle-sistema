@@ -1210,6 +1210,8 @@ export const appRouter = router({
           convenioId: z.number(),
           dataInicio: z.string().optional(),
           dataFim: z.string().optional(),
+          mesReferencia: z.number().min(1).max(12).optional(),
+          anoReferencia: z.number().min(2000).max(2100).optional(),
         })
       )
       .query(async ({ input, ctx }) => {
@@ -1218,6 +1220,8 @@ export const appRouter = router({
           userId: ctx.user.id,
           dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          mesReferencia: input.mesReferencia,
+          anoReferencia: input.anoReferencia,
         });
       }),
 

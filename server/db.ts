@@ -476,16 +476,21 @@ export async function getProcedimentosPaginated(filters?: {
     conditions.push(eq(arquivos.direcao, "retornado"));
   }
 
-  // Add filter for reference month/year (based on dataExecucao)
+  // Add filter for reference month/year (based on dataReferencia from arquivo - set during upload)
   if (filters?.mesReferencia && filters?.anoReferencia) {
-    // Filter by month and year of dataExecucao
+    // Filter by month and year of arquivo.dataReferencia
     conditions.push(
-      sql`MONTH(${procedimentos.dataExecucao}) = ${filters.mesReferencia} AND YEAR(${procedimentos.dataExecucao}) = ${filters.anoReferencia}`
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia} AND YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
     );
   } else if (filters?.anoReferencia) {
     // Filter by year only
     conditions.push(
-      sql`YEAR(${procedimentos.dataExecucao}) = ${filters.anoReferencia}`
+      sql`YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
+    );
+  } else if (filters?.mesReferencia) {
+    // Filter by month only (all years)
+    conditions.push(
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia}`
     );
   }
 
@@ -1841,6 +1846,8 @@ export async function getConciliacaoPorConvenio(filters: {
   userId: number;
   dataInicio?: Date;
   dataFim?: Date;
+  mesReferencia?: number; // 1-12
+  anoReferencia?: number; // ex: 2025
 }): Promise<{ itens: ItemConciliacao[]; resumo: ResumoConciliacao | null }> {
   const db = await getDb();
   if (!db) return { itens: [], resumo: null };
@@ -1858,7 +1865,7 @@ export async function getConciliacaoPorConvenio(filters: {
   const regra = await getRegraConciliacaoPorConvenio(filters.convenioId);
 
   // Buscar arquivos enviados (XMLs)
-  const arquivosEnviadosConditions = [
+  const arquivosEnviadosConditions: any[] = [
     eq(arquivos.convenioId, filters.convenioId),
     eq(arquivos.direcao, "enviado"),
     eq(arquivos.status, "processado"),
@@ -1871,6 +1878,20 @@ export async function getConciliacaoPorConvenio(filters: {
   if (filters.dataFim) {
     arquivosEnviadosConditions.push(lte(arquivos.createdAt, filters.dataFim));
   }
+  // Filtrar por mês/ano de referência do arquivo (informado no upload)
+  if (filters.mesReferencia && filters.anoReferencia) {
+    arquivosEnviadosConditions.push(
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia} AND YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
+    );
+  } else if (filters.anoReferencia) {
+    arquivosEnviadosConditions.push(
+      sql`YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
+    );
+  } else if (filters.mesReferencia) {
+    arquivosEnviadosConditions.push(
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia}`
+    );
+  }
 
   const arquivosEnviados = await db
     .select()
@@ -1878,7 +1899,7 @@ export async function getConciliacaoPorConvenio(filters: {
     .where(and(...arquivosEnviadosConditions));
 
   // Buscar arquivos retornados (Excel)
-  const arquivosRetornadosConditions = [
+  const arquivosRetornadosConditions: any[] = [
     eq(arquivos.convenioId, filters.convenioId),
     eq(arquivos.direcao, "retornado"),
     eq(arquivos.status, "processado"),
@@ -1890,6 +1911,20 @@ export async function getConciliacaoPorConvenio(filters: {
   }
   if (filters.dataFim) {
     arquivosRetornadosConditions.push(lte(arquivos.createdAt, filters.dataFim));
+  }
+  // Filtrar por mês/ano de referência do arquivo (informado no upload)
+  if (filters.mesReferencia && filters.anoReferencia) {
+    arquivosRetornadosConditions.push(
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia} AND YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
+    );
+  } else if (filters.anoReferencia) {
+    arquivosRetornadosConditions.push(
+      sql`YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
+    );
+  } else if (filters.mesReferencia) {
+    arquivosRetornadosConditions.push(
+      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia}`
+    );
   }
 
   const arquivosRetornados = await db

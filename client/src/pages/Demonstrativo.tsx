@@ -302,7 +302,8 @@ export default function Demonstrativo() {
               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  Exibindo itens de: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
+                  Filtrando por referência: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
+                  <span className="text-xs opacity-70">(informado no upload do arquivo)</span>
                 </p>
               </div>
             )}

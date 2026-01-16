@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, nome, dataReferencia, MONTH(dataReferencia) as mes, YEAR(dataReferencia) as ano FROM arquivos WHERE convenioId = 1 AND dataReferencia IS NOT NULL LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, dataReferencia, MONTH(dataReferencia) as mes, YEAR(dataReferencia) as ano FROM arquivos WHERE convenioId = 1 AND dataReferencia IS NOT NULL LIMIT 10;",
+  "rows": [
+    {
+      "id": "60006",
+      "nome": "00000000000120086190_207a2f91ebf21ad90f3c10e9c41ba449.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60007",
+      "nome": "00000000000120086192_1611b8b71c6b3fd5fc084a8cecbc5517.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60008",
+      "nome": "00000000000120086194_394f330dad1bebdfa2f7d94fb7ec0fc3.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60009",
+      "nome": "00000000000120086196_45fcb1913bd27e21e5243a89ddb8808a.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60010",
+      "nome": "00000000000130086197_8a55f05c5b3d0a3e57c6efee0a316c80.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60011",
+      "nome": "00000000000130086199_d477ab0f8ca722d266a39694c56448da.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60012",
+      "nome": "00000000000130086201_cd82a99794907ba9c119ff55e3d1fa64.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60013",
+      "nome": "00000000000130086213_1ec17e35f2dea04f79f8dec13b5cfadf.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60014",
+      "nome": "00000000000120086037_e6668ec7eeaf917cbee6950066185f47.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    },
+    {
+      "id": "60015",
+      "nome": "00000000000120086188_ea1c08484e73464fcfbc3afc44ca4a05.xml",
+      "dataReferencia": "2025-11-01 00:00:00",
+      "mes": "11",
+      "ano": "2025"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tdataReferencia\tmes\tano\n60006\t00000000000120086190_207a2f91ebf21ad90f3c10e9c41ba449.xml\t2025-11-01 00:00:00\t11\t2025\n60007\t00000000000120086192_1611b8b71c6b3fd5fc084a8cecbc5517.xml\t2025-11-01 00:00:00\t11\t2025\n60008\t00000000000120086194_394f330dad1bebdfa2f7d94fb7ec0fc3.xml\t2025-11-01 00:00:00\t11\t2025\n60009\t00000000000120086196_45fcb1913bd27e21e5243a89ddb8808a.xml\t2025-11-01 00:00:00\t11\t2025\n60010\t00000000000130086197_8a55f05c5b3d0a3e57c6efee0a316c80.xml\t2025-11-01 00:00:00\t11\t2025\n60011\t00000000000130086199_d477ab0f8ca722d266a39694c56448da.xml\t2025-11-01 00:00:00\t11\t2025\n60012\t00000000000130086201_cd82a99794907ba9c119ff55e3d1fa64.xml\t2025-11-01 00:00:00\t11\t2025\n60013\t00000000000130086213_1ec17e35f2dea04f79f8dec13b5cfadf.xml\t2025-11-01 00:00:00\t11\t2025\n60014\t00000000000120086037_e6668ec7eeaf917cbee6950066185f47.xml\t2025-11-01 00:00:00\t11\t2025\n60015\t00000000000120086188_ea1c08484e73464fcfbc3afc44ca4a05.xml\t2025-11-01 00:00:00\t11\t2025\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

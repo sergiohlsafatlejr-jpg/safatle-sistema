@@ -18,9 +18,36 @@ import {
   TrendingDown,
   DollarSign,
   FileText,
-  Search
+  Search,
+  Calendar
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+
+// Lista de meses em português
+const MESES = [
+  { value: "1", label: "Janeiro" },
+  { value: "2", label: "Fevereiro" },
+  { value: "3", label: "Março" },
+  { value: "4", label: "Abril" },
+  { value: "5", label: "Maio" },
+  { value: "6", label: "Junho" },
+  { value: "7", label: "Julho" },
+  { value: "8", label: "Agosto" },
+  { value: "9", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
+];
+
+// Gerar lista de anos (últimos 5 anos + ano atual)
+const getAnos = () => {
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let i = anoAtual; i >= anoAtual - 5; i--) {
+    anos.push({ value: String(i), label: String(i) });
+  }
+  return anos;
+};
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -58,6 +85,11 @@ export default function Conciliacao() {
   const [dataFim, setDataFim] = useState<string>("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [busca, setBusca] = useState<string>("");
+  const [mesReferencia, setMesReferencia] = useState<string>("");
+  const [anoReferencia, setAnoReferencia] = useState<string>("");
+
+  // Memoize anos para evitar recriação a cada render
+  const anos = useMemo(() => getAnos(), []);
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
@@ -71,6 +103,8 @@ export default function Conciliacao() {
       convenioId: convenioId ? parseInt(convenioId) : 0,
       dataInicio: dataInicio || undefined,
       dataFim: dataFim || undefined,
+      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
+      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     },
     { enabled: !!convenioId }
   );
@@ -268,21 +302,43 @@ export default function Conciliacao() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Data Início</label>
-                    <Input 
-                      type="date" 
-                      value={dataInicio} 
-                      onChange={(e) => setDataInicio(e.target.value)}
-                    />
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      Mês Referência
+                    </label>
+                    <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os meses</SelectItem>
+                        {MESES.map((mes) => (
+                          <SelectItem key={mes.value} value={mes.value}>
+                            {mes.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Data Fim</label>
-                    <Input 
-                      type="date" 
-                      value={dataFim} 
-                      onChange={(e) => setDataFim(e.target.value)}
-                    />
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      Ano Referência
+                    </label>
+                    <Select value={anoReferencia} onValueChange={setAnoReferencia}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os anos</SelectItem>
+                        {anos.map((ano) => (
+                          <SelectItem key={ano.value} value={ano.value}>
+                            {ano.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -315,6 +371,17 @@ export default function Conciliacao() {
                   </div>
                 </div>
 
+                {/* Indicador de período selecionado */}
+                {(mesReferencia || anoReferencia) && (
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Filtrando por referência: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
+                      <span className="text-xs opacity-70">(informado no upload do arquivo)</span>
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-2 mt-4">
                   <Button 
                     variant="outline" 
@@ -324,6 +391,8 @@ export default function Conciliacao() {
                       setDataFim("");
                       setFiltroStatus("todos");
                       setBusca("");
+                      setMesReferencia("");
+                      setAnoReferencia("");
                     }}
                   >
                     Voltar ao Resumo

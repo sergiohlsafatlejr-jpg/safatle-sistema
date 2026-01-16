@@ -130,3 +130,5 @@
 - [x] Tornar KPIs do Demonstrativo clicáveis para filtrar itens
 - [x] Corrigir parser PDF Saúde Caixa para extrair glosas e motivos corretamente
 - [x] Implementar seletor de data de referência (mês/ano) no Demonstrativo
+- [x] Corrigir filtro de mês de referência no Demonstrativo para usar campo mesReferencia do arquivo
+- [x] Adicionar filtro de mês de referência na tela de Conciliação
