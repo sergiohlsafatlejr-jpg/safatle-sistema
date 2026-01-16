@@ -125,3 +125,4 @@
 - [x] Corrigir parser Saúde Caixa para extrair itens glosados no Demonstrativo
 - [x] Corrigir tela de Faturamento - dados incorretos e valores glosados não aparecem
 - [x] Corrigir parser Vivacom para extrair campos valor_glosa e cod_glosa
+- [x] Corrigir importação Unimed e Celgmed - campos de glosa não aparecem no Demonstrativo

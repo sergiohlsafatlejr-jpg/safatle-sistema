@@ -1,0 +1,190 @@
+{
+  "query": "SELECT p.id, p.codigo, LEFT(p.descricao, 30) as descricao, p.valorTotal, p.valorGlosado, LEFT(p.motivoGlosa, 50) as motivoGlosa, a.nome as arquivo\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE a.nome LIKE '%0278119%' OR a.nome LIKE '%unimed%'\nORDER BY p.valorGlosado DESC\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT p.id, p.codigo, LEFT(p.descricao, 30) as descricao, p.valorTotal, p.valorGlosado, LEFT(p.motivoGlosa, 50) as motivoGlosa, a.nome as arquivo\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE a.nome LIKE '%0278119%' OR a.nome LIKE '%unimed%'\nORDER BY p.valorGlosado DESC\nLIMIT 20;",
+  "rows": [
+    {
+      "id": "388076",
+      "codigo": "60000651",
+      "descricao": "Diária De Apartamento Standard",
+      "valorTotal": "460.24",
+      "valorGlosado": "460.24",
+      "motivoGlosa": "1914: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388637",
+      "codigo": "60000694",
+      "descricao": "Diária De Enfermaria De 3 Leit",
+      "valorTotal": "276.17",
+      "valorGlosado": "276.17",
+      "motivoGlosa": "1914: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388155",
+      "codigo": "90018516",
+      "descricao": "Ceftriaxona Sodica 1g Po Sol .",
+      "valorTotal": "169.37",
+      "valorGlosado": "169.37",
+      "motivoGlosa": "2008: Quantidade incompatível com procedimento",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388901",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "NULL",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388823",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "389101",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388284",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388880",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388861",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388757",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "389401",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388568",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "NULL",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388907",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "389163",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "389158",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "NULL",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388729",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1408: Quantidade acima do autorizado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388365",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "387927",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "NULL",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "389305",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "NULL",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    },
+    {
+      "id": "388290",
+      "codigo": "10101039",
+      "descricao": "Consulta Em Pronto Socorro",
+      "valorTotal": "130.00",
+      "valorGlosado": "130.00",
+      "motivoGlosa": "1304: Código não catalogado",
+      "arquivo": "demonstrativo-0278119.xlsx"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcodigo\tdescricao\tvalorTotal\tvalorGlosado\tmotivoGlosa\tarquivo\n388076\t60000651\tDiária De Apartamento Standard\t460.24\t460.24\t1914: Código não catalogado\tdemonstrativo-0278119.xlsx\n388637\t60000694\tDiária De Enfermaria De 3 Leit\t276.17\t276.17\t1914: Código não catalogado\tdemonstrativo-0278119.xlsx\n388155\t90018516\tCeftriaxona Sodica 1g Po Sol .\t169.37\t169.37\t2008: Quantidade incompatível com procedimento\tdemonstrativo-0278119.xlsx\n388901\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\tNULL\tdemonstrativo-0278119.xlsx\n388823\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n389101\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n388284\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n388880\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n388861\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n388757\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n389401\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n388568\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\tNULL\tdemonstrativo-0278119.xlsx\n388907\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n389163\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n389158\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\tNULL\tdemonstrativo-0278119.xlsx\n388729\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1408: Quantidade acima do autorizado\tdemonstrativo-0278119.xlsx\n388365\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n387927\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\tNULL\tdemonstrativo-0278119.xlsx\n389305\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\tNULL\tdemonstrativo-0278119.xlsx\n388290\t10101039\tConsulta Em Pronto Socorro\t130.00\t130.00\t1304: Código não catalogado\tdemonstrativo-0278119.xlsx\n",
+  "stderr": "",
+  "execution_time_ms": 125
+}
