@@ -136,3 +136,4 @@
 - [x] Corrigir parser PDF Saúde Caixa para extrair glosas e motivos corretamente (Demonstrativo 11-2025.pdf)
 - [x] Corrigir itens glosados da Vivacom que aparecem no Demonstrativo mas não na Análise de Glosa
 - [x] Implementar filtro por código de glosa na Análise de Glosa para agrupar itens e identificar padrões
+- [x] Integrar Dicionário de Glosas na Análise de Glosa para exibir descrição completa ao lado de cada código

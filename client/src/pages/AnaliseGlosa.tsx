@@ -39,6 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Gavel, Search, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import * as XLSX from "xlsx";
+import { GLOSAS_TISS, GlosaInfo } from "../../../shared/glossaryGlosas";
 import {
   BarChart,
   Bar,
@@ -626,11 +627,20 @@ export default function AnaliseGlosa() {
                           ?.filter(m => m.motivo.match(/^\d+$/))
                           ?.sort((a, b) => b.quantidade - a.quantidade)
                           ?.slice(0, 20)
-                          ?.map((motivo) => (
-                            <SelectItem key={motivo.motivo} value={motivo.motivo}>
-                              {motivo.motivo} ({motivo.quantidade})
-                            </SelectItem>
-                          ))
+                          ?.map((motivo) => {
+                            const glosaInfo = GLOSAS_TISS[motivo.motivo];
+                            return (
+                              <SelectItem key={motivo.motivo} value={motivo.motivo}>
+                                <span className="font-medium">{motivo.motivo}</span>
+                                <span className="text-muted-foreground ml-1">({motivo.quantidade})</span>
+                                {glosaInfo && (
+                                  <span className="text-xs text-muted-foreground ml-1 truncate max-w-[200px]">
+                                    - {glosaInfo.descricaoSimplificada}
+                                  </span>
+                                )}
+                              </SelectItem>
+                            );
+                          })
                         }
                       </SelectContent>
                     </Select>
@@ -666,6 +676,56 @@ export default function AnaliseGlosa() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Card de Informações do Código de Glosa Selecionado */}
+            {codigoGlosaFiltro !== "todos" && GLOSAS_TISS[codigoGlosaFiltro] && (
+              <Card className="border-amber-200 bg-amber-50/50">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                          Código {codigoGlosaFiltro}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {GLOSAS_TISS[codigoGlosaFiltro].grupo}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold text-lg mb-1">
+                        {GLOSAS_TISS[codigoGlosaFiltro].descricaoSimplificada}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {GLOSAS_TISS[codigoGlosaFiltro].descricao}
+                      </p>
+                    </div>
+                    <div className="flex-1 border-l pl-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Target className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium">Sugestão de Contestação</span>
+                        {GLOSAS_TISS[codigoGlosaFiltro].probabilidadeSucesso && (
+                          <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
+                            {GLOSAS_TISS[codigoGlosaFiltro].probabilidadeSucesso}% sucesso
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {GLOSAS_TISS[codigoGlosaFiltro].argumentoContestacao || "Argumento não disponível no dicionário."}
+                      </p>
+                      {GLOSAS_TISS[codigoGlosaFiltro].acoesRecomendadas && (
+                        <div className="mt-2">
+                          <span className="text-xs font-medium text-muted-foreground">Ações recomendadas:</span>
+                          <ul className="text-xs text-muted-foreground list-disc list-inside">
+                            {GLOSAS_TISS[codigoGlosaFiltro].acoesRecomendadas?.slice(0, 2).map((acao, i) => (
+                              <li key={i}>{acao}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Resumo por Tipo */}
             {itensGlosados?.resumo && itensGlosados.resumo.totalItens > 0 && (
@@ -813,11 +873,18 @@ export default function AnaliseGlosa() {
                                 <TableCell className="text-right font-medium text-red-600">
                                   {formatCurrency(item.valorGlosado)}
                                 </TableCell>
-                                <TableCell className="max-w-[200px]">
-                                  <Badge variant="outline" className="text-xs" title={item.motivoGlosa}>
-                                    {item.codigoGlosa && <span className="font-mono mr-1">{item.codigoGlosa}:</span>}
-                                    {item.motivoGlosa.length > 25 ? item.motivoGlosa.substring(0, 25) + "..." : item.motivoGlosa}
-                                  </Badge>
+                                <TableCell className="max-w-[250px]">
+                                  <div className="flex flex-col gap-1">
+                                    <Badge variant="outline" className="text-xs w-fit" title={item.motivoGlosa}>
+                                      {item.codigoGlosa && <span className="font-mono mr-1">{item.codigoGlosa}:</span>}
+                                      {item.motivoGlosa.length > 25 ? item.motivoGlosa.substring(0, 25) + "..." : item.motivoGlosa}
+                                    </Badge>
+                                    {item.codigoGlosa && GLOSAS_TISS[item.codigoGlosa] && (
+                                      <span className="text-xs text-muted-foreground truncate" title={GLOSAS_TISS[item.codigoGlosa].descricao}>
+                                        {GLOSAS_TISS[item.codigoGlosa].descricaoSimplificada}
+                                      </span>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
