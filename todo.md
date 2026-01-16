@@ -126,3 +126,6 @@
 - [x] Corrigir tela de Faturamento - dados incorretos e valores glosados não aparecem
 - [x] Corrigir parser Vivacom para extrair campos valor_glosa e cod_glosa
 - [x] Corrigir importação Unimed e Celgmed - campos de glosa não aparecem no Demonstrativo
+- [x] Corrigir filtro de status no Demonstrativo (botão não funciona)
+- [x] Tornar KPIs do Demonstrativo clicáveis para filtrar itens
+- [x] Corrigir parser PDF Saúde Caixa para extrair glosas e motivos corretamente

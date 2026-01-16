@@ -1,5 +1,6 @@
 import { eq, and, desc, like, sql, gte, lte, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { isNull } from "drizzle-orm";
 import {
   InsertUser,
   users,
@@ -471,6 +472,31 @@ export async function getProcedimentosPaginated(filters?: {
   // Add filter for only returned files (for Demonstrativo)
   if (filters?.apenasRetornados) {
     conditions.push(eq(arquivos.direcao, "retornado"));
+  }
+
+  // Add filter for status glosa (pago, glosado, parcial)
+  if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
+    if (filters.statusGlosa === "pago") {
+      // Pago: valorGlosado é null, 0 ou vazio
+      conditions.push(
+        or(
+          isNull(procedimentos.valorGlosado),
+          eq(procedimentos.valorGlosado, "0"),
+          eq(procedimentos.valorGlosado, ""),
+          sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0`
+        )
+      );
+    } else if (filters.statusGlosa === "glosado") {
+      // Glosado: valorGlosado >= valorTotal (glosa total)
+      conditions.push(
+        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) >= CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))`
+      );
+    } else if (filters.statusGlosa === "parcial") {
+      // Parcial: valorGlosado > 0 mas < valorTotal
+      conditions.push(
+        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) < CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))`
+      );
+    }
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

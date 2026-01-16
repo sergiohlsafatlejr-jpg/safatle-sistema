@@ -209,10 +209,13 @@ export default function Demonstrativo() {
           </CardContent>
         </Card>
 
-        {/* Cards de resumo */}
+        {/* Cards de resumo - clicáveis para filtrar */}
         {convenioId && resumo && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Card>
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "todos" ? "ring-2 ring-blue-500" : ""}`}
+              onClick={() => setFiltroStatus("todos")}
+            >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5 text-blue-600" />
@@ -224,7 +227,10 @@ export default function Demonstrativo() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "pago" ? "ring-2 ring-green-500" : ""}`}
+              onClick={() => setFiltroStatus("pago")}
+            >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -236,7 +242,10 @@ export default function Demonstrativo() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "glosado" ? "ring-2 ring-red-500" : ""}`}
+              onClick={() => setFiltroStatus("glosado")}
+            >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-600" />
@@ -248,7 +257,10 @@ export default function Demonstrativo() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "pago" ? "ring-2 ring-green-500" : ""}`}
+              onClick={() => setFiltroStatus("pago")}
+            >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-green-600" />
@@ -260,7 +272,10 @@ export default function Demonstrativo() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "glosado" ? "ring-2 ring-red-500" : ""}`}
+              onClick={() => setFiltroStatus("glosado")}
+            >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-red-600" />
