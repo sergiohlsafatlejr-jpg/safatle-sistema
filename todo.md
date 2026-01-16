@@ -132,3 +132,5 @@
 - [x] Implementar seletor de data de referência (mês/ano) no Demonstrativo
 - [x] Corrigir filtro de mês de referência no Demonstrativo para usar campo mesReferencia do arquivo
 - [x] Adicionar filtro de mês de referência na tela de Conciliação
+- [x] Corrigir dados de glosa da Unimed e Vivacom que não aparecem na tela de Análise de Glosa
+- [x] Corrigir parser PDF Saúde Caixa para extrair glosas e motivos corretamente (Demonstrativo 11-2025.pdf)

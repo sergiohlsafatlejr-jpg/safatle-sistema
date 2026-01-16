@@ -823,55 +823,38 @@ function extractProcedimentosFromText(text: string): ParsedProcedimento[] {
 /**
  * Extract procedimentos from Saúde Caixa (Benner) PDF format
  * Format: Date | Table | Code (X.XX.XX.XXX) | Description | Values...
+ * Note: PDF text extraction may produce line-by-line output, so we handle both formats
  */
 function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
   const procedimentos: ParsedProcedimento[] = [];
-  const lines = text.split('\n');
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
   let currentPaciente: string | undefined;
   let currentCarteirinha: string | undefined;
   let currentGuia: string | undefined;
   
-  // Pattern for procedure lines: date, table, code (X.XX.XX.XXX), description, values
-  // Example: 31/10/2025 22 4.03.04.370 Hemossedimentação, (VHS) - pesquisa 5,02 1 5,02 0,00 5,02 1702
-  const procPattern = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2})\s+(\d\.\d{2}\.\d{2}\.\d{3})\s+([^\d]+?)\s+(\d+[,.]\d{2})\s+(\d+)\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})(?:\s+(\d+))?/g;
-  
-  // Process the entire text
+  // Process the entire text joined with spaces for pattern matching
   const fullText = lines.join(' ');
   
-  // In Saude Caixa PDFs, patient info appears in a specific pattern:
-  // GuiaOperadora (8 digits) followed by Senha (9 digits) followed by Nome (uppercase letters)
-  // followed by Carteirinha (16 digits)
-  // Example: 66054097 716665905 ALVARO LUIS FARIA RABELO 0101326784020234
-  
   // Find all patient blocks in the document
-  const patientBlocks: Array<{guia: string, paciente: string, carteirinha: string, startIndex: number}> = [];
-  
   // Pattern: 8-digit guia, 9-digit senha, NAME IN CAPS, 16-digit carteirinha
   const patientBlockPattern = /(\d{8})\s+(\d{9})\s+([A-Z][A-Z\s]+[A-Z])\s+(\d{16})/g;
   let patientMatch;
   while ((patientMatch = patientBlockPattern.exec(fullText)) !== null) {
-    patientBlocks.push({
-      guia: patientMatch[1],
-      paciente: patientMatch[3].trim(),
-      carteirinha: patientMatch[4],
-      startIndex: patientMatch.index
-    });
+    currentGuia = patientMatch[1];
+    currentPaciente = patientMatch[3].trim();
+    currentCarteirinha = patientMatch[4];
   }
   
-  // If we found patient blocks, use the first one as default
-  if (patientBlocks.length > 0) {
-    currentGuia = patientBlocks[0].guia;
-    currentPaciente = patientBlocks[0].paciente;
-    currentCarteirinha = patientBlocks[0].carteirinha;
-  }
+  // First try: Pattern for single-line format (all data in one line)
+  // Example: 31/10/2025 22 4.03.04.370 Hemossedimentação, (VHS) - pesquisa 5,02 1 5,02 0,00 5,02 1702
+  const procPatternSingleLine = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2})\s+(\d\.\d{2}\.\d{2}\.\d{3})\s+([^\d]+?)\s+(\d+[,.]\d{2})\s+(\d+)\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})\s+(\d+[,.]\d{2})(?:\s+(\d+))?/g;
   
-  // Find all procedure lines
   let match;
-  while ((match = procPattern.exec(fullText)) !== null) {
+  while ((match = procPatternSingleLine.exec(fullText)) !== null) {
     const dataExecucao = parseDataBR(match[1]);
     const tabela = match[2];
-    const codigo = match[3].replace(/\./g, ''); // Remove dots from code
+    const codigo = match[3].replace(/\./g, '');
     const descricao = match[4].trim();
     const valorInformado = parseValorBR(match[5]) || 0;
     const quantidade = parseInt(match[6], 10) || 1;
@@ -880,14 +863,9 @@ function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
     const valorGlosaCapturado = parseValorBR(match[9]) || 0;
     const codigoGlosa = match[10] || undefined;
     
-    // Calculate actual glosa value:
-    // If valorLiberado is 0 or much less than valorInformado, the item was glosa'd
-    // The glosa value is valorInformado - valorLiberado
     const valorGlosaCalculado = valorInformado - valorLiberado;
     const hasGlosa = codigoGlosa || valorGlosaCalculado > 0.01;
     const valorGlosa = hasGlosa ? (valorGlosaCalculado > 0 ? valorGlosaCalculado : valorInformado) : 0;
-    
-    // Translate glosa code if present
     const motivoGlosa = (hasGlosa && codigoGlosa) ? traduzirMotivoGlosa(codigoGlosa) : undefined;
     
     procedimentos.push({
@@ -909,14 +887,134 @@ function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
         valorLiberado,
         valorGlosaCalculado,
         codigoGlosa,
+        situacaoItem: hasGlosa ? 'GLOSADO' : 'PAGO',
         formato: 'saude_caixa_benner'
       },
     });
   }
   
-  // If no procedures found with the main pattern, try alternative extraction
+  // Second try: Line-by-line format (each field on separate line)
+  // This is common when pdftotext extracts text from columnar PDFs
   if (procedimentos.length === 0) {
-    // Try to find TUSS codes in format X.XX.XX.XXX
+    const datePattern = /^(\d{2}\/\d{2}\/\d{4})$/;
+    const tablePattern = /^(\d{2})$/;
+    const codePattern = /^(\d\.\d{2}\.\d{2}\.\d{3})$/;
+    const valuePattern = /^(\d+[,.]\d{2})$/;
+    const glosaCodePattern = /^(\d{4})$/;
+    
+    let i = 0;
+    while (i < lines.length) {
+      // Look for date line
+      const dateMatch = lines[i].match(datePattern);
+      if (!dateMatch) {
+        i++;
+        continue;
+      }
+      
+      const dataStr = dateMatch[1];
+      
+      // Next should be table number (22)
+      if (i + 1 >= lines.length || !tablePattern.test(lines[i + 1])) {
+        i++;
+        continue;
+      }
+      const tabela = lines[i + 1];
+      
+      // Next should be TUSS code
+      if (i + 2 >= lines.length || !codePattern.test(lines[i + 2])) {
+        i++;
+        continue;
+      }
+      const codigoComPontos = lines[i + 2];
+      const codigo = codigoComPontos.replace(/\./g, '');
+      
+      // Next should be description (text line)
+      if (i + 3 >= lines.length) {
+        i++;
+        continue;
+      }
+      const descricao = lines[i + 3];
+      
+      // Collect values from subsequent lines
+      // Format: valorInformado, quantidade, valorProcessado, valorLiberado (0,00), valorGlosa, [codigoGlosa]
+      const valores: number[] = [];
+      let codigoGlosa: string | undefined;
+      let j = i + 4;
+      
+      while (j < lines.length && valores.length < 6) {
+        const line = lines[j];
+        
+        // Check if it's a value (number with comma/dot)
+        if (valuePattern.test(line)) {
+          valores.push(parseValorBR(line) || 0);
+          j++;
+        }
+        // Check if it's a quantity (single digit)
+        else if (/^\d$/.test(line)) {
+          valores.push(parseInt(line, 10));
+          j++;
+        }
+        // If it's a new date or code, stop
+        else if (datePattern.test(line) || codePattern.test(line)) {
+          break;
+        }
+        // Check if it's a glosa code (4 digits) - comes AFTER the values
+        else if (glosaCodePattern.test(line)) {
+          codigoGlosa = line;
+          j++;
+          break;
+        }
+        else {
+          // Skip other lines (like page headers)
+          j++;
+        }
+      }
+      
+      // We need at least: valorInformado, quantidade, valorProcessado
+      if (valores.length >= 3) {
+        const valorInformado = valores[0];
+        const quantidade = valores.length > 1 && valores[1] < 100 ? valores[1] : 1;
+        const valorProcessado = valores.length > 2 ? valores[2] : valores[0];
+        const valorLiberado = valores.length > 3 ? valores[3] : 0;
+        const valorGlosaCapturado = valores.length > 4 ? valores[4] : 0;
+        
+        // Item é glosado se: tem código de glosa, OU valorLiberado = 0, OU valorGlosaCapturado > 0
+        const hasGlosa = codigoGlosa || valorLiberado === 0 || valorGlosaCapturado > 0;
+        // Valor da glosa é o valorGlosaCapturado se existir, senão é valorInformado (quando liberado = 0)
+        const valorGlosa = hasGlosa ? (valorGlosaCapturado > 0 ? valorGlosaCapturado : valorInformado) : 0;
+        const motivoGlosa = (hasGlosa && codigoGlosa) ? traduzirMotivoGlosa(codigoGlosa) : undefined;
+        
+        procedimentos.push({
+          codigo,
+          descricao,
+          quantidade,
+          valorUnitario: valorInformado / quantidade,
+          valorTotal: valorInformado,
+          dataExecucao: parseDataBR(dataStr),
+          pacienteNome: currentPaciente,
+          pacienteCarteirinha: currentCarteirinha,
+          guiaNumero: currentGuia,
+          motivoGlosa,
+          valorGlosado: hasGlosa ? valorGlosa : undefined,
+          dadosExtras: {
+            tabela,
+            valorInformado,
+            valorProcessado,
+            valorLiberado,
+            valorGlosaCapturado,
+            codigoGlosa,
+            situacaoItem: hasGlosa ? 'GLOSADO' : 'PAGO',
+            formato: 'saude_caixa_benner_lines'
+          },
+        });
+      }
+      
+      i = j;
+    }
+  }
+  
+  // Third try: Simple TUSS code extraction (fallback)
+  if (procedimentos.length === 0) {
     const tussPattern = /(\d\.\d{2}\.\d{2}\.\d{3})\s+([A-Za-zÀ-ÿ][^\d]{5,80})\s+(\d+[,.]\d{2})/g;
     
     while ((match = tussPattern.exec(fullText)) !== null) {

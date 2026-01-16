@@ -3408,13 +3408,18 @@ export async function getItensGlosados(filters: {
     const extras = proc.dadosExtras ? 
       (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
     
-    const valorGlosado = parseFloat(extras.valorGlosado || "0");
+    // Verificar se é glosado: por valorGlosado > 0 OU por situacaoItem = GLOSADO/NEGADO
+    const valorGlosadoNum = parseFloat(extras.valorGlosado || extras.valor_glosa || "0");
+    const situacaoItem = (extras.situacaoItem || extras['Situação Item'] || extras.situacao || '').toString().toUpperCase();
+    const isGlosado = valorGlosadoNum > 0 || situacaoItem === 'GLOSADO' || situacaoItem === 'NEGADO' || situacaoItem.includes('GLOS');
     
     // Só incluir itens com glosa
-    if (valorGlosado <= 0) continue;
+    if (!isGlosado) continue;
 
+    // Se não tem valorGlosado mas é glosado pelo status, usar o valorTotal como valor glosado
     const valorCobrado = parseFloat(proc.valorTotal || "0");
-    const valorPago = valorCobrado - valorGlosado;
+    const valorGlosado = valorGlosadoNum > 0 ? valorGlosadoNum : valorCobrado;
+    const valorPago = valorGlosadoNum > 0 ? (valorCobrado - valorGlosadoNum) : 0;
     const tipo = determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
     
     // Filtrar por tipo se especificado
@@ -3422,7 +3427,8 @@ export async function getItensGlosados(filters: {
 
     const arquivo = arquivoMap.get(proc.arquivoId);
     const convenioNome = convenioMap.get(arquivo?.convenioId || 0) || "Desconhecido";
-    const motivoGlosa = extras.motivoGlosa || extras.observacao || "Não informado";
+    // Buscar motivo de glosa em vários campos possíveis
+    const motivoGlosa = extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras.observacao || "Não informado";
     const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
 
     itensGlosados.push({
