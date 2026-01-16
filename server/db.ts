@@ -425,6 +425,8 @@ export async function getProcedimentosPaginated(filters?: {
   pageSize?: number;
   userId?: number;
   apenasRetornados?: boolean;
+  mesReferencia?: number; // 1-12
+  anoReferencia?: number; // ex: 2025
 }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0, resumo: null };
@@ -472,6 +474,19 @@ export async function getProcedimentosPaginated(filters?: {
   // Add filter for only returned files (for Demonstrativo)
   if (filters?.apenasRetornados) {
     conditions.push(eq(arquivos.direcao, "retornado"));
+  }
+
+  // Add filter for reference month/year (based on dataExecucao)
+  if (filters?.mesReferencia && filters?.anoReferencia) {
+    // Filter by month and year of dataExecucao
+    conditions.push(
+      sql`MONTH(${procedimentos.dataExecucao}) = ${filters.mesReferencia} AND YEAR(${procedimentos.dataExecucao}) = ${filters.anoReferencia}`
+    );
+  } else if (filters?.anoReferencia) {
+    // Filter by year only
+    conditions.push(
+      sql`YEAR(${procedimentos.dataExecucao}) = ${filters.anoReferencia}`
+    );
   }
 
   // Add filter for status glosa (pago, glosado, parcial)

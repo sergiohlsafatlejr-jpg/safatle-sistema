@@ -717,6 +717,8 @@ export const appRouter = router({
             crmMedico: z.string().optional(),
             statusGlosa: z.enum(["todos", "pago", "glosado", "parcial"]).optional(),
             apenasRetornados: z.boolean().optional(),
+            mesReferencia: z.number().min(1).max(12).optional(),
+            anoReferencia: z.number().min(2000).max(2100).optional(),
             page: z.number().default(1),
             pageSize: z.number().default(20),
           })
@@ -731,6 +733,8 @@ export const appRouter = router({
           crmMedico: input?.crmMedico,
           statusGlosa: input?.statusGlosa,
           apenasRetornados: input?.apenasRetornados,
+          mesReferencia: input?.mesReferencia,
+          anoReferencia: input?.anoReferencia,
           page: input?.page || 1,
           pageSize: input?.pageSize || 20,
           userId: ctx.user.id,

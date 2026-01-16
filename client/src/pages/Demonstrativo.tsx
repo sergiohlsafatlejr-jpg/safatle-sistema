@@ -16,11 +16,38 @@ import {
   XCircle,
   AlertCircle,
   DollarSign,
-  FileText
+  FileText,
+  Calendar
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+
+// Lista de meses em português
+const MESES = [
+  { value: "1", label: "Janeiro" },
+  { value: "2", label: "Fevereiro" },
+  { value: "3", label: "Março" },
+  { value: "4", label: "Abril" },
+  { value: "5", label: "Maio" },
+  { value: "6", label: "Junho" },
+  { value: "7", label: "Julho" },
+  { value: "8", label: "Agosto" },
+  { value: "9", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
+];
+
+// Gerar lista de anos (últimos 5 anos + ano atual)
+const getAnos = () => {
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let i = anoAtual; i >= anoAtual - 5; i--) {
+    anos.push({ value: String(i), label: String(i) });
+  }
+  return anos;
+};
 
 export default function Demonstrativo() {
   const { user } = useAuth();
@@ -29,7 +56,12 @@ export default function Demonstrativo() {
   const [busca, setBusca] = useState<string>("");
   const [buscaDebounced, setBuscaDebounced] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [mesReferencia, setMesReferencia] = useState<string>("");
+  const [anoReferencia, setAnoReferencia] = useState<string>("");
   const pageSize = 50;
+
+  // Memoize anos para evitar recriação a cada render
+  const anos = useMemo(() => getAnos(), []);
 
   // Debounce da busca
   useEffect(() => {
@@ -43,7 +75,7 @@ export default function Demonstrativo() {
   // Resetar página quando filtros mudam
   useEffect(() => {
     setPage(1);
-  }, [convenioId, filtroStatus]);
+  }, [convenioId, filtroStatus, mesReferencia, anoReferencia]);
 
   // Buscar convênios
   const { data: convenios, isLoading: isLoadingConvenios } = trpc.convenios.list.useQuery();
@@ -58,6 +90,8 @@ export default function Demonstrativo() {
       search: buscaDebounced || undefined,
       statusGlosa: filtroStatus !== "todos" ? filtroStatus as "pago" | "glosado" | "parcial" : undefined,
       apenasRetornados: true,
+      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
+      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     },
     { enabled: !!convenioId }
   );
@@ -111,8 +145,16 @@ export default function Demonstrativo() {
     
     const convenio = convenios?.find((c: any) => c.id === parseInt(convenioId));
     const nomeArquivo = convenio?.nome || "demonstrativo";
-    XLSX.writeFile(wb, `${nomeArquivo}_demonstrativo.xlsx`);
+    const periodoSuffix = mesReferencia && anoReferencia ? `_${mesReferencia}_${anoReferencia}` : "";
+    XLSX.writeFile(wb, `${nomeArquivo}_demonstrativo${periodoSuffix}.xlsx`);
     toast.success("Arquivo exportado com sucesso!");
+  };
+
+  const handleLimparFiltros = () => {
+    setMesReferencia("");
+    setAnoReferencia("");
+    setFiltroStatus("todos");
+    setBusca("");
   };
 
   const getStatusBadge = (proc: any) => {
@@ -133,6 +175,9 @@ export default function Demonstrativo() {
   const resumo = procedimentosData?.resumo;
   const totalPages = Math.ceil((procedimentosData?.total || 0) / pageSize);
 
+  // Verificar se há filtros ativos
+  const temFiltrosAtivos = mesReferencia || anoReferencia || filtroStatus !== "todos" || busca;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -148,11 +193,11 @@ export default function Demonstrativo() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
-              Selecionar Arquivo de Retorno
+              Filtros do Demonstrativo
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={setConvenioId}>
@@ -163,6 +208,46 @@ export default function Demonstrativo() {
                     {convenios?.map((convenio: any) => (
                       <SelectItem key={convenio.id} value={String(convenio.id)}>
                         {convenio.nome} ({convenio.codigo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  Mês
+                </label>
+                <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os meses</SelectItem>
+                    {MESES.map((mes) => (
+                      <SelectItem key={mes.value} value={mes.value}>
+                        {mes.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  Ano
+                </label>
+                <Select value={anoReferencia} onValueChange={setAnoReferencia}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os anos</SelectItem>
+                    {anos.map((ano) => (
+                      <SelectItem key={ano.value} value={ano.value}>
+                        {ano.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -189,7 +274,7 @@ export default function Demonstrativo() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Código, guia, paciente..."
+                    placeholder="Código, guia..."
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     className="pl-9"
@@ -204,6 +289,21 @@ export default function Demonstrativo() {
                   <Download className="h-4 w-4 mr-2" />
                   Exportar Excel
                 </Button>
+                {temFiltrosAtivos && (
+                  <Button variant="outline" onClick={handleLimparFiltros}>
+                    Limpar Filtros
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Indicador de período selecionado */}
+            {convenioId && (mesReferencia || anoReferencia) && (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Exibindo itens de: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
+                </p>
               </div>
             )}
           </CardContent>
@@ -297,7 +397,7 @@ export default function Demonstrativo() {
                 Itens do Demonstrativo
                 {procedimentosData?.total !== undefined && (
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    ({procedimentosData.total} itens{filtroStatus !== "todos" ? ` filtrados` : ""})
+                    ({procedimentosData.total} itens{temFiltrosAtivos ? ` filtrados` : ""})
                   </span>
                 )}
               </CardTitle>
@@ -436,6 +536,11 @@ export default function Demonstrativo() {
                 <div className="text-center py-8 text-muted-foreground">
                   <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Nenhum item encontrado com os filtros aplicados.</p>
+                  {temFiltrosAtivos && (
+                    <Button variant="link" onClick={handleLimparFiltros} className="mt-2">
+                      Limpar filtros
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>

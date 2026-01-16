@@ -129,3 +129,4 @@
 - [x] Corrigir filtro de status no Demonstrativo (botão não funciona)
 - [x] Tornar KPIs do Demonstrativo clicáveis para filtrar itens
 - [x] Corrigir parser PDF Saúde Caixa para extrair glosas e motivos corretamente
+- [x] Implementar seletor de data de referência (mês/ano) no Demonstrativo
