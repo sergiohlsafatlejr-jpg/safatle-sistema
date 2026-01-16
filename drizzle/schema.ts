@@ -497,3 +497,80 @@ export const decisoesGlosa = mysqlTable("decisoesGlosa", {
 
 export type DecisaoGlosa = typeof decisoesGlosa.$inferSelect;
 export type InsertDecisaoGlosa = typeof decisoesGlosa.$inferInsert;
+
+
+/**
+ * Tabelas de Preços por Convênio - Diárias, Mat-Med, Taxas, Procedimentos
+ */
+export const tabelasPreco = mysqlTable("tabelasPreco", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId").notNull(),
+  
+  // Tipo da tabela
+  tipo: mysqlEnum("tipo", [
+    "diarias",       // Diárias de apartamento, UTI, etc.
+    "mat_med",       // Materiais e medicamentos
+    "taxas",         // Taxas diversas
+    "procedimentos"  // Procedimentos médicos
+  ]).notNull(),
+  
+  // Dados do item
+  codigo: varchar("codigo", { length: 50 }).notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  valor: decimal("valor", { precision: 12, scale: 2 }).notNull(),
+  
+  // Vigência
+  vigenciaInicio: timestamp("vigenciaInicio").notNull(),
+  vigenciaFim: timestamp("vigenciaFim"),
+  
+  // Dados adicionais
+  unidade: varchar("unidade", { length: 50 }), // UN, ML, MG, etc.
+  observacao: text("observacao"),
+  
+  // Controle
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TabelaPreco = typeof tabelasPreco.$inferSelect;
+export type InsertTabelaPreco = typeof tabelasPreco.$inferInsert;
+
+/**
+ * Importações de Tabelas de Preços - Histórico de importações
+ */
+export const importacoesTabela = mysqlTable("importacoesTabela", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Tipo da tabela importada
+  tipo: mysqlEnum("tipo", [
+    "diarias",
+    "mat_med",
+    "taxas",
+    "procedimentos"
+  ]).notNull(),
+  
+  // Arquivo importado
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  formatoArquivo: mysqlEnum("formatoArquivo", ["excel", "csv", "dbf"]).notNull(),
+  
+  // Resultado da importação
+  totalItens: int("totalItens").default(0),
+  itensImportados: int("itensImportados").default(0),
+  itensAtualizados: int("itensAtualizados").default(0),
+  itensErro: int("itensErro").default(0),
+  
+  // Status
+  status: mysqlEnum("status", ["processando", "concluido", "erro"]).default("processando").notNull(),
+  mensagemErro: text("mensagemErro"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ImportacaoTabela = typeof importacoesTabela.$inferSelect;
+export type InsertImportacaoTabela = typeof importacoesTabela.$inferInsert;

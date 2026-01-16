@@ -27,6 +27,10 @@ import {
   InsertRegraConciliacao,
   decisoesGlosa,
   InsertDecisaoGlosa,
+  tabelasPreco,
+  InsertTabelaPreco,
+  importacoesTabela,
+  InsertImportacaoTabela,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -3904,5 +3908,323 @@ export async function atualizarStatusProcedimentosPorRecurso(
   } catch (error) {
     console.error("[Database] Erro ao atualizar status dos procedimentos por recurso:", error);
     return false;
+  }
+}
+
+
+// ============ TABELAS DE PREÇOS FUNCTIONS ============
+
+/**
+ * Lista tabelas de preços por convênio e tipo
+ */
+export async function getTabelasPreco(filtros: {
+  convenioId?: number;
+  tipo?: "diarias" | "mat_med" | "taxas" | "procedimentos";
+  codigo?: string;
+  nome?: string;
+  apenasVigentes?: boolean;
+  page?: number;
+  limit?: number;
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) return { items: [], total: 0 };
+
+  try {
+    const conditions = [];
+    
+    if (filtros.convenioId) {
+      conditions.push(eq(tabelasPreco.convenioId, filtros.convenioId));
+    }
+    if (filtros.tipo) {
+      conditions.push(eq(tabelasPreco.tipo, filtros.tipo));
+    }
+    if (filtros.codigo) {
+      conditions.push(like(tabelasPreco.codigo, `%${filtros.codigo}%`));
+    }
+    if (filtros.nome) {
+      conditions.push(like(tabelasPreco.nome, `%${filtros.nome}%`));
+    }
+    if (filtros.apenasVigentes) {
+      const hoje = new Date();
+      conditions.push(lte(tabelasPreco.vigenciaInicio, hoje));
+      conditions.push(or(
+        isNull(tabelasPreco.vigenciaFim),
+        gte(tabelasPreco.vigenciaFim, hoje)
+      ));
+    }
+    conditions.push(eq(tabelasPreco.ativo, "sim"));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    // Contar total
+    const countResult = await dbConn.select({ count: sql<number>`count(*)` })
+      .from(tabelasPreco)
+      .where(whereClause);
+    const total = countResult[0]?.count || 0;
+
+    // Buscar itens com paginação
+    const page = filtros.page || 1;
+    const limit = filtros.limit || 50;
+    const offset = (page - 1) * limit;
+
+    const items = await dbConn.select()
+      .from(tabelasPreco)
+      .where(whereClause)
+      .orderBy(desc(tabelasPreco.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
+  } catch (error) {
+    console.error("[Database] Erro ao buscar tabelas de preços:", error);
+    return { items: [], total: 0 };
+  }
+}
+
+/**
+ * Busca um item da tabela de preços por ID
+ */
+export async function getTabelaPrecoById(id: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  try {
+    const result = await dbConn.select()
+      .from(tabelasPreco)
+      .where(eq(tabelasPreco.id, id))
+      .limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("[Database] Erro ao buscar tabela de preço por ID:", error);
+    return null;
+  }
+}
+
+/**
+ * Cria um novo item na tabela de preços
+ */
+export async function createTabelaPreco(data: InsertTabelaPreco): Promise<number | null> {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  try {
+    const result = await dbConn.insert(tabelasPreco).values(data);
+    return result[0].insertId;
+  } catch (error) {
+    console.error("[Database] Erro ao criar tabela de preço:", error);
+    return null;
+  }
+}
+
+/**
+ * Cria múltiplos itens na tabela de preços (importação em lote)
+ */
+export async function createTabelasPrecoEmLote(items: InsertTabelaPreco[]): Promise<{ inseridos: number; erros: number }> {
+  const dbConn = await getDb();
+  if (!dbConn) return { inseridos: 0, erros: 0 };
+
+  let inseridos = 0;
+  let erros = 0;
+
+  try {
+    // Inserir em lotes de 500
+    const batchSize = 500;
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      try {
+        await dbConn.insert(tabelasPreco).values(batch);
+        inseridos += batch.length;
+      } catch (error) {
+        console.error(`[Database] Erro ao inserir lote ${i / batchSize + 1}:`, error);
+        erros += batch.length;
+      }
+    }
+    return { inseridos, erros };
+  } catch (error) {
+    console.error("[Database] Erro ao criar tabelas de preço em lote:", error);
+    return { inseridos, erros: items.length };
+  }
+}
+
+/**
+ * Atualiza um item da tabela de preços
+ */
+export async function updateTabelaPreco(id: number, data: Partial<InsertTabelaPreco>): Promise<boolean> {
+  const dbConn = await getDb();
+  if (!dbConn) return false;
+
+  try {
+    await dbConn.update(tabelasPreco)
+      .set(data)
+      .where(eq(tabelasPreco.id, id));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar tabela de preço:", error);
+    return false;
+  }
+}
+
+/**
+ * Desativa um item da tabela de preços (soft delete)
+ */
+export async function deleteTabelaPreco(id: number): Promise<boolean> {
+  const dbConn = await getDb();
+  if (!dbConn) return false;
+
+  try {
+    await dbConn.update(tabelasPreco)
+      .set({ ativo: "nao" })
+      .where(eq(tabelasPreco.id, id));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao desativar tabela de preço:", error);
+    return false;
+  }
+}
+
+/**
+ * Desativa todos os itens de uma tabela de preços por convênio e tipo
+ */
+export async function desativarTabelasPreco(convenioId: number, tipo: string): Promise<boolean> {
+  const dbConn = await getDb();
+  if (!dbConn) return false;
+
+  try {
+    await dbConn.update(tabelasPreco)
+      .set({ ativo: "nao" })
+      .where(and(
+        eq(tabelasPreco.convenioId, convenioId),
+        eq(tabelasPreco.tipo, tipo as any)
+      ));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao desativar tabelas de preço:", error);
+    return false;
+  }
+}
+
+/**
+ * Busca preço de um item por código e convênio (para uso na conciliação)
+ */
+export async function getPrecoItem(convenioId: number, codigo: string, tipo?: string): Promise<number | null> {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  try {
+    const hoje = new Date();
+    const conditions = [
+      eq(tabelasPreco.convenioId, convenioId),
+      eq(tabelasPreco.codigo, codigo),
+      eq(tabelasPreco.ativo, "sim"),
+      lte(tabelasPreco.vigenciaInicio, hoje),
+      or(
+        isNull(tabelasPreco.vigenciaFim),
+        gte(tabelasPreco.vigenciaFim, hoje)
+      )
+    ];
+
+    if (tipo) {
+      conditions.push(eq(tabelasPreco.tipo, tipo as any));
+    }
+
+    const result = await dbConn.select({ valor: tabelasPreco.valor })
+      .from(tabelasPreco)
+      .where(and(...conditions))
+      .limit(1);
+
+    return result[0]?.valor ? parseFloat(result[0].valor) : null;
+  } catch (error) {
+    console.error("[Database] Erro ao buscar preço de item:", error);
+    return null;
+  }
+}
+
+/**
+ * Registra uma importação de tabela de preços
+ */
+export async function createImportacaoTabela(data: InsertImportacaoTabela): Promise<number | null> {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  try {
+    const result = await dbConn.insert(importacoesTabela).values(data);
+    return result[0].insertId;
+  } catch (error) {
+    console.error("[Database] Erro ao criar importação de tabela:", error);
+    return null;
+  }
+}
+
+/**
+ * Atualiza o status de uma importação de tabela
+ */
+export async function updateImportacaoTabela(id: number, data: Partial<InsertImportacaoTabela>): Promise<boolean> {
+  const dbConn = await getDb();
+  if (!dbConn) return false;
+
+  try {
+    await dbConn.update(importacoesTabela)
+      .set(data)
+      .where(eq(importacoesTabela.id, id));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar importação de tabela:", error);
+    return false;
+  }
+}
+
+/**
+ * Lista histórico de importações de tabelas
+ */
+export async function getImportacoesTabela(convenioId?: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  try {
+    const conditions = convenioId ? [eq(importacoesTabela.convenioId, convenioId)] : [];
+    
+    const result = await dbConn.select()
+      .from(importacoesTabela)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(importacoesTabela.createdAt))
+      .limit(100);
+
+    return result;
+  } catch (error) {
+    console.error("[Database] Erro ao buscar importações de tabela:", error);
+    return [];
+  }
+}
+
+/**
+ * Conta itens por tipo de tabela e convênio
+ */
+export async function contarItensTabelaPreco(convenioId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return { diarias: 0, mat_med: 0, taxas: 0, procedimentos: 0 };
+
+  try {
+    const result = await dbConn.select({
+      tipo: tabelasPreco.tipo,
+      count: sql<number>`count(*)`
+    })
+      .from(tabelasPreco)
+      .where(and(
+        eq(tabelasPreco.convenioId, convenioId),
+        eq(tabelasPreco.ativo, "sim")
+      ))
+      .groupBy(tabelasPreco.tipo);
+
+    const counts = { diarias: 0, mat_med: 0, taxas: 0, procedimentos: 0 };
+    result.forEach(r => {
+      if (r.tipo in counts) {
+        counts[r.tipo as keyof typeof counts] = r.count;
+      }
+    });
+
+    return counts;
+  } catch (error) {
+    console.error("[Database] Erro ao contar itens da tabela de preço:", error);
+    return { diarias: 0, mat_med: 0, taxas: 0, procedimentos: 0 };
   }
 }

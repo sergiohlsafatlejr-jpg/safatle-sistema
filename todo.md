@@ -142,3 +142,8 @@
 - [x] Criar cards de classificação de glosa (aceita/recursada) na Análise de Glosa
 - [x] Implementar aprendizado automático baseado em histórico de glosas anteriores
 - [x] Atualização automática de status dos procedimentos quando recurso mudar de estado
+
+- [x] Criar cadastro de tabelas de preços por convênio (diárias, mat-med, taxas, procedimentos)
+- [x] Implementar campos: código, nome, valor, vigência inicial, vigência final
+- [x] Criar importador de dados para tabelas (Excel, CSV, DBF)
+- [x] Criar aba de Glosas Aceitas na Análise de Glosa (separar itens aceitos)

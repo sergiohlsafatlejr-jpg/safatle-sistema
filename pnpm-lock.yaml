@@ -133,6 +133,9 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      dbffile:
+        specifier: ^1.12.0
+        version: 1.12.0
       dotenv:
         specifier: ^17.2.2
         version: 17.2.3
@@ -2829,6 +2832,9 @@ packages:
 
   dayjs@1.11.18:
     resolution: {integrity: sha512-zFBQ7WFRvVRhKcWoUh+ZA1g2HVgUbsZm9sbddh8EC5iv93sui8DVVz1Npvz+r6meo9VKfa8NyLWBsQK1VvIKPA==}
+
+  dbffile@1.12.0:
+    resolution: {integrity: sha512-repLNtp1jyODRyAbqSaCiComsLi9/2w+ljYC760TXf69ExFVoJzdDr5STBx21gunM59RipYK5zHeDIuGf1LA8w==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -7317,6 +7323,10 @@ snapshots:
   date-fns@4.1.0: {}
 
   dayjs@1.11.18: {}
+
+  dbffile@1.12.0:
+    dependencies:
+      iconv-lite: 0.4.24
 
   debug@2.6.9:
     dependencies:

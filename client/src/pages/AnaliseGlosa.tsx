@@ -615,8 +615,9 @@ export default function AnaliseGlosa() {
 
         {/* Tabs de Análise */}
         <Tabs defaultValue="itens" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="itens">Itens Glosados</TabsTrigger>
+            <TabsTrigger value="aceitas">Glosas Aceitas</TabsTrigger>
             <TabsTrigger value="categorias">Por Categoria</TabsTrigger>
             <TabsTrigger value="convenios">Por Convênio</TabsTrigger>
             <TabsTrigger value="procedimentos">Por Procedimento</TabsTrigger>
@@ -1244,6 +1245,172 @@ export default function AnaliseGlosa() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Tab: Glosas Aceitas */}
+          <TabsContent value="aceitas" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <ThumbsUp className="h-5 w-5 text-green-500" />
+                      Glosas Aceitas
+                    </CardTitle>
+                    <CardDescription>
+                      Itens marcados como "aceitar glosa" (sem recurso a ser feito)
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      {itensGlosados?.items?.filter(i => i.classificacaoGlosa === "aceitar").length || 0} itens aceitos
+                    </Badge>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      {formatCurrency(
+                        itensGlosados?.items
+                          ?.filter(i => i.classificacaoGlosa === "aceitar")
+                          .reduce((acc, i) => acc + (i.valorGlosado || 0), 0) || 0
+                      )} em glosas aceitas
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {itensGlosados?.items?.filter(i => i.classificacaoGlosa === "aceitar").length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ThumbsUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma glosa aceita ainda</p>
+                    <p className="text-sm mt-2">Clique em "Aceitar Glosa" nos itens da aba "Itens Glosados" para movê-los para cá</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Convênio</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead>Guia</TableHead>
+                          <TableHead className="text-right">Valor Glosado</TableHead>
+                          <TableHead>Motivo</TableHead>
+                          <TableHead>Data Aceite</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itensGlosados?.items
+                          ?.filter(i => i.classificacaoGlosa === "aceitar")
+                          .map((item) => {
+                            const glosaInfo = item.motivoGlosa ? GLOSAS_TISS[item.motivoGlosa] : null;
+                            return (
+                              <TableRow key={item.id}>
+                                <TableCell>
+                                  <Badge variant="outline">{item.convenioNome}</Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">{item.codigo}</TableCell>
+                                <TableCell className="max-w-[200px] truncate">{item.descricao}</TableCell>
+                                <TableCell className="font-mono text-sm">{(item as any).guia || "-"}</TableCell>
+                                <TableCell className="text-right font-medium text-red-600">
+                                  {formatCurrency(item.valorGlosado || 0)}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-col gap-1">
+                                    <Badge variant="secondary" className="w-fit">
+                                      {item.motivoGlosa || "N/A"}
+                                    </Badge>
+                                    {glosaInfo && (
+                                      <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                                        {glosaInfo.descricao}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {(item as any).dataClassificacao ? new Date((item as any).dataClassificacao).toLocaleDateString("pt-BR") : "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      classificarGlosaMutation.mutate({
+                                        procedimentoId: item.id,
+                                        classificacao: null as any,
+                                      });
+                                    }}
+                                    title="Desfazer aceite e voltar para análise"
+                                  >
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Resumo por Motivo de Glosa Aceita */}
+            {(itensGlosados?.items?.filter(i => i.classificacaoGlosa === "aceitar").length || 0) > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Resumo por Motivo de Glosa Aceita
+                  </CardTitle>
+                  <CardDescription>
+                    Análise dos motivos mais frequentes de glosas aceitas para aprendizado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(
+                      (itensGlosados?.items || [])
+                        .filter(i => i.classificacaoGlosa === "aceitar")
+                        .reduce((acc: Record<string, { count: number; valor: number }>, item) => {
+                          const motivo = item.motivoGlosa || "Sem motivo";
+                          if (!acc[motivo]) {
+                            acc[motivo] = { count: 0, valor: 0 };
+                          }
+                          acc[motivo].count++;
+                          acc[motivo].valor += item.valorGlosado || 0;
+                          return acc;
+                        }, {} as Record<string, { count: number; valor: number }>)
+                    )
+                      .sort((a, b) => (b[1] as { count: number; valor: number }).count - (a[1] as { count: number; valor: number }).count)
+                      .slice(0, 6)
+                      .map(([motivo, dadosRaw]) => {
+                        const dados = dadosRaw as { count: number; valor: number };
+                        const glosaInfo = GLOSAS_TISS[motivo];
+                        return (
+                          <Card key={motivo} className="bg-green-50 border-green-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <Badge variant="outline" className="bg-white">{motivo}</Badge>
+                                <span className="text-sm font-medium">{dados.count} itens</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                                {glosaInfo?.descricao || "Motivo não catalogado"}
+                              </p>
+                              <p className="text-lg font-bold text-green-700">
+                                {formatCurrency(dados.valor)}
+                              </p>
+                              {glosaInfo && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Probabilidade de sucesso em recurso: {glosaInfo.probabilidadeSucesso}%
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Tab: Por Categoria */}

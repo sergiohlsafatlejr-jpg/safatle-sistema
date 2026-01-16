@@ -42,7 +42,8 @@ import {
   BookOpen,
   History,
   Building2,
-  Sliders
+  Sliders,
+  DollarSign
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -69,6 +70,7 @@ const menuItems = [
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
   { icon: Building2, label: "Estabelecimentos", path: "/estabelecimentos" },
   { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao" },
+  { icon: DollarSign, label: "Tabelas de Preços", path: "/tabelas-preco" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

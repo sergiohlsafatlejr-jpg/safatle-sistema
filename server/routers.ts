@@ -1426,6 +1426,251 @@ export const appRouter = router({
         });
       }),
   }),
+
+  // ============ TABELAS DE PREÇOS ============
+  tabelasPreco: router({
+    // Listar tabelas de preços
+    list: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          tipo: z.enum(["diarias", "mat_med", "taxas", "procedimentos"]).optional(),
+          codigo: z.string().optional(),
+          nome: z.string().optional(),
+          apenasVigentes: z.boolean().optional().default(true),
+          page: z.number().optional().default(1),
+          limit: z.number().optional().default(50),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        return db.getTabelasPreco({
+          convenioId: input?.convenioId,
+          tipo: input?.tipo,
+          codigo: input?.codigo,
+          nome: input?.nome,
+          apenasVigentes: input?.apenasVigentes,
+          page: input?.page,
+          limit: input?.limit,
+        });
+      }),
+
+    // Buscar item por ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getTabelaPrecoById(input.id);
+      }),
+
+    // Criar novo item
+    create: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          tipo: z.enum(["diarias", "mat_med", "taxas", "procedimentos"]),
+          codigo: z.string(),
+          nome: z.string(),
+          valor: z.string(),
+          vigenciaInicio: z.string(),
+          vigenciaFim: z.string().optional(),
+          unidade: z.string().optional(),
+          observacao: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await db.createTabelaPreco({
+          convenioId: input.convenioId,
+          tipo: input.tipo,
+          codigo: input.codigo,
+          nome: input.nome,
+          valor: input.valor,
+          vigenciaInicio: new Date(input.vigenciaInicio),
+          vigenciaFim: input.vigenciaFim ? new Date(input.vigenciaFim) : undefined,
+          unidade: input.unidade,
+          observacao: input.observacao,
+        });
+        return { id };
+      }),
+
+    // Atualizar item
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          codigo: z.string().optional(),
+          nome: z.string().optional(),
+          valor: z.string().optional(),
+          vigenciaInicio: z.string().optional(),
+          vigenciaFim: z.string().optional(),
+          unidade: z.string().optional(),
+          observacao: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const updateData: any = {};
+        if (data.codigo) updateData.codigo = data.codigo;
+        if (data.nome) updateData.nome = data.nome;
+        if (data.valor) updateData.valor = data.valor;
+        if (data.vigenciaInicio) updateData.vigenciaInicio = new Date(data.vigenciaInicio);
+        if (data.vigenciaFim) updateData.vigenciaFim = new Date(data.vigenciaFim);
+        if (data.unidade !== undefined) updateData.unidade = data.unidade;
+        if (data.observacao !== undefined) updateData.observacao = data.observacao;
+        
+        const success = await db.updateTabelaPreco(id, updateData);
+        return { success };
+      }),
+
+    // Excluir item (soft delete)
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const success = await db.deleteTabelaPreco(input.id);
+        return { success };
+      }),
+
+    // Contar itens por tipo
+    contarPorTipo: protectedProcedure
+      .input(z.object({ convenioId: z.number() }))
+      .query(async ({ input }) => {
+        return db.contarItensTabelaPreco(input.convenioId);
+      }),
+
+    // Importar tabela de preços (Excel, CSV, DBF)
+    importar: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          tipo: z.enum(["diarias", "mat_med", "taxas", "procedimentos"]),
+          nomeArquivo: z.string(),
+          formatoArquivo: z.enum(["excel", "csv", "dbf"]),
+          conteudo: z.string(), // Base64 encoded file content
+          substituirExistentes: z.boolean().optional().default(false),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Registrar importação
+        const importacaoId = await db.createImportacaoTabela({
+          convenioId: input.convenioId,
+          userId: ctx.user.id,
+          tipo: input.tipo,
+          nomeArquivo: input.nomeArquivo,
+          formatoArquivo: input.formatoArquivo,
+          status: "processando",
+        });
+
+        if (!importacaoId) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao registrar importação" });
+        }
+
+        try {
+          // Decodificar conteúdo Base64
+          const buffer = Buffer.from(input.conteudo, "base64");
+          
+          // Parsear arquivo baseado no formato
+          let items: any[] = [];
+          
+          if (input.formatoArquivo === "excel") {
+            const XLSX = await import("xlsx");
+            const workbook = XLSX.read(buffer, { type: "buffer" });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            items = XLSX.utils.sheet_to_json(sheet);
+          } else if (input.formatoArquivo === "csv") {
+            const content = buffer.toString("utf-8");
+            const lines = content.split("\n").filter(l => l.trim());
+            const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+            items = lines.slice(1).map(line => {
+              const values = line.split(",");
+              const obj: any = {};
+              headers.forEach((h, i) => {
+                obj[h] = values[i]?.trim();
+              });
+              return obj;
+            });
+          } else if (input.formatoArquivo === "dbf") {
+            // Para DBF, usar biblioteca específica
+            const DBFFile = await import("dbffile");
+            const tempPath = `/tmp/import_${Date.now()}.dbf`;
+            const fs = await import("fs/promises");
+            await fs.writeFile(tempPath, buffer);
+            const dbf = await DBFFile.DBFFile.open(tempPath);
+            items = await dbf.readRecords();
+            await fs.unlink(tempPath);
+          }
+
+          // Se substituir existentes, desativar itens anteriores
+          if (input.substituirExistentes) {
+            await db.desativarTabelasPreco(input.convenioId, input.tipo);
+          }
+
+          // Mapear e inserir itens
+          const tabelaItems = items.map((item: any) => {
+            // Normalizar nomes de campos (suportar vários formatos)
+            const codigo = item.codigo || item.CODIGO || item.cod || item.COD || item.code || "";
+            const nome = item.nome || item.NOME || item.descricao || item.DESCRICAO || item.name || "";
+            const valorStr = String(item.valor || item.VALOR || item.preco || item.PRECO || item.price || "0");
+            const valor = valorStr.replace(/[^0-9.,]/g, "").replace(",", ".");
+            
+            // Vigência
+            const vigenciaInicioStr = item.vigencia_inicio || item.VIGENCIA_INICIO || 
+                                      item.inicio_vigencia || item.INICIO_VIGENCIA ||
+                                      item.vigenciaInicio || item.data_inicio || new Date().toISOString();
+            const vigenciaFimStr = item.vigencia_fim || item.VIGENCIA_FIM || 
+                                   item.final_vigencia || item.FINAL_VIGENCIA ||
+                                   item.vigenciaFim || item.data_fim;
+
+            return {
+              convenioId: input.convenioId,
+              tipo: input.tipo,
+              codigo: String(codigo).trim(),
+              nome: String(nome).trim(),
+              valor: valor || "0",
+              vigenciaInicio: new Date(vigenciaInicioStr),
+              vigenciaFim: vigenciaFimStr ? new Date(vigenciaFimStr) : undefined,
+              unidade: item.unidade || item.UNIDADE || item.unit,
+              observacao: item.observacao || item.OBSERVACAO || item.obs,
+            };
+          }).filter((item: any) => item.codigo && item.nome);
+
+          // Inserir em lote
+          const resultado = await db.createTabelasPrecoEmLote(tabelaItems);
+
+          // Atualizar status da importação
+          await db.updateImportacaoTabela(importacaoId, {
+            status: "concluido",
+            totalItens: items.length,
+            itensImportados: resultado.inseridos,
+            itensErro: resultado.erros,
+          });
+
+          return {
+            success: true,
+            importacaoId,
+            totalItens: items.length,
+            itensImportados: resultado.inseridos,
+            itensErro: resultado.erros,
+          };
+        } catch (error: any) {
+          // Atualizar status com erro
+          await db.updateImportacaoTabela(importacaoId, {
+            status: "erro",
+            mensagemErro: error.message,
+          });
+
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao processar arquivo: ${error.message}`,
+          });
+        }
+      }),
+
+    // Listar histórico de importações
+    historicoImportacoes: protectedProcedure
+      .input(z.object({ convenioId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return db.getImportacoesTabela(input?.convenioId);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
