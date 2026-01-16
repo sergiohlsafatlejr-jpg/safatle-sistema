@@ -137,3 +137,4 @@
 - [x] Corrigir itens glosados da Vivacom que aparecem no Demonstrativo mas não na Análise de Glosa
 - [x] Implementar filtro por código de glosa na Análise de Glosa para agrupar itens e identificar padrões
 - [x] Integrar Dicionário de Glosas na Análise de Glosa para exibir descrição completa ao lado de cada código
+- [x] Implementar criação de recursos em lote para todos os itens de um código de glosa selecionado

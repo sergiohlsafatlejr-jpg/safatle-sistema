@@ -37,7 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Gavel, Search, CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { Gavel, Search, CheckCircle2, Loader2, Sparkles, BookOpen } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GLOSAS_TISS, GlosaInfo } from "../../../shared/glossaryGlosas";
 import {
@@ -721,6 +721,35 @@ export default function AnaliseGlosa() {
                           </ul>
                         </div>
                       )}
+                      <div className="mt-3 pt-3 border-t border-amber-200">
+                        <Button 
+                          size="sm" 
+                          className="w-full bg-amber-600 hover:bg-amber-700"
+                          onClick={() => {
+                            // Selecionar todos os itens do código de glosa atual
+                            if (itensGlosados?.items) {
+                              const itensDoCodigoAtual = itensGlosados.items.filter(item => {
+                                const codigoItem = item.codigoGlosa || item.motivoGlosa?.match(/\d{4}/)?.[0] || "";
+                                return codigoItem === codigoGlosaFiltro;
+                              });
+                              setItensSelecionados(new Set(itensDoCodigoAtual.map(i => i.id)));
+                              // Abrir dialog com argumento pré-preenchido do dicionário
+                              setRecursoForm({
+                                motivo: `Código ${codigoGlosaFiltro}: ${GLOSAS_TISS[codigoGlosaFiltro].descricaoSimplificada}`,
+                                argumento: GLOSAS_TISS[codigoGlosaFiltro].argumentoContestacao || "",
+                                prioridade: "media",
+                              });
+                              setDialogRecurso(true);
+                            }
+                          }}
+                        >
+                          <Gavel className="h-4 w-4 mr-2" />
+                          Criar Recurso em Lote para Todos os Itens ({itensGlosados?.items?.filter(item => {
+                            const codigoItem = item.codigoGlosa || item.motivoGlosa?.match(/\d{4}/)?.[0] || "";
+                            return codigoItem === codigoGlosaFiltro;
+                          }).length || 0})
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1263,6 +1292,14 @@ export default function AnaliseGlosa() {
                 <p className="text-xs text-muted-foreground">
                   Todos os itens receberão o mesmo argumento de recurso
                 </p>
+                {recursoForm.motivo.startsWith("Código ") && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                      <BookOpen className="h-3 w-3 mr-1" />
+                      Argumento do Dicionário TISS
+                    </Badge>
+                  </div>
+                )}
               </div>
               
               <div>
