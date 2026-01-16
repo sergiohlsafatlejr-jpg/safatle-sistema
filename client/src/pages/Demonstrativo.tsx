@@ -301,6 +301,7 @@ export default function Demonstrativo() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[80px]">Tipo</TableHead>
                           <TableHead className="w-[100px]">Guia</TableHead>
                           <TableHead className="w-[100px]">Data</TableHead>
                           <TableHead className="w-[100px]">Código</TableHead>
@@ -322,12 +323,40 @@ export default function Demonstrativo() {
                           const valor = parseFloat(proc.valorTotal || "0");
                           const valorPago = valor - valorGlosado;
                           const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
+                          
+                          // Determinar tipo do código baseado no código TUSS e descrição
+                          const getTipoCodigo = (codigo: string, descricao: string) => {
+                            const cod = codigo || "";
+                            const desc = (descricao || "").toLowerCase();
+                            
+                            // Materiais: códigos começam com 07
+                            if (cod.startsWith("07")) return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
+                            // Medicamentos: códigos começam com 06
+                            if (cod.startsWith("06")) return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
+                            // Taxas e diárias: códigos começam com 05 ou 08
+                            if (cod.startsWith("05") || cod.startsWith("08")) return { tipo: "Taxa/Diária", cor: "bg-gray-100 text-gray-700" };
+                            // Exames: códigos começam com 40, 41, 42 ou descrição contém palavras-chave
+                            if (cod.startsWith("40") || cod.startsWith("41") || cod.startsWith("42") ||
+                                desc.includes("exame") || desc.includes("dosagem") || desc.includes("hemograma") ||
+                                desc.includes("urina") || desc.includes("sangue") || desc.includes("laborat")) {
+                              return { tipo: "Exame", cor: "bg-blue-100 text-blue-700" };
+                            }
+                            // Procedimentos: outros códigos
+                            return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
+                          };
+                          
+                          const tipoCodigo = getTipoCodigo(proc.codigo, proc.descricao);
 
                           return (
                             <TableRow 
                               key={proc.id}
                               className={valorGlosado > 0 ? (valorGlosado >= valor ? "bg-red-50" : "bg-yellow-50") : ""}
                             >
+                              <TableCell>
+                                <Badge variant="outline" className={`text-xs ${tipoCodigo.cor}`}>
+                                  {tipoCodigo.tipo}
+                                </Badge>
+                              </TableCell>
                               <TableCell className="font-mono text-sm">{proc.guiaNumero || "-"}</TableCell>
                               <TableCell>
                                 {proc.dataExecucao 

@@ -873,15 +873,22 @@ function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
     const tabela = match[2];
     const codigo = match[3].replace(/\./g, ''); // Remove dots from code
     const descricao = match[4].trim();
-    const valorInformado = parseValorBR(match[5]);
+    const valorInformado = parseValorBR(match[5]) || 0;
     const quantidade = parseInt(match[6], 10) || 1;
-    const valorProcessado = parseValorBR(match[7]);
-    const valorLiberado = parseValorBR(match[8]);
-    const valorGlosa = parseValorBR(match[9]);
+    const valorProcessado = parseValorBR(match[7]) || 0;
+    const valorLiberado = parseValorBR(match[8]) || 0;
+    const valorGlosaCapturado = parseValorBR(match[9]) || 0;
     const codigoGlosa = match[10] || undefined;
     
+    // Calculate actual glosa value:
+    // If valorLiberado is 0 or much less than valorInformado, the item was glosa'd
+    // The glosa value is valorInformado - valorLiberado
+    const valorGlosaCalculado = valorInformado - valorLiberado;
+    const hasGlosa = codigoGlosa || valorGlosaCalculado > 0.01;
+    const valorGlosa = hasGlosa ? (valorGlosaCalculado > 0 ? valorGlosaCalculado : valorInformado) : 0;
+    
     // Translate glosa code if present
-    const motivoGlosa = codigoGlosa ? traduzirMotivoGlosa(codigoGlosa) : undefined;
+    const motivoGlosa = (hasGlosa && codigoGlosa) ? traduzirMotivoGlosa(codigoGlosa) : undefined;
     
     procedimentos.push({
       codigo,
@@ -894,13 +901,13 @@ function extractSaudeCaixaProcedimentos(text: string): ParsedProcedimento[] {
       pacienteCarteirinha: currentCarteirinha,
       guiaNumero: currentGuia,
       motivoGlosa,
-      valorGlosado: valorGlosa,
+      valorGlosado: hasGlosa ? valorGlosa : undefined,
       dadosExtras: {
         tabela,
         valorInformado,
         valorProcessado,
         valorLiberado,
-        valorGlosa,
+        valorGlosaCalculado,
         codigoGlosa,
         formato: 'saude_caixa_benner'
       },

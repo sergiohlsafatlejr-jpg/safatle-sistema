@@ -345,38 +345,46 @@ export async function createProcedimentos(
   if (data.length === 0) return { count: 0 };
 
   // Use larger batch size for faster insertion
-  // MySQL can handle larger batches efficiently
-  const BATCH_SIZE = 2000;
+  // MySQL can handle larger batches efficiently - increased to 5000 for better throughput
+  const BATCH_SIZE = 5000;
   let inserted = 0;
   const totalItens = data.length;
   const startTime = Date.now();
   
-  // Process batches in parallel for better performance (max 3 concurrent)
+  // Process batches
   const batches: InsertProcedimento[][] = [];
   for (let i = 0; i < data.length; i += BATCH_SIZE) {
     batches.push(data.slice(i, i + BATCH_SIZE));
   }
   
-  // Insert batches sequentially but with larger batch size
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-    await db.insert(procedimentos).values(batch);
-    inserted += batch.length;
+  // Insert batches with optimized approach
+  // Use Promise.all for parallel insertion of smaller groups (3 at a time)
+  const PARALLEL_BATCHES = 3;
+  
+  for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
+    const batchGroup = batches.slice(i, i + PARALLEL_BATCHES);
+    
+    // Insert batches in parallel
+    await Promise.all(
+      batchGroup.map(batch => db.insert(procedimentos).values(batch))
+    );
+    
+    inserted += batchGroup.reduce((sum, b) => sum + b.length, 0);
     
     // Calculate progress percentage
     const progresso = Math.round((inserted / totalItens) * 100);
     const elapsed = (Date.now() - startTime) / 1000;
-    const rate = inserted / elapsed;
+    const rate = elapsed > 0 ? inserted / elapsed : 0;
     const remaining = totalItens - inserted;
-    const eta = remaining / rate;
+    const eta = rate > 0 ? remaining / rate : 0;
     
-    // Only log every 5 batches or at the end to reduce log spam
-    if (i % 5 === 0 || i === batches.length - 1) {
+    // Only log every 3 batch groups or at the end to reduce log spam
+    if ((i / PARALLEL_BATCHES) % 3 === 0 || i + PARALLEL_BATCHES >= batches.length) {
       console.log(`[DB] Progress: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec - ETA: ${Math.round(eta)}s`);
     }
     
-    // Report progress if callback provided (every batch for UI updates)
-    if (onProgress) {
+    // Report progress if callback provided (less frequently for better performance)
+    if (onProgress && ((i / PARALLEL_BATCHES) % 2 === 0 || i + PARALLEL_BATCHES >= batches.length)) {
       await onProgress(progresso, inserted, totalItens);
     }
   }
@@ -506,46 +514,30 @@ export async function getProcedimentosPaginated(filters?: {
   
   const total = countResult[0]?.count || 0;
 
-  // Get resumo with aggregation query (optimized)
+  // Get resumo with aggregation query from ALL items (not just paginated)
   const resumoResult = await db
     .select({
       totalValor: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+      totalGlosado: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2))), 0)`,
+      quantidadeGlosados: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) >= CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) THEN 1 ELSE 0 END)`,
+      quantidadeParciais: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) < CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) THEN 1 ELSE 0 END)`,
+      quantidadePagos: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' THEN 1 ELSE 0 END)`,
       totalRegistros: sql<number>`count(*)`
     })
     .from(procedimentos)
     .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
     .where(whereClause);
 
-  // Calculate resumo from paginated items (simplified for performance)
-  let totalPago = 0;
-  let totalGlosado = 0;
-  let quantidadePagos = 0;
-  let quantidadeGlosados = 0;
-  let quantidadeParciais = 0;
-
-  // Process items for status calculation
-  for (const item of items) {
-    const valor = parseFloat(String(item.valorTotal || "0"));
-    const extras = item.dadosExtras ? 
-      (typeof item.dadosExtras === "string" ? JSON.parse(item.dadosExtras) : item.dadosExtras) : {};
-    const valorGlosado = parseFloat(extras.valorGlosado || "0");
-    
-    if (valorGlosado > 0 && valorGlosado >= valor) {
-      quantidadeGlosados++;
-      totalGlosado += valorGlosado;
-    } else if (valorGlosado > 0) {
-      quantidadeParciais++;
-      totalGlosado += valorGlosado;
-      totalPago += valor - valorGlosado;
-    } else {
-      quantidadePagos++;
-      totalPago += valor;
-    }
-  }
+  const resumoData = resumoResult[0] || {};
+  const totalValor = parseFloat(String(resumoData.totalValor || 0));
+  const totalGlosadoDb = parseFloat(String(resumoData.totalGlosado || 0));
+  const quantidadeGlosados = parseInt(String(resumoData.quantidadeGlosados || 0));
+  const quantidadeParciais = parseInt(String(resumoData.quantidadeParciais || 0));
+  const quantidadePagos = parseInt(String(resumoData.quantidadePagos || 0));
 
   const resumo = {
-    totalPago,
-    totalGlosado,
+    totalPago: totalValor - totalGlosadoDb,
+    totalGlosado: totalGlosadoDb,
     quantidadePagos,
     quantidadeGlosados,
     quantidadeParciais,
@@ -871,71 +863,93 @@ export async function getFaturamentoPorConvenio(userId?: number): Promise<Fatura
   const resultado: FaturamentoConvenio[] = [];
 
   for (const conv of convList) {
-    // Buscar arquivos enviados do convênio
-    const conditions = [
+    // Buscar arquivos ENVIADOS do convênio (XMLs enviados para o convênio)
+    const conditionsEnviados = [
       eq(arquivos.convenioId, conv.id),
       eq(arquivos.direcao, "enviado"),
       eq(arquivos.status, "processado"),
     ];
     
     if (userId) {
-      conditions.push(eq(arquivos.userId, userId));
+      conditionsEnviados.push(eq(arquivos.userId, userId));
     }
 
     const arquivosEnviados = await db
       .select()
       .from(arquivos)
-      .where(and(...conditions));
+      .where(and(...conditionsEnviados));
 
-    // Buscar procedimentos dos arquivos enviados
+    // Buscar arquivos RETORNADOS do convênio (demonstrativos recebidos)
+    const conditionsRetornados = [
+      eq(arquivos.convenioId, conv.id),
+      eq(arquivos.direcao, "retornado"),
+      eq(arquivos.status, "processado"),
+    ];
+    
+    if (userId) {
+      conditionsRetornados.push(eq(arquivos.userId, userId));
+    }
+
+    const arquivosRetornados = await db
+      .select()
+      .from(arquivos)
+      .where(and(...conditionsRetornados));
+
+    // Calcular totais dos arquivos ENVIADOS
     let totalEnviado = 0;
-    let quantidadeProcedimentos = 0;
+    let quantidadeProcedimentosEnviados = 0;
 
     for (const arq of arquivosEnviados) {
       const procs = await db
-        .select()
+        .select({
+          valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+          count: sql<number>`count(*)`
+        })
         .from(procedimentos)
         .where(eq(procedimentos.arquivoId, arq.id));
 
-      for (const proc of procs) {
-        totalEnviado += parseFloat(proc.valorTotal || "0");
-        quantidadeProcedimentos++;
-      }
+      totalEnviado += parseFloat(String(procs[0]?.valorTotal || 0));
+      quantidadeProcedimentosEnviados += parseInt(String(procs[0]?.count || 0));
     }
 
-    // Buscar comparações do convênio para calcular glosa
-    const compConditions = [eq(comparacoes.convenioId, conv.id)];
-    if (userId) {
-      compConditions.push(eq(comparacoes.userId, userId));
-    }
-
-    const comps = await db
-      .select()
-      .from(comparacoes)
-      .where(and(...compConditions));
-
+    // Calcular totais dos arquivos RETORNADOS (incluindo glosas)
     let totalRetornado = 0;
-    for (const comp of comps) {
-      totalRetornado += parseFloat(comp.valorTotalRetornado || "0");
+    let totalGlosado = 0;
+    let quantidadeProcedimentosRetornados = 0;
+
+    for (const arq of arquivosRetornados) {
+      const procs = await db
+        .select({
+          valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+          valorGlosado: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2))), 0)`,
+          count: sql<number>`count(*)`
+        })
+        .from(procedimentos)
+        .where(eq(procedimentos.arquivoId, arq.id));
+
+      totalRetornado += parseFloat(String(procs[0]?.valorTotal || 0));
+      totalGlosado += parseFloat(String(procs[0]?.valorGlosado || 0));
+      quantidadeProcedimentosRetornados += parseInt(String(procs[0]?.count || 0));
     }
 
-    // Se não houver comparações, usar o valor enviado como retornado (sem glosa)
-    if (comps.length === 0) {
+    // Se não houver arquivos retornados, usar valores enviados
+    if (arquivosRetornados.length === 0) {
       totalRetornado = totalEnviado;
     }
 
-    const totalGlosado = totalEnviado - totalRetornado;
-    const percentualGlosa = totalEnviado > 0 ? (totalGlosado / totalEnviado) * 100 : 0;
+    // O valor pago é o total retornado menos o glosado
+    const totalPago = totalRetornado - totalGlosado;
+    const percentualGlosa = totalRetornado > 0 ? (totalGlosado / totalRetornado) * 100 : 0;
 
     resultado.push({
       convenioId: conv.id,
       convenioNome: conv.nome,
       totalEnviado,
-      totalRetornado,
+      totalRetornado: totalPago, // Valor efetivamente pago
       totalGlosado,
       percentualGlosa,
-      quantidadeArquivos: arquivosEnviados.length,
-      quantidadeProcedimentos,
+      quantidadeArquivos: arquivosEnviados.length + arquivosRetornados.length,
+      quantidadeProcedimentos: quantidadeProcedimentosEnviados + quantidadeProcedimentosRetornados,
     });
   }
 

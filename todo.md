@@ -119,3 +119,9 @@
 - [x] Corrigir parser XLSX demonstrativo-0278119 para extrair glosas e valores corretamente
 - [x] Corrigir tela Demonstrativo - dados de glosa não exibidos corretamente para Unimed
 - [x] Corrigir tela Demonstrativo - dados de glosa em branco para Bradesco
+- [x] Corrigir KPIs do Demonstrativo para somar todos os itens (não apenas da página atual)
+- [x] Adicionar tipo de código no Demonstrativo (exame, procedimento, material, medicamento)
+- [x] Otimizar performance de importação de arquivos Excel grandes (Unimed lento)
+- [x] Corrigir parser Saúde Caixa para extrair itens glosados no Demonstrativo
+- [x] Corrigir tela de Faturamento - dados incorretos e valores glosados não aparecem
+- [x] Corrigir parser Vivacom para extrair campos valor_glosa e cod_glosa
