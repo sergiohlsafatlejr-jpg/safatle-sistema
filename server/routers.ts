@@ -1031,6 +1031,10 @@ export const appRouter = router({
           },
           "Recurso enviado ao convênio"
         );
+        
+        // Atualizar status dos procedimentos vinculados ao recurso para "enviado"
+        await db.atualizarStatusProcedimentosPorRecurso(input.id, "recurso_enviado");
+        
         return { success: true };
       }),
 
@@ -1074,6 +1078,13 @@ export const appRouter = router({
             resultado: input.status,
             argumentoEfetivo: input.status === "deferido" ? "sim" : input.status === "deferido_parcial" ? "parcial" : "nao",
           });
+          
+          // Atualizar status dos procedimentos vinculados ao recurso
+          const novoStatusProcedimento = input.status === "deferido" || input.status === "deferido_parcial" 
+            ? "recurso_deferido" 
+            : "recurso_indeferido";
+          
+          await db.atualizarStatusProcedimentosPorRecurso(input.id, novoStatusProcedimento);
         }
         
         return { success: true };
@@ -1222,6 +1233,99 @@ export const appRouter = router({
           resultados, 
           erros 
         };
+      }),
+    // Classificar glosa (aceitar ou recursar)
+    classificarGlosa: protectedProcedure
+      .input(
+        z.object({
+          procedimentoId: z.number(),
+          classificacao: z.enum(["aceitar", "recursar"]),
+          motivo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Registrar a decisão para aprendizado
+        const proc = await db.getProcedimentoById(input.procedimentoId);
+        if (!proc) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Procedimento não encontrado" });
+        }
+
+        const extras = (proc.dadosExtras || {}) as Record<string, unknown>;
+        const motivoGlosa = (extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || "") as string;
+        const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
+
+        // Buscar arquivo para obter conveníoId
+        const arquivo = await db.getArquivoById(proc.arquivoId);
+        if (!arquivo) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo não encontrado" });
+        }
+
+        // Registrar decisão
+        await db.registrarDecisaoGlosa({
+          convenioId: arquivo.convenioId,
+          codigoGlosa: codigoGlosa || "0000",
+          codigoProcedimento: proc.codigo,
+          tipoProcedimento: null,
+          decisao: input.classificacao,
+          valorGlosado: proc.valorGlosado || undefined,
+          motivoDecisao: input.motivo || null,
+          procedimentoId: input.procedimentoId,
+          userId: ctx.user.id,
+        });
+
+        // Atualizar classificação do procedimento
+        await db.atualizarClassificacaoProcedimento(
+          input.procedimentoId,
+          input.classificacao,
+          100,
+          input.motivo || "Classificado manualmente pelo usuário"
+        );
+
+        return { success: true };
+      }),
+
+    // Sugerir classificação com base no histórico
+    sugerirClassificacao: protectedProcedure
+      .input(
+        z.object({
+          codigoGlosa: z.string(),
+          convenioId: z.number(),
+          codigoProcedimento: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.sugerirClassificacaoGlosa(
+          input.codigoGlosa,
+          input.convenioId,
+          input.codigoProcedimento
+        );
+      }),
+
+    // Classificar glosas automaticamente
+    classificarAutomaticamente: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number().optional(),
+          limiteConfianca: z.number().min(50).max(100).default(70),
+        }).optional()
+      )
+      .mutation(async ({ input }) => {
+        return db.classificarGlosasAutomaticamente(
+          input?.convenioId,
+          input?.limiteConfianca || 70
+        );
+      }),
+
+    // Buscar histórico de decisões para um código de glosa
+    historicoDecisoes: protectedProcedure
+      .input(
+        z.object({
+          codigoGlosa: z.string(),
+          convenioId: z.number().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.buscarHistoricoDecisoes(input.codigoGlosa, input.convenioId);
       }),
   }),
 

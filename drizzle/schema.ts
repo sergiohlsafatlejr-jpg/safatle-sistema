@@ -104,6 +104,16 @@ export const procedimentos = mysqlTable("procedimentos", {
     "recurso_indeferido" // Recurso indeferido
   ]).default("sem_recurso"),
   recursoId: int("recursoId"), // ID do recurso associado
+  // Classificação da glosa (aceita ou recursar)
+  classificacaoGlosa: mysqlEnum("classificacaoGlosa", [
+    "pendente",        // Ainda não classificada
+    "aceitar",         // Glosa aceita (sem recurso)
+    "recursar",        // Glosa deve ser recursada
+    "auto_aceitar",    // Aceita automaticamente pelo sistema (aprendizado)
+    "auto_recursar"    // Recursada automaticamente pelo sistema (aprendizado)
+  ]).default("pendente"),
+  classificacaoConfianca: int("classificacaoConfianca"), // Percentual de confiança (0-100) para classificações automáticas
+  classificacaoMotivo: text("classificacaoMotivo"), // Motivo da classificação (manual ou automática)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -444,3 +454,46 @@ export const regrasConciliacao = mysqlTable("regrasConciliacao", {
 
 export type RegraConciliacao = typeof regrasConciliacao.$inferSelect;
 export type InsertRegraConciliacao = typeof regrasConciliacao.$inferInsert;
+
+/**
+ * Decisões de Glosa - Histórico de decisões (aceitar/recursar) para aprendizado automático
+ */
+export const decisoesGlosa = mysqlTable("decisoesGlosa", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Identificadores da glosa
+  convenioId: int("convenioId").notNull(),
+  codigoGlosa: varchar("codigoGlosa", { length: 20 }).notNull(),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  tipoProcedimento: varchar("tipoProcedimento", { length: 50 }), // mat_med, exames, procedimentos, outros
+  
+  // Decisão tomada
+  decisao: mysqlEnum("decisao", ["aceitar", "recursar"]).notNull(),
+  
+  // Resultado (se foi recursado)
+  resultadoRecurso: mysqlEnum("resultadoRecurso", [
+    "pendente",
+    "deferido",
+    "deferido_parcial",
+    "indeferido"
+  ]),
+  
+  // Valores
+  valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
+  valorRecuperado: decimal("valorRecuperado", { precision: 10, scale: 2 }),
+  
+  // Motivo da decisão (para aprendizado)
+  motivoDecisao: text("motivoDecisao"),
+  
+  // Referência ao procedimento original
+  procedimentoId: int("procedimentoId"),
+  recursoId: int("recursoId"),
+  
+  // Usuário que tomou a decisão
+  userId: int("userId").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DecisaoGlosa = typeof decisoesGlosa.$inferSelect;
+export type InsertDecisaoGlosa = typeof decisoesGlosa.$inferInsert;

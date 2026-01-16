@@ -139,3 +139,6 @@
 - [x] Integrar Dicionário de Glosas na Análise de Glosa para exibir descrição completa ao lado de cada código
 - [x] Implementar criação de recursos em lote para todos os itens de um código de glosa selecionado
 - [x] Criar status de "recurso criado" para itens glosados após criação de recurso, evitando duplicidade
+- [x] Criar cards de classificação de glosa (aceita/recursada) na Análise de Glosa
+- [x] Implementar aprendizado automático baseado em histórico de glosas anteriores
+- [x] Atualização automática de status dos procedimentos quando recurso mudar de estado

@@ -37,7 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Gavel, Search, CheckCircle2, Loader2, Sparkles, BookOpen, FileText, Send, XCircle } from "lucide-react";
+import { Gavel, Search, CheckCircle2, Loader2, Sparkles, BookOpen, FileText, Send, XCircle, ThumbsUp, ThumbsDown, Brain, Zap, Clock } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GLOSAS_TISS, GlosaInfo } from "../../../shared/glossaryGlosas";
 import {
@@ -107,6 +107,7 @@ export default function AnaliseGlosa() {
   const [dialogRecurso, setDialogRecurso] = useState(false);
   const [recursoForm, setRecursoForm] = useState({ motivo: "", argumento: "", prioridade: "media" as "baixa" | "media" | "alta" | "urgente" });
   const [carregandoSugestao, setCarregandoSugestao] = useState(false);
+  const [classificandoItem, setClassificandoItem] = useState<number | null>(null);
 
   // Buscar dados gerais
   const { data: glosaPorConvenio, isLoading: loadingConvenio, refetch: refetchConvenio } = 
@@ -199,6 +200,50 @@ export default function AnaliseGlosa() {
       setCarregandoSugestao(false);
     },
   });
+
+  // Mutation para classificar glosa (aceitar ou recursar)
+  const classificarGlosaMutation = trpc.recursos.classificarGlosa.useMutation({
+    onSuccess: () => {
+      toast.success("Glosa classificada com sucesso!");
+      setClassificandoItem(null);
+      refetchItens();
+    },
+    onError: (error) => {
+      toast.error("Erro ao classificar glosa: " + error.message);
+      setClassificandoItem(null);
+    },
+  });
+
+  // Buscar sugestão de classificação para o código de glosa selecionado
+  const { data: sugestaoClassificacao } = trpc.recursos.sugerirClassificacao.useQuery(
+    {
+      codigoGlosa: codigoGlosaFiltro !== "todos" ? codigoGlosaFiltro : "",
+      convenioId: convenioItens !== "todos" ? parseInt(convenioItens) : 0,
+    },
+    {
+      enabled: codigoGlosaFiltro !== "todos" && convenioItens !== "todos",
+    }
+  );
+
+  // Buscar histórico de decisões para o código de glosa selecionado
+  const { data: historicoDecisoes } = trpc.recursos.historicoDecisoes.useQuery(
+    {
+      codigoGlosa: codigoGlosaFiltro !== "todos" ? codigoGlosaFiltro : "",
+      convenioId: convenioItens !== "todos" ? parseInt(convenioItens) : undefined,
+    },
+    {
+      enabled: codigoGlosaFiltro !== "todos",
+    }
+  );
+
+  const handleClassificarGlosa = (procedimentoId: number, classificacao: "aceitar" | "recursar", motivo?: string) => {
+    setClassificandoItem(procedimentoId);
+    classificarGlosaMutation.mutate({
+      procedimentoId,
+      classificacao,
+      motivo,
+    });
+  };
 
   const toggleItemSelecionado = (id: number) => {
     const newSet = new Set(itensSelecionados);
@@ -764,6 +809,172 @@ export default function AnaliseGlosa() {
               </Card>
             )}
 
+            {/* Card de Classificação com Aprendizado Automático */}
+            {codigoGlosaFiltro !== "todos" && (historicoDecisoes || sugestaoClassificacao) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card de Histórico de Decisões */}
+                <Card className="border-blue-200 bg-blue-50/50">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Brain className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold">Histórico de Decisões</h3>
+                      <Badge variant="outline" className="ml-auto bg-blue-100 text-blue-700 border-blue-200">
+                        {historicoDecisoes?.totalDecisoes || 0} decisões
+                      </Badge>
+                    </div>
+                    
+                    {historicoDecisoes && historicoDecisoes.totalDecisoes > 0 ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-green-100 rounded-lg p-2 text-center">
+                            <div className="text-lg font-bold text-green-700">{historicoDecisoes.totalAceitas}</div>
+                            <div className="text-xs text-green-600">Aceitas</div>
+                          </div>
+                          <div className="bg-orange-100 rounded-lg p-2 text-center">
+                            <div className="text-lg font-bold text-orange-700">{historicoDecisoes.totalRecursadas}</div>
+                            <div className="text-xs text-orange-600">Recursadas</div>
+                          </div>
+                        </div>
+                        
+                        {historicoDecisoes.totalRecursadas > 0 && (
+                          <div className="bg-white rounded-lg p-2 border">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">Taxa de Sucesso em Recursos</span>
+                              <span className="text-sm font-semibold">
+                                {historicoDecisoes.taxaSucessoRecurso.toFixed(0)}%
+                              </span>
+                            </div>
+                            <Progress 
+                              value={historicoDecisoes.taxaSucessoRecurso} 
+                              className="h-2"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                              <span>{historicoDecisoes.totalDeferidas} deferidas</span>
+                              <span>{historicoDecisoes.totalIndeferidas} indeferidas</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Nenhuma decisão registrada para este código</p>
+                        <p className="text-xs">Classifique itens para treinar o sistema</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Card de Sugestão Automática */}
+                <Card className={`border-2 ${
+                  sugestaoClassificacao?.sugestao === "aceitar" 
+                    ? "border-green-300 bg-green-50/50" 
+                    : sugestaoClassificacao?.sugestao === "recursar"
+                    ? "border-orange-300 bg-orange-50/50"
+                    : "border-gray-200 bg-gray-50/50"
+                }`}>
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className={`h-5 w-5 ${
+                        sugestaoClassificacao?.sugestao === "aceitar" 
+                          ? "text-green-600" 
+                          : sugestaoClassificacao?.sugestao === "recursar"
+                          ? "text-orange-600"
+                          : "text-gray-500"
+                      }`} />
+                      <h3 className="font-semibold">Sugestão do Sistema</h3>
+                      {sugestaoClassificacao?.confianca && sugestaoClassificacao.confianca > 0 && (
+                        <Badge variant="outline" className={`ml-auto ${
+                          sugestaoClassificacao.confianca >= 70 
+                            ? "bg-green-100 text-green-700 border-green-200" 
+                            : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                        }`}>
+                          {sugestaoClassificacao.confianca.toFixed(0)}% confiança
+                        </Badge>
+                      )}
+                    </div>
+
+                    {sugestaoClassificacao && sugestaoClassificacao.sugestao !== "pendente" ? (
+                      <div className="space-y-3">
+                        <div className={`rounded-lg p-3 ${
+                          sugestaoClassificacao.sugestao === "aceitar" 
+                            ? "bg-green-100" 
+                            : "bg-orange-100"
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            {sugestaoClassificacao.sugestao === "aceitar" ? (
+                              <ThumbsUp className="h-5 w-5 text-green-700" />
+                            ) : (
+                              <ThumbsDown className="h-5 w-5 text-orange-700" />
+                            )}
+                            <span className={`font-semibold ${
+                              sugestaoClassificacao.sugestao === "aceitar" 
+                                ? "text-green-700" 
+                                : "text-orange-700"
+                            }`}>
+                              {sugestaoClassificacao.sugestao === "aceitar" 
+                                ? "Recomendado: ACEITAR glosa" 
+                                : "Recomendado: RECURSAR glosa"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {sugestaoClassificacao.motivo}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-green-300 text-green-700 hover:bg-green-100"
+                            onClick={() => {
+                              // Classificar todos os itens pendentes como "aceitar"
+                              const itensPendentes = itensGlosados?.items?.filter(
+                                i => !i.classificacaoGlosa || i.classificacaoGlosa === "pendente"
+                              ) || [];
+                              if (itensPendentes.length > 0) {
+                                itensPendentes.forEach(item => {
+                                  handleClassificarGlosa(item.id, "aceitar", "Aceito com base na sugestão do sistema");
+                                });
+                              }
+                            }}
+                          >
+                            <ThumbsUp className="h-4 w-4 mr-1" />
+                            Aceitar Todos
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-100"
+                            onClick={() => {
+                              // Classificar todos os itens pendentes como "recursar"
+                              const itensPendentes = itensGlosados?.items?.filter(
+                                i => !i.classificacaoGlosa || i.classificacaoGlosa === "pendente"
+                              ) || [];
+                              if (itensPendentes.length > 0) {
+                                itensPendentes.forEach(item => {
+                                  handleClassificarGlosa(item.id, "recursar", "Recursado com base na sugestão do sistema");
+                                });
+                              }
+                            }}
+                          >
+                            <ThumbsDown className="h-4 w-4 mr-1" />
+                            Recursar Todos
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Dados insuficientes para sugestão</p>
+                        <p className="text-xs">Classifique mais itens para treinar o sistema</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Resumo por Tipo */}
             {itensGlosados?.resumo && itensGlosados.resumo.totalItens > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -856,6 +1067,7 @@ export default function AnaliseGlosa() {
                             <TableHead className="text-right">Glosa</TableHead>
                             <TableHead>Motivo</TableHead>
                             <TableHead className="text-center">Recurso</TableHead>
+                            <TableHead className="text-center">Classificação</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -952,6 +1164,42 @@ export default function AnaliseGlosa() {
                                       Indeferido
                                     </Badge>
                                   ) : null}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {classificandoItem === item.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                                  ) : item.classificacaoGlosa === "aceitar" || item.classificacaoGlosa === "auto_aceitar" ? (
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-600 border-green-200">
+                                      <ThumbsUp className="h-3 w-3 mr-1" />
+                                      {item.classificacaoGlosa === "auto_aceitar" ? "Auto-Aceita" : "Aceita"}
+                                    </Badge>
+                                  ) : item.classificacaoGlosa === "recursar" || item.classificacaoGlosa === "auto_recursar" ? (
+                                    <Badge variant="outline" className="text-xs bg-orange-50 text-orange-600 border-orange-200">
+                                      <ThumbsDown className="h-3 w-3 mr-1" />
+                                      {item.classificacaoGlosa === "auto_recursar" ? "Auto-Recursar" : "Recursar"}
+                                    </Badge>
+                                  ) : (
+                                    <div className="flex gap-1 justify-center">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-green-600 hover:bg-green-100"
+                                        onClick={() => handleClassificarGlosa(item.id, "aceitar")}
+                                        title="Aceitar glosa (sem recurso)"
+                                      >
+                                        <ThumbsUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-orange-600 hover:bg-orange-100"
+                                        onClick={() => handleClassificarGlosa(item.id, "recursar")}
+                                        title="Marcar para recursar"
+                                      >
+                                        <ThumbsDown className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

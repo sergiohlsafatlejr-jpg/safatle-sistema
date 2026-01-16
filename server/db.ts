@@ -25,6 +25,8 @@ import {
   estabelecimentos,
   regrasConciliacao,
   InsertRegraConciliacao,
+  decisoesGlosa,
+  InsertDecisaoGlosa,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -412,6 +414,18 @@ export async function deleteProcedimentosByArquivoId(arquivoId: number) {
 
   await db.delete(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
   return { success: true };
+}
+
+export async function getProcedimentoById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(procedimentos)
+    .where(eq(procedimentos.id, id))
+    .limit(1);
+  return result[0] || null;
 }
 
 export async function getProcedimentosPaginated(filters?: {
@@ -3254,6 +3268,10 @@ export interface ItemGlosado {
   crmMedico: string;
   recursoStatus: "sem_recurso" | "recurso_criado" | "recurso_enviado" | "recurso_deferido" | "recurso_indeferido" | null;
   recursoId: number | null;
+  // Campos de classificação
+  classificacaoGlosa: "pendente" | "aceitar" | "recursar" | "auto_aceitar" | "auto_recursar" | null;
+  classificacaoConfianca: number | null;
+  classificacaoMotivo: string | null;
 }
 
 export interface ResumoItensGlosados {
@@ -3513,6 +3531,9 @@ export async function getItensGlosados(filters: {
       crmMedico: proc.crmMedico || "",
       recursoStatus: proc.recursoStatus || "sem_recurso",
       recursoId: proc.recursoId || null,
+      classificacaoGlosa: proc.classificacaoGlosa || "pendente",
+      classificacaoConfianca: proc.classificacaoConfianca || null,
+      classificacaoMotivo: proc.classificacaoMotivo || null,
     });
 
     // Acumular resumo
@@ -3573,4 +3594,315 @@ export async function getItensGlosados(filters: {
   };
 
   return { items: paginatedItems, total, resumo };
+}
+
+
+// ============ CLASSIFICAÇÃO E APRENDIZADO DE GLOSAS ============
+
+/**
+ * Registra uma decisão de glosa (aceitar ou recursar) para aprendizado
+ */
+export async function registrarDecisaoGlosa(decisao: InsertDecisaoGlosa): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const result = await db.insert(decisoesGlosa).values(decisao);
+    return Number(result[0].insertId);
+  } catch (error) {
+    console.error("[Database] Erro ao registrar decisão de glosa:", error);
+    return null;
+  }
+}
+
+/**
+ * Atualiza a classificação de um procedimento
+ */
+export async function atualizarClassificacaoProcedimento(
+  procedimentoId: number,
+  classificacao: "pendente" | "aceitar" | "recursar" | "auto_aceitar" | "auto_recursar",
+  confianca?: number,
+  motivo?: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db.update(procedimentos)
+      .set({
+        classificacaoGlosa: classificacao,
+        classificacaoConfianca: confianca || null,
+        classificacaoMotivo: motivo || null,
+      })
+      .where(eq(procedimentos.id, procedimentoId));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar classificação:", error);
+    return false;
+  }
+}
+
+/**
+ * Busca histórico de decisões para um código de glosa específico
+ */
+export async function buscarHistoricoDecisoes(
+  codigoGlosa: string,
+  convenioId?: number
+): Promise<{
+  totalDecisoes: number;
+  totalAceitas: number;
+  totalRecursadas: number;
+  totalDeferidas: number;
+  totalIndeferidas: number;
+  taxaSucessoRecurso: number;
+  decisaoRecomendada: "aceitar" | "recursar" | "pendente";
+  confianca: number;
+  motivosComuns: string[];
+}> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      totalDecisoes: 0,
+      totalAceitas: 0,
+      totalRecursadas: 0,
+      totalDeferidas: 0,
+      totalIndeferidas: 0,
+      taxaSucessoRecurso: 0,
+      decisaoRecomendada: "pendente",
+      confianca: 0,
+      motivosComuns: [],
+    };
+  }
+
+  try {
+    const conditions = [eq(decisoesGlosa.codigoGlosa, codigoGlosa)];
+    if (convenioId) {
+      conditions.push(eq(decisoesGlosa.convenioId, convenioId));
+    }
+
+    const decisoes = await db.select()
+      .from(decisoesGlosa)
+      .where(and(...conditions));
+
+    const totalDecisoes = decisoes.length;
+    const totalAceitas = decisoes.filter(d => d.decisao === "aceitar").length;
+    const totalRecursadas = decisoes.filter(d => d.decisao === "recursar").length;
+    const totalDeferidas = decisoes.filter(d => d.resultadoRecurso === "deferido" || d.resultadoRecurso === "deferido_parcial").length;
+    const totalIndeferidas = decisoes.filter(d => d.resultadoRecurso === "indeferido").length;
+
+    // Calcular taxa de sucesso de recursos
+    const recursosFinalizados = totalDeferidas + totalIndeferidas;
+    const taxaSucessoRecurso = recursosFinalizados > 0 ? (totalDeferidas / recursosFinalizados) * 100 : 0;
+
+    // Determinar decisão recomendada com base no histórico
+    let decisaoRecomendada: "aceitar" | "recursar" | "pendente" = "pendente";
+    let confianca = 0;
+
+    if (totalDecisoes >= 3) {
+      // Se temos pelo menos 3 decisões, podemos fazer uma recomendação
+      if (taxaSucessoRecurso >= 70) {
+        // Alta taxa de sucesso em recursos - recomendar recursar
+        decisaoRecomendada = "recursar";
+        confianca = Math.min(95, 50 + taxaSucessoRecurso * 0.5);
+      } else if (taxaSucessoRecurso <= 30 && recursosFinalizados >= 2) {
+        // Baixa taxa de sucesso - recomendar aceitar
+        decisaoRecomendada = "aceitar";
+        confianca = Math.min(95, 50 + (100 - taxaSucessoRecurso) * 0.5);
+      } else if (totalAceitas > totalRecursadas * 2) {
+        // Maioria das decisões foi aceitar
+        decisaoRecomendada = "aceitar";
+        confianca = Math.min(80, (totalAceitas / totalDecisoes) * 100);
+      } else if (totalRecursadas > totalAceitas * 2) {
+        // Maioria das decisões foi recursar
+        decisaoRecomendada = "recursar";
+        confianca = Math.min(80, (totalRecursadas / totalDecisoes) * 100);
+      }
+    }
+
+    // Coletar motivos comuns
+    const motivosComuns = decisoes
+      .filter(d => d.motivoDecisao)
+      .map(d => d.motivoDecisao!)
+      .slice(0, 5);
+
+    return {
+      totalDecisoes,
+      totalAceitas,
+      totalRecursadas,
+      totalDeferidas,
+      totalIndeferidas,
+      taxaSucessoRecurso,
+      decisaoRecomendada,
+      confianca,
+      motivosComuns,
+    };
+  } catch (error) {
+    console.error("[Database] Erro ao buscar histórico de decisões:", error);
+    return {
+      totalDecisoes: 0,
+      totalAceitas: 0,
+      totalRecursadas: 0,
+      totalDeferidas: 0,
+      totalIndeferidas: 0,
+      taxaSucessoRecurso: 0,
+      decisaoRecomendada: "pendente",
+      confianca: 0,
+      motivosComuns: [],
+    };
+  }
+}
+
+/**
+ * Classifica automaticamente glosas com base no histórico
+ */
+export async function classificarGlosasAutomaticamente(
+  convenioId?: number,
+  limiteConfianca: number = 70
+): Promise<{ classificados: number; erros: number }> {
+  const db = await getDb();
+  if (!db) return { classificados: 0, erros: 0 };
+
+  let classificados = 0;
+  let erros = 0;
+
+  try {
+    // Buscar procedimentos glosados pendentes de classificação
+    const conditions = [
+      eq(procedimentos.classificacaoGlosa, "pendente"),
+    ];
+
+    const procs = await db.select()
+      .from(procedimentos)
+      .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+      .where(and(...conditions))
+      .limit(500);
+
+    for (const { procedimentos: proc, arquivos: arq } of procs) {
+      if (convenioId && arq.convenioId !== convenioId) continue;
+
+      const extras = (proc.dadosExtras || {}) as Record<string, unknown>;
+      const motivoGlosa = (extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || "") as string;
+      const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
+
+      if (!codigoGlosa) continue;
+
+      // Buscar histórico para este código de glosa
+      const historico = await buscarHistoricoDecisoes(codigoGlosa, arq.convenioId);
+
+      if (historico.confianca >= limiteConfianca && historico.decisaoRecomendada !== "pendente") {
+        const classificacao = historico.decisaoRecomendada === "aceitar" ? "auto_aceitar" : "auto_recursar";
+        const sucesso = await atualizarClassificacaoProcedimento(
+          proc.id,
+          classificacao,
+          Math.round(historico.confianca),
+          `Classificado automaticamente com base em ${historico.totalDecisoes} decisões anteriores. Taxa de sucesso: ${historico.taxaSucessoRecurso.toFixed(1)}%`
+        );
+
+        if (sucesso) {
+          classificados++;
+        } else {
+          erros++;
+        }
+      }
+    }
+
+    return { classificados, erros };
+  } catch (error) {
+    console.error("[Database] Erro ao classificar glosas automaticamente:", error);
+    return { classificados, erros };
+  }
+}
+
+/**
+ * Busca sugestão de classificação para um item específico
+ */
+export async function sugerirClassificacaoGlosa(
+  codigoGlosa: string,
+  convenioId: number,
+  codigoProcedimento?: string
+): Promise<{
+  sugestao: "aceitar" | "recursar" | "pendente";
+  confianca: number;
+  baseadoEm: number;
+  taxaSucessoRecurso: number;
+  motivo: string;
+}> {
+  const historico = await buscarHistoricoDecisoes(codigoGlosa, convenioId);
+
+  let motivo = "";
+  if (historico.decisaoRecomendada === "aceitar") {
+    motivo = `Recomendado aceitar: ${historico.totalAceitas} de ${historico.totalDecisoes} decisões anteriores foram aceitas.`;
+    if (historico.taxaSucessoRecurso < 30 && historico.totalIndeferidas > 0) {
+      motivo += ` Taxa de sucesso em recursos: apenas ${historico.taxaSucessoRecurso.toFixed(0)}%.`;
+    }
+  } else if (historico.decisaoRecomendada === "recursar") {
+    motivo = `Recomendado recursar: ${historico.totalRecursadas} de ${historico.totalDecisoes} decisões anteriores foram recursadas.`;
+    if (historico.taxaSucessoRecurso >= 70) {
+      motivo += ` Taxa de sucesso em recursos: ${historico.taxaSucessoRecurso.toFixed(0)}%.`;
+    }
+  } else {
+    motivo = `Sem dados suficientes para recomendação (${historico.totalDecisoes} decisões registradas).`;
+  }
+
+  return {
+    sugestao: historico.decisaoRecomendada,
+    confianca: historico.confianca,
+    baseadoEm: historico.totalDecisoes,
+    taxaSucessoRecurso: historico.taxaSucessoRecurso,
+    motivo,
+  };
+}
+
+/**
+ * Atualiza resultado de recurso e registra para aprendizado
+ */
+export async function atualizarResultadoRecurso(
+  recursoId: number,
+  resultado: "deferido" | "deferido_parcial" | "indeferido",
+  valorRecuperado?: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    // Atualizar decisões de glosa relacionadas
+    await db.update(decisoesGlosa)
+      .set({
+        resultadoRecurso: resultado,
+        valorRecuperado: valorRecuperado?.toString() || null,
+      })
+      .where(eq(decisoesGlosa.recursoId, recursoId));
+
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar resultado de recurso:", error);
+    return false;
+  }
+}
+
+
+/**
+ * Atualiza o status dos procedimentos vinculados a um recurso
+ */
+export async function atualizarStatusProcedimentosPorRecurso(
+  recursoId: number,
+  novoStatus: "recurso_criado" | "recurso_enviado" | "recurso_deferido" | "recurso_indeferido"
+): Promise<boolean> {
+  const dbConn = await getDb();
+  if (!dbConn) return false;
+
+  try {
+    // Buscar todos os procedimentos vinculados a este recurso
+    await dbConn.update(procedimentos)
+      .set({
+        recursoStatus: novoStatus,
+      })
+      .where(eq(procedimentos.recursoId, recursoId));
+
+    console.log(`[Database] Status dos procedimentos do recurso ${recursoId} atualizado para ${novoStatus}`);
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar status dos procedimentos por recurso:", error);
+    return false;
+  }
 }
