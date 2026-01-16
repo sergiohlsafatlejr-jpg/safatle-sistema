@@ -3512,6 +3512,9 @@ export async function getItensGlosados(filters: {
     // Filtrar por código de glosa se especificado
     if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosa !== filters.codigoGlosa) continue;
 
+    // Excluir itens já aceitos (classificados como "aceitar") - eles aparecem apenas na aba Glosas Aceitas
+    if (proc.classificacaoGlosa === "aceitar") continue;
+
     itensGlosados.push({
       id: proc.id,
       codigo: proc.codigo,

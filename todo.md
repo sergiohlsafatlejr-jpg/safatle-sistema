@@ -147,3 +147,7 @@
 - [x] Implementar campos: código, nome, valor, vigência inicial, vigência final
 - [x] Criar importador de dados para tabelas (Excel, CSV, DBF)
 - [x] Criar aba de Glosas Aceitas na Análise de Glosa (separar itens aceitos)
+
+- [x] Remover itens aceitos da aba Itens Glosados (mostrar apenas na aba Glosas Aceitas)
+- [x] Implementar comparação de valores cobrados vs tabela de preços na aba Comparações
+- [x] Alertar automaticamente quando valor cobrado for diferente do valor da tabela vigente
