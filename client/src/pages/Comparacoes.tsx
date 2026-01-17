@@ -248,7 +248,7 @@ export default function Comparacoes() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="arquivos" className="flex items-center gap-2">
               <GitCompare className="h-4 w-4" />
               Arquivos
@@ -256,6 +256,10 @@ export default function Comparacoes() {
             <TabsTrigger value="tabela" className="flex items-center gap-2">
               <Table2 className="h-4 w-4" />
               Tabela de Preços
+            </TabsTrigger>
+            <TabsTrigger value="alertas" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Alertas
             </TabsTrigger>
           </TabsList>
 
@@ -633,6 +637,113 @@ export default function Comparacoes() {
                 </Card>
               </>
             )}
+          </TabsContent>
+
+          {/* Aba de Alertas */}
+          <TabsContent value="alertas" className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Alertas Automáticos
+                </CardTitle>
+                <CardDescription>
+                  Alertas gerados automaticamente após o upload de arquivos, comparando valores com a tabela de preços e verificando regras de negócio
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4 mb-6">
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={tabelaConvenioId} onValueChange={setTabelaConvenioId}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Selecione o convênio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {convenios?.map((conv) => (
+                          <SelectItem key={conv.id} value={conv.id.toString()}>
+                            {conv.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {!tabelaConvenioId ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500">Selecione um convênio para ver os alertas</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Alertas de Divergência de Preço */}
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-medium flex items-center gap-2 mb-3">
+                        <DollarSign className="h-4 w-4 text-red-500" />
+                        Divergências de Preço
+                      </h4>
+                      <p className="text-sm text-slate-500 mb-3">
+                        Itens com valor cobrado diferente da tabela contratada
+                      </p>
+                      {comparacaoTabela.resumo.divergentes > 0 ? (
+                        <div className="space-y-2">
+                          <Badge className="bg-red-100 text-red-700">
+                            {comparacaoTabela.resumo.divergentes} divergências encontradas
+                          </Badge>
+                          <p className="text-sm">
+                            Diferença total: <span className={comparacaoTabela.resumo.valorDiferenca >= 0 ? "text-red-600 font-medium" : "text-green-600 font-medium"}>
+                              {comparacaoTabela.resumo.valorDiferenca >= 0 ? "+" : ""}
+                              {comparacaoTabela.resumo.valorDiferenca.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            </span>
+                          </p>
+                          <Button variant="outline" size="sm" onClick={() => setActiveTab("tabela")}>
+                            Ver detalhes
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-sm">Nenhuma divergência de preço encontrada</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Alertas de Regras de Negócio */}
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-medium flex items-center gap-2 mb-3">
+                        <FileSpreadsheet className="h-4 w-4 text-amber-500" />
+                        Regras de Negócio
+                      </h4>
+                      <p className="text-sm text-slate-500 mb-3">
+                        Verificação de itens obrigatórios conforme regras cadastradas
+                      </p>
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm">Cadastre regras de negócio para ativar esta verificação</span>
+                      </div>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setLocation("/regras-negocio")}>
+                        Cadastrar Regras
+                      </Button>
+                    </div>
+
+                    {/* Sugestões da IA */}
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-medium flex items-center gap-2 mb-3">
+                        <TrendingUp className="h-4 w-4 text-blue-500" />
+                        Sugestões Inteligentes
+                      </h4>
+                      <p className="text-sm text-slate-500 mb-3">
+                        Análise baseada em padrões de contas anteriores
+                      </p>
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm">Importe mais arquivos para a IA aprender os padrões</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

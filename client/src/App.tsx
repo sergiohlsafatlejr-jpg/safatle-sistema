@@ -24,6 +24,7 @@ import HistoricoContestacoes from "./pages/HistoricoContestacoes";
 import Estabelecimentos from "./pages/Estabelecimentos";
 import RegrasConciliacao from "./pages/RegrasConciliacao";
 import TabelasPreco from "./pages/TabelasPreco";
+import RegrasNegocio from "./pages/RegrasNegocio";
 
 function Router() {
   return (
@@ -48,6 +49,7 @@ function Router() {
       <Route path={"/historico-contestacoes"} component={HistoricoContestacoes} />
       <Route path={"/estabelecimentos"} component={Estabelecimentos} />
       <Route path={"/tabelas-preco"} component={TabelasPreco} />
+      <Route path={"/regras-negocio"} component={RegrasNegocio} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

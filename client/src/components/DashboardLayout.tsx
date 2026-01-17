@@ -43,7 +43,8 @@ import {
   History,
   Building2,
   Sliders,
-  DollarSign
+  DollarSign,
+  Settings2
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -71,6 +72,7 @@ const menuItems = [
   { icon: Building2, label: "Estabelecimentos", path: "/estabelecimentos" },
   { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao" },
   { icon: DollarSign, label: "Tabelas de Preços", path: "/tabelas-preco" },
+  { icon: Settings2, label: "Regras de Negócio", path: "/regras-negocio" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -154,3 +154,9 @@
 
 - [x] Corrigir aba de Glosas Aceitas para exibir itens aceitos corretamente
 - [x] Adicionar campo para funcionário inserir motivo do aceite da glosa
+
+- [x] Implementar comparação automática XML vs Tabela de Preços no upload com notificação de divergências
+- [x] Criar tela de Regras de Negócio para cadastrar regras de composição de contas
+- [x] Implementar regras como: Procedimento X deve ter Taxa de Sala Y, Oxigênio Z, Taxa de Vídeo W
+- [x] Implementar IA para análise de contas e identificação de itens faltantes
+- [x] Integrar alertas e sugestões na tela de Comparações

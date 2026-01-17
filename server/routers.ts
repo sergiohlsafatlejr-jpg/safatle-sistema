@@ -318,6 +318,15 @@ export const appRouter = router({
             
             await db.updateArquivoStatus(arquivoId, "processado");
             await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
+            
+            // Executar comparação automática com tabela de preços e regras de negócio
+            try {
+              await db.compararComTabelaPrecos(arquivoId);
+              await db.verificarRegrasNegocio(arquivoId);
+            } catch (err) {
+              console.error("Erro na comparação automática:", err);
+              // Não falha o upload se a comparação falhar
+            }
           } else if (!parseResult.success) {
             await db.updateArquivoStatus(arquivoId, "erro");
           } else {
@@ -1695,6 +1704,194 @@ export const appRouter = router({
       .input(z.object({ convenioId: z.number().optional() }).optional())
       .query(async ({ input }) => {
         return db.getImportacoesTabela(input?.convenioId);
+      }),
+  }),
+
+  // ==================== REGRAS DE NEGÓCIO ====================
+  regrasNegocio: router({
+    // Listar regras
+    list: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        estabelecimentoId: z.number().optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getRegrasNegocio(input || {});
+      }),
+
+    // Obter regra por ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getRegraNegocioById(input.id);
+      }),
+
+    // Criar regra
+    create: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        estabelecimentoId: z.number().optional(),
+        nome: z.string().min(1),
+        descricao: z.string().optional(),
+        codigoProcedimentoPrincipal: z.string().min(1),
+        descricaoProcedimentoPrincipal: z.string().optional(),
+        tipoVerificacao: z.enum(["deve_conter", "nao_deve_conter", "pode_conter", "quantidade_minima", "quantidade_maxima"]),
+        acaoInconsistencia: z.enum(["alerta", "bloquear", "sugerir_adicao", "sugerir_remocao"]),
+        prioridade: z.number().optional(),
+        itens: z.array(z.object({
+          codigoItem: z.string().min(1),
+          descricaoItem: z.string().optional(),
+          tipoItem: z.enum(["procedimento", "taxa", "material", "medicamento", "diaria", "outros"]),
+          quantidadeMinima: z.number().optional(),
+          quantidadeMaxima: z.number().optional(),
+          valorEsperado: z.string().optional(),
+          toleranciaValor: z.string().optional(),
+          obrigatorio: z.enum(["sim", "nao"]).optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { itens, ...regraData } = input;
+        
+        // Criar regra
+        const regraId = await db.createRegraNegocio(regraData as any);
+        if (!regraId) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar regra" });
+        }
+        
+        // Adicionar itens
+        if (itens && itens.length > 0) {
+          for (const item of itens) {
+            await db.addItemRegraNegocio({
+              regraId,
+              ...item,
+            } as any);
+          }
+        }
+        
+        return { id: regraId };
+      }),
+
+    // Atualizar regra
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().optional(),
+        descricao: z.string().optional(),
+        codigoProcedimentoPrincipal: z.string().optional(),
+        descricaoProcedimentoPrincipal: z.string().optional(),
+        tipoVerificacao: z.enum(["deve_conter", "nao_deve_conter", "pode_conter", "quantidade_minima", "quantidade_maxima"]).optional(),
+        acaoInconsistencia: z.enum(["alerta", "bloquear", "sugerir_adicao", "sugerir_remocao"]).optional(),
+        prioridade: z.number().optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return db.updateRegraNegocio(id, data as any);
+      }),
+
+    // Excluir regra
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteRegraNegocio(input.id);
+      }),
+
+    // Adicionar item à regra
+    addItem: protectedProcedure
+      .input(z.object({
+        regraId: z.number(),
+        codigoItem: z.string().min(1),
+        descricaoItem: z.string().optional(),
+        tipoItem: z.enum(["procedimento", "taxa", "material", "medicamento", "diaria", "outros"]),
+        quantidadeMinima: z.number().optional(),
+        quantidadeMaxima: z.number().optional(),
+        valorEsperado: z.string().optional(),
+        toleranciaValor: z.string().optional(),
+        obrigatorio: z.enum(["sim", "nao"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.addItemRegraNegocio(input as any);
+      }),
+
+    // Remover item da regra
+    removeItem: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.removeItemRegraNegocio(input.id);
+      }),
+  }),
+
+  // ==================== ALERTAS DE DIVERGÊNCIA ====================
+  alertas: router({
+    // Listar alertas por arquivo
+    byArquivo: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getAlertasByArquivo(input.arquivoId);
+      }),
+
+    // Listar alertas pendentes
+    pendentes: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        tipoAlerta: z.string().optional(),
+        severidade: z.string().optional(),
+        page: z.number().optional(),
+        pageSize: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getAlertasPendentes(input || {});
+      }),
+
+    // Resumo de alertas por arquivo
+    resumo: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getResumoAlertasArquivo(input.arquivoId);
+      }),
+
+    // Atualizar status do alerta
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pendente", "analisando", "corrigido", "ignorado", "aceito"]),
+        observacao: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.updateAlertaStatus(input.id, input.status, ctx.user.id, input.observacao);
+      }),
+
+    // Executar comparação com tabela de preços
+    compararComTabela: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.compararComTabelaPrecos(input.arquivoId);
+      }),
+
+    // Verificar regras de negócio
+    verificarRegras: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.verificarRegrasNegocio(input.arquivoId);
+      }),
+
+    // Sugerir itens faltantes (IA)
+    sugerirItens: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.sugerirItensFaltantes(input.arquivoId);
+      }),
+
+    // Atualizar padrões de conta
+    atualizarPadroes: protectedProcedure
+      .input(z.object({
+        convenioId: z.number(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.atualizarPadroesContas(input.convenioId, input.estabelecimentoId);
+        return { success: true };
       }),
   }),
 });

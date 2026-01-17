@@ -31,6 +31,14 @@ import {
   InsertTabelaPreco,
   importacoesTabela,
   InsertImportacaoTabela,
+  regrasNegocio,
+  InsertRegraNegocio,
+  itensRegraNegocio,
+  InsertItemRegraNegocio,
+  alertasDivergencia,
+  InsertAlertaDivergencia,
+  padroesContas,
+  InsertPadraoConta,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -4410,4 +4418,694 @@ export async function getItensGlosadosAceitos(filters: {
   const paginatedItems = itensAceitos.slice(offset, offset + filters.pageSize);
 
   return { items: paginatedItems, total, totalValorGlosado };
+}
+
+
+// ==================== REGRAS DE NEGÓCIO ====================
+
+// Criar regra de negócio
+export async function createRegraNegocio(data: InsertRegraNegocio) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(regrasNegocio).values(data);
+  return result[0].insertId;
+}
+
+// Listar regras de negócio
+export async function getRegrasNegocio(filters: {
+  convenioId?: number;
+  estabelecimentoId?: number;
+  ativo?: "sim" | "nao";
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [];
+  
+  if (filters.convenioId) {
+    conditions.push(or(
+      eq(regrasNegocio.convenioId, filters.convenioId),
+      isNull(regrasNegocio.convenioId)
+    ));
+  }
+  
+  if (filters.estabelecimentoId) {
+    conditions.push(or(
+      eq(regrasNegocio.estabelecimentoId, filters.estabelecimentoId),
+      isNull(regrasNegocio.estabelecimentoId)
+    ));
+  }
+  
+  if (filters.ativo) {
+    conditions.push(eq(regrasNegocio.ativo, filters.ativo));
+  }
+  
+  const query = conditions.length > 0
+    ? db.select().from(regrasNegocio).where(and(...conditions)).orderBy(regrasNegocio.prioridade)
+    : db.select().from(regrasNegocio).orderBy(regrasNegocio.prioridade);
+  
+  return await query;
+}
+
+// Obter regra por ID com itens
+export async function getRegraNegocioById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const regra = await db.select().from(regrasNegocio).where(eq(regrasNegocio.id, id)).limit(1);
+  if (regra.length === 0) return null;
+  
+  const itens = await db.select().from(itensRegraNegocio).where(eq(itensRegraNegocio.regraId, id));
+  
+  return { ...regra[0], itens };
+}
+
+// Atualizar regra de negócio
+export async function updateRegraNegocio(id: number, data: Partial<InsertRegraNegocio>) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(regrasNegocio).set(data).where(eq(regrasNegocio.id, id));
+  return true;
+}
+
+// Excluir regra de negócio
+export async function deleteRegraNegocio(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  // Excluir itens primeiro
+  await db.delete(itensRegraNegocio).where(eq(itensRegraNegocio.regraId, id));
+  // Excluir regra
+  await db.delete(regrasNegocio).where(eq(regrasNegocio.id, id));
+  return true;
+}
+
+// Adicionar item à regra
+export async function addItemRegraNegocio(data: InsertItemRegraNegocio) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(itensRegraNegocio).values(data);
+  return result[0].insertId;
+}
+
+// Remover item da regra
+export async function removeItemRegraNegocio(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(itensRegraNegocio).where(eq(itensRegraNegocio.id, id));
+  return true;
+}
+
+// ==================== ALERTAS DE DIVERGÊNCIA ====================
+
+// Criar alerta de divergência
+export async function createAlertaDivergencia(data: InsertAlertaDivergencia) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(alertasDivergencia).values(data);
+  return result[0].insertId;
+}
+
+// Criar múltiplos alertas
+export async function createAlertasDivergenciaBatch(alertas: InsertAlertaDivergencia[]) {
+  const db = await getDb();
+  if (!db || alertas.length === 0) return 0;
+  
+  const result = await db.insert(alertasDivergencia).values(alertas);
+  return alertas.length;
+}
+
+// Listar alertas por arquivo
+export async function getAlertasByArquivo(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(alertasDivergencia)
+    .where(eq(alertasDivergencia.arquivoId, arquivoId))
+    .orderBy(desc(alertasDivergencia.severidade), alertasDivergencia.createdAt);
+}
+
+// Listar alertas pendentes
+export async function getAlertasPendentes(filters: {
+  convenioId?: number;
+  tipoAlerta?: string;
+  severidade?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  
+  const page = filters.page || 1;
+  const pageSize = filters.pageSize || 50;
+  
+  const conditions = [eq(alertasDivergencia.status, "pendente")];
+  
+  if (filters.tipoAlerta) {
+    conditions.push(eq(alertasDivergencia.tipoAlerta, filters.tipoAlerta as any));
+  }
+  
+  if (filters.severidade) {
+    conditions.push(eq(alertasDivergencia.severidade, filters.severidade as any));
+  }
+  
+  // Se filtrar por convênio, fazer join com arquivos
+  let query;
+  if (filters.convenioId) {
+    query = db.select({
+      alerta: alertasDivergencia,
+      arquivo: arquivos
+    })
+    .from(alertasDivergencia)
+    .innerJoin(arquivos, eq(alertasDivergencia.arquivoId, arquivos.id))
+    .where(and(...conditions, eq(arquivos.convenioId, filters.convenioId)))
+    .orderBy(desc(alertasDivergencia.severidade), desc(alertasDivergencia.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  } else {
+    query = db.select()
+      .from(alertasDivergencia)
+      .where(and(...conditions))
+      .orderBy(desc(alertasDivergencia.severidade), desc(alertasDivergencia.createdAt))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
+  }
+  
+  const items = await query;
+  
+  // Contar total
+  const countResult = await db.select({ count: sql<number>`count(*)` })
+    .from(alertasDivergencia)
+    .where(and(...conditions));
+  
+  return { items, total: countResult[0]?.count || 0 };
+}
+
+// Atualizar status do alerta
+export async function updateAlertaStatus(
+  id: number,
+  status: "pendente" | "analisando" | "corrigido" | "ignorado" | "aceito",
+  userId?: number,
+  observacao?: string
+) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const updateData: any = { status };
+  
+  if (status === "corrigido" || status === "ignorado" || status === "aceito") {
+    updateData.resolvidoPor = userId;
+    updateData.dataResolucao = new Date();
+    updateData.observacaoResolucao = observacao;
+  }
+  
+  await db.update(alertasDivergencia).set(updateData).where(eq(alertasDivergencia.id, id));
+  return true;
+}
+
+// ==================== COMPARAÇÃO AUTOMÁTICA ====================
+
+// Comparar procedimentos com tabela de preços
+export async function compararComTabelaPrecos(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return { alertas: [], resumo: { total: 0, divergencias: 0, valorDiferenca: 0 } };
+  
+  // Buscar arquivo e convênio
+  const arquivo = await db.select().from(arquivos).where(eq(arquivos.id, arquivoId)).limit(1);
+  if (arquivo.length === 0) return { alertas: [], resumo: { total: 0, divergencias: 0, valorDiferenca: 0 } };
+  
+  const convenioId = arquivo[0].convenioId;
+  
+  // Buscar procedimentos do arquivo
+  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  
+  // Buscar tabela de preços vigente do convênio
+  const hoje = new Date();
+  const tabela = await db.select()
+    .from(tabelasPreco)
+    .where(and(
+      eq(tabelasPreco.convenioId, convenioId),
+      eq(tabelasPreco.ativo, "sim"),
+      lte(tabelasPreco.vigenciaInicio, hoje),
+      or(
+        isNull(tabelasPreco.vigenciaFim),
+        gte(tabelasPreco.vigenciaFim, hoje)
+      )
+    ));
+  
+  // Criar mapa de preços por código
+  const precoMap = new Map<string, { valor: number; nome: string; tipo: string }>();
+  for (const item of tabela) {
+    precoMap.set(item.codigo, {
+      valor: parseFloat(item.valor),
+      nome: item.nome,
+      tipo: item.tipo
+    });
+  }
+  
+  const alertasParaCriar: InsertAlertaDivergencia[] = [];
+  let totalDivergencias = 0;
+  let valorTotalDiferenca = 0;
+  
+  for (const proc of procs) {
+    const precoTabela = precoMap.get(proc.codigo);
+    const valorCobrado = parseFloat(proc.valorUnitario || proc.valorTotal || "0");
+    
+    if (!precoTabela) {
+      // Código não encontrado na tabela
+      alertasParaCriar.push({
+        arquivoId,
+        procedimentoId: proc.id,
+        tipoAlerta: "codigo_invalido",
+        severidade: "media",
+        titulo: `Código não encontrado na tabela: ${proc.codigo}`,
+        descricao: `O código ${proc.codigo} (${proc.descricao || "Sem descrição"}) não foi encontrado na tabela de preços do convênio.`,
+        codigoItem: proc.codigo,
+        descricaoItem: proc.descricao || undefined,
+        guiaNumero: proc.guiaNumero || undefined,
+        valorCobrado: valorCobrado.toString(),
+        sugestaoCorrecao: "Verificar se o código está correto ou adicionar à tabela de preços.",
+        status: "pendente"
+      });
+      totalDivergencias++;
+    } else if (Math.abs(valorCobrado - precoTabela.valor) > 0.01) {
+      // Valor divergente
+      const diferenca = valorCobrado - precoTabela.valor;
+      valorTotalDiferenca += Math.abs(diferenca);
+      
+      alertasParaCriar.push({
+        arquivoId,
+        procedimentoId: proc.id,
+        tipoAlerta: "valor_divergente",
+        severidade: diferenca > 0 ? "alta" : "media",
+        titulo: `Valor divergente: ${proc.codigo}`,
+        descricao: `O valor cobrado (R$ ${valorCobrado.toFixed(2)}) difere do valor da tabela (R$ ${precoTabela.valor.toFixed(2)}). Diferença: R$ ${diferenca.toFixed(2)}`,
+        codigoItem: proc.codigo,
+        descricaoItem: proc.descricao || undefined,
+        guiaNumero: proc.guiaNumero || undefined,
+        valorCobrado: valorCobrado.toString(),
+        valorEsperado: precoTabela.valor.toString(),
+        diferenca: diferenca.toString(),
+        sugestaoCorrecao: diferenca > 0 
+          ? `Reduzir o valor para R$ ${precoTabela.valor.toFixed(2)} conforme tabela.`
+          : `Valor cobrado abaixo da tabela. Verificar se está correto.`,
+        status: "pendente"
+      });
+      totalDivergencias++;
+    }
+  }
+  
+  // Criar alertas em batch
+  if (alertasParaCriar.length > 0) {
+    await createAlertasDivergenciaBatch(alertasParaCriar);
+  }
+  
+  return {
+    alertas: alertasParaCriar,
+    resumo: {
+      total: procs.length,
+      divergencias: totalDivergencias,
+      valorDiferenca: valorTotalDiferenca
+    }
+  };
+}
+
+// Verificar regras de negócio para um arquivo
+export async function verificarRegrasNegocio(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return { alertas: [], resumo: { total: 0, violacoes: 0 } };
+  
+  // Buscar arquivo e convênio
+  const arquivo = await db.select().from(arquivos).where(eq(arquivos.id, arquivoId)).limit(1);
+  if (arquivo.length === 0) return { alertas: [], resumo: { total: 0, violacoes: 0 } };
+  
+  const convenioId = arquivo[0].convenioId;
+  const estabelecimentoId = arquivo[0].estabelecimentoId;
+  
+  // Buscar procedimentos do arquivo
+  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  
+  // Criar mapa de códigos presentes na conta
+  const codigosPresentes = new Map<string, { quantidade: number; valor: number; descricao: string }>();
+  for (const proc of procs) {
+    const existing = codigosPresentes.get(proc.codigo);
+    const valor = parseFloat(proc.valorTotal || "0");
+    if (existing) {
+      existing.quantidade += proc.quantidade || 1;
+      existing.valor += valor;
+    } else {
+      codigosPresentes.set(proc.codigo, {
+        quantidade: proc.quantidade || 1,
+        valor,
+        descricao: proc.descricao || ""
+      });
+    }
+  }
+  
+  // Buscar regras aplicáveis
+  const regras = await db.select()
+    .from(regrasNegocio)
+    .where(and(
+      eq(regrasNegocio.ativo, "sim"),
+      or(
+        eq(regrasNegocio.convenioId, convenioId),
+        isNull(regrasNegocio.convenioId)
+      ),
+      or(
+        eq(regrasNegocio.estabelecimentoId, estabelecimentoId || 0),
+        isNull(regrasNegocio.estabelecimentoId)
+      )
+    ))
+    .orderBy(regrasNegocio.prioridade);
+  
+  const alertasParaCriar: InsertAlertaDivergencia[] = [];
+  let totalViolacoes = 0;
+  
+  for (const regra of regras) {
+    // Verificar se o procedimento principal está na conta
+    const procPrincipal = codigosPresentes.get(regra.codigoProcedimentoPrincipal);
+    
+    if (!procPrincipal) continue; // Regra não se aplica a esta conta
+    
+    // Buscar itens da regra
+    const itensRegra = await db.select()
+      .from(itensRegraNegocio)
+      .where(eq(itensRegraNegocio.regraId, regra.id));
+    
+    for (const itemRegra of itensRegra) {
+      const itemPresente = codigosPresentes.get(itemRegra.codigoItem);
+      
+      if (regra.tipoVerificacao === "deve_conter" && itemRegra.obrigatorio === "sim") {
+        if (!itemPresente) {
+          // Item obrigatório não encontrado
+          alertasParaCriar.push({
+            arquivoId,
+            regraId: regra.id,
+            tipoAlerta: "item_faltante",
+            severidade: "alta",
+            titulo: `Item obrigatório faltando: ${itemRegra.codigoItem}`,
+            descricao: `A regra "${regra.nome}" exige que o procedimento ${regra.codigoProcedimentoPrincipal} tenha o item ${itemRegra.codigoItem} (${itemRegra.descricaoItem || ""}), mas ele não foi encontrado na conta.`,
+            codigoItem: itemRegra.codigoItem,
+            descricaoItem: itemRegra.descricaoItem || undefined,
+            valorEsperado: itemRegra.valorEsperado?.toString(),
+            sugestaoCorrecao: `Adicionar o item ${itemRegra.codigoItem} à conta.`,
+            status: "pendente"
+          });
+          totalViolacoes++;
+        } else if (itemRegra.quantidadeMinima && itemPresente.quantidade < itemRegra.quantidadeMinima) {
+          // Quantidade insuficiente
+          alertasParaCriar.push({
+            arquivoId,
+            regraId: regra.id,
+            tipoAlerta: "quantidade_incorreta",
+            severidade: "media",
+            titulo: `Quantidade insuficiente: ${itemRegra.codigoItem}`,
+            descricao: `A regra "${regra.nome}" exige no mínimo ${itemRegra.quantidadeMinima} unidades de ${itemRegra.codigoItem}, mas foram encontradas apenas ${itemPresente.quantidade}.`,
+            codigoItem: itemRegra.codigoItem,
+            descricaoItem: itemRegra.descricaoItem || undefined,
+            sugestaoCorrecao: `Aumentar a quantidade de ${itemRegra.codigoItem} para ${itemRegra.quantidadeMinima}.`,
+            status: "pendente"
+          });
+          totalViolacoes++;
+        }
+      } else if (regra.tipoVerificacao === "nao_deve_conter" && itemPresente) {
+        // Item proibido encontrado
+        alertasParaCriar.push({
+          arquivoId,
+          regraId: regra.id,
+          tipoAlerta: "item_nao_permitido",
+          severidade: "alta",
+          titulo: `Item não permitido: ${itemRegra.codigoItem}`,
+          descricao: `A regra "${regra.nome}" indica que o procedimento ${regra.codigoProcedimentoPrincipal} NÃO deve ter o item ${itemRegra.codigoItem}, mas ele foi encontrado na conta.`,
+          codigoItem: itemRegra.codigoItem,
+          descricaoItem: itemRegra.descricaoItem || undefined,
+          valorCobrado: itemPresente.valor.toString(),
+          sugestaoCorrecao: `Remover o item ${itemRegra.codigoItem} da conta.`,
+          status: "pendente"
+        });
+        totalViolacoes++;
+      } else if (regra.tipoVerificacao === "quantidade_maxima" && itemPresente) {
+        if (itemRegra.quantidadeMaxima && itemPresente.quantidade > itemRegra.quantidadeMaxima) {
+          // Quantidade excedida
+          alertasParaCriar.push({
+            arquivoId,
+            regraId: regra.id,
+            tipoAlerta: "quantidade_incorreta",
+            severidade: "media",
+            titulo: `Quantidade excedida: ${itemRegra.codigoItem}`,
+            descricao: `A regra "${regra.nome}" permite no máximo ${itemRegra.quantidadeMaxima} unidades de ${itemRegra.codigoItem}, mas foram encontradas ${itemPresente.quantidade}.`,
+            codigoItem: itemRegra.codigoItem,
+            descricaoItem: itemRegra.descricaoItem || undefined,
+            sugestaoCorrecao: `Reduzir a quantidade de ${itemRegra.codigoItem} para ${itemRegra.quantidadeMaxima}.`,
+            status: "pendente"
+          });
+          totalViolacoes++;
+        }
+      }
+    }
+  }
+  
+  // Criar alertas em batch
+  if (alertasParaCriar.length > 0) {
+    await createAlertasDivergenciaBatch(alertasParaCriar);
+  }
+  
+  return {
+    alertas: alertasParaCriar,
+    resumo: {
+      total: regras.length,
+      violacoes: totalViolacoes
+    }
+  };
+}
+
+// ==================== PADRÕES DE CONTA (IA) ====================
+
+// Atualizar padrões de conta baseado em contas processadas
+export async function atualizarPadroesContas(convenioId: number, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) return;
+  
+  // Buscar arquivos do convênio
+  const arquivosConvenio = await db.select()
+    .from(arquivos)
+    .where(and(
+      eq(arquivos.convenioId, convenioId),
+      eq(arquivos.direcao, "enviado"),
+      eq(arquivos.status, "processado")
+    ))
+    .limit(100); // Últimos 100 arquivos
+  
+  if (arquivosConvenio.length === 0) return;
+  
+  // Buscar todos os procedimentos desses arquivos
+  const arquivoIds = arquivosConvenio.map(a => a.id);
+  const todosProcs = await db.select()
+    .from(procedimentos)
+    .where(inArray(procedimentos.arquivoId, arquivoIds));
+  
+  // Agrupar por guia para identificar contas
+  const contasPorGuia = new Map<string, typeof todosProcs>();
+  for (const proc of todosProcs) {
+    const guia = proc.guiaNumero || `arquivo_${proc.arquivoId}`;
+    const existing = contasPorGuia.get(guia) || [];
+    existing.push(proc);
+    contasPorGuia.set(guia, existing);
+  }
+  
+  // Analisar padrões
+  const padroes = new Map<string, {
+    codigoPrincipal: string;
+    descricao: string;
+    itensAssociados: Map<string, { codigo: string; descricao: string; ocorrencias: number; valorTotal: number }>;
+    totalOcorrencias: number;
+    valorTotalContas: number;
+  }>();
+  
+  for (const [guia, procsGuia] of Array.from(contasPorGuia)) {
+    // Identificar procedimento principal (maior valor ou primeiro)
+    const procPrincipal = procsGuia.reduce((a: any, b: any) => 
+      parseFloat(a.valorTotal || "0") > parseFloat(b.valorTotal || "0") ? a : b
+    );
+    
+    const key = procPrincipal.codigo;
+    const padrao = padroes.get(key) || {
+      codigoPrincipal: procPrincipal.codigo,
+      descricao: procPrincipal.descricao || "",
+      itensAssociados: new Map<string, { codigo: string; descricao: string; ocorrencias: number; valorTotal: number }>(),
+      totalOcorrencias: 0,
+      valorTotalContas: 0
+    };
+    
+    padrao.totalOcorrencias++;
+    padrao.valorTotalContas += procsGuia.reduce((sum: number, p: any) => sum + parseFloat(p.valorTotal || "0"), 0);
+    
+    // Registrar itens associados
+    for (const proc of procsGuia) {
+      if (proc.codigo === procPrincipal.codigo) continue;
+      
+      const item = padrao.itensAssociados.get(proc.codigo) || {
+        codigo: proc.codigo,
+        descricao: proc.descricao || "",
+        ocorrencias: 0,
+        valorTotal: 0
+      };
+      item.ocorrencias++;
+      item.valorTotal += parseFloat(proc.valorTotal || "0");
+      padrao.itensAssociados.set(proc.codigo, item);
+    }
+    
+    padroes.set(key, padrao);
+  }
+  
+  // Salvar padrões no banco
+  for (const [codigo, padrao] of Array.from(padroes)) {
+    if (padrao.totalOcorrencias < 3) continue; // Ignorar padrões com poucas ocorrências
+    
+    type ItemAssociado = { codigo: string; descricao: string; ocorrencias: number; valorTotal: number };
+    const itensArray = (Array.from(padrao.itensAssociados.values()) as ItemAssociado[])
+      .filter(item => item.ocorrencias >= 2) // Itens que aparecem em pelo menos 2 contas
+      .map(item => ({
+        codigo: item.codigo,
+        descricao: item.descricao,
+        frequencia: Math.round((item.ocorrencias / padrao.totalOcorrencias) * 100),
+        valorMedio: item.valorTotal / item.ocorrencias
+      }))
+      .sort((a, b) => b.frequencia - a.frequencia);
+    
+    // Verificar se já existe padrão
+    const existente = await db.select()
+      .from(padroesContas)
+      .where(and(
+        eq(padroesContas.convenioId, convenioId),
+        eq(padroesContas.codigoProcedimentoPrincipal, codigo)
+      ))
+      .limit(1);
+    
+    if (existente.length > 0) {
+      // Atualizar
+      await db.update(padroesContas)
+        .set({
+          itensAssociados: itensArray,
+          totalOcorrencias: padrao.totalOcorrencias,
+          valorMedioConta: (padrao.valorTotalContas / padrao.totalOcorrencias).toFixed(2),
+          ultimaAtualizacao: new Date()
+        })
+        .where(eq(padroesContas.id, existente[0].id));
+    } else {
+      // Criar
+      await db.insert(padroesContas).values({
+        convenioId,
+        estabelecimentoId,
+        codigoProcedimentoPrincipal: codigo,
+        descricaoProcedimentoPrincipal: padrao.descricao,
+        itensAssociados: itensArray,
+        totalOcorrencias: padrao.totalOcorrencias,
+        valorMedioConta: (padrao.valorTotalContas / padrao.totalOcorrencias).toFixed(2)
+      });
+    }
+  }
+}
+
+// Sugerir itens faltantes baseado em padrões
+export async function sugerirItensFaltantes(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Buscar arquivo e convênio
+  const arquivo = await db.select().from(arquivos).where(eq(arquivos.id, arquivoId)).limit(1);
+  if (arquivo.length === 0) return [];
+  
+  const convenioId = arquivo[0].convenioId;
+  
+  // Buscar procedimentos do arquivo
+  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  
+  // Criar set de códigos presentes
+  const codigosPresentes = new Set(procs.map(p => p.codigo));
+  
+  // Buscar padrões para os procedimentos principais
+  const sugestoes: Array<{
+    codigoPrincipal: string;
+    itemSugerido: string;
+    descricaoItem: string;
+    frequencia: number;
+    valorMedio: number;
+    motivo: string;
+  }> = [];
+  
+  for (const proc of procs) {
+    const padrao = await db.select()
+      .from(padroesContas)
+      .where(and(
+        eq(padroesContas.convenioId, convenioId),
+        eq(padroesContas.codigoProcedimentoPrincipal, proc.codigo)
+      ))
+      .limit(1);
+    
+    if (padrao.length === 0) continue;
+    
+    const itensAssociados = padrao[0].itensAssociados as Array<{
+      codigo: string;
+      descricao: string;
+      frequencia: number;
+      valorMedio: number;
+    }> || [];
+    
+    for (const item of itensAssociados) {
+      if (item.frequencia >= 70 && !codigosPresentes.has(item.codigo)) {
+        sugestoes.push({
+          codigoPrincipal: proc.codigo,
+          itemSugerido: item.codigo,
+          descricaoItem: item.descricao,
+          frequencia: item.frequencia,
+          valorMedio: item.valorMedio,
+          motivo: `Este item aparece em ${item.frequencia}% das contas com o procedimento ${proc.codigo}`
+        });
+      }
+    }
+  }
+  
+  return sugestoes;
+}
+
+// Resumo de alertas por arquivo
+export async function getResumoAlertasArquivo(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const alertas = await db.select()
+    .from(alertasDivergencia)
+    .where(eq(alertasDivergencia.arquivoId, arquivoId));
+  
+  const resumo = {
+    total: alertas.length,
+    pendentes: 0,
+    corrigidos: 0,
+    ignorados: 0,
+    porTipo: {} as Record<string, number>,
+    porSeveridade: {} as Record<string, number>,
+    valorTotalDivergencia: 0
+  };
+  
+  for (const alerta of alertas) {
+    if (alerta.status === "pendente") resumo.pendentes++;
+    else if (alerta.status === "corrigido") resumo.corrigidos++;
+    else if (alerta.status === "ignorado") resumo.ignorados++;
+    
+    resumo.porTipo[alerta.tipoAlerta] = (resumo.porTipo[alerta.tipoAlerta] || 0) + 1;
+    resumo.porSeveridade[alerta.severidade] = (resumo.porSeveridade[alerta.severidade] || 0) + 1;
+    
+    if (alerta.diferenca) {
+      resumo.valorTotalDivergencia += Math.abs(parseFloat(alerta.diferenca));
+    }
+  }
+  
+  return resumo;
 }

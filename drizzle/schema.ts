@@ -576,3 +576,189 @@ export const importacoesTabela = mysqlTable("importacoesTabela", {
 
 export type ImportacaoTabela = typeof importacoesTabela.$inferSelect;
 export type InsertImportacaoTabela = typeof importacoesTabela.$inferInsert;
+
+
+/**
+ * Regras de Negócio - Composição de contas
+ * Ex: Procedimento X deve ter Taxa de Sala Y, Oxigênio Z, Taxa de Vídeo W
+ */
+export const regrasNegocio = mysqlTable("regrasNegocio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId"), // Null = regra geral para todos os convênios
+  estabelecimentoId: int("estabelecimentoId"), // Null = regra geral para todos os estabelecimentos
+  
+  // Nome da regra para identificação
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  
+  // Procedimento principal que dispara a regra
+  codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
+  descricaoProcedimentoPrincipal: varchar("descricaoProcedimentoPrincipal", { length: 255 }),
+  
+  // Tipo de verificação
+  tipoVerificacao: mysqlEnum("tipoVerificacao", [
+    "deve_conter",       // A conta DEVE conter os itens obrigatórios
+    "nao_deve_conter",   // A conta NÃO deve conter os itens
+    "pode_conter",       // A conta PODE conter (opcional, mas validar valor)
+    "quantidade_minima", // Deve ter quantidade mínima do item
+    "quantidade_maxima"  // Não pode exceder quantidade máxima
+  ]).default("deve_conter").notNull(),
+  
+  // Ação quando a regra não for atendida
+  acaoInconsistencia: mysqlEnum("acaoInconsistencia", [
+    "alerta",            // Apenas alertar
+    "bloquear",          // Bloquear envio até correção
+    "sugerir_adicao",    // Sugerir adição do item faltante
+    "sugerir_remocao"    // Sugerir remoção do item
+  ]).default("alerta").notNull(),
+  
+  // Prioridade (1 = mais alta)
+  prioridade: int("prioridade").default(5),
+  
+  // Controle
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RegraNegocio = typeof regrasNegocio.$inferSelect;
+export type InsertRegraNegocio = typeof regrasNegocio.$inferInsert;
+
+/**
+ * Itens das Regras de Negócio - Itens obrigatórios/proibidos para cada regra
+ */
+export const itensRegraNegocio = mysqlTable("itensRegraNegocio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  regraId: int("regraId").notNull(),
+  
+  // Item obrigatório/proibido
+  codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
+  descricaoItem: varchar("descricaoItem", { length: 255 }),
+  
+  // Tipo do item
+  tipoItem: mysqlEnum("tipoItem", [
+    "procedimento",
+    "taxa",
+    "material",
+    "medicamento",
+    "diaria",
+    "outros"
+  ]).notNull(),
+  
+  // Quantidade esperada (para regras de quantidade)
+  quantidadeMinima: int("quantidadeMinima").default(1),
+  quantidadeMaxima: int("quantidadeMaxima"),
+  
+  // Valor esperado (para validação de preço)
+  valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
+  toleranciaValor: decimal("toleranciaValor", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Obrigatoriedade
+  obrigatorio: mysqlEnum("obrigatorio", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ItemRegraNegocio = typeof itensRegraNegocio.$inferSelect;
+export type InsertItemRegraNegocio = typeof itensRegraNegocio.$inferInsert;
+
+/**
+ * Alertas de Divergência - Divergências encontradas nas contas
+ */
+export const alertasDivergencia = mysqlTable("alertasDivergencia", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  arquivoId: int("arquivoId").notNull(),
+  procedimentoId: int("procedimentoId"), // Procedimento que gerou o alerta
+  regraId: int("regraId"), // Regra de negócio violada (se aplicável)
+  
+  // Tipo de alerta
+  tipoAlerta: mysqlEnum("tipoAlerta", [
+    "valor_divergente",      // Valor cobrado diferente da tabela
+    "item_faltante",         // Item obrigatório não encontrado
+    "item_nao_permitido",    // Item que não deveria estar na conta
+    "quantidade_incorreta",  // Quantidade fora do esperado
+    "codigo_invalido",       // Código não encontrado na tabela
+    "regra_negocio",         // Violação de regra de negócio
+    "sugestao_ia"            // Sugestão da IA
+  ]).notNull(),
+  
+  // Severidade
+  severidade: mysqlEnum("severidade", [
+    "baixa",
+    "media",
+    "alta",
+    "critica"
+  ]).default("media").notNull(),
+  
+  // Detalhes do alerta
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao").notNull(),
+  
+  // Valores para divergência de preço
+  valorCobrado: decimal("valorCobrado", { precision: 12, scale: 2 }),
+  valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
+  diferenca: decimal("diferenca", { precision: 12, scale: 2 }),
+  
+  // Código e descrição do item relacionado
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  descricaoItem: varchar("descricaoItem", { length: 255 }),
+  
+  // Guia relacionada
+  guiaNumero: varchar("guiaNumero", { length: 100 }),
+  
+  // Sugestão de correção
+  sugestaoCorrecao: text("sugestaoCorrecao"),
+  
+  // Status do alerta
+  status: mysqlEnum("status", [
+    "pendente",      // Aguardando análise
+    "analisando",    // Em análise
+    "corrigido",     // Corrigido pelo usuário
+    "ignorado",      // Ignorado (não é problema)
+    "aceito"         // Aceito como está
+  ]).default("pendente").notNull(),
+  
+  // Resolução
+  resolvidoPor: int("resolvidoPor"),
+  dataResolucao: timestamp("dataResolucao"),
+  observacaoResolucao: text("observacaoResolucao"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlertaDivergencia = typeof alertasDivergencia.$inferSelect;
+export type InsertAlertaDivergencia = typeof alertasDivergencia.$inferInsert;
+
+/**
+ * Padrões de Conta - Aprendizado de padrões para sugestões da IA
+ */
+export const padroesContas = mysqlTable("padroesContas", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  convenioId: int("convenioId"),
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Procedimento principal
+  codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
+  descricaoProcedimentoPrincipal: varchar("descricaoProcedimentoPrincipal", { length: 255 }),
+  
+  // Itens frequentemente associados (JSON array)
+  itensAssociados: json("itensAssociados"), // [{codigo, descricao, frequencia, valorMedio}]
+  
+  // Estatísticas
+  totalOcorrencias: int("totalOcorrencias").default(0),
+  valorMedioConta: decimal("valorMedioConta", { precision: 12, scale: 2 }),
+  
+  // Última atualização do padrão
+  ultimaAtualizacao: timestamp("ultimaAtualizacao").defaultNow().notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PadraoConta = typeof padroesContas.$inferSelect;
+export type InsertPadraoConta = typeof padroesContas.$inferInsert;
