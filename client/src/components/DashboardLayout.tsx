@@ -49,7 +49,8 @@ import {
   DollarSign,
   Settings2,
   LayoutGrid,
-  Shield
+  Shield,
+  Activity
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -80,6 +81,7 @@ const menuItems = [
   { icon: Settings2, label: "Regras de Negócio", path: "/regras-negocio" },
   { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado" },
   { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes" },
+  { icon: Activity, label: "Produtividade", path: "/produtividade" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

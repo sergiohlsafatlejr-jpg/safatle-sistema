@@ -193,3 +193,6 @@
 - [x] Atualizar registros antigos no banco de dados para associá-los ao estabelecimento correto
 - [x] Criar dashboard consolidado com opção de visualizar dados de todos os estabelecimentos para gestores
 - [x] Implementar controle de acesso e permissões por estabelecimento (usuários veem apenas estabelecimentos autorizados)
+
+- [x] Adicionar filtro por status de classificação (Pendente, Aceita, Recursar) na aba de Itens Glosados
+- [x] Criar dashboard de produtividade com métricas de itens classificados por dia/usuário

@@ -99,6 +99,7 @@ export default function AnaliseGlosa() {
   const [convenioItens, setConvenioItens] = useState<string>("todos");
   const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
   const [codigoGlosaFiltro, setCodigoGlosaFiltro] = useState<string>("todos");
+  const [classificacaoFiltro, setClassificacaoFiltro] = useState<string>("todos");
   const [buscaItens, setBuscaItens] = useState("");
   const [dataReferenciaInicio, setDataReferenciaInicio] = useState<string>("");
   const [dataReferenciaFim, setDataReferenciaFim] = useState<string>("");
@@ -140,6 +141,7 @@ export default function AnaliseGlosa() {
       convenioId: convenioItens !== "todos" ? parseInt(convenioItens) : undefined,
       tipo: tipoFiltro !== "todos" ? tipoFiltro : undefined,
       codigoGlosa: codigoGlosaFiltro !== "todos" ? codigoGlosaFiltro : undefined,
+      classificacao: classificacaoFiltro !== "todos" ? classificacaoFiltro as "pendente" | "aceitar" | "recursar" : undefined,
       search: buscaItens || undefined,
       dataReferenciaInicio: dataReferenciaInicio ? new Date(dataReferenciaInicio) : undefined,
       dataReferenciaFim: dataReferenciaFim ? new Date(dataReferenciaFim) : undefined,
@@ -681,7 +683,7 @@ export default function AnaliseGlosa() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Convênio</label>
                     <Select value={convenioItens} onValueChange={(v) => { setConvenioItens(v); setPaginaAtual(1); }}>
@@ -742,6 +744,35 @@ export default function AnaliseGlosa() {
                             );
                           })
                         }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Classificação</label>
+                    <Select value={classificacaoFiltro} onValueChange={(v) => { setClassificacaoFiltro(v); setPaginaAtual(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas</SelectItem>
+                        <SelectItem value="pendente">
+                          <span className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 text-gray-500" />
+                            Pendentes
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="aceitar">
+                          <span className="flex items-center gap-2">
+                            <ThumbsUp className="h-3 w-3 text-green-500" />
+                            Aceitas
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="recursar">
+                          <span className="flex items-center gap-2">
+                            <ThumbsDown className="h-3 w-3 text-orange-500" />
+                            Para Recursar
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -3382,6 +3382,7 @@ export async function getItensGlosados(filters: {
   dataReferenciaFim?: Date;
   tipo?: string;
   codigoGlosa?: string;
+  classificacao?: "todos" | "pendente" | "aceitar" | "recursar";
   search?: string;
   page: number;
   pageSize: number;
@@ -3524,8 +3525,15 @@ export async function getItensGlosados(filters: {
     // Filtrar por código de glosa se especificado
     if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosa !== filters.codigoGlosa) continue;
 
-    // Excluir itens já aceitos (classificados como "aceitar") - eles aparecem apenas na aba Glosas Aceitas
-    if (proc.classificacaoGlosa === "aceitar") continue;
+    // Filtrar por classificação se especificado
+    if (filters.classificacao && filters.classificacao !== "todos") {
+      if (filters.classificacao === "pendente" && proc.classificacaoGlosa && proc.classificacaoGlosa !== "pendente") continue;
+      if (filters.classificacao === "aceitar" && proc.classificacaoGlosa !== "aceitar" && proc.classificacaoGlosa !== "auto_aceitar") continue;
+      if (filters.classificacao === "recursar" && proc.classificacaoGlosa !== "recursar" && proc.classificacaoGlosa !== "auto_recursar") continue;
+    } else {
+      // Por padrão, excluir itens já aceitos (classificados como "aceitar") - eles aparecem apenas na aba Glosas Aceitas
+      if (proc.classificacaoGlosa === "aceitar" || proc.classificacaoGlosa === "auto_aceitar") continue;
+    }
 
     itensGlosados.push({
       id: proc.id,
@@ -5611,4 +5619,232 @@ export async function getComparativoGlosasEstabelecimentos(userId: number, perio
   }
 
   return comparativo.sort((a, b) => b.valorGlosado - a.valorGlosado);
+}
+
+
+// ==================== MÉTRICAS DE PRODUTIVIDADE ====================
+
+/**
+ * Busca métricas de produtividade de classificação de glosas
+ */
+export async function getMetricasProdutividade(filters: {
+  userId?: number;
+  estabelecimentoId?: number;
+  dataInicio?: Date;
+  dataFim?: Date;
+}): Promise<{
+  porDia: Array<{
+    data: string;
+    totalClassificados: number;
+    aceitas: number;
+    recursadas: number;
+    valorAceito: number;
+    valorRecursado: number;
+  }>;
+  porUsuario: Array<{
+    userId: number;
+    userName: string;
+    totalClassificados: number;
+    aceitas: number;
+    recursadas: number;
+    valorAceito: number;
+    valorRecursado: number;
+    tempoMedioClassificacao: number;
+  }>;
+  totais: {
+    totalClassificados: number;
+    totalAceitas: number;
+    totalRecursadas: number;
+    totalPendentes: number;
+    valorTotalAceito: number;
+    valorTotalRecursado: number;
+    taxaClassificacao: number;
+  };
+}> {
+  const db = await getDb();
+  if (!db) return {
+    porDia: [],
+    porUsuario: [],
+    totais: {
+      totalClassificados: 0,
+      totalAceitas: 0,
+      totalRecursadas: 0,
+      totalPendentes: 0,
+      valorTotalAceito: 0,
+      valorTotalRecursado: 0,
+      taxaClassificacao: 0,
+    },
+  };
+
+  // Buscar decisões de glosa
+  const conditions: any[] = [];
+  
+  if (filters.dataInicio) {
+    conditions.push(gte(decisoesGlosa.createdAt, filters.dataInicio));
+  }
+  
+  if (filters.dataFim) {
+    conditions.push(lte(decisoesGlosa.createdAt, filters.dataFim));
+  }
+
+  const decisoes = await db
+    .select()
+    .from(decisoesGlosa)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(decisoesGlosa.createdAt));
+
+  // Buscar usuários para mapear nomes
+  const userIds = Array.from(new Set(decisoes.filter(d => d.userId).map(d => d.userId!)));
+  const usuarios = userIds.length > 0 ? await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(inArray(users.id, userIds)) : [];
+  const userMap = new Map(usuarios.map(u => [u.id, u.name]));
+
+  // Agrupar por dia
+  const porDiaMap: { [key: string]: {
+    totalClassificados: number;
+    aceitas: number;
+    recursadas: number;
+    valorAceito: number;
+    valorRecursado: number;
+  }} = {};
+
+  // Agrupar por usuário
+  const porUsuarioMap: { [key: number]: {
+    totalClassificados: number;
+    aceitas: number;
+    recursadas: number;
+    valorAceito: number;
+    valorRecursado: number;
+    timestamps: number[];
+  }} = {};
+
+  let totalAceitas = 0;
+  let totalRecursadas = 0;
+  let valorTotalAceito = 0;
+  let valorTotalRecursado = 0;
+
+  for (const decisao of decisoes) {
+    const data = decisao.createdAt ? new Date(decisao.createdAt).toISOString().split('T')[0] : 'N/A';
+    const valor = parseFloat(String(decisao.valorGlosado || 0));
+    const isAceita = decisao.decisao === 'aceitar';
+    const isRecursada = decisao.decisao === 'recursar';
+
+    // Por dia
+    if (!porDiaMap[data]) {
+      porDiaMap[data] = { totalClassificados: 0, aceitas: 0, recursadas: 0, valorAceito: 0, valorRecursado: 0 };
+    }
+    porDiaMap[data].totalClassificados++;
+    if (isAceita) {
+      porDiaMap[data].aceitas++;
+      porDiaMap[data].valorAceito += valor;
+      totalAceitas++;
+      valorTotalAceito += valor;
+    }
+    if (isRecursada) {
+      porDiaMap[data].recursadas++;
+      porDiaMap[data].valorRecursado += valor;
+      totalRecursadas++;
+      valorTotalRecursado += valor;
+    }
+
+    // Por usuário
+    if (decisao.userId) {
+      if (!porUsuarioMap[decisao.userId]) {
+        porUsuarioMap[decisao.userId] = { 
+          totalClassificados: 0, aceitas: 0, recursadas: 0, 
+          valorAceito: 0, valorRecursado: 0, timestamps: [] 
+        };
+      }
+      porUsuarioMap[decisao.userId].totalClassificados++;
+      if (decisao.createdAt) {
+        porUsuarioMap[decisao.userId].timestamps.push(new Date(decisao.createdAt).getTime());
+      }
+      if (isAceita) {
+        porUsuarioMap[decisao.userId].aceitas++;
+        porUsuarioMap[decisao.userId].valorAceito += valor;
+      }
+      if (isRecursada) {
+        porUsuarioMap[decisao.userId].recursadas++;
+        porUsuarioMap[decisao.userId].valorRecursado += valor;
+      }
+    }
+  }
+
+  // Converter para arrays
+  const porDia = Object.entries(porDiaMap)
+    .map(([data, dados]) => ({ data, ...dados }))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(-30); // Últimos 30 dias
+
+  const porUsuario = Object.entries(porUsuarioMap)
+    .map(([userId, dados]) => {
+      // Calcular tempo médio entre classificações
+      let tempoMedioClassificacao = 0;
+      if (dados.timestamps.length > 1) {
+        const sortedTimestamps = dados.timestamps.sort((a, b) => a - b);
+        let totalDiff = 0;
+        for (let i = 1; i < sortedTimestamps.length; i++) {
+          totalDiff += sortedTimestamps[i] - sortedTimestamps[i - 1];
+        }
+        tempoMedioClassificacao = totalDiff / (sortedTimestamps.length - 1) / 1000; // Em segundos
+      }
+
+      return {
+        userId: parseInt(userId),
+        userName: userMap.get(parseInt(userId)) || `Usuário ${userId}`,
+        totalClassificados: dados.totalClassificados,
+        aceitas: dados.aceitas,
+        recursadas: dados.recursadas,
+        valorAceito: dados.valorAceito,
+        valorRecursado: dados.valorRecursado,
+        tempoMedioClassificacao,
+      };
+    })
+    .sort((a, b) => b.totalClassificados - a.totalClassificados);
+
+  // Buscar total de itens pendentes
+  const arquivosRetornados = await db
+    .select({ id: arquivos.id })
+    .from(arquivos)
+    .where(and(
+      eq(arquivos.direcao, "retornado"),
+      eq(arquivos.status, "processado")
+    ));
+
+  let totalPendentes = 0;
+  if (arquivosRetornados.length > 0) {
+    const arquivoIds = arquivosRetornados.map(a => a.id);
+    const procsPendentes = await db
+      .select({ id: procedimentos.id })
+      .from(procedimentos)
+      .where(and(
+        inArray(procedimentos.arquivoId, arquivoIds),
+        or(
+          isNull(procedimentos.classificacaoGlosa),
+          eq(procedimentos.classificacaoGlosa, "pendente")
+        )
+      ));
+    totalPendentes = procsPendentes.length;
+  }
+
+  const totalClassificados = totalAceitas + totalRecursadas;
+  const taxaClassificacao = (totalClassificados + totalPendentes) > 0 
+    ? (totalClassificados / (totalClassificados + totalPendentes)) * 100 
+    : 0;
+
+  return {
+    porDia,
+    porUsuario,
+    totais: {
+      totalClassificados,
+      totalAceitas,
+      totalRecursadas,
+      totalPendentes,
+      valorTotalAceito,
+      valorTotalRecursado,
+      taxaClassificacao,
+    },
+  };
 }

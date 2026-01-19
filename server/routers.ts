@@ -849,6 +849,7 @@ export const appRouter = router({
           dataReferenciaFim: z.date().optional(),
           tipo: z.string().optional(),
           codigoGlosa: z.string().optional(),
+          classificacao: z.enum(["todos", "pendente", "aceitar", "recursar"]).optional(),
           search: z.string().optional(),
           page: z.number().default(1),
           pageSize: z.number().default(50),
@@ -862,6 +863,7 @@ export const appRouter = router({
           dataReferenciaFim: input?.dataReferenciaFim,
           tipo: input?.tipo,
           codigoGlosa: input?.codigoGlosa,
+          classificacao: input?.classificacao,
           search: input?.search,
           page: input?.page || 1,
           pageSize: input?.pageSize || 50,
@@ -2128,6 +2130,23 @@ export const appRouter = router({
         }
         await db.concederAcessoTodosEstabelecimentos(input.userId, input.permissoes);
         return { success: true };
+      }),
+  }),
+
+  // ============ MÉTRICAS DE PRODUTIVIDADE ============
+  produtividade: router({
+    // Buscar métricas de produtividade de classificação de glosas
+    metricas: protectedProcedure
+      .input(z.object({
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getMetricasProdutividade({
+          userId: ctx.user.id,
+          dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
+        });
       }),
   }),
 
