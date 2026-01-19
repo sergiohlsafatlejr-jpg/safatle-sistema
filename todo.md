@@ -231,3 +231,5 @@
 - [x] Tela para usuários trocarem suas senhas
 
 - [x] Alterar nome do sistema para "Safatle Gerenciamento"
+
+- [x] Personalizar cores do tema com a paleta da marca Safatle (azul marinho e vermelho)

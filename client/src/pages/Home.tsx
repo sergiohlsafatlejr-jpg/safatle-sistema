@@ -31,8 +31,8 @@ export default function Home() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="text-slate-500">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground">
             Visão geral do sistema de gerenciamento de arquivos de convênios
           </p>
         </div>
@@ -41,16 +41,16 @@ export default function Home() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">Total de Arquivos</CardTitle>
-              <FileText className="h-4 w-4 text-slate-400" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Arquivos</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-slate-900">{resumo?.arquivos?.total || 0}</div>
+                <div className="text-2xl font-bold text-foreground">{resumo?.arquivos?.total || 0}</div>
               )}
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 arquivos processados
               </p>
             </CardContent>
@@ -58,16 +58,16 @@ export default function Home() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">Enviados</CardTitle>
-              <Upload className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Enviados</CardTitle>
+              <Upload className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-slate-900">{resumo?.arquivos?.enviados || 0}</div>
+                <div className="text-2xl font-bold text-foreground">{resumo?.arquivos?.enviados || 0}</div>
               )}
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 arquivos enviados aos convênios
               </p>
             </CardContent>
@@ -75,16 +75,16 @@ export default function Home() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">Retornados</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Retornados</CardTitle>
               <Download className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-slate-900">{resumo?.arquivos?.retornados || 0}</div>
+                <div className="text-2xl font-bold text-foreground">{resumo?.arquivos?.retornados || 0}</div>
               )}
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 arquivos retornados dos convênios
               </p>
             </CardContent>
@@ -92,16 +92,16 @@ export default function Home() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">Divergências</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Divergências</CardTitle>
               <AlertTriangle className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-slate-900">{resumo?.comparacoes?.comDivergencias || 0}</div>
+                <div className="text-2xl font-bold text-foreground">{resumo?.comparacoes?.comDivergencias || 0}</div>
               )}
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 comparações com divergências
               </p>
             </CardContent>
@@ -110,17 +110,17 @@ export default function Home() {
 
         {/* Comparison Stats */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/5 to-primary/15">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700">Comparações Realizadas</CardTitle>
+              <CardTitle className="text-sm font-medium text-primary">Comparações Realizadas</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-10 w-24" />
               ) : (
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-blue-900">{resumo?.comparacoes?.total || 0}</span>
-                  <span className="text-sm text-blue-600">total</span>
+                  <span className="text-3xl font-bold text-primary">{resumo?.comparacoes?.total || 0}</span>
+                  <span className="text-sm text-primary/80">total</span>
                 </div>
               )}
             </CardContent>
@@ -177,24 +177,24 @@ export default function Home() {
             <CardContent>
               <div className="space-y-3">
                 {ultimosArquivos?.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-4">
+                  <p className="text-sm text-muted-foreground text-center py-4">
                     Nenhum arquivo processado ainda
                   </p>
                 ) : (
                   ultimosArquivos?.map((arquivo) => (
-                    <div key={arquivo.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <div key={arquivo.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                       <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                        arquivo.direcao === "enviado" ? "bg-blue-100" : "bg-green-100"
+                        arquivo.direcao === "enviado" ? "bg-primary/20" : "bg-green-100"
                       }`}>
                         {arquivo.direcao === "enviado" ? (
-                          <ArrowUpRight className="h-5 w-5 text-blue-600" />
+                          <ArrowUpRight className="h-5 w-5 text-primary" />
                         ) : (
                           <ArrowDownRight className="h-5 w-5 text-green-600" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{arquivo.nome}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-sm font-medium text-foreground truncate">{arquivo.nome}</p>
+                        <p className="text-xs text-muted-foreground">
                           {arquivo.tipoArquivo.toUpperCase()} • {arquivo.direcao}
                         </p>
                       </div>
@@ -230,12 +230,12 @@ export default function Home() {
             <CardContent>
               <div className="space-y-3">
                 {ultimasComparacoes?.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-4">
+                  <p className="text-sm text-muted-foreground text-center py-4">
                     Nenhuma comparação realizada ainda
                   </p>
                 ) : (
                   ultimasComparacoes?.map((comp) => (
-                    <div key={comp.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <div key={comp.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                       <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
                         comp.totalDivergencias && comp.totalDivergencias > 0 
                           ? "bg-amber-100" 
@@ -248,10 +248,10 @@ export default function Home() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900">
+                        <p className="text-sm font-medium text-foreground">
                           Comparação #{comp.id}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           {comp.totalItensEnviados} enviados • {comp.totalItensRetornados} retornados
                         </p>
                       </div>
@@ -263,7 +263,7 @@ export default function Home() {
                         }`}>
                           {comp.totalDivergencias || 0} divergências
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           {new Date(comp.createdAt).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
@@ -285,10 +285,10 @@ export default function Home() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Button 
                 variant="outline" 
-                className="h-auto py-4 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-200"
+                className="h-auto py-4 flex flex-col gap-2 hover:bg-primary/10 hover:border-primary/30"
                 onClick={() => setLocation("/upload")}
               >
-                <Upload className="h-6 w-6 text-blue-600" />
+                <Upload className="h-6 w-6 text-primary" />
                 <span className="font-medium">Upload de Arquivo</span>
               </Button>
               <Button 
@@ -309,10 +309,10 @@ export default function Home() {
               </Button>
               <Button 
                 variant="outline" 
-                className="h-auto py-4 flex flex-col gap-2 hover:bg-purple-50 hover:border-purple-200"
+                className="h-auto py-4 flex flex-col gap-2 hover:bg-destructive/10 hover:border-destructive/30"
                 onClick={() => setLocation("/relatorios")}
               >
-                <FileText className="h-6 w-6 text-purple-600" />
+                <FileText className="h-6 w-6 text-destructive" />
                 <span className="font-medium">Gerar Relatório</span>
               </Button>
             </div>

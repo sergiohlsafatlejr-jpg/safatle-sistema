@@ -293,24 +293,24 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
-          className="border-r-0 bg-slate-900"
+          className="border-r-0 bg-sidebar"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center border-b border-slate-800">
+          <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
                 aria-label="Toggle navigation"
               >
-                <PanelLeft className="h-4 w-4 text-slate-400" />
+                <PanelLeft className="h-4 w-4 text-sidebar-foreground/70" />
               </button>
               {!isCollapsed ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 min-w-0 hover:bg-slate-800 rounded-lg px-2 py-1 transition-colors">
+                    <button className="flex items-center gap-2 min-w-0 hover:bg-sidebar-accent rounded-lg px-2 py-1 transition-colors">
                       <Building2 className="h-4 w-4 text-primary" />
-                      <span className="font-semibold tracking-tight truncate text-white text-sm">
+                      <span className="font-semibold tracking-tight truncate text-sidebar-foreground text-sm">
                         {estabelecimentoAtual?.nome || "Selecionar"}
                       </span>
                     </button>
@@ -341,7 +341,7 @@ function DashboardLayoutContent({
               ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="h-8 w-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors">
+                    <button className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors">
                       <Building2 className="h-4 w-4 text-primary" />
                     </button>
                   </DropdownMenuTrigger>
@@ -372,7 +372,7 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0 bg-slate-900">
+          <SidebarContent className="gap-0 bg-sidebar">
             <SidebarMenu className="px-2 py-3">
               {menuItems
                 .filter(item => {
@@ -391,10 +391,10 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal text-slate-300 hover:text-white hover:bg-slate-800 ${isActive ? "bg-primary text-white hover:bg-primary/90" : ""}`}
+                      className={`h-10 transition-all font-normal text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent ${isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`}
+                        className={`h-4 w-4 ${isActive ? "text-primary-foreground" : "text-sidebar-foreground/60"}`}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -404,20 +404,20 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3 bg-slate-900 border-t border-slate-800">
+          <SidebarFooter className="p-3 bg-sidebar border-t border-sidebar-border">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-slate-800 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border border-slate-700 shrink-0">
-                    <AvatarFallback className="text-xs font-medium bg-slate-800 text-white">
+                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-sidebar-accent transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Avatar className="h-9 w-9 border border-sidebar-border shrink-0">
+                    <AvatarFallback className="text-xs font-medium bg-sidebar-accent text-sidebar-foreground">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none text-white">
+                    <p className="text-sm font-medium truncate leading-none text-sidebar-foreground">
                       {user?.name || "-"}
                     </p>
-                    <p className="text-xs text-slate-400 truncate mt-1.5">
+                    <p className="text-xs text-sidebar-foreground/60 truncate mt-1.5">
                       {user?.email || "-"}
                     </p>
                   </div>
