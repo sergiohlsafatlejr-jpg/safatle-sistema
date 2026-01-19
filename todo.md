@@ -161,13 +161,9 @@
 - [x] Implementar IA para análise de contas e identificação de itens faltantes
 - [x] Integrar alertas e sugestões na tela de Comparações
 
-- [ ] Restaurar checkboxes para marcar itens como glosa aceita na tela de Análise de Glosa
-- [ ] Restaurar campo para inserir motivo do aceite da glosa
-- [ ] Restaurar aba de "Itens Glosa Aceita" na tela de Análise de Glosa
-
-- [ ] Restaurar checkboxes para marcar itens como glosa aceita na tela de Análise de Glosa
-- [ ] Restaurar campo para inserir motivo do aceite da glosa
-- [ ] Restaurar aba de "Itens Glosa Aceita" na tela de Análise de Glosa
+- [x] Restaurar checkboxes para marcar itens como glosa aceita na tela de Análise de Glosa
+- [x] Restaurar campo para inserir motivo do aceite da glosa
+- [x] Restaurar aba de "Itens Glosa Aceita" na tela de Análise de Glosa
 
 - [x] Corrigir importação de diárias e taxas em arquivos Excel (não estão sendo reconhecidas ou valores incorretos)
 - [x] Remover automaticamente espaços em branco extras dos nomes das colunas ao importar arquivos Excel
