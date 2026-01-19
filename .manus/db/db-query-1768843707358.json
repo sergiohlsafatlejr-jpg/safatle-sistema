@@ -1,0 +1,20 @@
+{
+  "query": "SELECT 'arquivos' as tabela, COUNT(*) as total, SUM(CASE WHEN estabelecimentoId IS NULL THEN 1 ELSE 0 END) as sem_estabelecimento FROM arquivos\nUNION ALL\nSELECT 'convenios' as tabela, COUNT(*) as total, SUM(CASE WHEN estabelecimentoId IS NULL THEN 1 ELSE 0 END) as sem_estabelecimento FROM convenios;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT 'arquivos' as tabela, COUNT(*) as total, SUM(CASE WHEN estabelecimentoId IS NULL THEN 1 ELSE 0 END) as sem_estabelecimento FROM arquivos\nUNION ALL\nSELECT 'convenios' as tabela, COUNT(*) as total, SUM(CASE WHEN estabelecimentoId IS NULL THEN 1 ELSE 0 END) as sem_estabelecimento FROM convenios;",
+  "rows": [
+    {
+      "tabela": "convenios",
+      "total": "7",
+      "sem_estabelecimento": "0"
+    },
+    {
+      "tabela": "arquivos",
+      "total": "362",
+      "sem_estabelecimento": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "tabela\ttotal\tsem_estabelecimento\nconvenios\t7\t0\narquivos\t362\t0\n",
+  "stderr": "",
+  "execution_time_ms": 352
+}

@@ -194,6 +194,6 @@
 - [x] Criar tela de seleção de estabelecimento na entrada do sistema
 - [x] Filtrar todas as queries por estabelecimento selecionado
 - [x] Adicionar seletor de estabelecimento no header para alternância durante sessão
-- [ ] Atualizar registros antigos no banco de dados para associá-los ao estabelecimento correto
+- [x] Atualizar registros antigos no banco de dados para associá-los ao estabelecimento correto
 - [x] Criar dashboard consolidado com opção de visualizar dados de todos os estabelecimentos para gestores
 - [x] Implementar controle de acesso e permissões por estabelecimento (usuários veem apenas estabelecimentos autorizados)
