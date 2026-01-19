@@ -2188,6 +2188,187 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Criar novo usuário (apenas admin/gestor)
+    criarUsuario: protectedProcedure
+      .input(z.object({
+        name: z.string().min(2),
+        email: z.string().email(),
+        role: z.enum(["admin", "user"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          const isGestor = await db.verificarSeGestor(ctx.user.id);
+          if (!isGestor) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Apenas administradores ou gestores podem criar usuários",
+            });
+          }
+        }
+        
+        try {
+          const userId = await db.criarUsuario(input);
+          
+          // Registrar no log de auditoria
+          await db.registrarLogAuditoria({
+            usuarioId: ctx.user.id,
+            usuarioNome: ctx.user.name,
+            usuarioAfetadoId: userId,
+            usuarioAfetadoNome: input.name,
+            tipoAcao: "criar_usuario",
+            descricao: `Usuário ${input.name} (${input.email}) criado`,
+            valoresNovos: { name: input.name, email: input.email, role: input.role || "user" },
+          });
+          
+          return { success: true, userId };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: error.message || "Erro ao criar usuário",
+          });
+        }
+      }),
+
+    // Listar grupos de serviço
+    listarGrupos: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }))
+      .query(async ({ input }) => {
+        return db.listarGruposServico(input.estabelecimentoId);
+      }),
+
+    // Criar grupo de serviço personalizado
+    criarGrupo: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(2),
+        descricao: z.string().optional(),
+        cor: z.string().optional(),
+        icone: z.string().optional(),
+        permissoesPadrao: z.record(z.string(), z.string()).optional(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas administradores podem criar grupos",
+          });
+        }
+        
+        const grupoId = await db.criarGrupoServico({
+          ...input,
+          criadoPor: ctx.user.id,
+        });
+        
+        // Registrar no log de auditoria
+        await db.registrarLogAuditoria({
+          usuarioId: ctx.user.id,
+          usuarioNome: ctx.user.name,
+          usuarioAfetadoId: ctx.user.id,
+          usuarioAfetadoNome: ctx.user.name,
+          estabelecimentoId: input.estabelecimentoId,
+          tipoAcao: "criar_grupo",
+          descricao: `Grupo de serviço "${input.nome}" criado`,
+          valoresNovos: input,
+        });
+        
+        return { success: true, grupoId };
+      }),
+
+    // Atualizar grupo de serviço
+    atualizarGrupo: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(2).optional(),
+        descricao: z.string().optional(),
+        cor: z.string().optional(),
+        icone: z.string().optional(),
+        permissoesPadrao: z.record(z.string(), z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas administradores podem atualizar grupos",
+          });
+        }
+        
+        const grupoAnterior = await db.buscarGrupoServicoPorId(input.id);
+        const { id, ...dados } = input;
+        await db.atualizarGrupoServico(id, dados);
+        
+        // Registrar no log de auditoria
+        await db.registrarLogAuditoria({
+          usuarioId: ctx.user.id,
+          usuarioNome: ctx.user.name,
+          usuarioAfetadoId: ctx.user.id,
+          usuarioAfetadoNome: ctx.user.name,
+          tipoAcao: "alterar_grupo",
+          descricao: `Grupo de serviço "${grupoAnterior?.nome}" atualizado`,
+          valoresAnteriores: grupoAnterior,
+          valoresNovos: dados,
+        });
+        
+        return { success: true };
+      }),
+
+    // Excluir grupo de serviço
+    excluirGrupo: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas administradores podem excluir grupos",
+          });
+        }
+        
+        const grupo = await db.buscarGrupoServicoPorId(input.id);
+        await db.excluirGrupoServico(input.id);
+        
+        // Registrar no log de auditoria
+        await db.registrarLogAuditoria({
+          usuarioId: ctx.user.id,
+          usuarioNome: ctx.user.name,
+          usuarioAfetadoId: ctx.user.id,
+          usuarioAfetadoNome: ctx.user.name,
+          tipoAcao: "excluir_grupo",
+          descricao: `Grupo de serviço "${grupo?.nome}" excluído`,
+          valoresAnteriores: grupo,
+        });
+        
+        return { success: true };
+      }),
+
+    // Listar logs de auditoria
+    logsAuditoria: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        usuarioId: z.number().optional(),
+        usuarioAfetadoId: z.number().optional(),
+        tipoAcao: z.string().optional(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        limite: z.number().optional(),
+        offset: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          const isGestor = await db.verificarSeGestor(ctx.user.id);
+          if (!isGestor) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Apenas administradores ou gestores podem ver logs de auditoria",
+            });
+          }
+        }
+        
+        return db.listarLogsAuditoria({
+          ...input,
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+        });
+      }),
+
     // Conceder acesso a todos os estabelecimentos (apenas admin)
     concederAcessoTotal: protectedProcedure
       .input(z.object({

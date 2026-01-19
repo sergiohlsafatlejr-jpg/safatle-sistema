@@ -6546,3 +6546,206 @@ export async function listarTodosUsuarios() {
 
   return usuarios;
 }
+
+
+// ============================================
+// Grupos de Serviço Personalizados
+// ============================================
+
+import { gruposServico, logAuditoriaPermissoes, InsertGrupoServico, InsertLogAuditoriaPermissoes } from "../drizzle/schema";
+
+/**
+ * Lista todos os grupos de serviço (pré-definidos + personalizados)
+ */
+export async function listarGruposServico(estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions: SQL[] = [eq(gruposServico.ativo, "sim")];
+  
+  // Filtrar por estabelecimento ou grupos globais
+  if (estabelecimentoId) {
+    conditions.push(
+      or(
+        isNull(gruposServico.estabelecimentoId),
+        eq(gruposServico.estabelecimentoId, estabelecimentoId)
+      )!
+    );
+  }
+  
+  const grupos = await db
+    .select()
+    .from(gruposServico)
+    .where(and(...conditions))
+    .orderBy(gruposServico.nome);
+  
+  return grupos;
+}
+
+/**
+ * Cria um novo grupo de serviço personalizado
+ */
+export async function criarGrupoServico(dados: InsertGrupoServico) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(gruposServico).values(dados);
+  return result[0].insertId;
+}
+
+/**
+ * Atualiza um grupo de serviço existente
+ */
+export async function atualizarGrupoServico(id: number, dados: Partial<InsertGrupoServico>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(gruposServico)
+    .set(dados)
+    .where(eq(gruposServico.id, id));
+}
+
+/**
+ * Exclui um grupo de serviço (soft delete)
+ */
+export async function excluirGrupoServico(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Verificar se é grupo do sistema
+  const grupo = await db.select().from(gruposServico).where(eq(gruposServico.id, id)).limit(1);
+  if (grupo[0]?.sistemaGrupo === "sim") {
+    throw new Error("Não é possível excluir grupos do sistema");
+  }
+  
+  await db.update(gruposServico)
+    .set({ ativo: "nao" })
+    .where(eq(gruposServico.id, id));
+}
+
+/**
+ * Busca um grupo de serviço por ID
+ */
+export async function buscarGrupoServicoPorId(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const grupos = await db
+    .select()
+    .from(gruposServico)
+    .where(eq(gruposServico.id, id))
+    .limit(1);
+  
+  return grupos[0] || null;
+}
+
+// ============================================
+// Log de Auditoria de Permissões
+// ============================================
+
+/**
+ * Registra uma ação no log de auditoria
+ */
+export async function registrarLogAuditoria(dados: InsertLogAuditoriaPermissoes) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(logAuditoriaPermissoes).values(dados);
+}
+
+/**
+ * Lista logs de auditoria com filtros
+ */
+export async function listarLogsAuditoria(filtros: {
+  estabelecimentoId?: number;
+  usuarioId?: number;
+  usuarioAfetadoId?: number;
+  tipoAcao?: string;
+  dataInicio?: Date;
+  dataFim?: Date;
+  limite?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { logs: [], total: 0 };
+  
+  const conditions: SQL[] = [];
+  
+  if (filtros.estabelecimentoId) {
+    conditions.push(eq(logAuditoriaPermissoes.estabelecimentoId, filtros.estabelecimentoId));
+  }
+  if (filtros.usuarioId) {
+    conditions.push(eq(logAuditoriaPermissoes.usuarioId, filtros.usuarioId));
+  }
+  if (filtros.usuarioAfetadoId) {
+    conditions.push(eq(logAuditoriaPermissoes.usuarioAfetadoId, filtros.usuarioAfetadoId));
+  }
+  if (filtros.tipoAcao) {
+    conditions.push(eq(logAuditoriaPermissoes.tipoAcao, filtros.tipoAcao as any));
+  }
+  if (filtros.dataInicio) {
+    conditions.push(gte(logAuditoriaPermissoes.createdAt, filtros.dataInicio));
+  }
+  if (filtros.dataFim) {
+    conditions.push(lte(logAuditoriaPermissoes.createdAt, filtros.dataFim));
+  }
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  // Contar total
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(logAuditoriaPermissoes)
+    .where(whereClause);
+  const total = countResult[0]?.count || 0;
+  
+  // Buscar logs
+  let query = db
+    .select()
+    .from(logAuditoriaPermissoes)
+    .where(whereClause)
+    .orderBy(desc(logAuditoriaPermissoes.createdAt));
+  
+  if (filtros.limite) {
+    query = query.limit(filtros.limite) as any;
+  }
+  if (filtros.offset) {
+    query = query.offset(filtros.offset) as any;
+  }
+  
+  const logs = await query;
+  
+  return { logs, total };
+}
+
+/**
+ * Cria um novo usuário no sistema
+ */
+export async function criarUsuario(dados: {
+  name: string;
+  email: string;
+  role?: "admin" | "user";
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Verificar se email já existe
+  const existente = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, dados.email))
+    .limit(1);
+  
+  if (existente.length > 0) {
+    throw new Error("Email já cadastrado no sistema");
+  }
+  
+  const result = await db.insert(users).values({
+    name: dados.name,
+    email: dados.email,
+    role: dados.role || "user",
+    openId: `manual_${Date.now()}`, // Placeholder até login OAuth
+  });
+  
+  return result[0].insertId;
+}

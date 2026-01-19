@@ -50,7 +50,8 @@ import {
   Settings2,
   LayoutGrid,
   Shield,
-  Activity
+  Activity,
+  Lock
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -98,6 +99,75 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
+
+// Componente para verificar acesso e mostrar mensagem amigável
+function AccessGuard({ 
+  children, 
+  location, 
+  isGestor, 
+  temAcessoModulo 
+}: { 
+  children: React.ReactNode; 
+  location: string;
+  isGestor: boolean;
+  temAcessoModulo: (modulo: ModuloPermissao) => boolean;
+}) {
+  // Encontrar o item de menu correspondente à rota atual
+  const currentMenuItem = menuItems.find(item => item.path === location);
+  
+  // Se não encontrou o item ou não tem módulo definido, permite acesso
+  if (!currentMenuItem || (!currentMenuItem.modulo && !currentMenuItem.adminOnly)) {
+    return <>{children}</>;
+  }
+  
+  // Verificar se é rota adminOnly
+  if (currentMenuItem.adminOnly && !isGestor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 max-w-md">
+          <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <Lock className="h-8 w-8 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-amber-800 mb-2">
+            Acesso Restrito
+          </h2>
+          <p className="text-amber-700 mb-4">
+            Esta área é exclusiva para gestores e administradores do sistema.
+          </p>
+          <p className="text-sm text-amber-600">
+            Se você acredita que deveria ter acesso a esta funcionalidade, 
+            entre em contato com o administrador do sistema.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Verificar permissão do módulo
+  if (currentMenuItem.modulo && !temAcessoModulo(currentMenuItem.modulo)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 max-w-md">
+          <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+            <Lock className="h-8 w-8 text-slate-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">
+            Acesso Não Autorizado
+          </h2>
+          <p className="text-slate-600 mb-4">
+            Você não tem permissão para acessar o módulo <strong>{currentMenuItem.label}</strong>.
+          </p>
+          <p className="text-sm text-slate-500">
+            Suas permissões são definidas pelo grupo de serviço atribuído a você. 
+            Caso precise de acesso, solicite ao gestor do seu estabelecimento.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  return <>{children}</>;
+}
 
 export default function DashboardLayout({
   children,
@@ -402,7 +472,11 @@ function DashboardLayoutContent({
             <span className="text-sm font-semibold text-slate-700">{estabelecimentoAtual.nome}</span>
           </div>
         )}
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <AccessGuard location={location} isGestor={isGestor} temAcessoModulo={temAcessoModulo}>
+            {children}
+          </AccessGuard>
+        </main>
       </SidebarInset>
     </>
   );

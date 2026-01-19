@@ -216,3 +216,8 @@
 - [x] Implementar grupos de serviço (Faturista, Recurso de Glosa, Administrador, Gestor, Visualizador) na tela de Gerenciar Permissões
 - [x] Definir permissões por módulo/aba para cada grupo de serviço
 - [x] Implementar controle de acesso nas telas baseado no grupo do usuário
+
+- [x] Criar interface de criação de usuários na tela de Gerenciar Permissões
+- [x] Implementar grupos personalizados (permitir criar novos grupos além dos pré-definidos)
+- [x] Implementar log de auditoria (registrar quem alterou permissões e quando)
+- [x] Implementar notificação de acesso negado (mensagem amigável quando usuário tentar acessar módulo sem permissão)

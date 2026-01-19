@@ -901,3 +901,91 @@ export const motivosGlosa = mysqlTable("motivosGlosa", {
 
 export type MotivoGlosa = typeof motivosGlosa.$inferSelect;
 export type InsertMotivoGlosa = typeof motivosGlosa.$inferInsert;
+
+
+/**
+ * Grupos de Serviço Personalizados
+ * Permite criar novos grupos além dos pré-definidos
+ */
+export const gruposServico = mysqlTable("gruposServico", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Nome do grupo
+  nome: varchar("nome", { length: 100 }).notNull(),
+  
+  // Descrição do grupo
+  descricao: text("descricao"),
+  
+  // Cor do grupo (para exibição visual)
+  cor: varchar("cor", { length: 20 }).default("bg-gray-500"),
+  
+  // Ícone do grupo (nome do ícone Lucide)
+  icone: varchar("icone", { length: 50 }).default("Users"),
+  
+  // Permissões padrão do grupo (JSON)
+  permissoesPadrao: json("permissoesPadrao"),
+  
+  // Estabelecimento (null = disponível para todos)
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Se é um grupo do sistema (não pode ser excluído)
+  sistemaGrupo: mysqlEnum("sistemaGrupo", ["sim", "nao"]).default("nao").notNull(),
+  
+  // Ativo
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  // Usuário que criou
+  criadoPor: int("criadoPor"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type GrupoServico = typeof gruposServico.$inferSelect;
+export type InsertGrupoServico = typeof gruposServico.$inferInsert;
+
+/**
+ * Log de Auditoria de Permissões
+ * Registra todas as alterações de permissões
+ */
+export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Usuário que fez a alteração
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  
+  // Usuário afetado pela alteração
+  usuarioAfetadoId: int("usuarioAfetadoId").notNull(),
+  usuarioAfetadoNome: varchar("usuarioAfetadoNome", { length: 255 }),
+  
+  // Estabelecimento
+  estabelecimentoId: int("estabelecimentoId"),
+  estabelecimentoNome: varchar("estabelecimentoNome", { length: 255 }),
+  
+  // Tipo de ação
+  tipoAcao: mysqlEnum("tipoAcao", [
+    "criar_permissao",
+    "alterar_permissao", 
+    "remover_permissao",
+    "criar_usuario",
+    "alterar_grupo",
+    "criar_grupo",
+    "excluir_grupo"
+  ]).notNull(),
+  
+  // Descrição da alteração
+  descricao: text("descricao"),
+  
+  // Valores anteriores (JSON)
+  valoresAnteriores: json("valoresAnteriores"),
+  
+  // Valores novos (JSON)
+  valoresNovos: json("valoresNovos"),
+  
+  // IP do usuário
+  ipUsuario: varchar("ipUsuario", { length: 50 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferSelect;
+export type InsertLogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferInsert;
