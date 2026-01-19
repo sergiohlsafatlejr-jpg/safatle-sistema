@@ -827,14 +827,17 @@ export const appRouter = router({
 
   // ============ ANÁLISE DE GLOSA ============
   glosa: router({
-    porConvenio: protectedProcedure.query(async ({ ctx }) => {
-      return db.getGlosaPorConvenio(ctx.user.id);
-    }),
+    porConvenio: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getGlosaPorConvenio(ctx.user.id, input?.estabelecimentoId);
+      }),
 
     porProcedimento: protectedProcedure
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
           limit: z.number().default(20),
         }).optional()
       )
@@ -842,7 +845,8 @@ export const appRouter = router({
         return db.getGlosaPorProcedimento(
           ctx.user.id,
           input?.convenioId,
-          input?.limit || 20
+          input?.limit || 20,
+          input?.estabelecimentoId
         );
       }),
 
@@ -850,6 +854,7 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
           meses: z.number().default(12),
         }).optional()
       )
@@ -857,19 +862,23 @@ export const appRouter = router({
         return db.getTendenciaGlosa(
           ctx.user.id,
           input?.convenioId,
-          input?.meses || 12
+          input?.meses || 12,
+          input?.estabelecimentoId
         );
       }),
 
-    resumo: protectedProcedure.query(async ({ ctx }) => {
-      return db.getResumoGlosa(ctx.user.id);
-    }),
+    resumo: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getResumoGlosa(ctx.user.id, input?.estabelecimentoId);
+      }),
 
     // Itens glosados com filtros avançados
     itensGlosados: protectedProcedure
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
           dataReferenciaInicio: z.date().optional(),
           dataReferenciaFim: z.date().optional(),
           tipo: z.string().optional(),
@@ -884,6 +893,7 @@ export const appRouter = router({
         return db.getItensGlosados({
           userId: ctx.user.id,
           convenioId: input?.convenioId,
+          estabelecimentoId: input?.estabelecimentoId,
           dataReferenciaInicio: input?.dataReferenciaInicio,
           dataReferenciaFim: input?.dataReferenciaFim,
           tipo: input?.tipo,
@@ -900,6 +910,7 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
           dataReferenciaInicio: z.date().optional(),
           dataReferenciaFim: z.date().optional(),
           search: z.string().optional(),
@@ -911,6 +922,7 @@ export const appRouter = router({
         return db.getItensGlosadosAceitos({
           userId: ctx.user.id,
           convenioId: input?.convenioId,
+          estabelecimentoId: input?.estabelecimentoId,
           dataReferenciaInicio: input?.dataReferenciaInicio,
           dataReferenciaFim: input?.dataReferenciaFim,
           search: input?.search,
@@ -2211,6 +2223,102 @@ export const appRouter = router({
           });
         }
         return comparativo;
+      }),
+  }),
+
+  // ============ MOTIVOS DE GLOSA ============
+  motivosGlosa: router({
+    // Listar motivos de glosa
+    list: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        tipoOrigem: z.enum(["tiss", "personalizado"]).optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+        search: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getMotivosGlosa(input || {});
+      }),
+
+    // Buscar motivo por código (combinado banco + TISS)
+    porCodigo: protectedProcedure
+      .input(z.object({
+        codigo: z.string(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getMotivoGlosaCombinado(input.codigo, input.estabelecimentoId);
+      }),
+
+    // Listar grupos disponíveis
+    grupos: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getGruposMotivosGlosa(input?.estabelecimentoId);
+      }),
+
+    // Criar novo motivo de glosa
+    criar: protectedProcedure
+      .input(z.object({
+        codigo: z.string().min(1, "Código é obrigatório"),
+        grupo: z.string().min(1, "Grupo é obrigatório"),
+        descricao: z.string().min(1, "Descrição é obrigatória"),
+        descricaoSimplificada: z.string().min(1, "Descrição simplificada é obrigatória"),
+        argumentoContestacao: z.string().optional(),
+        acoesRecomendadas: z.array(z.string()).optional(),
+        documentosSugeridos: z.array(z.string()).optional(),
+        dificuldadeReversao: z.number().min(1).max(5).optional(),
+        probabilidadeSucesso: z.number().min(0).max(100).optional(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Verificar se já existe um motivo com esse código
+        const existente = await db.getMotivoGlosaPorCodigo(input.codigo, input.estabelecimentoId);
+        if (existente) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Já existe um motivo de glosa com o código ${input.codigo}`,
+          });
+        }
+        
+        await db.criarMotivoGlosa({
+          ...input,
+          tipoOrigem: "personalizado",
+          criadoPor: ctx.user.id,
+        });
+        
+        return { success: true };
+      }),
+
+    // Atualizar motivo de glosa
+    atualizar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        codigo: z.string().optional(),
+        grupo: z.string().optional(),
+        descricao: z.string().optional(),
+        descricaoSimplificada: z.string().optional(),
+        argumentoContestacao: z.string().optional(),
+        acoesRecomendadas: z.array(z.string()).optional(),
+        documentosSugeridos: z.array(z.string()).optional(),
+        dificuldadeReversao: z.number().min(1).max(5).optional(),
+        probabilidadeSucesso: z.number().min(0).max(100).optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.atualizarMotivoGlosa(id, data);
+        return { success: true };
+      }),
+
+    // Excluir motivo de glosa
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.excluirMotivoGlosa(input.id);
+        return { success: true };
       }),
   }),
 });

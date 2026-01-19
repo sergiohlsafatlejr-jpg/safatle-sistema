@@ -204,3 +204,6 @@
 - [x] Persistir seleção de estabelecimento no localStorage para manter escolha ao recarregar
 
 - [x] Implementar aceite de glosa em lote na tela de Análise de Glosa (botão Selecionar Todos + Aceitar Selecionados)
+
+- [x] Implementar cadastro de novos motivos de glosa no dicionário (nome e descrição)
+- [x] Corrigir abas da tela de Análise de Glosa (por categoria, por convênio, por procedimento, tendência) para filtrar por estabelecimento

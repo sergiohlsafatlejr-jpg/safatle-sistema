@@ -43,6 +43,8 @@ import {
   InsertHistoricoValidacao,
   permissoesEstabelecimento,
   InsertPermissaoEstabelecimento,
+  motivosGlosa,
+  InsertMotivoGlosa,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1315,12 +1317,16 @@ const CATEGORIAS_GLOSA_LABELS: { [key: string]: string } = {
   outros: "Outros",
 };
 
-export async function getGlosaPorConvenio(userId?: number): Promise<GlosaPorConvenio[]> {
+export async function getGlosaPorConvenio(userId?: number, estabelecimentoId?: number): Promise<GlosaPorConvenio[]> {
   const db = await getDb();
   if (!db) return [];
 
   // Buscar todos os convênios ativos
-  const convList = await db.select().from(convenios).where(eq(convenios.ativo, "sim"));
+  const convConditions: any[] = [eq(convenios.ativo, "sim")];
+  if (estabelecimentoId) {
+    convConditions.push(eq(convenios.estabelecimentoId, estabelecimentoId));
+  }
+  const convList = await db.select().from(convenios).where(and(...convConditions));
   const resultado: GlosaPorConvenio[] = [];
 
   for (const conv of convList) {
@@ -1411,7 +1417,8 @@ export async function getGlosaPorConvenio(userId?: number): Promise<GlosaPorConv
 export async function getGlosaPorProcedimento(
   userId?: number,
   convenioId?: number,
-  limit: number = 20
+  limit: number = 20,
+  estabelecimentoId?: number
 ): Promise<GlosaPorProcedimento[]> {
   const db = await getDb();
   if (!db) return [];
@@ -1423,6 +1430,9 @@ export async function getGlosaPorProcedimento(
   }
   if (convenioId) {
     compConditions.push(eq(comparacoes.convenioId, convenioId));
+  }
+  if (estabelecimentoId) {
+    compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
   }
 
   const comps = await db
@@ -1502,7 +1512,8 @@ export async function getGlosaPorProcedimento(
 export async function getTendenciaGlosa(
   userId?: number,
   convenioId?: number,
-  meses: number = 12
+  meses: number = 12,
+  estabelecimentoId?: number
 ): Promise<TendenciaGlosa[]> {
   const db = await getDb();
   if (!db) return [];
@@ -1525,6 +1536,9 @@ export async function getTendenciaGlosa(
 
     if (userId) {
       compConditions.push(eq(comparacoes.userId, userId));
+    }
+    if (estabelecimentoId) {
+      compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
     }
     if (convenioId) {
       compConditions.push(eq(comparacoes.convenioId, convenioId));
@@ -1566,7 +1580,7 @@ export async function getTendenciaGlosa(
   return resultado.reverse();
 }
 
-export async function getResumoGlosa(userId?: number) {
+export async function getResumoGlosa(userId?: number, estabelecimentoId?: number) {
   const db = await getDb();
   if (!db) return null;
 
@@ -1574,6 +1588,9 @@ export async function getResumoGlosa(userId?: number) {
   const compConditions: any[] = [];
   if (userId) {
     compConditions.push(eq(comparacoes.userId, userId));
+  }
+  if (estabelecimentoId) {
+    compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
   }
 
   const comps = await db
@@ -3423,6 +3440,7 @@ function determinarTipoProcedimento(codigo: string, descricao?: string): "exame"
 export async function getItensGlosados(filters: {
   userId: number;
   convenioId?: number;
+  estabelecimentoId?: number;
   dataReferenciaInicio?: Date;
   dataReferenciaFim?: Date;
   tipo?: string;
@@ -3447,7 +3465,7 @@ export async function getItensGlosados(filters: {
   };
 
   // Buscar arquivos retornados do usuário (que contêm glosas)
-  const arquivosConditions = [
+  const arquivosConditions: any[] = [
     eq(arquivos.userId, filters.userId),
     eq(arquivos.direcao, "retornado"),
     eq(arquivos.status, "processado"),
@@ -3455,6 +3473,9 @@ export async function getItensGlosados(filters: {
 
   if (filters.convenioId) {
     arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+  if (filters.estabelecimentoId) {
+    arquivosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
   }
 
   if (filters.dataReferenciaInicio) {
@@ -4341,6 +4362,7 @@ interface ItemGlosadoAceito {
 export async function getItensGlosadosAceitos(filters: {
   userId: number;
   convenioId?: number;
+  estabelecimentoId?: number;
   dataReferenciaInicio?: Date;
   dataReferenciaFim?: Date;
   search?: string;
@@ -4351,7 +4373,7 @@ export async function getItensGlosadosAceitos(filters: {
   if (!db) return { items: [], total: 0, totalValorGlosado: 0 };
 
   // Buscar arquivos retornados do usuário
-  const arquivosConditions = [
+  const arquivosConditions: any[] = [
     eq(arquivos.userId, filters.userId),
     eq(arquivos.direcao, "retornado"),
     eq(arquivos.status, "processado"),
@@ -4359,6 +4381,9 @@ export async function getItensGlosadosAceitos(filters: {
 
   if (filters.convenioId) {
     arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+  if (filters.estabelecimentoId) {
+    arquivosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
   }
 
   if (filters.dataReferenciaInicio) {
@@ -5892,4 +5917,252 @@ export async function getMetricasProdutividade(filters: {
       taxaClassificacao,
     },
   };
+}
+
+
+// ============================================
+// MOTIVOS DE GLOSA PERSONALIZADOS
+// ============================================
+
+/**
+ * Listar motivos de glosa (personalizados + TISS)
+ */
+export async function getMotivosGlosa(params: {
+  estabelecimentoId?: number;
+  tipoOrigem?: "tiss" | "personalizado";
+  ativo?: "sim" | "nao";
+  search?: string;
+}) {
+  const conditions = [];
+  
+  // Filtrar por estabelecimento (null = disponível para todos)
+  if (params.estabelecimentoId) {
+    conditions.push(
+      or(
+        eq(motivosGlosa.estabelecimentoId, params.estabelecimentoId),
+        isNull(motivosGlosa.estabelecimentoId)
+      )
+    );
+  }
+  
+  if (params.tipoOrigem) {
+    conditions.push(eq(motivosGlosa.tipoOrigem, params.tipoOrigem));
+  }
+  
+  if (params.ativo) {
+    conditions.push(eq(motivosGlosa.ativo, params.ativo));
+  }
+  
+  if (params.search) {
+    const searchTerm = `%${params.search}%`;
+    conditions.push(
+      or(
+        like(motivosGlosa.codigo, searchTerm),
+        like(motivosGlosa.descricao, searchTerm),
+        like(motivosGlosa.descricaoSimplificada, searchTerm),
+        like(motivosGlosa.grupo, searchTerm)
+      )
+    );
+  }
+  
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const result = whereClause 
+    ? await db.select().from(motivosGlosa).where(whereClause).orderBy(motivosGlosa.grupo, motivosGlosa.codigo)
+    : await db.select().from(motivosGlosa).orderBy(motivosGlosa.grupo, motivosGlosa.codigo);
+  
+  return result;
+}
+
+/**
+ * Buscar motivo de glosa por código
+ */
+export async function getMotivoGlosaPorCodigo(codigo: string, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  if (estabelecimentoId) {
+    const result = await db
+      .select()
+      .from(motivosGlosa)
+      .where(and(
+        eq(motivosGlosa.codigo, codigo),
+        or(
+          eq(motivosGlosa.estabelecimentoId, estabelecimentoId),
+          isNull(motivosGlosa.estabelecimentoId)
+        )
+      ))
+      .limit(1);
+    return result[0] || null;
+  } else {
+    const result = await db
+      .select()
+      .from(motivosGlosa)
+      .where(eq(motivosGlosa.codigo, codigo))
+      .limit(1);
+    return result[0] || null;
+  }
+}
+
+/**
+ * Criar novo motivo de glosa
+ */
+export async function criarMotivoGlosa(data: {
+  codigo: string;
+  grupo: string;
+  descricao: string;
+  descricaoSimplificada: string;
+  argumentoContestacao?: string;
+  acoesRecomendadas?: string[];
+  documentosSugeridos?: string[];
+  dificuldadeReversao?: number;
+  probabilidadeSucesso?: number;
+  tipoOrigem?: "tiss" | "personalizado";
+  estabelecimentoId?: number;
+  criadoPor?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(motivosGlosa).values({
+    codigo: data.codigo,
+    grupo: data.grupo,
+    descricao: data.descricao,
+    descricaoSimplificada: data.descricaoSimplificada,
+    argumentoContestacao: data.argumentoContestacao,
+    acoesRecomendadas: data.acoesRecomendadas,
+    documentosSugeridos: data.documentosSugeridos,
+    dificuldadeReversao: data.dificuldadeReversao || 3,
+    probabilidadeSucesso: data.probabilidadeSucesso || 50,
+    tipoOrigem: data.tipoOrigem || "personalizado",
+    estabelecimentoId: data.estabelecimentoId,
+    criadoPor: data.criadoPor,
+  });
+  
+  return result;
+}
+
+/**
+ * Atualizar motivo de glosa
+ */
+export async function atualizarMotivoGlosa(id: number, data: {
+  codigo?: string;
+  grupo?: string;
+  descricao?: string;
+  descricaoSimplificada?: string;
+  argumentoContestacao?: string;
+  acoesRecomendadas?: string[];
+  documentosSugeridos?: string[];
+  dificuldadeReversao?: number;
+  probabilidadeSucesso?: number;
+  ativo?: "sim" | "nao";
+}) {
+  const updateData: any = {};
+  
+  if (data.codigo !== undefined) updateData.codigo = data.codigo;
+  if (data.grupo !== undefined) updateData.grupo = data.grupo;
+  if (data.descricao !== undefined) updateData.descricao = data.descricao;
+  if (data.descricaoSimplificada !== undefined) updateData.descricaoSimplificada = data.descricaoSimplificada;
+  if (data.argumentoContestacao !== undefined) updateData.argumentoContestacao = data.argumentoContestacao;
+  if (data.acoesRecomendadas !== undefined) updateData.acoesRecomendadas = data.acoesRecomendadas;
+  if (data.documentosSugeridos !== undefined) updateData.documentosSugeridos = data.documentosSugeridos;
+  if (data.dificuldadeReversao !== undefined) updateData.dificuldadeReversao = data.dificuldadeReversao;
+  if (data.probabilidadeSucesso !== undefined) updateData.probabilidadeSucesso = data.probabilidadeSucesso;
+  if (data.ativo !== undefined) updateData.ativo = data.ativo;
+  
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(motivosGlosa)
+    .set(updateData)
+    .where(eq(motivosGlosa.id, id));
+}
+
+/**
+ * Excluir motivo de glosa
+ */
+export async function excluirMotivoGlosa(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(motivosGlosa).where(eq(motivosGlosa.id, id));
+}
+
+/**
+ * Buscar motivo de glosa combinado (banco + dicionário TISS)
+ * Prioriza o banco de dados, depois o dicionário estático
+ */
+export async function getMotivoGlosaCombinado(codigo: string, estabelecimentoId?: number) {
+  // Primeiro tenta buscar no banco
+  const motivoBanco = await getMotivoGlosaPorCodigo(codigo, estabelecimentoId);
+  if (motivoBanco) {
+    return {
+      ...motivoBanco,
+      fonte: "banco" as const,
+    };
+  }
+  
+  // Se não encontrou, busca no dicionário TISS estático
+  const { GLOSAS_TISS } = await import("../shared/glossaryGlosas");
+  const motivoTiss = GLOSAS_TISS[codigo];
+  
+  if (motivoTiss) {
+    return {
+      id: null,
+      codigo: motivoTiss.codigo,
+      grupo: motivoTiss.grupo,
+      descricao: motivoTiss.descricao,
+      descricaoSimplificada: motivoTiss.descricaoSimplificada,
+      argumentoContestacao: motivoTiss.argumentoContestacao,
+      acoesRecomendadas: motivoTiss.acoesRecomendadas,
+      documentosSugeridos: motivoTiss.documentosSugeridos,
+      dificuldadeReversao: motivoTiss.dificuldadeReversao,
+      probabilidadeSucesso: motivoTiss.probabilidadeSucesso,
+      tipoOrigem: "tiss" as const,
+      estabelecimentoId: null,
+      ativo: "sim" as const,
+      criadoPor: null,
+      createdAt: null,
+      updatedAt: null,
+      fonte: "tiss" as const,
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Listar todos os grupos de motivos de glosa disponíveis
+ */
+export async function getGruposMotivosGlosa(estabelecimentoId?: number) {
+  const conditions = [];
+  
+  if (estabelecimentoId) {
+    conditions.push(
+      or(
+        eq(motivosGlosa.estabelecimentoId, estabelecimentoId),
+        isNull(motivosGlosa.estabelecimentoId)
+      )
+    );
+  }
+  
+  conditions.push(eq(motivosGlosa.ativo, "sim"));
+  
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .selectDistinct({ grupo: motivosGlosa.grupo })
+    .from(motivosGlosa)
+    .where(and(...conditions))
+    .orderBy(motivosGlosa.grupo);
+  
+  // Combinar com grupos do dicionário TISS
+  const { GLOSAS_TISS } = await import("../shared/glossaryGlosas");
+  const gruposTiss: string[] = Object.values(GLOSAS_TISS).map(g => g.grupo);
+  const gruposBanco: string[] = result.map((r: { grupo: string }) => r.grupo);
+  
+  const todosGruposSet = new Set<string>([...gruposTiss, ...gruposBanco]);
+  const todosGrupos = Array.from(todosGruposSet).sort();
+  
+  return todosGrupos;
 }

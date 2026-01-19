@@ -823,3 +823,57 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
 
 export type PermissaoEstabelecimento = typeof permissoesEstabelecimento.$inferSelect;
 export type InsertPermissaoEstabelecimento = typeof permissoesEstabelecimento.$inferInsert;
+
+
+/**
+ * Motivos de Glosa Personalizados
+ * Permite cadastrar novos códigos de glosa além dos padrões TISS
+ */
+export const motivosGlosa = mysqlTable("motivosGlosa", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Código único do motivo (pode ser personalizado ou seguir padrão TISS)
+  codigo: varchar("codigo", { length: 20 }).notNull(),
+  
+  // Grupo/categoria do motivo
+  grupo: varchar("grupo", { length: 100 }).notNull(),
+  
+  // Descrição completa
+  descricao: text("descricao").notNull(),
+  
+  // Descrição simplificada para exibição rápida
+  descricaoSimplificada: varchar("descricaoSimplificada", { length: 255 }).notNull(),
+  
+  // Sugestão de argumento para contestação
+  argumentoContestacao: text("argumentoContestacao"),
+  
+  // Ações recomendadas (JSON array)
+  acoesRecomendadas: json("acoesRecomendadas"),
+  
+  // Documentos sugeridos (JSON array)
+  documentosSugeridos: json("documentosSugeridos"),
+  
+  // Nível de dificuldade para reverter (1-5)
+  dificuldadeReversao: int("dificuldadeReversao").default(3),
+  
+  // Probabilidade estimada de sucesso (0-100%)
+  probabilidadeSucesso: int("probabilidadeSucesso").default(50),
+  
+  // Se é um código padrão TISS ou personalizado
+  tipoOrigem: mysqlEnum("tipoOrigem", ["tiss", "personalizado"]).default("personalizado").notNull(),
+  
+  // Estabelecimento (null = disponível para todos)
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Ativo
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  // Usuário que criou
+  criadoPor: int("criadoPor"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MotivoGlosa = typeof motivosGlosa.$inferSelect;
+export type InsertMotivoGlosa = typeof motivosGlosa.$inferInsert;

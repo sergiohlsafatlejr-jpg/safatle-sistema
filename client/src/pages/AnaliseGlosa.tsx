@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { 
   AlertTriangle, 
   TrendingDown, 
@@ -92,6 +93,7 @@ const TIPO_COLORS: { [key: string]: string } = {
 
 export default function AnaliseGlosa() {
   const { user } = useAuth();
+  const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioFiltro, setConvenioFiltro] = useState<string>("todos");
   const [periodoMeses, setPeriodoMeses] = useState<string>("12");
 
@@ -118,22 +120,28 @@ export default function AnaliseGlosa() {
 
   // Buscar dados gerais
   const { data: glosaPorConvenio, isLoading: loadingConvenio, refetch: refetchConvenio } = 
-    trpc.glosa.porConvenio.useQuery();
+    trpc.glosa.porConvenio.useQuery({
+      estabelecimentoId: estabelecimentoAtual?.id,
+    });
   
   const { data: glosaPorProcedimento, isLoading: loadingProcedimento, refetch: refetchProcedimento } = 
     trpc.glosa.porProcedimento.useQuery({
       convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
+      estabelecimentoId: estabelecimentoAtual?.id,
       limit: 20,
     });
 
   const { data: tendenciaGlosa, isLoading: loadingTendencia, refetch: refetchTendencia } = 
     trpc.glosa.tendencia.useQuery({
       convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
+      estabelecimentoId: estabelecimentoAtual?.id,
       meses: parseInt(periodoMeses),
     });
 
   const { data: resumoGlosa, isLoading: loadingResumo } = 
-    trpc.glosa.resumo.useQuery();
+    trpc.glosa.resumo.useQuery({
+      estabelecimentoId: estabelecimentoAtual?.id,
+    });
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
@@ -141,6 +149,7 @@ export default function AnaliseGlosa() {
   const { data: itensGlosados, isLoading: loadingItens, refetch: refetchItens } = 
     trpc.glosa.itensGlosados.useQuery({
       convenioId: convenioItens !== "todos" ? parseInt(convenioItens) : undefined,
+      estabelecimentoId: estabelecimentoAtual?.id,
       tipo: tipoFiltro !== "todos" ? tipoFiltro : undefined,
       codigoGlosa: codigoGlosaFiltro !== "todos" ? codigoGlosaFiltro : undefined,
       classificacao: classificacaoFiltro !== "todos" ? classificacaoFiltro as "pendente" | "aceitar" | "recursar" : undefined,
@@ -155,6 +164,7 @@ export default function AnaliseGlosa() {
   const { data: itensAceitos, isLoading: loadingAceitos, refetch: refetchAceitos } = 
     trpc.glosa.itensGlosadosAceitos.useQuery({
       convenioId: convenioItens !== "todos" ? parseInt(convenioItens) : undefined,
+      estabelecimentoId: estabelecimentoAtual?.id,
       search: buscaItens || undefined,
       dataReferenciaInicio: dataReferenciaInicio ? new Date(dataReferenciaInicio) : undefined,
       dataReferenciaFim: dataReferenciaFim ? new Date(dataReferenciaFim) : undefined,
