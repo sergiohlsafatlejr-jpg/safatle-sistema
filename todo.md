@@ -170,3 +170,4 @@
 - [ ] Restaurar aba de "Itens Glosa Aceita" na tela de Análise de Glosa
 
 - [x] Corrigir importação de diárias e taxas em arquivos Excel (não estão sendo reconhecidas ou valores incorretos)
+- [x] Remover automaticamente espaços em branco extras dos nomes das colunas ao importar arquivos Excel

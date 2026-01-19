@@ -580,6 +580,22 @@ function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
 }
 
 /**
+ * Normaliza os nomes das colunas de uma linha do Excel
+ * Remove espaços em branco extras no início, fim e múltiplos espaços consecutivos
+ */
+function normalizeColumnNames(row: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {};
+  
+  for (const [key, value] of Object.entries(row)) {
+    // Remove espaços no início e fim, e substitui múltiplos espaços por um único
+    const normalizedKey = key.trim().replace(/\s+/g, ' ');
+    normalized[normalizedKey] = value;
+  }
+  
+  return normalized;
+}
+
+/**
  * Parse Excel file content
  * Optimized for large files with streaming-like processing
  */
@@ -602,10 +618,13 @@ export async function parseExcel(content: Buffer): Promise<ParseResult> {
       const sheet = workbook.Sheets[sheetName];
       
       // Use sheet_to_json with raw option for faster parsing
-      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         raw: false, // Convert to strings for consistent processing
         defval: '', // Default empty values
       });
+      
+      // Normalizar nomes das colunas removendo espaços extras
+      const data = rawData.map(row => normalizeColumnNames(row));
       
       totalRows += data.length;
       

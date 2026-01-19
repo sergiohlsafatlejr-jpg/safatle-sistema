@@ -1609,7 +1609,17 @@ export const appRouter = router({
             const workbook = XLSX.read(buffer, { type: "buffer" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            items = XLSX.utils.sheet_to_json(sheet);
+            const rawItems = XLSX.utils.sheet_to_json(sheet);
+            // Normalizar nomes das colunas removendo espaços extras
+            items = rawItems.map((row: any) => {
+              const normalized: any = {};
+              for (const [key, value] of Object.entries(row)) {
+                // Remove espaços no início e fim, e substitui múltiplos espaços por um único
+                const normalizedKey = key.trim().replace(/\s+/g, ' ');
+                normalized[normalizedKey] = value;
+              }
+              return normalized;
+            });
           } else if (input.formatoArquivo === "csv") {
             const content = buffer.toString("utf-8");
             const lines = content.split("\n").filter(l => l.trim());
