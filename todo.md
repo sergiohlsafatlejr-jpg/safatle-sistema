@@ -186,3 +186,5 @@
 - [x] Implementar filtros na tela de Divergências para visualizar separadamente diárias, taxas, mat/med e procedimentos
 - [x] Melhorar visual da tabela de divergências: separar código e descrição em colunas distintas
 - [x] Mostrar nome da regra violada na seção de Violações de Regras de Negócio
+- [x] Implementar reabertura de validações do histórico com análise completa (divergências, violações, sugestões)
+- [x] Criar painel de resumo na tela de Comparações com total de divergências por categoria e convênio

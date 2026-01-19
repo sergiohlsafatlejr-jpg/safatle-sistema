@@ -146,6 +146,41 @@ export default function Comparacoes() {
   );
   const utils = trpc.useUtils();
 
+  // Abrir validação do histórico
+  const handleAbrirValidacao = (validacao: any) => {
+    // Carregar os detalhes salvos da validação
+    if (validacao.detalhes) {
+      try {
+        const detalhes = typeof validacao.detalhes === 'string' 
+          ? JSON.parse(validacao.detalhes) 
+          : validacao.detalhes;
+        
+        setResultadoValidacao({
+          divergenciasPreco: detalhes.divergenciasPreco || [],
+          violacoesRegras: detalhes.violacoesRegras || [],
+          sugestoes: detalhes.sugestoes || [],
+          resumo: {
+            totalItens: validacao.totalItens || 0,
+            divergenciasPreco: validacao.divergenciasPreco || 0,
+            violacoesRegras: validacao.violacoesRegras || 0,
+            sugestoes: validacao.sugestoesIA || 0,
+            valorDiferenca: validacao.valorDiferenca || 0,
+          },
+        });
+        
+        setArquivoSelecionadoId(validacao.arquivoId.toString());
+        setActiveTab("validacao");
+        toast.success("Validação carregada do histórico");
+      } catch (error) {
+        toast.error("Erro ao carregar detalhes da validação");
+      }
+    } else {
+      toast.info("Detalhes não disponíveis. Execute a validação novamente.");
+      setArquivoSelecionadoId(validacao.arquivoId.toString());
+      setActiveTab("validacao");
+    }
+  };
+
   // Executar validação completa de um arquivo
   const handleValidarArquivo = async () => {
     if (!arquivoSelecionadoId) {
@@ -413,6 +448,63 @@ export default function Comparacoes() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Painel de Resumo por Categoria e Convênio */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Resumo por Categoria</CardTitle>
+                    <CardDescription>Total de divergências agrupadas por tipo de item</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      {(() => {
+                        const categorias = { diarias: 0, taxas: 0, matmed: 0, procedimentos: 0, outros: 0 };
+                        resultadoValidacao.divergenciasPreco.forEach((d: any) => {
+                          const cat = getCategoriaItem(d.descricaoItem || d.descricao || "", d.codigoItem || d.codigo || "", d.tipo);
+                          categorias[cat as keyof typeof categorias]++;
+                        });
+                        return (
+                          <>
+                            <div className={`p-4 rounded-lg text-center ${categorias.diarias > 0 ? 'bg-purple-100' : 'bg-slate-100'}`}>
+                              <p className="text-2xl font-bold text-purple-700">{categorias.diarias}</p>
+                              <p className="text-sm text-slate-600">Diárias</p>
+                            </div>
+                            <div className={`p-4 rounded-lg text-center ${categorias.taxas > 0 ? 'bg-orange-100' : 'bg-slate-100'}`}>
+                              <p className="text-2xl font-bold text-orange-700">{categorias.taxas}</p>
+                              <p className="text-sm text-slate-600">Taxas</p>
+                            </div>
+                            <div className={`p-4 rounded-lg text-center ${categorias.matmed > 0 ? 'bg-cyan-100' : 'bg-slate-100'}`}>
+                              <p className="text-2xl font-bold text-cyan-700">{categorias.matmed}</p>
+                              <p className="text-sm text-slate-600">Mat/Med</p>
+                            </div>
+                            <div className={`p-4 rounded-lg text-center ${categorias.procedimentos > 0 ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                              <p className="text-2xl font-bold text-emerald-700">{categorias.procedimentos}</p>
+                              <p className="text-sm text-slate-600">Procedimentos</p>
+                            </div>
+                            <div className={`p-4 rounded-lg text-center ${categorias.outros > 0 ? 'bg-slate-200' : 'bg-slate-100'}`}>
+                              <p className="text-2xl font-bold text-slate-700">{categorias.outros}</p>
+                              <p className="text-sm text-slate-600">Outros</p>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    
+                    {arquivoSelecionado && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm text-slate-500 mb-2">Convênio do Arquivo</p>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-100 text-blue-700">
+                            {convenios?.find(c => c.id === arquivoSelecionado.convenioId)?.nome || "Não identificado"}
+                          </Badge>
+                          <span className="text-sm text-slate-600">
+                            {resultadoValidacao.resumo.divergenciasPreco} divergência(s) de preço | {resultadoValidacao.resumo.violacoesRegras} violação(ões) de regra
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Divergências de Preço */}
                 <Card className="border-0 shadow-sm">
@@ -716,6 +808,7 @@ export default function Comparacoes() {
                           <TableHead className="text-right">Sugestões IA</TableHead>
                           <TableHead className="text-right">Diferença</TableHead>
                           <TableHead>Data</TableHead>
+                          <TableHead className="text-center">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -724,7 +817,7 @@ export default function Comparacoes() {
                           .map((validacao) => {
                             const arquivo = arquivosXml?.find(a => a.id === validacao.arquivoId);
                             return (
-                              <TableRow key={validacao.id} className="hover:bg-slate-50">
+                              <TableRow key={validacao.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => handleAbrirValidacao(validacao)}>
                                 <TableCell className="font-mono text-sm">#{validacao.id}</TableCell>
                                 <TableCell className="max-w-[200px] truncate" title={arquivo?.nome}>
                                   {arquivo?.nome || `Arquivo #${validacao.arquivoId}`}
@@ -763,6 +856,11 @@ export default function Comparacoes() {
                                     hour: '2-digit',
                                     minute: '2-digit'
                                   })}
+                                </TableCell>
+                                <TableCell>
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleAbrirValidacao(validacao); }}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             );
