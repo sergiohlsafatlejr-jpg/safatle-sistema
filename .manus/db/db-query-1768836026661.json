@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, arquivoId, codigo, descricao, valorUnitario, valorTotal FROM procedimentos WHERE codigo LIKE '%60000694%' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, arquivoId, codigo, descricao, valorUnitario, valorTotal FROM procedimentos WHERE codigo LIKE '%60000694%' LIMIT 10;",
+  "rows": [
+    {
+      "id": "60921",
+      "arquivoId": "60010",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61290",
+      "arquivoId": "60016",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61291",
+      "arquivoId": "60016",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61387",
+      "arquivoId": "60018",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61388",
+      "arquivoId": "60018",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61389",
+      "arquivoId": "60018",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61390",
+      "arquivoId": "60018",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61517",
+      "arquivoId": "60020",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61518",
+      "arquivoId": "60020",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    },
+    {
+      "id": "61519",
+      "arquivoId": "60020",
+      "codigo": "60000694",
+      "descricao": "DIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV",
+      "valorUnitario": "276.17",
+      "valorTotal": "276.17"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tarquivoId\tcodigo\tdescricao\tvalorUnitario\tvalorTotal\n60921\t60010\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61290\t60016\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61291\t60016\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61387\t60018\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61388\t60018\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61389\t60018\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61390\t60018\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61517\t60020\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61518\t60020\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n61519\t60020\t60000694\tDIARIA DE ENFERMARIA DE 3 LEITOS COM BANHEIRO PRIV\t276.17\t276.17\n",
+  "stderr": "",
+  "execution_time_ms": 370
+}

@@ -4651,6 +4651,17 @@ export async function compararComTabelaPrecos(arquivoId: number) {
   
   const convenioId = arquivo[0].convenioId;
   
+  // LIMPAR alertas antigos de comparação de preços para este arquivo antes de criar novos
+  await db.delete(alertasDivergencia).where(
+    and(
+      eq(alertasDivergencia.arquivoId, arquivoId),
+      or(
+        eq(alertasDivergencia.tipoAlerta, "valor_divergente"),
+        eq(alertasDivergencia.tipoAlerta, "codigo_invalido")
+      )
+    )
+  );
+  
   // Buscar procedimentos do arquivo
   const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
   
