@@ -198,7 +198,7 @@ export default function DashboardLayout({
               <FileSearch className="h-8 w-8 text-primary" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center text-slate-900">
-              Hospital File Manager
+              Safatle Gerenciamento
             </h1>
             <p className="text-sm text-slate-500 text-center max-w-sm">
               Sistema de gerenciamento e comparação de arquivos de convênios médicos. Faça login para continuar.

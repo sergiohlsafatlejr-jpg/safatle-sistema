@@ -1,4 +1,4 @@
-# Hospital File Manager - TODO
+# Safatle Gerenciamento - TODO
 
 ## Funcionalidades Principais
 
@@ -229,3 +229,5 @@
 - [ ] Edição de estabelecimentos de usuários existentes (adicionar/remover estabelecimentos)
 
 - [x] Tela para usuários trocarem suas senhas
+
+- [x] Alterar nome do sistema para "Safatle Gerenciamento"
