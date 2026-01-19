@@ -17,7 +17,10 @@ import {
   TrendingDown,
   Search,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Play,
+  FileText,
+  RefreshCw
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -51,13 +54,23 @@ export default function Comparacoes() {
   const [arquivoRetornadoId, setArquivoRetornadoId] = useState<string>("");
   const [filtroConvenio, setFiltroConvenio] = useState<string>("todos");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
-  const [activeTab, setActiveTab] = useState("arquivos");
+  const [activeTab, setActiveTab] = useState("validacao");
   
-  // Estados para comparação com tabela de preços
-  const [tabelaConvenioId, setTabelaConvenioId] = useState<string>("");
-  const [tabelaTipo, setTabelaTipo] = useState<string>("todos");
-  const [tabelaSearch, setTabelaSearch] = useState("");
-  const [comparandoTabela, setComparandoTabela] = useState(false);
+  // Estados para validação por XML
+  const [arquivoSelecionadoId, setArquivoSelecionadoId] = useState<string>("");
+  const [validandoArquivo, setValidandoArquivo] = useState(false);
+  const [resultadoValidacao, setResultadoValidacao] = useState<{
+    divergenciasPreco: any[];
+    violacoesRegras: any[];
+    sugestoes: any[];
+    resumo: {
+      totalItens: number;
+      divergenciasPreco: number;
+      violacoesRegras: number;
+      sugestoes: number;
+      valorDiferenca: number;
+    };
+  } | null>(null);
 
   const { data: comparacoes, isLoading, refetch } = trpc.comparacoes.list.useQuery({
     convenioId: filtroConvenio !== "todos" ? parseInt(filtroConvenio) : undefined,
@@ -73,124 +86,70 @@ export default function Comparacoes() {
     direcao: "retornado", 
     status: "processado" 
   });
-
-  // Buscar tabelas de preços do convênio selecionado
-  const { data: tabelasPreco } = trpc.tabelasPreco.list.useQuery(
-    { 
-      convenioId: tabelaConvenioId ? parseInt(tabelaConvenioId) : 0,
-      tipo: tabelaTipo !== "todos" ? tabelaTipo as "diarias" | "mat_med" | "taxas" | "procedimentos" : undefined,
-      nome: tabelaSearch || undefined,
-    },
-    { enabled: !!tabelaConvenioId }
-  );
-
-  // Buscar procedimentos enviados do convênio para comparar com tabela
-  const { data: procedimentosEnviados } = trpc.procedimentos.list.useQuery(
-    {
-      convenioId: tabelaConvenioId ? parseInt(tabelaConvenioId) : undefined,
-      page: 1,
-      pageSize: 10000,
-    },
-    { enabled: !!tabelaConvenioId && activeTab === "tabela" }
-  );
-
-  // Comparar procedimentos com tabela de preços
-  const comparacaoTabela = useMemo(() => {
-    if (!procedimentosEnviados?.items || !tabelasPreco?.items) {
-      return { divergencias: [], resumo: { total: 0, divergentes: 0, valorDiferenca: 0, valorCobradoTotal: 0, valorTabelaTotal: 0 } };
-    }
-
-    const tabelaMap = new Map<string, typeof tabelasPreco.items[0]>();
-    tabelasPreco.items.forEach(item => {
-      tabelaMap.set(item.codigo, item);
-    });
-
-    const divergencias: Array<{
-      procedimentoId: number;
-      codigo: string;
-      descricao: string;
-      valorCobrado: number;
-      valorTabela: number | null;
-      diferenca: number;
-      percentualDiferenca: number;
-      status: "acima" | "abaixo" | "sem_tabela" | "ok";
-      paciente: string;
-      guia: string;
-      dataExecucao: Date | null;
-    }> = [];
-
-    let totalDivergentes = 0;
-    let valorDiferencaTotal = 0;
-    let valorCobradoTotal = 0;
-    let valorTabelaTotal = 0;
-
-    for (const proc of procedimentosEnviados.items) {
-      const tabelaItem = tabelaMap.get(proc.codigo);
-      const valorCobrado = parseFloat(proc.valorTotal || "0");
-      valorCobradoTotal += valorCobrado;
-
-      if (!tabelaItem) {
-        // Código não encontrado na tabela
-        divergencias.push({
-          procedimentoId: proc.id,
-          codigo: proc.codigo,
-          descricao: proc.descricao || "",
-          valorCobrado,
-          valorTabela: null,
-          diferenca: 0,
-          percentualDiferenca: 0,
-          status: "sem_tabela",
-          paciente: proc.pacienteNome || "",
-          guia: proc.guiaNumero || "",
-          dataExecucao: proc.dataExecucao,
-        });
-        totalDivergentes++;
-      } else {
-        const valorTabela = parseFloat(tabelaItem.valor);
-        valorTabelaTotal += valorTabela;
-        const diferenca = valorCobrado - valorTabela;
-        const percentualDiferenca = valorTabela > 0 ? ((valorCobrado - valorTabela) / valorTabela) * 100 : 0;
-
-        // Considerar divergência se diferença > 1% ou > R$ 1,00
-        const isDivergente = Math.abs(percentualDiferenca) > 1 || Math.abs(diferenca) > 1;
-
-        if (isDivergente) {
-          divergencias.push({
-            procedimentoId: proc.id,
-            codigo: proc.codigo,
-            descricao: proc.descricao || "",
-            valorCobrado,
-            valorTabela,
-            diferenca,
-            percentualDiferenca,
-            status: diferenca > 0 ? "acima" : "abaixo",
-            paciente: proc.pacienteNome || "",
-            guia: proc.guiaNumero || "",
-            dataExecucao: proc.dataExecucao,
-          });
-          totalDivergentes++;
-          valorDiferencaTotal += diferenca;
-        }
-      }
-    }
-
-    // Ordenar por diferença absoluta (maiores primeiro)
-    divergencias.sort((a, b) => Math.abs(b.diferenca) - Math.abs(a.diferenca));
-
-    return {
-      divergencias,
-      resumo: {
-        total: procedimentosEnviados.items.length,
-        divergentes: totalDivergentes,
-        valorDiferenca: valorDiferencaTotal,
-        valorCobradoTotal,
-        valorTabelaTotal,
-      },
-    };
-  }, [procedimentosEnviados, tabelasPreco]);
+  
+  // Lista de arquivos XML processados para validação
+  const { data: arquivosXml } = trpc.arquivos.list.useQuery({ 
+    status: "processado" 
+  });
 
   const criarComparacaoMutation = trpc.comparacoes.criar.useMutation();
+  const compararComTabelaMutation = trpc.alertas.compararComTabela.useMutation();
+  const verificarRegrasMutation = trpc.alertas.verificarRegras.useMutation();
+  const { data: sugestoesData, refetch: refetchSugestoes } = trpc.alertas.sugerirItens.useQuery(
+    { arquivoId: arquivoSelecionadoId ? parseInt(arquivoSelecionadoId) : 0 },
+    { enabled: false }
+  );
   const utils = trpc.useUtils();
+
+  // Executar validação completa de um arquivo
+  const handleValidarArquivo = async () => {
+    if (!arquivoSelecionadoId) {
+      toast.error("Selecione um arquivo XML para validar");
+      return;
+    }
+
+    setValidandoArquivo(true);
+    setResultadoValidacao(null);
+
+    try {
+      const arquivoId = parseInt(arquivoSelecionadoId);
+      
+      // Executar comparação com tabela de preços
+      const resultadoPrecos = await compararComTabelaMutation.mutateAsync({ arquivoId });
+      
+      // Executar verificação de regras de negócio
+      const resultadoRegras = await verificarRegrasMutation.mutateAsync({ arquivoId });
+      
+      // Buscar sugestões da IA
+      const { data: sugestoes } = await refetchSugestoes();
+
+      setResultadoValidacao({
+        divergenciasPreco: resultadoPrecos.alertas || [],
+        violacoesRegras: resultadoRegras.alertas || [],
+        sugestoes: sugestoes || [],
+        resumo: {
+          totalItens: resultadoPrecos.resumo?.total || 0,
+          divergenciasPreco: resultadoPrecos.resumo?.divergencias || 0,
+          violacoesRegras: resultadoRegras.resumo?.violacoes || 0,
+          sugestoes: sugestoes?.length || 0,
+          valorDiferenca: resultadoPrecos.resumo?.valorDiferenca || 0,
+        },
+      });
+
+      const totalAlertas = (resultadoPrecos.resumo?.divergencias || 0) + (resultadoRegras.resumo?.violacoes || 0);
+      if (totalAlertas > 0) {
+        toast.warning(`Validação concluída: ${totalAlertas} alerta(s) encontrado(s)`);
+      } else {
+        toast.success("Validação concluída: Nenhum problema encontrado!");
+      }
+
+      // Invalidar queries relacionadas
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao validar arquivo");
+    } finally {
+      setValidandoArquivo(false);
+    }
+  };
 
   const handleCriarComparacao = async () => {
     if (!arquivoEnviadoId || !arquivoRetornadoId) {
@@ -237,34 +196,338 @@ export default function Comparacoes() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   };
 
+  const arquivoSelecionado = arquivosXml?.find(a => a.id.toString() === arquivoSelecionadoId);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Comparações</h1>
           <p className="text-slate-500">
-            Compare arquivos enviados vs retornados ou valores cobrados vs tabela de preços
+            Valide arquivos XML contra tabelas de preços e regras de negócio
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full max-w-lg grid-cols-3">
+            <TabsTrigger value="validacao" className="flex items-center gap-2">
+              <Play className="h-4 w-4" />
+              Validar XML
+            </TabsTrigger>
             <TabsTrigger value="arquivos" className="flex items-center gap-2">
               <GitCompare className="h-4 w-4" />
-              Arquivos
+              Comparar Arquivos
             </TabsTrigger>
-            <TabsTrigger value="tabela" className="flex items-center gap-2">
-              <Table2 className="h-4 w-4" />
-              Tabela de Preços
-            </TabsTrigger>
-            <TabsTrigger value="alertas" className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Alertas
+            <TabsTrigger value="historico" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Histórico
             </TabsTrigger>
           </TabsList>
 
+          {/* Aba de Validação por XML */}
+          <TabsContent value="validacao" className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Play className="h-5 w-5 text-blue-500" />
+                  Validar Arquivo XML
+                </CardTitle>
+                <CardDescription>
+                  Selecione um arquivo XML processado para executar a validação completa: comparação com tabela de preços, verificação de regras de negócio e sugestões da IA
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>Arquivo XML</Label>
+                    <Select value={arquivoSelecionadoId} onValueChange={(v) => {
+                      setArquivoSelecionadoId(v);
+                      setResultadoValidacao(null);
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um arquivo XML processado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {arquivosXml?.filter(a => a.tipoArquivo === "xml").map((arq) => (
+                          <SelectItem key={arq.id} value={arq.id.toString()}>
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-slate-400" />
+                              <span>{arq.nome}</span>
+                              <Badge variant="outline" className="ml-2">
+                                {convenios?.find(c => c.id === arq.convenioId)?.nome || "Sem convênio"}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleValidarArquivo}
+                    disabled={!arquivoSelecionadoId || validandoArquivo}
+                    className="lg:w-auto"
+                  >
+                    {validandoArquivo ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Validando...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Executar Validação
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {arquivoSelecionado && (
+                  <div className="mt-4 p-4 bg-slate-50 rounded-lg">
+                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                      <span><strong>Arquivo:</strong> {arquivoSelecionado.nome}</span>
+                      <span><strong>Convênio:</strong> {convenios?.find(c => c.id === arquivoSelecionado.convenioId)?.nome || "-"}</span>
+                      <span><strong>Data:</strong> {new Date(arquivoSelecionado.createdAt).toLocaleDateString("pt-BR")}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Resultado da Validação */}
+            {resultadoValidacao && (
+              <>
+                {/* Cards de Resumo */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="border-0 shadow-sm">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-slate-500">Total de Itens</p>
+                          <p className="text-2xl font-bold">{resultadoValidacao.resumo.totalItens}</p>
+                        </div>
+                        <FileText className="h-8 w-8 text-slate-300" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`border-0 shadow-sm ${resultadoValidacao.resumo.divergenciasPreco > 0 ? "bg-red-50" : "bg-green-50"}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-slate-500">Divergências de Preço</p>
+                          <p className="text-2xl font-bold">{resultadoValidacao.resumo.divergenciasPreco}</p>
+                        </div>
+                        <DollarSign className={`h-8 w-8 ${resultadoValidacao.resumo.divergenciasPreco > 0 ? "text-red-300" : "text-green-300"}`} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`border-0 shadow-sm ${resultadoValidacao.resumo.violacoesRegras > 0 ? "bg-amber-50" : "bg-green-50"}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-slate-500">Violações de Regras</p>
+                          <p className="text-2xl font-bold">{resultadoValidacao.resumo.violacoesRegras}</p>
+                        </div>
+                        <AlertTriangle className={`h-8 w-8 ${resultadoValidacao.resumo.violacoesRegras > 0 ? "text-amber-300" : "text-green-300"}`} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-sm bg-blue-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-slate-500">Sugestões IA</p>
+                          <p className="text-2xl font-bold">{resultadoValidacao.resumo.sugestoes}</p>
+                        </div>
+                        <TrendingUp className="h-8 w-8 text-blue-300" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Divergências de Preço */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5 text-red-500" />
+                      Divergências de Preço
+                      {resultadoValidacao.divergenciasPreco.length > 0 && (
+                        <Badge className="bg-red-100 text-red-700 ml-2">
+                          {resultadoValidacao.divergenciasPreco.length}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Itens com valor diferente da tabela de preços contratada
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {resultadoValidacao.divergenciasPreco.length === 0 ? (
+                      <div className="flex items-center gap-2 text-green-600 py-4">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span>Nenhuma divergência de preço encontrada</span>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50">
+                              <TableHead>Código</TableHead>
+                              <TableHead>Descrição</TableHead>
+                              <TableHead className="text-right">Valor Cobrado</TableHead>
+                              <TableHead className="text-right">Valor Tabela</TableHead>
+                              <TableHead className="text-right">Diferença</TableHead>
+                              <TableHead className="text-center">Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {resultadoValidacao.divergenciasPreco.slice(0, 50).map((div: any, index: number) => (
+                              <TableRow key={index} className="hover:bg-slate-50">
+                                <TableCell className="font-mono text-sm">{div.codigo}</TableCell>
+                                <TableCell className="max-w-[200px] truncate">{div.descricao}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(div.valorCobrado)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(div.valorTabela)}</TableCell>
+                                <TableCell className={`text-right font-medium ${div.diferenca > 0 ? "text-red-600" : "text-green-600"}`}>
+                                  {div.diferenca > 0 ? "+" : ""}{formatCurrency(div.diferenca)}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge className={div.diferenca > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}>
+                                    {div.diferenca > 0 ? "Acima" : "Abaixo"}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {resultadoValidacao.divergenciasPreco.length > 50 && (
+                          <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border-t">
+                            Exibindo 50 de {resultadoValidacao.divergenciasPreco.length} divergências
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Violações de Regras */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      Violações de Regras de Negócio
+                      {resultadoValidacao.violacoesRegras.length > 0 && (
+                        <Badge className="bg-amber-100 text-amber-700 ml-2">
+                          {resultadoValidacao.violacoesRegras.length}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Itens que não atendem às regras de composição de conta cadastradas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {resultadoValidacao.violacoesRegras.length === 0 ? (
+                      <div className="flex items-center gap-2 text-green-600 py-4">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span>Nenhuma violação de regra encontrada</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {resultadoValidacao.violacoesRegras.slice(0, 20).map((violacao: any, index: number) => (
+                          <div key={index} className="p-4 border rounded-lg bg-amber-50">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="font-medium text-slate-900">{violacao.regra || "Regra de Negócio"}</p>
+                                <p className="text-sm text-slate-600 mt-1">{violacao.mensagem}</p>
+                                {violacao.procedimento && (
+                                  <p className="text-xs text-slate-500 mt-2">
+                                    Procedimento: {violacao.procedimento}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Sugestões da IA */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-500" />
+                      Sugestões Inteligentes
+                      {resultadoValidacao.sugestoes.length > 0 && (
+                        <Badge className="bg-blue-100 text-blue-700 ml-2">
+                          {resultadoValidacao.sugestoes.length}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Análise baseada em padrões de contas anteriores
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {resultadoValidacao.sugestoes.length === 0 ? (
+                      <div className="flex items-center gap-2 text-slate-500 py-4">
+                        <AlertCircle className="h-5 w-5" />
+                        <span>Nenhuma sugestão disponível. Importe mais arquivos para a IA aprender os padrões.</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {resultadoValidacao.sugestoes.map((sugestao: any, index: number) => (
+                          <div key={index} className="p-4 border rounded-lg bg-blue-50">
+                            <div className="flex items-start gap-3">
+                              <TrendingUp className="h-5 w-5 text-blue-500 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="font-medium text-slate-900">{sugestao.item || "Item sugerido"}</p>
+                                <p className="text-sm text-slate-600 mt-1">{sugestao.motivo}</p>
+                                {sugestao.confianca && (
+                                  <Badge className="mt-2 bg-blue-100 text-blue-700">
+                                    Confiança: {(sugestao.confianca * 100).toFixed(0)}%
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
           {/* Aba de Comparação de Arquivos */}
           <TabsContent value="arquivos" className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitCompare className="h-5 w-5 text-blue-500" />
+                  Comparar Arquivos
+                </CardTitle>
+                <CardDescription>
+                  Compare um arquivo enviado com seu retorno para identificar divergências
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => setDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Comparação
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Aba de Histórico */}
+          <TabsContent value="historico" className="space-y-6">
             {/* Filters */}
             <Card className="border-0 shadow-sm">
               <CardContent className="pt-6">
@@ -307,9 +570,9 @@ export default function Comparacoes() {
                     </Button>
                   </div>
 
-                  <Button onClick={() => setDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Comparação
+                  <Button variant="outline" onClick={() => refetch()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar
                   </Button>
                 </div>
               </CardContent>
@@ -334,8 +597,8 @@ export default function Comparacoes() {
                   <div className="text-center py-12">
                     <GitCompare className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500">Nenhuma comparação realizada</p>
-                    <Button variant="outline" className="mt-4" onClick={() => setDialogOpen(true)}>
-                      Criar primeira comparação
+                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab("validacao")}>
+                      Validar um arquivo
                     </Button>
                   </div>
                 ) : (
@@ -349,53 +612,31 @@ export default function Comparacoes() {
                           <TableHead className="text-right">Itens Ret.</TableHead>
                           <TableHead className="text-right">Valor Env.</TableHead>
                           <TableHead className="text-right">Valor Ret.</TableHead>
-                          <TableHead className="text-center">Divergências</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Data</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
+                          <TableHead className="text-right">Divergências</TableHead>
+                          <TableHead className="text-center">Status</TableHead>
+                          <TableHead className="text-center">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {comparacoes?.map((comp) => (
                           <TableRow key={comp.id} className="hover:bg-slate-50">
                             <TableCell className="font-mono text-sm">#{comp.id}</TableCell>
-                            <TableCell>
-                              <span className="text-sm text-slate-600">
-                                {convenios?.find(c => c.id === comp.convenioId)?.nome || "-"}
-                              </span>
-                            </TableCell>
+                            <TableCell>{convenios?.find(c => c.id === comp.convenioId)?.nome || "-"}</TableCell>
                             <TableCell className="text-right">{comp.totalItensEnviados || 0}</TableCell>
                             <TableCell className="text-right">{comp.totalItensRetornados || 0}</TableCell>
-                            <TableCell className="text-right text-sm">
-                              {formatCurrency(comp.valorTotalEnviado)}
-                            </TableCell>
-                            <TableCell className="text-right text-sm">
-                              {formatCurrency(comp.valorTotalRetornado)}
+                            <TableCell className="text-right">{formatCurrency(comp.valorTotalEnviado)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(comp.valorTotalRetornado)}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {comp.totalDivergencias || 0}
                             </TableCell>
                             <TableCell className="text-center">
-                              {comp.totalDivergencias && comp.totalDivergencias > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
-                                  <AlertTriangle className="h-4 w-4" />
-                                  {comp.totalDivergencias}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-green-600">
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  0
-                                </span>
-                              )}
+                              {getStatusBadge(comp.status, comp.totalDivergencias)}
                             </TableCell>
-                            <TableCell>{getStatusBadge(comp.status, comp.totalDivergencias)}</TableCell>
-                            <TableCell>
-                              <span className="text-sm text-slate-500">
-                                {new Date(comp.createdAt).toLocaleDateString("pt-BR")}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-center">
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                onClick={() => setLocation(`/divergencias?comparacaoId=${comp.id}`)}
+                                onClick={() => setLocation(`/comparacoes/${comp.id}`)}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -404,342 +645,6 @@ export default function Comparacoes() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Aba de Comparação com Tabela de Preços */}
-          <TabsContent value="tabela" className="space-y-6">
-            {/* Filtros */}
-            <Card className="border-0 shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    <Select value={tabelaConvenioId} onValueChange={setTabelaConvenioId}>
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Selecione o convênio" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {convenios?.map((conv) => (
-                          <SelectItem key={conv.id} value={conv.id.toString()}>
-                            {conv.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={tabelaTipo} onValueChange={setTabelaTipo}>
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos tipos</SelectItem>
-                        <SelectItem value="diarias">Diárias</SelectItem>
-                        <SelectItem value="mat_med">Mat/Med</SelectItem>
-                        <SelectItem value="taxas">Taxas</SelectItem>
-                        <SelectItem value="procedimentos">Procedimentos</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <Input
-                        placeholder="Buscar código ou descrição..."
-                        value={tabelaSearch}
-                        onChange={(e) => setTabelaSearch(e.target.value)}
-                        className="pl-9 w-[250px]"
-                      />
-                    </div>
-                  </div>
-
-                  <Button 
-                    variant="outline"
-                    onClick={() => setLocation("/tabelas-preco")}
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Gerenciar Tabelas
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {!tabelaConvenioId ? (
-              <Card className="border-0 shadow-sm">
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <Table2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Selecione um convênio para comparar valores cobrados com a tabela de preços</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Cards de Resumo */}
-                <div className="grid gap-4 md:grid-cols-4">
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg">
-                          <FileSpreadsheet className="h-6 w-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-500">Total Itens</p>
-                          <p className="text-2xl font-bold">{comparacaoTabela.resumo.total}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-amber-100 rounded-lg">
-                          <AlertTriangle className="h-6 w-6 text-amber-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-500">Divergências</p>
-                          <p className="text-2xl font-bold text-amber-600">{comparacaoTabela.resumo.divergentes}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-100 rounded-lg">
-                          <DollarSign className="h-6 w-6 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-500">Valor Cobrado</p>
-                          <p className="text-xl font-bold">{formatCurrency(comparacaoTabela.resumo.valorCobradoTotal)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-lg ${comparacaoTabela.resumo.valorDiferenca > 0 ? "bg-red-100" : "bg-green-100"}`}>
-                          {comparacaoTabela.resumo.valorDiferenca > 0 ? (
-                            <TrendingUp className="h-6 w-6 text-red-600" />
-                          ) : (
-                            <TrendingDown className="h-6 w-6 text-green-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-500">Diferença Total</p>
-                          <p className={`text-xl font-bold ${comparacaoTabela.resumo.valorDiferenca > 0 ? "text-red-600" : "text-green-600"}`}>
-                            {comparacaoTabela.resumo.valorDiferenca > 0 ? "+" : ""}{formatCurrency(comparacaoTabela.resumo.valorDiferenca)}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Tabela de Divergências */}
-                <Card className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Divergências de Valores</CardTitle>
-                    <CardDescription>
-                      Itens com valor cobrado diferente da tabela de preços contratada
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {comparacaoTabela.divergencias.length === 0 ? (
-                      <div className="text-center py-12">
-                        <CheckCircle2 className="h-12 w-12 text-green-300 mx-auto mb-4" />
-                        <p className="text-slate-500">Nenhuma divergência encontrada</p>
-                        <p className="text-sm text-slate-400 mt-2">
-                          Todos os valores cobrados estão de acordo com a tabela de preços
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50">
-                              <TableHead>Código</TableHead>
-                              <TableHead>Descrição</TableHead>
-                              <TableHead>Paciente</TableHead>
-                              <TableHead>Guia</TableHead>
-                              <TableHead className="text-right">Valor Cobrado</TableHead>
-                              <TableHead className="text-right">Valor Tabela</TableHead>
-                              <TableHead className="text-right">Diferença</TableHead>
-                              <TableHead className="text-center">Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {comparacaoTabela.divergencias.slice(0, 100).map((div, index) => (
-                              <TableRow key={index} className="hover:bg-slate-50">
-                                <TableCell className="font-mono text-sm">{div.codigo}</TableCell>
-                                <TableCell className="max-w-[200px] truncate" title={div.descricao}>
-                                  {div.descricao}
-                                </TableCell>
-                                <TableCell className="max-w-[150px] truncate" title={div.paciente}>
-                                  {div.paciente || "-"}
-                                </TableCell>
-                                <TableCell className="font-mono text-sm">{div.guia || "-"}</TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {formatCurrency(div.valorCobrado)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {div.valorTabela !== null ? formatCurrency(div.valorTabela) : (
-                                    <span className="text-slate-400">-</span>
-                                  )}
-                                </TableCell>
-                                <TableCell className={`text-right font-medium ${div.diferenca > 0 ? "text-red-600" : div.diferenca < 0 ? "text-green-600" : ""}`}>
-                                  {div.status === "sem_tabela" ? "-" : (
-                                    <>
-                                      {div.diferenca > 0 ? "+" : ""}{formatCurrency(div.diferenca)}
-                                      <span className="text-xs text-slate-400 ml-1">
-                                        ({div.percentualDiferenca > 0 ? "+" : ""}{div.percentualDiferenca.toFixed(1)}%)
-                                      </span>
-                                    </>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {div.status === "acima" && (
-                                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                                      <TrendingUp className="h-3 w-3 mr-1" />
-                                      Acima
-                                    </Badge>
-                                  )}
-                                  {div.status === "abaixo" && (
-                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                                      <TrendingDown className="h-3 w-3 mr-1" />
-                                      Abaixo
-                                    </Badge>
-                                  )}
-                                  {div.status === "sem_tabela" && (
-                                    <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      Sem Tabela
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                        {comparacaoTabela.divergencias.length > 100 && (
-                          <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border-t">
-                            Exibindo 100 de {comparacaoTabela.divergencias.length} divergências
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Aba de Alertas */}
-          <TabsContent value="alertas" className="space-y-6">
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  Alertas Automáticos
-                </CardTitle>
-                <CardDescription>
-                  Alertas gerados automaticamente após o upload de arquivos, comparando valores com a tabela de preços e verificando regras de negócio
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-4 mb-6">
-                  <div className="flex flex-wrap gap-2">
-                    <Select value={tabelaConvenioId} onValueChange={setTabelaConvenioId}>
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Selecione o convênio" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {convenios?.map((conv) => (
-                          <SelectItem key={conv.id} value={conv.id.toString()}>
-                            {conv.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {!tabelaConvenioId ? (
-                  <div className="text-center py-12">
-                    <AlertTriangle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Selecione um convênio para ver os alertas</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Alertas de Divergência de Preço */}
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium flex items-center gap-2 mb-3">
-                        <DollarSign className="h-4 w-4 text-red-500" />
-                        Divergências de Preço
-                      </h4>
-                      <p className="text-sm text-slate-500 mb-3">
-                        Itens com valor cobrado diferente da tabela contratada
-                      </p>
-                      {comparacaoTabela.resumo.divergentes > 0 ? (
-                        <div className="space-y-2">
-                          <Badge className="bg-red-100 text-red-700">
-                            {comparacaoTabela.resumo.divergentes} divergências encontradas
-                          </Badge>
-                          <p className="text-sm">
-                            Diferença total: <span className={comparacaoTabela.resumo.valorDiferenca >= 0 ? "text-red-600 font-medium" : "text-green-600 font-medium"}>
-                              {comparacaoTabela.resumo.valorDiferenca >= 0 ? "+" : ""}
-                              {comparacaoTabela.resumo.valorDiferenca.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                            </span>
-                          </p>
-                          <Button variant="outline" size="sm" onClick={() => setActiveTab("tabela")}>
-                            Ver detalhes
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-green-600">
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span className="text-sm">Nenhuma divergência de preço encontrada</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Alertas de Regras de Negócio */}
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium flex items-center gap-2 mb-3">
-                        <FileSpreadsheet className="h-4 w-4 text-amber-500" />
-                        Regras de Negócio
-                      </h4>
-                      <p className="text-sm text-slate-500 mb-3">
-                        Verificação de itens obrigatórios conforme regras cadastradas
-                      </p>
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <AlertCircle className="h-4 w-4" />
-                        <span className="text-sm">Cadastre regras de negócio para ativar esta verificação</span>
-                      </div>
-                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setLocation("/regras-negocio")}>
-                        Cadastrar Regras
-                      </Button>
-                    </div>
-
-                    {/* Sugestões da IA */}
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium flex items-center gap-2 mb-3">
-                        <TrendingUp className="h-4 w-4 text-blue-500" />
-                        Sugestões Inteligentes
-                      </h4>
-                      <p className="text-sm text-slate-500 mb-3">
-                        Análise baseada em padrões de contas anteriores
-                      </p>
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <AlertCircle className="h-4 w-4" />
-                        <span className="text-sm">Importe mais arquivos para a IA aprender os padrões</span>
-                      </div>
-                    </div>
                   </div>
                 )}
               </CardContent>

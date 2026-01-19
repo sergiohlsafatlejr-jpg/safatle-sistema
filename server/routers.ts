@@ -319,14 +319,8 @@ export const appRouter = router({
             await db.updateArquivoStatus(arquivoId, "processado");
             await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
             
-            // Executar comparação automática com tabela de preços e regras de negócio
-            try {
-              await db.compararComTabelaPrecos(arquivoId);
-              await db.verificarRegrasNegocio(arquivoId);
-            } catch (err) {
-              console.error("Erro na comparação automática:", err);
-              // Não falha o upload se a comparação falhar
-            }
+            // Nota: A validação de regras e comparação com tabela de preços agora é feita sob demanda
+            // pelo usuário na tela de Comparações, não mais automaticamente no upload
           } else if (!parseResult.success) {
             await db.updateArquivoStatus(arquivoId, "erro");
           } else {

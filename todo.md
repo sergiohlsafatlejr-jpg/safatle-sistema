@@ -177,3 +177,5 @@
 - [x] Implementar função de edição para regras de negócio existentes
 - [x] Implementar edição de itens obrigatórios no modal de edição de regras (adicionar/remover)
 - [x] Adicionar botão para duplicar regras de negócio existentes
+- [x] Alterar tela de Comparações para validação por XML individual (sob demanda) em vez de automática
+- [x] Implementar validação em lote de regras contra arquivo XML selecionado
