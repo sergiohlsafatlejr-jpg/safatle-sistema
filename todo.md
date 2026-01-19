@@ -183,3 +183,4 @@
 - [x] Salvar resultado da validação no histórico para consulta posterior
 - [x] Corrigir comparação que está funcionando apenas para materiais/medicamentos
 - [x] Corrigir comparação de diárias no XML - valores de diárias não estão sendo identificados como divergentes
+- [x] Implementar filtros na tela de Divergências para visualizar separadamente diárias, taxas, mat/med e procedimentos

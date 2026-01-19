@@ -49,6 +49,7 @@ export default function Divergencias() {
   const [selectedComparacaoId, setSelectedComparacaoId] = useState<string>(comparacaoIdParam || "");
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [filtroResolvido, setFiltroResolvido] = useState<string>("todos");
+  const [filtroCategoria, setFiltroCategoria] = useState<string>("todos");
   
   // Estado para criar recurso
   const [showCriarRecurso, setShowCriarRecurso] = useState(false);
@@ -200,12 +201,48 @@ export default function Divergencias() {
     }
   };
 
+  // Função para identificar a categoria do item baseado na descrição ou código
+  const getCategoriaItem = (descricao: string, campo: string) => {
+    const desc = (descricao || "").toLowerCase();
+    const cod = (campo || "").toLowerCase();
+    
+    // Diárias
+    if (desc.includes("diária") || desc.includes("diaria") || cod.startsWith("6000")) {
+      return "diarias";
+    }
+    // Taxas
+    if (desc.includes("taxa") || cod.startsWith("4399") || cod.startsWith("6002")) {
+      return "taxas";
+    }
+    // Mat/Med
+    if (desc.includes("medicamento") || desc.includes("material") || 
+        cod.startsWith("9") || cod.startsWith("1900") || cod.startsWith("7")) {
+      return "matmed";
+    }
+    // Procedimentos
+    if (cod.startsWith("3") || cod.startsWith("2") || cod.startsWith("1") && !cod.startsWith("1900")) {
+      return "procedimentos";
+    }
+    return "outros";
+  };
+
   const divergenciasFiltradas = comparacao?.divergencias?.filter((div) => {
     if (filtroTipo !== "todos" && div.tipo !== filtroTipo) return false;
     if (filtroResolvido === "sim" && div.resolvido !== "sim") return false;
     if (filtroResolvido === "nao" && div.resolvido !== "nao") return false;
+    if (filtroCategoria !== "todos") {
+      const categoria = getCategoriaItem(div.descricao || "", div.campo || "");
+      if (categoria !== filtroCategoria) return false;
+    }
     return true;
   });
+
+  // Contagem por categoria
+  const contagemPorCategoria = comparacao?.divergencias?.reduce((acc, div) => {
+    const categoria = getCategoriaItem(div.descricao || "", div.campo || "");
+    acc[categoria] = (acc[categoria] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) || {};
 
   const resumo = {
     total: comparacao?.divergencias?.length || 0,
@@ -260,6 +297,20 @@ export default function Divergencias() {
                       <SelectItem value="ausente_retorno">Ausente no Retorno</SelectItem>
                       <SelectItem value="ausente_envio">Ausente no Envio</SelectItem>
                       <SelectItem value="dados">Dados</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas categorias</SelectItem>
+                      <SelectItem value="diarias">Diárias ({contagemPorCategoria.diarias || 0})</SelectItem>
+                      <SelectItem value="taxas">Taxas ({contagemPorCategoria.taxas || 0})</SelectItem>
+                      <SelectItem value="matmed">Mat/Med ({contagemPorCategoria.matmed || 0})</SelectItem>
+                      <SelectItem value="procedimentos">Procedimentos ({contagemPorCategoria.procedimentos || 0})</SelectItem>
+                      <SelectItem value="outros">Outros ({contagemPorCategoria.outros || 0})</SelectItem>
                     </SelectContent>
                   </Select>
 

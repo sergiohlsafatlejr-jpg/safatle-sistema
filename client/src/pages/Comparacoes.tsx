@@ -55,6 +55,49 @@ export default function Comparacoes() {
   const [filtroConvenio, setFiltroConvenio] = useState<string>("todos");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [activeTab, setActiveTab] = useState("validacao");
+  const [filtroCategoriaValidacao, setFiltroCategoriaValidacao] = useState<string>("todos");
+  
+  // Função para identificar a categoria do item baseado na descrição, código ou tipo
+  const getCategoriaItem = (descricao: string, codigo: string, tipo?: string) => {
+    // Se tiver tipo definido, usar diretamente
+    if (tipo) {
+      const tipoLower = tipo.toLowerCase();
+      if (tipoLower.includes("diaria") || tipoLower === "diarias") return "diarias";
+      if (tipoLower.includes("taxa") || tipoLower === "taxas") return "taxas";
+      if (tipoLower.includes("mat") || tipoLower.includes("med") || tipoLower === "matmed") return "matmed";
+      if (tipoLower.includes("proc") || tipoLower === "procedimentos") return "procedimentos";
+    }
+    
+    const desc = (descricao || "").toLowerCase();
+    const cod = (codigo || "");
+    
+    // Diárias - baseado na descrição (deve ter "diária" explicitamente ou código de diária)
+    if ((desc.includes("diária") || desc.includes("diaria")) && 
+        !desc.includes("fio") && !desc.includes("material") && !desc.includes("seringa")) {
+      return "diarias";
+    }
+    // Códigos que começam com 6000 são diárias (ex: 60000694)
+    if (cod.startsWith("6000") && cod.length >= 8) {
+      return "diarias";
+    }
+    // Taxas - baseado na descrição
+    if (desc.includes("taxa") || desc.includes("serviço") || desc.includes("servico")) {
+      return "taxas";
+    }
+    // Mat/Med - baseado na descrição ou código
+    if (desc.includes("medicamento") || desc.includes("material") || desc.includes("seringa") || 
+        desc.includes("agulha") || desc.includes("soro") || desc.includes("agua") ||
+        desc.includes("cloreto") || desc.includes("injetável") || desc.includes("injetavel") ||
+        cod.startsWith("9") || cod.startsWith("1900") || cod.startsWith("7")) {
+      return "matmed";
+    }
+    // Procedimentos - baseado no código ou descrição
+    if (desc.includes("colecistectomia") || desc.includes("cirurgia") || desc.includes("procedimento") ||
+        cod.startsWith("3") || cod.startsWith("2")) {
+      return "procedimentos";
+    }
+    return "outros";
+  };
   
   // Estados para validação por XML
   const [arquivoSelecionadoId, setArquivoSelecionadoId] = useState<string>("");
@@ -374,18 +417,37 @@ export default function Comparacoes() {
                 {/* Divergências de Preço */}
                 <Card className="border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="h-5 w-5 text-red-500" />
-                      Divergências de Preço
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <DollarSign className="h-5 w-5 text-red-500" />
+                          Divergências de Preço
+                          {resultadoValidacao.divergenciasPreco.length > 0 && (
+                            <Badge className="bg-red-100 text-red-700 ml-2">
+                              {resultadoValidacao.divergenciasPreco.length}
+                            </Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription>
+                          Itens com valor diferente da tabela de preços contratada
+                        </CardDescription>
+                      </div>
                       {resultadoValidacao.divergenciasPreco.length > 0 && (
-                        <Badge className="bg-red-100 text-red-700 ml-2">
-                          {resultadoValidacao.divergenciasPreco.length}
-                        </Badge>
+                        <Select value={filtroCategoriaValidacao} onValueChange={setFiltroCategoriaValidacao}>
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Filtrar por categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas categorias ({resultadoValidacao.divergenciasPreco.length})</SelectItem>
+                            <SelectItem value="diarias">Diárias ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "diarias").length})</SelectItem>
+                            <SelectItem value="taxas">Taxas ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "taxas").length})</SelectItem>
+                            <SelectItem value="matmed">Mat/Med ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "matmed").length})</SelectItem>
+                            <SelectItem value="procedimentos">Procedimentos ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "procedimentos").length})</SelectItem>
+                            <SelectItem value="outros">Outros ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "outros").length})</SelectItem>
+                          </SelectContent>
+                        </Select>
                       )}
-                    </CardTitle>
-                    <CardDescription>
-                      Itens com valor diferente da tabela de preços contratada
-                    </CardDescription>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {resultadoValidacao.divergenciasPreco.length === 0 ? (
@@ -407,7 +469,9 @@ export default function Comparacoes() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {resultadoValidacao.divergenciasPreco.slice(0, 50).map((div: any, index: number) => (
+                            {resultadoValidacao.divergenciasPreco
+                              .filter((d: any) => filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricao, d.codigo, d.tipo) === filtroCategoriaValidacao)
+                              .slice(0, 50).map((div: any, index: number) => (
                               <TableRow key={index} className="hover:bg-slate-50">
                                 <TableCell className="font-mono text-sm">{div.codigo}</TableCell>
                                 <TableCell className="max-w-[200px] truncate">{div.descricao}</TableCell>
@@ -425,11 +489,16 @@ export default function Comparacoes() {
                             ))}
                           </TableBody>
                         </Table>
-                        {resultadoValidacao.divergenciasPreco.length > 50 && (
-                          <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border-t">
-                            Exibindo 50 de {resultadoValidacao.divergenciasPreco.length} divergências
-                          </div>
-                        )}
+                        {(() => {
+                          const filtradas = resultadoValidacao.divergenciasPreco.filter((d: any) => 
+                            filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricao, d.codigo, d.tipo) === filtroCategoriaValidacao
+                          );
+                          return filtradas.length > 50 ? (
+                            <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border-t">
+                              Exibindo 50 de {filtradas.length} divergências
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     )}
                   </CardContent>
