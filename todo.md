@@ -188,3 +188,9 @@
 - [x] Mostrar nome da regra violada na seção de Violações de Regras de Negócio
 - [x] Implementar reabertura de validações do histórico com análise completa (divergências, violações, sugestões)
 - [x] Criar painel de resumo na tela de Comparações com total de divergências por categoria e convênio
+- [x] Implementar sistema multi-estabelecimento com seleção de hospital
+- [x] Adicionar campo estabelecimentoId nas tabelas principais (arquivos, procedimentos, alertas, etc.)
+- [x] Criar contexto de estabelecimento para gerenciar seleção
+- [x] Criar tela de seleção de estabelecimento na entrada do sistema
+- [x] Filtrar todas as queries por estabelecimento selecionado
+- [x] Adicionar seletor de estabelecimento no header para alternância durante sessão

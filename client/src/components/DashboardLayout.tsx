@@ -4,8 +4,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useEstabelecimento, Estabelecimento } from "@/contexts/EstabelecimentoContext";
 import {
   Sidebar,
   SidebarContent,
@@ -160,6 +163,7 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const { estabelecimentos, estabelecimentoAtual, setEstabelecimentoAtual } = useEstabelecimento();
 
   useEffect(() => {
     if (isCollapsed) {
@@ -215,12 +219,53 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-slate-400" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate text-white">
-                    Hospital Files
-                  </span>
-                </div>
-              ) : null}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 min-w-0 hover:bg-slate-800 rounded-lg px-2 py-1 transition-colors">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      <span className="font-semibold tracking-tight truncate text-white text-sm">
+                        {estabelecimentoAtual?.nome || "Selecionar"}
+                      </span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    <DropdownMenuLabel>Estabelecimentos</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {estabelecimentos.map((est: Estabelecimento) => (
+                      <DropdownMenuItem
+                        key={est.id}
+                        onClick={() => setEstabelecimentoAtual(est)}
+                        className={`cursor-pointer ${estabelecimentoAtual?.id === est.id ? "bg-primary/10 text-primary" : ""}`}
+                      >
+                        <Building2 className="mr-2 h-4 w-4" />
+                        <span className="truncate">{est.nome}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-8 w-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors">
+                      <Building2 className="h-4 w-4 text-primary" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    <DropdownMenuLabel>Estabelecimentos</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {estabelecimentos.map((est: Estabelecimento) => (
+                      <DropdownMenuItem
+                        key={est.id}
+                        onClick={() => setEstabelecimentoAtual(est)}
+                        className={`cursor-pointer ${estabelecimentoAtual?.id === est.id ? "bg-primary/10 text-primary" : ""}`}
+                      >
+                        <Building2 className="mr-2 h-4 w-4" />
+                        <span className="truncate">{est.nome}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </SidebarHeader>
 

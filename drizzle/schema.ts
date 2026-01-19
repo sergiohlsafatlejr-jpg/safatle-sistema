@@ -41,6 +41,7 @@ export const convenios = mysqlTable("convenios", {
   id: int("id").autoincrement().primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
   codigo: varchar("codigo", { length: 50 }),
+  estabelecimentoId: int("estabelecimentoId"), // Null = convênio disponível para todos os estabelecimentos
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -130,6 +131,7 @@ export const comparacoes = mysqlTable("comparacoes", {
   arquivoEnviadoId: int("arquivoEnviadoId").notNull(),
   arquivoRetornadoId: int("arquivoRetornadoId").notNull(),
   convenioId: int("convenioId").notNull(),
+  estabelecimentoId: int("estabelecimentoId"),
   userId: int("userId").notNull(),
   status: mysqlEnum("status", ["pendente", "concluida", "erro"]).default("pendente").notNull(),
   totalItensEnviados: int("totalItensEnviados").default(0),
@@ -508,6 +510,7 @@ export const tabelasPreco = mysqlTable("tabelasPreco", {
   id: int("id").autoincrement().primaryKey(),
   
   convenioId: int("convenioId").notNull(),
+  estabelecimentoId: int("estabelecimentoId"), // Null = tabela disponível para todos os estabelecimentos
   
   // Tipo da tabela
   tipo: mysqlEnum("tipo", [
@@ -774,6 +777,7 @@ export const historicoValidacoes = mysqlTable("historicoValidacoes", {
   // Arquivo validado
   arquivoId: int("arquivoId").notNull(),
   convenioId: int("convenioId").notNull(),
+  estabelecimentoId: int("estabelecimentoId"),
   
   // Usuário que executou a validação
   userId: int("userId").notNull(),

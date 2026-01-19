@@ -1,10 +1,12 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { useEstabelecimento } from "./contexts/EstabelecimentoContext";
 import Home from "./pages/Home";
+import SelecionarEstabelecimento from "./pages/SelecionarEstabelecimento";
 import Upload from "./pages/Upload";
 import Arquivos from "./pages/Arquivos";
 import Comparacoes from "./pages/Comparacoes";
@@ -27,8 +29,18 @@ import TabelasPreco from "./pages/TabelasPreco";
 import RegrasNegocio from "./pages/RegrasNegocio";
 
 function Router() {
+  const { selecionado, isLoading } = useEstabelecimento();
+  const [location] = useLocation();
+
+  // Se não selecionou estabelecimento e não está na página de seleção, redireciona
+  if (!isLoading && !selecionado && location !== "/selecionar-estabelecimento") {
+    window.location.href = "/selecionar-estabelecimento";
+    return null;
+  }
+
   return (
     <Switch>
+      <Route path={"/selecionar-estabelecimento"} component={SelecionarEstabelecimento} />
       <Route path={"/"} component={Home} />
       <Route path={"/upload"} component={Upload} />
       <Route path={"/arquivos"} component={Arquivos} />
