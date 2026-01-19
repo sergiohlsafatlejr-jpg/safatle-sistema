@@ -195,6 +195,7 @@ export async function getArquivos(filters?: {
   tipoArquivo?: "xml" | "excel" | "pdf";
   status?: "pendente" | "processado" | "erro";
   userId?: number;
+  estabelecimentoId?: number;
   dataInicio?: Date;
   dataFim?: Date;
   busca?: string;
@@ -218,6 +219,9 @@ export async function getArquivos(filters?: {
   }
   if (filters?.userId) {
     conditions.push(eq(arquivos.userId, filters.userId));
+  }
+  if (filters?.estabelecimentoId && filters.estabelecimentoId > 0) {
+    conditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
   }
   if (filters?.dataInicio) {
     conditions.push(gte(arquivos.createdAt, filters.dataInicio));
@@ -279,11 +283,14 @@ export async function updateArquivoProgresso(
   await db.update(arquivos).set(updateData).where(eq(arquivos.id, id));
 }
 
-export async function getArquivosStats(userId?: number) {
+export async function getArquivosStats(userId?: number, estabelecimentoId?: number) {
   const db = await getDb();
   if (!db) return null;
 
-  const baseCondition = userId ? eq(arquivos.userId, userId) : undefined;
+  const conditions: SQL[] = [];
+  if (userId) conditions.push(eq(arquivos.userId, userId));
+  if (estabelecimentoId && estabelecimentoId > 0) conditions.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [total, enviados, retornados, pendentes, processados, erros] =
     await Promise.all([
@@ -638,6 +645,7 @@ export async function createComparacao(data: InsertComparacao) {
 export async function getComparacoes(filters?: {
   convenioId?: number;
   userId?: number;
+  estabelecimentoId?: number;
   status?: "pendente" | "concluida" | "erro";
   dataInicio?: Date;
   dataFim?: Date;
@@ -652,6 +660,9 @@ export async function getComparacoes(filters?: {
   }
   if (filters?.userId) {
     conditions.push(eq(comparacoes.userId, filters.userId));
+  }
+  if (filters?.estabelecimentoId && filters.estabelecimentoId > 0) {
+    conditions.push(eq(comparacoes.estabelecimentoId, filters.estabelecimentoId));
   }
   if (filters?.status) {
     conditions.push(eq(comparacoes.status, filters.status));
@@ -696,11 +707,14 @@ export async function updateComparacao(
   await db.update(comparacoes).set(data).where(eq(comparacoes.id, id));
 }
 
-export async function getComparacoesStats(userId?: number) {
+export async function getComparacoesStats(userId?: number, estabelecimentoId?: number) {
   const db = await getDb();
   if (!db) return null;
 
-  const baseCondition = userId ? eq(comparacoes.userId, userId) : undefined;
+  const conditions: SQL[] = [];
+  if (userId) conditions.push(eq(comparacoes.userId, userId));
+  if (estabelecimentoId && estabelecimentoId > 0) conditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [total, concluidas, pendentes, comDivergencias] = await Promise.all([
     db

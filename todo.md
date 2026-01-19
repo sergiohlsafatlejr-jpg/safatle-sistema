@@ -196,3 +196,5 @@
 
 - [x] Adicionar filtro por status de classificação (Pendente, Aceita, Recursar) na aba de Itens Glosados
 - [x] Criar dashboard de produtividade com métricas de itens classificados por dia/usuário
+
+- [x] Corrigir bug: troca de estabelecimento no menu lateral não atualiza os dados das telas

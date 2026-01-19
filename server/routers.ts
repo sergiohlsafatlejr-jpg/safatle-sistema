@@ -747,29 +747,44 @@ export const appRouter = router({
 
   // ============ DASHBOARD ============
   dashboard: router({
-    resumo: protectedProcedure.query(async ({ ctx }) => {
-      const [arquivosStats, comparacoesStats] = await Promise.all([
-        db.getArquivosStats(ctx.user.id),
-        db.getComparacoesStats(ctx.user.id),
-      ]);
+    resumo: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        const estabelecimentoId = input?.estabelecimentoId;
+        const [arquivosStats, comparacoesStats] = await Promise.all([
+          db.getArquivosStats(ctx.user.id, estabelecimentoId),
+          db.getComparacoesStats(ctx.user.id, estabelecimentoId),
+        ]);
 
-      return {
-        arquivos: arquivosStats,
-        comparacoes: comparacoesStats,
-      };
-    }),
+        return {
+          arquivos: arquivosStats,
+          comparacoes: comparacoesStats,
+        };
+      }),
 
     ultimasComparacoes: protectedProcedure
-      .input(z.object({ limit: z.number().default(5) }).optional())
+      .input(z.object({ 
+        limit: z.number().default(5),
+        estabelecimentoId: z.number().optional() 
+      }).optional())
       .query(async ({ input, ctx }) => {
-        const comparacoes = await db.getComparacoes({ userId: ctx.user.id });
+        const comparacoes = await db.getComparacoes({ 
+          userId: ctx.user.id,
+          estabelecimentoId: input?.estabelecimentoId 
+        });
         return comparacoes.slice(0, input?.limit || 5);
       }),
 
     ultimosArquivos: protectedProcedure
-      .input(z.object({ limit: z.number().default(10) }).optional())
+      .input(z.object({ 
+        limit: z.number().default(10),
+        estabelecimentoId: z.number().optional() 
+      }).optional())
       .query(async ({ input, ctx }) => {
-        const arquivos = await db.getArquivos({ userId: ctx.user.id });
+        const arquivos = await db.getArquivos({ 
+          userId: ctx.user.id,
+          estabelecimentoId: input?.estabelecimentoId 
+        });
         return arquivos.slice(0, input?.limit || 10);
       }),
   }),
