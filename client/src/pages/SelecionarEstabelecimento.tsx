@@ -28,9 +28,11 @@ export default function SelecionarEstabelecimento() {
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary text-primary-foreground mb-4">
-            <Building2 className="h-8 w-8" />
-          </div>
+          <img 
+            src="/safatle-logo.png" 
+            alt="Safatle Logo" 
+            className="w-20 h-20 mx-auto mb-4 object-contain"
+          />
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Safatle Gerenciamento
           </h1>

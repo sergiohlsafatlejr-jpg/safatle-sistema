@@ -233,3 +233,6 @@
 - [x] Alterar nome do sistema para "Safatle Gerenciamento"
 
 - [x] Personalizar cores do tema com a paleta da marca Safatle (azul marinho e vermelho)
+
+- [x] Adicionar favicon com a logo da Safatle
+- [x] Substituir ícone genérico pela logo da Safatle na página de seleção de estabelecimento e sidebar
