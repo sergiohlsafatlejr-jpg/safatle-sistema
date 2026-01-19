@@ -184,3 +184,5 @@
 - [x] Corrigir comparação que está funcionando apenas para materiais/medicamentos
 - [x] Corrigir comparação de diárias no XML - valores de diárias não estão sendo identificados como divergentes
 - [x] Implementar filtros na tela de Divergências para visualizar separadamente diárias, taxas, mat/med e procedimentos
+- [x] Melhorar visual da tabela de divergências: separar código e descrição em colunas distintas
+- [x] Mostrar nome da regra violada na seção de Violações de Regras de Negócio

@@ -439,11 +439,11 @@ export default function Comparacoes() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="todos">Todas categorias ({resultadoValidacao.divergenciasPreco.length})</SelectItem>
-                            <SelectItem value="diarias">Diárias ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "diarias").length})</SelectItem>
-                            <SelectItem value="taxas">Taxas ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "taxas").length})</SelectItem>
-                            <SelectItem value="matmed">Mat/Med ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "matmed").length})</SelectItem>
-                            <SelectItem value="procedimentos">Procedimentos ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "procedimentos").length})</SelectItem>
-                            <SelectItem value="outros">Outros ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricao, d.codigo, d.tipo) === "outros").length})</SelectItem>
+                            <SelectItem value="diarias">Diárias ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === "diarias").length})</SelectItem>
+                            <SelectItem value="taxas">Taxas ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === "taxas").length})</SelectItem>
+                            <SelectItem value="matmed">Mat/Med ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === "matmed").length})</SelectItem>
+                            <SelectItem value="procedimentos">Procedimentos ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === "procedimentos").length})</SelectItem>
+                            <SelectItem value="outros">Outros ({resultadoValidacao.divergenciasPreco.filter((d: any) => getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === "outros").length})</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -470,19 +470,23 @@ export default function Comparacoes() {
                           </TableHeader>
                           <TableBody>
                             {resultadoValidacao.divergenciasPreco
-                              .filter((d: any) => filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricao, d.codigo, d.tipo) === filtroCategoriaValidacao)
+                              .filter((d: any) => filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === filtroCategoriaValidacao)
                               .slice(0, 50).map((div: any, index: number) => (
                               <TableRow key={index} className="hover:bg-slate-50">
-                                <TableCell className="font-mono text-sm">{div.codigo}</TableCell>
-                                <TableCell className="max-w-[200px] truncate">{div.descricao}</TableCell>
+                                <TableCell className="font-mono text-sm text-slate-700">{div.codigoItem || div.codigo}</TableCell>
+                                <TableCell className="max-w-[250px]">
+                                  <span className="block truncate" title={div.descricaoItem || div.descricao || "Sem descrição"}>
+                                    {div.descricaoItem || div.descricao || "Sem descrição"}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="text-right font-medium">{formatCurrency(div.valorCobrado)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(div.valorTabela)}</TableCell>
-                                <TableCell className={`text-right font-medium ${div.diferenca > 0 ? "text-red-600" : "text-green-600"}`}>
-                                  {div.diferenca > 0 ? "+" : ""}{formatCurrency(div.diferenca)}
+                                <TableCell className="text-right">{formatCurrency(div.valorEsperado || div.valorTabela)}</TableCell>
+                                <TableCell className={`text-right font-medium ${parseFloat(div.diferenca) > 0 ? "text-red-600" : "text-green-600"}`}>
+                                  {parseFloat(div.diferenca) > 0 ? "+" : ""}{formatCurrency(div.diferenca)}
                                 </TableCell>
                                 <TableCell className="text-center">
-                                  <Badge className={div.diferenca > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}>
-                                    {div.diferenca > 0 ? "Acima" : "Abaixo"}
+                                  <Badge className={parseFloat(div.diferenca) > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}>
+                                    {parseFloat(div.diferenca) > 0 ? "Acima" : "Abaixo"}
                                   </Badge>
                                 </TableCell>
                               </TableRow>
@@ -491,7 +495,7 @@ export default function Comparacoes() {
                         </Table>
                         {(() => {
                           const filtradas = resultadoValidacao.divergenciasPreco.filter((d: any) => 
-                            filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricao, d.codigo, d.tipo) === filtroCategoriaValidacao
+                            filtroCategoriaValidacao === "todos" || getCategoriaItem(d.descricaoItem || d.descricao, d.codigoItem || d.codigo, d.tipo) === filtroCategoriaValidacao
                           );
                           return filtradas.length > 50 ? (
                             <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border-t">
@@ -529,16 +533,34 @@ export default function Comparacoes() {
                     ) : (
                       <div className="space-y-3">
                         {resultadoValidacao.violacoesRegras.slice(0, 20).map((violacao: any, index: number) => (
-                          <div key={index} className="p-4 border rounded-lg bg-amber-50">
+                          <div key={index} className="p-4 border rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors">
                             <div className="flex items-start gap-3">
-                              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
-                              <div className="flex-1">
-                                <p className="font-medium text-slate-900">{violacao.regra || "Regra de Negócio"}</p>
-                                <p className="text-sm text-slate-600 mt-1">{violacao.mensagem}</p>
-                                {violacao.procedimento && (
-                                  <p className="text-xs text-slate-500 mt-2">
-                                    Procedimento: {violacao.procedimento}
-                                  </p>
+                              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge className="bg-amber-200 text-amber-800">
+                                    {violacao.tipoAlerta === "item_faltante" ? "Item Faltante" : 
+                                     violacao.tipoAlerta === "item_nao_permitido" ? "Item Proibido" :
+                                     violacao.tipoAlerta === "quantidade_incorreta" ? "Quantidade Incorreta" : "Violação"}
+                                  </Badge>
+                                  <Badge variant="outline" className="bg-white">
+                                    {violacao.severidade === "alta" ? "Alta Prioridade" : 
+                                     violacao.severidade === "media" ? "Média Prioridade" : "Baixa Prioridade"}
+                                  </Badge>
+                                </div>
+                                <p className="font-semibold text-slate-900 mt-2">{violacao.titulo}</p>
+                                <p className="text-sm text-slate-600 mt-1">{violacao.descricao}</p>
+                                {violacao.codigoItem && (
+                                  <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">Código: {violacao.codigoItem}</span>
+                                    {violacao.descricaoItem && <span>{violacao.descricaoItem}</span>}
+                                  </div>
+                                )}
+                                {violacao.sugestaoCorrecao && (
+                                  <div className="mt-3 p-2 bg-white rounded border border-amber-200">
+                                    <p className="text-xs font-medium text-amber-700">Sugestão de Correção:</p>
+                                    <p className="text-sm text-slate-700">{violacao.sugestaoCorrecao}</p>
+                                  </div>
                                 )}
                               </div>
                             </div>
