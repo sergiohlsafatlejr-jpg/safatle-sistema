@@ -39,6 +39,8 @@ import {
   InsertAlertaDivergencia,
   padroesContas,
   InsertPadraoConta,
+  historicoValidacoes,
+  InsertHistoricoValidacao,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -4652,18 +4654,13 @@ export async function compararComTabelaPrecos(arquivoId: number) {
   // Buscar procedimentos do arquivo
   const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
   
-  // Buscar tabela de preços vigente do convênio
-  const hoje = new Date();
+  // Buscar tabela de preços do convênio (sem filtro de vigência para incluir todas as tabelas ativas)
+  // O filtro de vigência pode ser aplicado posteriormente se necessário
   const tabela = await db.select()
     .from(tabelasPreco)
     .where(and(
       eq(tabelasPreco.convenioId, convenioId),
-      eq(tabelasPreco.ativo, "sim"),
-      lte(tabelasPreco.vigenciaInicio, hoje),
-      or(
-        isNull(tabelasPreco.vigenciaFim),
-        gte(tabelasPreco.vigenciaFim, hoje)
-      )
+      eq(tabelasPreco.ativo, "sim")
     ));
   
   // Criar mapa de preços por código
@@ -5115,4 +5112,83 @@ export async function getResumoAlertasArquivo(arquivoId: number) {
   }
   
   return resumo;
+}
+
+
+// ============================================
+// Histórico de Validações
+// ============================================
+
+// Salvar resultado de validação no histórico
+export async function salvarHistoricoValidacao(dados: {
+  arquivoId: number;
+  convenioId: number;
+  userId: number;
+  totalItens: number;
+  divergenciasPreco: number;
+  violacoesRegras: number;
+  sugestoesIA: number;
+  valorDiferenca: number;
+  detalhes: any;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(historicoValidacoes).values({
+    arquivoId: dados.arquivoId,
+    convenioId: dados.convenioId,
+    userId: dados.userId,
+    totalItens: dados.totalItens,
+    divergenciasPreco: dados.divergenciasPreco,
+    violacoesRegras: dados.violacoesRegras,
+    sugestoesIA: dados.sugestoesIA,
+    valorDiferenca: dados.valorDiferenca.toString(),
+    detalhes: dados.detalhes,
+    status: "concluida"
+  });
+  
+  return result;
+}
+
+// Listar histórico de validações
+export async function listarHistoricoValidacoes(filtros?: {
+  convenioId?: number;
+  arquivoId?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select().from(historicoValidacoes);
+  
+  const conditions = [];
+  if (filtros?.convenioId) {
+    conditions.push(eq(historicoValidacoes.convenioId, filtros.convenioId));
+  }
+  if (filtros?.arquivoId) {
+    conditions.push(eq(historicoValidacoes.arquivoId, filtros.arquivoId));
+  }
+  
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+  
+  const result = await query
+    .orderBy(desc(historicoValidacoes.createdAt))
+    .limit(filtros?.limit || 50);
+  
+  return result;
+}
+
+// Buscar validação por ID
+export async function getHistoricoValidacao(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(historicoValidacoes)
+    .where(eq(historicoValidacoes.id, id))
+    .limit(1);
+  
+  return result[0] || null;
 }

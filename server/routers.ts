@@ -1963,6 +1963,43 @@ export const appRouter = router({
         await db.atualizarPadroesContas(input.convenioId, input.estabelecimentoId);
         return { success: true };
       }),
+
+    // Salvar validação no histórico
+    salvarValidacao: protectedProcedure
+      .input(z.object({
+        arquivoId: z.number(),
+        convenioId: z.number(),
+        totalItens: z.number(),
+        divergenciasPreco: z.number(),
+        violacoesRegras: z.number(),
+        sugestoesIA: z.number(),
+        valorDiferenca: z.number(),
+        detalhes: z.any(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.salvarHistoricoValidacao({
+          ...input,
+          userId: ctx.user.id,
+        });
+      }),
+
+    // Listar histórico de validações
+    historicoValidacoes: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        arquivoId: z.number().optional(),
+        limit: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.listarHistoricoValidacoes(input || {});
+      }),
+
+    // Buscar validação por ID
+    getValidacao: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getHistoricoValidacao(input.id);
+      }),
   }),
 });
 

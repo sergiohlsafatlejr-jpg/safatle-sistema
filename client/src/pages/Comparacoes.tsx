@@ -95,6 +95,8 @@ export default function Comparacoes() {
   const criarComparacaoMutation = trpc.comparacoes.criar.useMutation();
   const compararComTabelaMutation = trpc.alertas.compararComTabela.useMutation();
   const verificarRegrasMutation = trpc.alertas.verificarRegras.useMutation();
+  const salvarValidacaoMutation = trpc.alertas.salvarValidacao.useMutation();
+  const { data: historicoValidacoes, refetch: refetchHistorico } = trpc.alertas.historicoValidacoes.useQuery({});
   const { data: sugestoesData, refetch: refetchSugestoes } = trpc.alertas.sugerirItens.useQuery(
     { arquivoId: arquivoSelecionadoId ? parseInt(arquivoSelecionadoId) : 0 },
     { enabled: false }
@@ -137,6 +139,27 @@ export default function Comparacoes() {
       });
 
       const totalAlertas = (resultadoPrecos.resumo?.divergencias || 0) + (resultadoRegras.resumo?.violacoes || 0);
+      
+      // Salvar no histórico
+      const arquivoInfo = arquivosXml?.find(a => a.id === arquivoId);
+      if (arquivoInfo) {
+        await salvarValidacaoMutation.mutateAsync({
+          arquivoId,
+          convenioId: arquivoInfo.convenioId,
+          totalItens: resultadoPrecos.resumo?.total || 0,
+          divergenciasPreco: resultadoPrecos.resumo?.divergencias || 0,
+          violacoesRegras: resultadoRegras.resumo?.violacoes || 0,
+          sugestoesIA: sugestoes?.length || 0,
+          valorDiferenca: resultadoPrecos.resumo?.valorDiferenca || 0,
+          detalhes: {
+            divergenciasPreco: resultadoPrecos.alertas || [],
+            violacoesRegras: resultadoRegras.alertas || [],
+            sugestoes: sugestoes || [],
+          },
+        });
+        refetchHistorico();
+      }
+      
       if (totalAlertas > 0) {
         toast.warning(`Validação concluída: ${totalAlertas} alerta(s) encontrado(s)`);
       } else {
@@ -547,30 +570,17 @@ export default function Comparacoes() {
                       </SelectContent>
                     </Select>
 
-                    <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos status</SelectItem>
-                        <SelectItem value="concluida">Concluída</SelectItem>
-                        <SelectItem value="pendente">Pendente</SelectItem>
-                        <SelectItem value="erro">Erro</SelectItem>
-                      </SelectContent>
-                    </Select>
-
                     <Button 
                       variant="outline" 
                       onClick={() => {
                         setFiltroConvenio("todos");
-                        setFiltroStatus("todos");
                       }}
                     >
                       Limpar filtros
                     </Button>
                   </div>
 
-                  <Button variant="outline" onClick={() => refetch()}>
+                  <Button variant="outline" onClick={() => refetchHistorico()}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Atualizar
                   </Button>
@@ -581,22 +591,22 @@ export default function Comparacoes() {
             {/* Table */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle>Histórico de Comparações</CardTitle>
+                <CardTitle>Histórico de Validações</CardTitle>
                 <CardDescription>
-                  {comparacoes?.length || 0} comparação(ões) encontrada(s)
+                  {historicoValidacoes?.length || 0} validação(ões) realizada(s)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoading ? (
+                {!historicoValidacoes ? (
                   <div className="space-y-3">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <Skeleton key={i} className="h-16 w-full" />
                     ))}
                   </div>
-                ) : comparacoes?.length === 0 ? (
+                ) : historicoValidacoes?.length === 0 ? (
                   <div className="text-center py-12">
                     <GitCompare className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nenhuma comparação realizada</p>
+                    <p className="text-slate-500">Nenhuma validação realizada</p>
                     <Button variant="outline" className="mt-4" onClick={() => setActiveTab("validacao")}>
                       Validar um arquivo
                     </Button>
@@ -607,42 +617,65 @@ export default function Comparacoes() {
                       <TableHeader>
                         <TableRow className="bg-slate-50">
                           <TableHead>ID</TableHead>
+                          <TableHead>Arquivo</TableHead>
                           <TableHead>Convênio</TableHead>
-                          <TableHead className="text-right">Itens Env.</TableHead>
-                          <TableHead className="text-right">Itens Ret.</TableHead>
-                          <TableHead className="text-right">Valor Env.</TableHead>
-                          <TableHead className="text-right">Valor Ret.</TableHead>
-                          <TableHead className="text-right">Divergências</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                          <TableHead className="text-center">Ações</TableHead>
+                          <TableHead className="text-right">Total Itens</TableHead>
+                          <TableHead className="text-right">Diverg. Preço</TableHead>
+                          <TableHead className="text-right">Violações Regras</TableHead>
+                          <TableHead className="text-right">Sugestões IA</TableHead>
+                          <TableHead className="text-right">Diferença</TableHead>
+                          <TableHead>Data</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {comparacoes?.map((comp) => (
-                          <TableRow key={comp.id} className="hover:bg-slate-50">
-                            <TableCell className="font-mono text-sm">#{comp.id}</TableCell>
-                            <TableCell>{convenios?.find(c => c.id === comp.convenioId)?.nome || "-"}</TableCell>
-                            <TableCell className="text-right">{comp.totalItensEnviados || 0}</TableCell>
-                            <TableCell className="text-right">{comp.totalItensRetornados || 0}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(comp.valorTotalEnviado)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(comp.valorTotalRetornado)}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {comp.totalDivergencias || 0}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {getStatusBadge(comp.status, comp.totalDivergencias)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => setLocation(`/comparacoes/${comp.id}`)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {historicoValidacoes
+                          ?.filter(v => filtroConvenio === "todos" || v.convenioId.toString() === filtroConvenio)
+                          .map((validacao) => {
+                            const arquivo = arquivosXml?.find(a => a.id === validacao.arquivoId);
+                            return (
+                              <TableRow key={validacao.id} className="hover:bg-slate-50">
+                                <TableCell className="font-mono text-sm">#{validacao.id}</TableCell>
+                                <TableCell className="max-w-[200px] truncate" title={arquivo?.nome}>
+                                  {arquivo?.nome || `Arquivo #${validacao.arquivoId}`}
+                                </TableCell>
+                                <TableCell>{convenios?.find(c => c.id === validacao.convenioId)?.nome || "-"}</TableCell>
+                                <TableCell className="text-right">{validacao.totalItens || 0}</TableCell>
+                                <TableCell className="text-right">
+                                  {validacao.divergenciasPreco ? (
+                                    <Badge className="bg-amber-100 text-amber-700">{validacao.divergenciasPreco}</Badge>
+                                  ) : (
+                                    <Badge className="bg-green-100 text-green-700">0</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {validacao.violacoesRegras ? (
+                                    <Badge className="bg-red-100 text-red-700">{validacao.violacoesRegras}</Badge>
+                                  ) : (
+                                    <Badge className="bg-green-100 text-green-700">0</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {validacao.sugestoesIA ? (
+                                    <Badge className="bg-blue-100 text-blue-700">{validacao.sugestoesIA}</Badge>
+                                  ) : (
+                                    <Badge className="bg-slate-100 text-slate-700">0</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatCurrency(validacao.valorDiferenca)}
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-500">
+                                  {new Date(validacao.createdAt).toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                       </TableBody>
                     </Table>
                   </div>

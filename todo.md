@@ -179,3 +179,6 @@
 - [x] Adicionar botão para duplicar regras de negócio existentes
 - [x] Alterar tela de Comparações para validação por XML individual (sob demanda) em vez de automática
 - [x] Implementar validação em lote de regras contra arquivo XML selecionado
+- [x] Corrigir validação de XML para identificar divergências de preços em todos os tipos (taxas, diárias, procedimentos)
+- [x] Salvar resultado da validação no histórico para consulta posterior
+- [x] Corrigir comparação que está funcionando apenas para materiais/medicamentos

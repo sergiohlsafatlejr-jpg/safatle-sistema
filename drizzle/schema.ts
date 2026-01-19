@@ -762,3 +762,37 @@ export const padroesContas = mysqlTable("padroesContas", {
 
 export type PadraoConta = typeof padroesContas.$inferSelect;
 export type InsertPadraoConta = typeof padroesContas.$inferInsert;
+
+
+/**
+ * Histórico de Validações de XML
+ * Armazena os resultados das validações executadas sob demanda
+ */
+export const historicoValidacoes = mysqlTable("historicoValidacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Arquivo validado
+  arquivoId: int("arquivoId").notNull(),
+  convenioId: int("convenioId").notNull(),
+  
+  // Usuário que executou a validação
+  userId: int("userId").notNull(),
+  
+  // Resumo da validação
+  totalItens: int("totalItens").default(0),
+  divergenciasPreco: int("divergenciasPreco").default(0),
+  violacoesRegras: int("violacoesRegras").default(0),
+  sugestoesIA: int("sugestoesIA").default(0),
+  valorDiferenca: decimal("valorDiferenca", { precision: 12, scale: 2 }),
+  
+  // Status
+  status: mysqlEnum("status", ["concluida", "erro"]).default("concluida").notNull(),
+  
+  // Detalhes em JSON (alertas, sugestões, etc.)
+  detalhes: json("detalhes"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoValidacao = typeof historicoValidacoes.$inferSelect;
+export type InsertHistoricoValidacao = typeof historicoValidacoes.$inferInsert;
