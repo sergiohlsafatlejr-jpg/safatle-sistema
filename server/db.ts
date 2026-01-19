@@ -4507,7 +4507,14 @@ export async function addItemRegraNegocio(data: InsertItemRegraNegocio) {
   const db = await getDb();
   if (!db) return null;
   
-  const result = await db.insert(itensRegraNegocio).values(data);
+  // Garantir que toleranciaValor seja uma string válida ou undefined
+  const cleanData = {
+    ...data,
+    toleranciaValor: data.toleranciaValor ? String(data.toleranciaValor) : undefined,
+    valorEsperado: data.valorEsperado ? String(data.valorEsperado) : undefined,
+  };
+  
+  const result = await db.insert(itensRegraNegocio).values(cleanData);
   return result[0].insertId;
 }
 
