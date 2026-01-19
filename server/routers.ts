@@ -2111,10 +2111,24 @@ export const appRouter = router({
       .input(z.object({
         userId: z.number(),
         estabelecimentoId: z.number(),
+        grupoServico: z.enum(["administrador", "faturista", "recurso_glosa", "gestor", "visualizador"]).optional(),
         podeVisualizar: z.enum(["sim", "nao"]).optional(),
         podeEditar: z.enum(["sim", "nao"]).optional(),
         podeExcluir: z.enum(["sim", "nao"]).optional(),
         podeGerenciar: z.enum(["sim", "nao"]).optional(),
+        acessoDashboard: z.enum(["sim", "nao"]).optional(),
+        acessoArquivos: z.enum(["sim", "nao"]).optional(),
+        acessoComparacoes: z.enum(["sim", "nao"]).optional(),
+        acessoFaturamento: z.enum(["sim", "nao"]).optional(),
+        acessoTabelasPreco: z.enum(["sim", "nao"]).optional(),
+        acessoAnaliseGlosa: z.enum(["sim", "nao"]).optional(),
+        acessoDicionarioGlosas: z.enum(["sim", "nao"]).optional(),
+        acessoRecursosGlosa: z.enum(["sim", "nao"]).optional(),
+        acessoConvenios: z.enum(["sim", "nao"]).optional(),
+        acessoRegrasNegocio: z.enum(["sim", "nao"]).optional(),
+        acessoProdutividade: z.enum(["sim", "nao"]).optional(),
+        acessoEstabelecimentos: z.enum(["sim", "nao"]).optional(),
+        acessoPermissoes: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const podeGerenciar = await db.verificarPermissaoEstabelecimento(
@@ -2130,6 +2144,27 @@ export const appRouter = router({
         }
         return db.upsertPermissaoEstabelecimento(input);
       }),
+
+    // Obter módulos permitidos por grupo de serviço
+    modulosPorGrupo: protectedProcedure
+      .input(z.object({ grupoServico: z.string() }))
+      .query(({ input }) => {
+        return db.getModulosPermitidosPorGrupo(input.grupoServico);
+      }),
+
+    // Listar todos os usuários do sistema (para seleção)
+    listarUsuarios: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        const isGestor = await db.verificarSeGestor(ctx.user.id);
+        if (!isGestor) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas gestores podem listar usuários",
+          });
+        }
+      }
+      return db.listarTodosUsuarios();
+    }),
 
     // Remover permissão (apenas gestores/admin)
     removerPermissao: protectedProcedure

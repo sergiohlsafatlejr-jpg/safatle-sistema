@@ -212,3 +212,7 @@
 
 - [x] Adicionar métricas de envio de XML por usuário no Dashboard de Produtividade (valores faturados)
 - [x] Criar filtros no Dashboard de Produtividade para separar métricas de envio de XML e glosas
+
+- [x] Implementar grupos de serviço (Faturista, Recurso de Glosa, Administrador, Gestor, Visualizador) na tela de Gerenciar Permissões
+- [x] Definir permissões por módulo/aba para cada grupo de serviço
+- [x] Implementar controle de acesso nas telas baseado no grupo do usuário

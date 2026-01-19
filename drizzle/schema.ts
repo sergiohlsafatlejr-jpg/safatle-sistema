@@ -811,11 +811,35 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   userId: int("userId").notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // Permissões específicas
+  // Grupo de serviço do usuário neste estabelecimento
+  grupoServico: mysqlEnum("grupoServico", [
+    "administrador",  // Acesso total a todas as funcionalidades
+    "faturista",      // Acesso a: Dashboard, Arquivos, Comparações, Faturamento, Tabelas de Preço
+    "recurso_glosa",  // Acesso a: Análise de Glosa, Dicionário de Glosas, Recursos de Glosa
+    "gestor",         // Acesso a: Dashboard Consolidado, Relatórios, Produtividade
+    "visualizador"    // Acesso apenas para visualização (somente leitura)
+  ]).default("visualizador").notNull(),
+  
+  // Permissões específicas (mantém para compatibilidade e controle granular)
   podeVisualizar: mysqlEnum("podeVisualizar", ["sim", "nao"]).default("sim").notNull(),
   podeEditar: mysqlEnum("podeEditar", ["sim", "nao"]).default("nao").notNull(),
   podeExcluir: mysqlEnum("podeExcluir", ["sim", "nao"]).default("nao").notNull(),
   podeGerenciar: mysqlEnum("podeGerenciar", ["sim", "nao"]).default("nao").notNull(), // Gerenciar usuários e permissões
+  
+  // Permissões por módulo (controle granular por funcionalidade)
+  acessoDashboard: mysqlEnum("acessoDashboard", ["sim", "nao"]).default("sim").notNull(),
+  acessoArquivos: mysqlEnum("acessoArquivos", ["sim", "nao"]).default("nao").notNull(),
+  acessoComparacoes: mysqlEnum("acessoComparacoes", ["sim", "nao"]).default("nao").notNull(),
+  acessoFaturamento: mysqlEnum("acessoFaturamento", ["sim", "nao"]).default("nao").notNull(),
+  acessoTabelasPreco: mysqlEnum("acessoTabelasPreco", ["sim", "nao"]).default("nao").notNull(),
+  acessoAnaliseGlosa: mysqlEnum("acessoAnaliseGlosa", ["sim", "nao"]).default("nao").notNull(),
+  acessoDicionarioGlosas: mysqlEnum("acessoDicionarioGlosas", ["sim", "nao"]).default("nao").notNull(),
+  acessoRecursosGlosa: mysqlEnum("acessoRecursosGlosa", ["sim", "nao"]).default("nao").notNull(),
+  acessoConvenios: mysqlEnum("acessoConvenios", ["sim", "nao"]).default("nao").notNull(),
+  acessoRegrasNegocio: mysqlEnum("acessoRegrasNegocio", ["sim", "nao"]).default("nao").notNull(),
+  acessoProdutividade: mysqlEnum("acessoProdutividade", ["sim", "nao"]).default("nao").notNull(),
+  acessoEstabelecimentos: mysqlEnum("acessoEstabelecimentos", ["sim", "nao"]).default("nao").notNull(),
+  acessoPermissoes: mysqlEnum("acessoPermissoes", ["sim", "nao"]).default("nao").notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

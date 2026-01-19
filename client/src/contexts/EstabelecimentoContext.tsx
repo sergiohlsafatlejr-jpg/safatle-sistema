@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 
@@ -19,6 +19,39 @@ export const TODOS_ESTABELECIMENTOS: Estabelecimento = {
   ativo: 'sim',
 };
 
+// Tipo para permissões de módulo
+export type ModuloPermissao = 
+  | "dashboard" 
+  | "arquivos" 
+  | "comparacoes" 
+  | "faturamento" 
+  | "tabelasPreco" 
+  | "analiseGlosa" 
+  | "dicionarioGlosas" 
+  | "recursosGlosa" 
+  | "convenios" 
+  | "regrasNegocio" 
+  | "produtividade" 
+  | "estabelecimentos" 
+  | "permissoes";
+
+interface PermissoesModulo {
+  acessoDashboard: "sim" | "nao";
+  acessoArquivos: "sim" | "nao";
+  acessoComparacoes: "sim" | "nao";
+  acessoFaturamento: "sim" | "nao";
+  acessoTabelasPreco: "sim" | "nao";
+  acessoAnaliseGlosa: "sim" | "nao";
+  acessoDicionarioGlosas: "sim" | "nao";
+  acessoRecursosGlosa: "sim" | "nao";
+  acessoConvenios: "sim" | "nao";
+  acessoRegrasNegocio: "sim" | "nao";
+  acessoProdutividade: "sim" | "nao";
+  acessoEstabelecimentos: "sim" | "nao";
+  acessoPermissoes: "sim" | "nao";
+  grupoServico: string | null;
+}
+
 interface EstabelecimentoContextType {
   estabelecimentos: Estabelecimento[];
   estabelecimentoAtual: Estabelecimento | null;
@@ -27,11 +60,32 @@ interface EstabelecimentoContextType {
   selecionado: boolean;
   visualizandoTodos: boolean;
   isGestor: boolean;
+  // Novas propriedades para permissões
+  permissoesModulo: PermissoesModulo | null;
+  temAcessoModulo: (modulo: ModuloPermissao) => boolean;
+  grupoServico: string | null;
 }
 
 const EstabelecimentoContext = createContext<EstabelecimentoContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'hospital_estabelecimento_id';
+
+// Mapeamento de módulo para campo de permissão
+const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
+  dashboard: "acessoDashboard",
+  arquivos: "acessoArquivos",
+  comparacoes: "acessoComparacoes",
+  faturamento: "acessoFaturamento",
+  tabelasPreco: "acessoTabelasPreco",
+  analiseGlosa: "acessoAnaliseGlosa",
+  dicionarioGlosas: "acessoDicionarioGlosas",
+  recursosGlosa: "acessoRecursosGlosa",
+  convenios: "acessoConvenios",
+  regrasNegocio: "acessoRegrasNegocio",
+  produtividade: "acessoProdutividade",
+  estabelecimentos: "acessoEstabelecimentos",
+  permissoes: "acessoPermissoes",
+};
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -50,9 +104,104 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       enabled: !!user,
     });
 
+  // Buscar permissões do usuário
+  const { data: minhasPermissoes = [], isLoading: loadingPermissoes } = 
+    trpc.permissoes.minhasPermissoes.useQuery(undefined, {
+      enabled: !!user,
+    });
+
   // Usar estabelecimentos permitidos ou todos (fallback)
   const estabelecimentos = estabelecimentosPermitidos;
-  const isLoading = loadingPermitidos || loadingGestor;
+  const isLoading = loadingPermitidos || loadingGestor || loadingPermissoes;
+
+  // Obter permissões do estabelecimento atual
+  const permissoesModulo: PermissoesModulo | null = (() => {
+    if (!estabelecimentoAtual || estabelecimentoAtual.id === 0) {
+      // Se visualizando todos ou nenhum selecionado, usar permissões máximas se for admin/gestor
+      if (user?.role === "admin" || isGestor) {
+        return {
+          acessoDashboard: "sim",
+          acessoArquivos: "sim",
+          acessoComparacoes: "sim",
+          acessoFaturamento: "sim",
+          acessoTabelasPreco: "sim",
+          acessoAnaliseGlosa: "sim",
+          acessoDicionarioGlosas: "sim",
+          acessoRecursosGlosa: "sim",
+          acessoConvenios: "sim",
+          acessoRegrasNegocio: "sim",
+          acessoProdutividade: "sim",
+          acessoEstabelecimentos: "sim",
+          acessoPermissoes: "sim",
+          grupoServico: "administrador",
+        };
+      }
+      return null;
+    }
+
+    // Buscar permissão específica do estabelecimento
+    const permissao = minhasPermissoes.find(
+      (p: any) => p.estabelecimentoId === estabelecimentoAtual.id
+    );
+
+    if (!permissao) {
+      // Se não tem permissão específica mas é admin, dar acesso total
+      if (user?.role === "admin") {
+        return {
+          acessoDashboard: "sim",
+          acessoArquivos: "sim",
+          acessoComparacoes: "sim",
+          acessoFaturamento: "sim",
+          acessoTabelasPreco: "sim",
+          acessoAnaliseGlosa: "sim",
+          acessoDicionarioGlosas: "sim",
+          acessoRecursosGlosa: "sim",
+          acessoConvenios: "sim",
+          acessoRegrasNegocio: "sim",
+          acessoProdutividade: "sim",
+          acessoEstabelecimentos: "sim",
+          acessoPermissoes: "sim",
+          grupoServico: "administrador",
+        };
+      }
+      return null;
+    }
+
+    return {
+      acessoDashboard: permissao.acessoDashboard || "sim",
+      acessoArquivos: permissao.acessoArquivos || "nao",
+      acessoComparacoes: permissao.acessoComparacoes || "nao",
+      acessoFaturamento: permissao.acessoFaturamento || "nao",
+      acessoTabelasPreco: permissao.acessoTabelasPreco || "nao",
+      acessoAnaliseGlosa: permissao.acessoAnaliseGlosa || "nao",
+      acessoDicionarioGlosas: permissao.acessoDicionarioGlosas || "nao",
+      acessoRecursosGlosa: permissao.acessoRecursosGlosa || "nao",
+      acessoConvenios: permissao.acessoConvenios || "nao",
+      acessoRegrasNegocio: permissao.acessoRegrasNegocio || "nao",
+      acessoProdutividade: permissao.acessoProdutividade || "nao",
+      acessoEstabelecimentos: permissao.acessoEstabelecimentos || "nao",
+      acessoPermissoes: permissao.acessoPermissoes || "nao",
+      grupoServico: permissao.grupoServico || null,
+    };
+  })();
+
+  // Função para verificar acesso a um módulo
+  const temAcessoModulo = (modulo: ModuloPermissao): boolean => {
+    // Admin sempre tem acesso
+    if (user?.role === "admin") return true;
+    
+    // Gestor tem acesso a tudo
+    if (isGestor) return true;
+
+    // Verificar permissão específica
+    if (!permissoesModulo) return false;
+    
+    // Administrador do estabelecimento tem acesso total
+    if (permissoesModulo.grupoServico === "administrador") return true;
+
+    const campo = moduloParaCampo[modulo];
+    return permissoesModulo[campo] === "sim";
+  };
 
   // Carregar estabelecimento salvo do localStorage
   useEffect(() => {
@@ -86,6 +235,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
   };
 
   const visualizandoTodos = estabelecimentoAtual?.id === 0;
+  const grupoServico = permissoesModulo?.grupoServico || null;
 
   return (
     <EstabelecimentoContext.Provider
@@ -97,6 +247,9 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
         selecionado,
         visualizandoTodos,
         isGestor,
+        permissoesModulo,
+        temAcessoModulo,
+        grupoServico,
       }}
     >
       {children}

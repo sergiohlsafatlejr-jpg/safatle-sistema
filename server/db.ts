@@ -5305,10 +5305,24 @@ export async function getPermissoesUsuario(userId: number) {
       id: permissoesEstabelecimento.id,
       userId: permissoesEstabelecimento.userId,
       estabelecimentoId: permissoesEstabelecimento.estabelecimentoId,
+      grupoServico: permissoesEstabelecimento.grupoServico,
       podeVisualizar: permissoesEstabelecimento.podeVisualizar,
       podeEditar: permissoesEstabelecimento.podeEditar,
       podeExcluir: permissoesEstabelecimento.podeExcluir,
       podeGerenciar: permissoesEstabelecimento.podeGerenciar,
+      acessoDashboard: permissoesEstabelecimento.acessoDashboard,
+      acessoArquivos: permissoesEstabelecimento.acessoArquivos,
+      acessoComparacoes: permissoesEstabelecimento.acessoComparacoes,
+      acessoFaturamento: permissoesEstabelecimento.acessoFaturamento,
+      acessoTabelasPreco: permissoesEstabelecimento.acessoTabelasPreco,
+      acessoAnaliseGlosa: permissoesEstabelecimento.acessoAnaliseGlosa,
+      acessoDicionarioGlosas: permissoesEstabelecimento.acessoDicionarioGlosas,
+      acessoRecursosGlosa: permissoesEstabelecimento.acessoRecursosGlosa,
+      acessoConvenios: permissoesEstabelecimento.acessoConvenios,
+      acessoRegrasNegocio: permissoesEstabelecimento.acessoRegrasNegocio,
+      acessoProdutividade: permissoesEstabelecimento.acessoProdutividade,
+      acessoEstabelecimentos: permissoesEstabelecimento.acessoEstabelecimentos,
+      acessoPermissoes: permissoesEstabelecimento.acessoPermissoes,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -5422,10 +5436,24 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
     await db
       .update(permissoesEstabelecimento)
       .set({
+        grupoServico: data.grupoServico,
         podeVisualizar: data.podeVisualizar,
         podeEditar: data.podeEditar,
         podeExcluir: data.podeExcluir,
         podeGerenciar: data.podeGerenciar,
+        acessoDashboard: data.acessoDashboard,
+        acessoArquivos: data.acessoArquivos,
+        acessoComparacoes: data.acessoComparacoes,
+        acessoFaturamento: data.acessoFaturamento,
+        acessoTabelasPreco: data.acessoTabelasPreco,
+        acessoAnaliseGlosa: data.acessoAnaliseGlosa,
+        acessoDicionarioGlosas: data.acessoDicionarioGlosas,
+        acessoRecursosGlosa: data.acessoRecursosGlosa,
+        acessoConvenios: data.acessoConvenios,
+        acessoRegrasNegocio: data.acessoRegrasNegocio,
+        acessoProdutividade: data.acessoProdutividade,
+        acessoEstabelecimentos: data.acessoEstabelecimentos,
+        acessoPermissoes: data.acessoPermissoes,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
@@ -5463,10 +5491,24 @@ export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
       id: permissoesEstabelecimento.id,
       userId: permissoesEstabelecimento.userId,
       estabelecimentoId: permissoesEstabelecimento.estabelecimentoId,
+      grupoServico: permissoesEstabelecimento.grupoServico,
       podeVisualizar: permissoesEstabelecimento.podeVisualizar,
       podeEditar: permissoesEstabelecimento.podeEditar,
       podeExcluir: permissoesEstabelecimento.podeExcluir,
       podeGerenciar: permissoesEstabelecimento.podeGerenciar,
+      acessoDashboard: permissoesEstabelecimento.acessoDashboard,
+      acessoArquivos: permissoesEstabelecimento.acessoArquivos,
+      acessoComparacoes: permissoesEstabelecimento.acessoComparacoes,
+      acessoFaturamento: permissoesEstabelecimento.acessoFaturamento,
+      acessoTabelasPreco: permissoesEstabelecimento.acessoTabelasPreco,
+      acessoAnaliseGlosa: permissoesEstabelecimento.acessoAnaliseGlosa,
+      acessoDicionarioGlosas: permissoesEstabelecimento.acessoDicionarioGlosas,
+      acessoRecursosGlosa: permissoesEstabelecimento.acessoRecursosGlosa,
+      acessoConvenios: permissoesEstabelecimento.acessoConvenios,
+      acessoRegrasNegocio: permissoesEstabelecimento.acessoRegrasNegocio,
+      acessoProdutividade: permissoesEstabelecimento.acessoProdutividade,
+      acessoEstabelecimentos: permissoesEstabelecimento.acessoEstabelecimentos,
+      acessoPermissoes: permissoesEstabelecimento.acessoPermissoes,
       userName: users.name,
       userEmail: users.email,
       userRole: users.role,
@@ -6359,4 +6401,148 @@ export async function getMetricasEnvioXML(filters: {
     porUsuario,
     porConvenio,
   };
+}
+
+
+/**
+ * Verifica se um usuário tem acesso a um módulo específico em um estabelecimento
+ */
+export async function verificarAcessoModulo(
+  userId: number,
+  estabelecimentoId: number,
+  modulo: "dashboard" | "arquivos" | "comparacoes" | "faturamento" | "tabelasPreco" | "analiseGlosa" | "dicionarioGlosas" | "recursosGlosa" | "convenios" | "regrasNegocio" | "produtividade" | "estabelecimentos" | "permissoes"
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  // Admins têm acesso total
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role === "admin") return true;
+
+  const [permissao] = await db
+    .select()
+    .from(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, userId),
+      eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentoId)
+    ))
+    .limit(1);
+
+  if (!permissao) return false;
+
+  // Administradores do estabelecimento têm acesso total
+  if (permissao.grupoServico === "administrador") return true;
+
+  // Verificar permissão específica do módulo
+  const moduloMap: Record<string, keyof typeof permissao> = {
+    dashboard: "acessoDashboard",
+    arquivos: "acessoArquivos",
+    comparacoes: "acessoComparacoes",
+    faturamento: "acessoFaturamento",
+    tabelasPreco: "acessoTabelasPreco",
+    analiseGlosa: "acessoAnaliseGlosa",
+    dicionarioGlosas: "acessoDicionarioGlosas",
+    recursosGlosa: "acessoRecursosGlosa",
+    convenios: "acessoConvenios",
+    regrasNegocio: "acessoRegrasNegocio",
+    produtividade: "acessoProdutividade",
+    estabelecimentos: "acessoEstabelecimentos",
+    permissoes: "acessoPermissoes",
+  };
+
+  const campo = moduloMap[modulo];
+  return campo ? permissao[campo] === "sim" : false;
+}
+
+/**
+ * Retorna os módulos permitidos para um grupo de serviço
+ */
+export function getModulosPermitidosPorGrupo(grupoServico: string): Record<string, "sim" | "nao"> {
+  const todosModulos = {
+    acessoDashboard: "nao" as const,
+    acessoArquivos: "nao" as const,
+    acessoComparacoes: "nao" as const,
+    acessoFaturamento: "nao" as const,
+    acessoTabelasPreco: "nao" as const,
+    acessoAnaliseGlosa: "nao" as const,
+    acessoDicionarioGlosas: "nao" as const,
+    acessoRecursosGlosa: "nao" as const,
+    acessoConvenios: "nao" as const,
+    acessoRegrasNegocio: "nao" as const,
+    acessoProdutividade: "nao" as const,
+    acessoEstabelecimentos: "nao" as const,
+    acessoPermissoes: "nao" as const,
+  };
+
+  switch (grupoServico) {
+    case "administrador":
+      return {
+        acessoDashboard: "sim",
+        acessoArquivos: "sim",
+        acessoComparacoes: "sim",
+        acessoFaturamento: "sim",
+        acessoTabelasPreco: "sim",
+        acessoAnaliseGlosa: "sim",
+        acessoDicionarioGlosas: "sim",
+        acessoRecursosGlosa: "sim",
+        acessoConvenios: "sim",
+        acessoRegrasNegocio: "sim",
+        acessoProdutividade: "sim",
+        acessoEstabelecimentos: "sim",
+        acessoPermissoes: "sim",
+      };
+    case "faturista":
+      return {
+        ...todosModulos,
+        acessoDashboard: "sim",
+        acessoArquivos: "sim",
+        acessoComparacoes: "sim",
+        acessoFaturamento: "sim",
+        acessoTabelasPreco: "sim",
+        acessoConvenios: "sim",
+        acessoRegrasNegocio: "sim",
+      };
+    case "recurso_glosa":
+      return {
+        ...todosModulos,
+        acessoDashboard: "sim",
+        acessoAnaliseGlosa: "sim",
+        acessoDicionarioGlosas: "sim",
+        acessoRecursosGlosa: "sim",
+      };
+    case "gestor":
+      return {
+        ...todosModulos,
+        acessoDashboard: "sim",
+        acessoFaturamento: "sim",
+        acessoAnaliseGlosa: "sim",
+        acessoProdutividade: "sim",
+      };
+    case "visualizador":
+    default:
+      return {
+        ...todosModulos,
+        acessoDashboard: "sim",
+      };
+  }
+}
+
+/**
+ * Lista todos os usuários do sistema (para seleção ao adicionar permissões)
+ */
+export async function listarTodosUsuarios() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const usuarios = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+    })
+    .from(users)
+    .orderBy(users.name);
+
+  return usuarios;
 }

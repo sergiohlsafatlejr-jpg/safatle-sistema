@@ -57,31 +57,41 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: Upload, label: "Upload de Arquivos", path: "/upload" },
-  { icon: FileSearch, label: "Arquivos", path: "/arquivos" },
-  { icon: List, label: "Itens Importados", path: "/itens-importados" },
-  { icon: Scale, label: "Conciliação", path: "/conciliacao" },
-  { icon: BarChart3, label: "Faturamento", path: "/faturamento" },
-  { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa" },
-  { icon: Gavel, label: "Recursos de Glosa", path: "/recursos" },
-  { icon: TrendingUp, label: "Tendências", path: "/tendencias" },
-  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo" },
-  { icon: Receipt, label: "Repasse", path: "/repasse" },
-  { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas" },
-  { icon: History, label: "Histórico Contestações", path: "/historico-contestacoes" },
-  { icon: GitCompare, label: "Comparações", path: "/comparacoes" },
-  { icon: AlertTriangle, label: "Divergências", path: "/divergencias" },
-  { icon: FileText, label: "Relatórios", path: "/relatorios" },
+import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
+
+type MenuItem = {
+  icon: any;
+  label: string;
+  path: string;
+  modulo?: ModuloPermissao;
+  adminOnly?: boolean;
+};
+
+const menuItems: MenuItem[] = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/", modulo: "dashboard" },
+  { icon: Upload, label: "Upload de Arquivos", path: "/upload", modulo: "arquivos" },
+  { icon: FileSearch, label: "Arquivos", path: "/arquivos", modulo: "arquivos" },
+  { icon: List, label: "Itens Importados", path: "/itens-importados", modulo: "arquivos" },
+  { icon: Scale, label: "Conciliação", path: "/conciliacao", modulo: "comparacoes" },
+  { icon: BarChart3, label: "Faturamento", path: "/faturamento", modulo: "faturamento" },
+  { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },
+  { icon: Gavel, label: "Recursos de Glosa", path: "/recursos", modulo: "recursosGlosa" },
+  { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
+  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "faturamento" },
+  { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
+  { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
+  { icon: History, label: "Histórico Contestações", path: "/historico-contestacoes", modulo: "recursosGlosa" },
+  { icon: GitCompare, label: "Comparações", path: "/comparacoes", modulo: "comparacoes" },
+  { icon: AlertTriangle, label: "Divergências", path: "/divergencias", modulo: "comparacoes" },
+  { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
-  { icon: Building2, label: "Estabelecimentos", path: "/estabelecimentos" },
-  { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao" },
-  { icon: DollarSign, label: "Tabelas de Preços", path: "/tabelas-preco" },
-  { icon: Settings2, label: "Regras de Negócio", path: "/regras-negocio" },
-  { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado" },
-  { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes" },
-  { icon: Activity, label: "Produtividade", path: "/produtividade" },
+  { icon: Building2, label: "Estabelecimentos", path: "/estabelecimentos", modulo: "estabelecimentos" },
+  { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao", modulo: "regrasNegocio" },
+  { icon: DollarSign, label: "Tabelas de Preços", path: "/tabelas-preco", modulo: "tabelasPreco" },
+  { icon: Settings2, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
+  { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado", adminOnly: true },
+  { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
+  { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -169,7 +179,7 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  const { estabelecimentos, estabelecimentoAtual, setEstabelecimentoAtual } = useEstabelecimento();
+  const { estabelecimentos, estabelecimentoAtual, setEstabelecimentoAtual, isGestor, temAcessoModulo } = useEstabelecimento();
 
   useEffect(() => {
     if (isCollapsed) {
@@ -293,7 +303,16 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0 bg-slate-900">
             <SidebarMenu className="px-2 py-3">
-              {menuItems.map(item => {
+              {menuItems
+                .filter(item => {
+                  // Se não tem módulo definido, sempre mostra
+                  if (!item.modulo && !item.adminOnly) return true;
+                  // Se é adminOnly, verificar se é gestor
+                  if (item.adminOnly) return isGestor;
+                  // Verificar permissão do módulo
+                  return temAcessoModulo(item.modulo!);
+                })
+                .map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
