@@ -41,6 +41,8 @@ import {
   InsertPadraoConta,
   historicoValidacoes,
   InsertHistoricoValidacao,
+  permissoesEstabelecimento,
+  InsertPermissaoEstabelecimento,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -5202,4 +5204,411 @@ export async function getHistoricoValidacao(id: number) {
     .limit(1);
   
   return result[0] || null;
+}
+
+
+// ============ PERMISSÕES DE ESTABELECIMENTO ============
+
+/**
+ * Busca as permissões de um usuário para todos os estabelecimentos
+ */
+export async function getPermissoesUsuario(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const permissoes = await db
+    .select({
+      id: permissoesEstabelecimento.id,
+      userId: permissoesEstabelecimento.userId,
+      estabelecimentoId: permissoesEstabelecimento.estabelecimentoId,
+      podeVisualizar: permissoesEstabelecimento.podeVisualizar,
+      podeEditar: permissoesEstabelecimento.podeEditar,
+      podeExcluir: permissoesEstabelecimento.podeExcluir,
+      podeGerenciar: permissoesEstabelecimento.podeGerenciar,
+      estabelecimentoNome: estabelecimentos.nome,
+    })
+    .from(permissoesEstabelecimento)
+    .leftJoin(estabelecimentos, eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentos.id))
+    .where(eq(permissoesEstabelecimento.userId, userId));
+
+  return permissoes;
+}
+
+/**
+ * Busca os IDs dos estabelecimentos que um usuário pode acessar
+ */
+export async function getEstabelecimentosPermitidos(userId: number): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const permissoes = await db
+    .select({ estabelecimentoId: permissoesEstabelecimento.estabelecimentoId })
+    .from(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, userId),
+      eq(permissoesEstabelecimento.podeVisualizar, "sim")
+    ));
+
+  return permissoes.map(p => p.estabelecimentoId);
+}
+
+/**
+ * Verifica se um usuário é gestor (tem acesso a todos os estabelecimentos ou permissão de gerenciar)
+ */
+export async function verificarSeGestor(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  // Verificar se o usuário é admin
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role === "admin") return true;
+
+  // Verificar se tem permissão de gerenciar em algum estabelecimento
+  const permissoes = await db
+    .select()
+    .from(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, userId),
+      eq(permissoesEstabelecimento.podeGerenciar, "sim")
+    ))
+    .limit(1);
+
+  return permissoes.length > 0;
+}
+
+/**
+ * Verifica se um usuário pode acessar um estabelecimento específico
+ */
+export async function verificarPermissaoEstabelecimento(
+  userId: number,
+  estabelecimentoId: number,
+  tipoPermissao: "visualizar" | "editar" | "excluir" | "gerenciar" = "visualizar"
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  // Admins têm acesso total
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role === "admin") return true;
+
+  const [permissao] = await db
+    .select()
+    .from(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, userId),
+      eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentoId)
+    ))
+    .limit(1);
+
+  if (!permissao) return false;
+
+  switch (tipoPermissao) {
+    case "visualizar":
+      return permissao.podeVisualizar === "sim";
+    case "editar":
+      return permissao.podeEditar === "sim";
+    case "excluir":
+      return permissao.podeExcluir === "sim";
+    case "gerenciar":
+      return permissao.podeGerenciar === "sim";
+    default:
+      return false;
+  }
+}
+
+/**
+ * Cria ou atualiza permissão de um usuário para um estabelecimento
+ */
+export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabelecimento) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Verificar se já existe
+  const [existente] = await db
+    .select()
+    .from(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, data.userId),
+      eq(permissoesEstabelecimento.estabelecimentoId, data.estabelecimentoId)
+    ))
+    .limit(1);
+
+  if (existente) {
+    // Atualizar
+    await db
+      .update(permissoesEstabelecimento)
+      .set({
+        podeVisualizar: data.podeVisualizar,
+        podeEditar: data.podeEditar,
+        podeExcluir: data.podeExcluir,
+        podeGerenciar: data.podeGerenciar,
+      })
+      .where(eq(permissoesEstabelecimento.id, existente.id));
+    return { id: existente.id, updated: true };
+  } else {
+    // Criar
+    const result = await db.insert(permissoesEstabelecimento).values(data);
+    return { id: Number(result[0].insertId), updated: false };
+  }
+}
+
+/**
+ * Remove permissão de um usuário para um estabelecimento
+ */
+export async function deletePermissaoEstabelecimento(userId: number, estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .delete(permissoesEstabelecimento)
+    .where(and(
+      eq(permissoesEstabelecimento.userId, userId),
+      eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentoId)
+    ));
+}
+
+/**
+ * Lista todos os usuários com suas permissões para um estabelecimento
+ */
+export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const permissoes = await db
+    .select({
+      id: permissoesEstabelecimento.id,
+      userId: permissoesEstabelecimento.userId,
+      estabelecimentoId: permissoesEstabelecimento.estabelecimentoId,
+      podeVisualizar: permissoesEstabelecimento.podeVisualizar,
+      podeEditar: permissoesEstabelecimento.podeEditar,
+      podeExcluir: permissoesEstabelecimento.podeExcluir,
+      podeGerenciar: permissoesEstabelecimento.podeGerenciar,
+      userName: users.name,
+      userEmail: users.email,
+      userRole: users.role,
+    })
+    .from(permissoesEstabelecimento)
+    .leftJoin(users, eq(permissoesEstabelecimento.userId, users.id))
+    .where(eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentoId));
+
+  return permissoes;
+}
+
+/**
+ * Concede acesso a todos os estabelecimentos para um usuário (para gestores)
+ */
+export async function concederAcessoTodosEstabelecimentos(
+  userId: number,
+  permissoes: { podeVisualizar?: "sim" | "nao"; podeEditar?: "sim" | "nao"; podeExcluir?: "sim" | "nao"; podeGerenciar?: "sim" | "nao" } = {}
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const todosEstabelecimentos = await db.select({ id: estabelecimentos.id }).from(estabelecimentos);
+
+  for (const est of todosEstabelecimentos) {
+    await upsertPermissaoEstabelecimento({
+      userId,
+      estabelecimentoId: est.id,
+      podeVisualizar: permissoes.podeVisualizar || "sim",
+      podeEditar: permissoes.podeEditar || "nao",
+      podeExcluir: permissoes.podeExcluir || "nao",
+      podeGerenciar: permissoes.podeGerenciar || "nao",
+    });
+  }
+}
+
+/**
+ * Busca dados consolidados de todos os estabelecimentos (para dashboard de gestores)
+ */
+export async function getDadosConsolidados(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Verificar se é gestor
+  const isGestor = await verificarSeGestor(userId);
+  if (!isGestor) return null;
+
+  // Buscar todos os estabelecimentos ativos
+  const todosEstabelecimentos = await db
+    .select()
+    .from(estabelecimentos)
+    .where(eq(estabelecimentos.ativo, "sim"));
+
+  const dadosConsolidados = {
+    estabelecimentos: [] as any[],
+    totais: {
+      totalArquivos: 0,
+      totalProcedimentos: 0,
+      valorTotalFaturado: 0,
+      valorTotalGlosado: 0,
+      valorTotalPago: 0,
+      percentualGlosa: 0,
+    },
+  };
+
+  for (const est of todosEstabelecimentos) {
+    // Contar arquivos
+    const [arquivosCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(arquivos)
+      .where(eq(arquivos.estabelecimentoId, est.id));
+
+    // Buscar procedimentos e valores
+    const arquivosEst = await db
+      .select({ id: arquivos.id })
+      .from(arquivos)
+      .where(eq(arquivos.estabelecimentoId, est.id));
+
+    let totalProcedimentos = 0;
+    let valorFaturado = 0;
+    let valorGlosado = 0;
+    let valorPago = 0;
+
+    if (arquivosEst.length > 0) {
+      const arquivoIds = arquivosEst.map(a => a.id);
+      
+      const procs = await db
+        .select({
+          count: sql<number>`count(*)`,
+          valorTotal: sql<number>`SUM(CAST(valorTotal AS DECIMAL(12,2)))`,
+          valorGlosado: sql<number>`SUM(CAST(valorGlosado AS DECIMAL(12,2)))`,
+        })
+        .from(procedimentos)
+        .where(inArray(procedimentos.arquivoId, arquivoIds));
+
+      totalProcedimentos = procs[0]?.count || 0;
+      valorFaturado = procs[0]?.valorTotal || 0;
+      valorGlosado = procs[0]?.valorGlosado || 0;
+      valorPago = valorFaturado - valorGlosado;
+    }
+
+    // Contar convênios
+    const [conveniosCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(convenios)
+      .where(eq(convenios.estabelecimentoId, est.id));
+
+    dadosConsolidados.estabelecimentos.push({
+      id: est.id,
+      nome: est.nome,
+      cnpj: est.cnpj,
+      totalArquivos: arquivosCount?.count || 0,
+      totalConvenios: conveniosCount?.count || 0,
+      totalProcedimentos,
+      valorFaturado,
+      valorGlosado,
+      valorPago,
+      percentualGlosa: valorFaturado > 0 ? (valorGlosado / valorFaturado) * 100 : 0,
+    });
+
+    // Acumular totais
+    dadosConsolidados.totais.totalArquivos += arquivosCount?.count || 0;
+    dadosConsolidados.totais.totalProcedimentos += totalProcedimentos;
+    dadosConsolidados.totais.valorTotalFaturado += valorFaturado;
+    dadosConsolidados.totais.valorTotalGlosado += valorGlosado;
+    dadosConsolidados.totais.valorTotalPago += valorPago;
+  }
+
+  // Calcular percentual de glosa total
+  if (dadosConsolidados.totais.valorTotalFaturado > 0) {
+    dadosConsolidados.totais.percentualGlosa = 
+      (dadosConsolidados.totais.valorTotalGlosado / dadosConsolidados.totais.valorTotalFaturado) * 100;
+  }
+
+  return dadosConsolidados;
+}
+
+/**
+ * Busca comparativo de glosas entre estabelecimentos
+ */
+export async function getComparativoGlosasEstabelecimentos(userId: number, periodo?: { inicio: Date; fim: Date }) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Verificar se é gestor
+  const isGestor = await verificarSeGestor(userId);
+  if (!isGestor) return null;
+
+  const todosEstabelecimentos = await db
+    .select()
+    .from(estabelecimentos)
+    .where(eq(estabelecimentos.ativo, "sim"));
+
+  const comparativo = [];
+
+  for (const est of todosEstabelecimentos) {
+    const conditions: any[] = [eq(arquivos.estabelecimentoId, est.id)];
+    
+    if (periodo) {
+      conditions.push(gte(arquivos.dataReferencia, periodo.inicio));
+      conditions.push(lte(arquivos.dataReferencia, periodo.fim));
+    }
+
+    const arquivosEst = await db
+      .select({ id: arquivos.id })
+      .from(arquivos)
+      .where(and(...conditions));
+
+    if (arquivosEst.length === 0) {
+      comparativo.push({
+        estabelecimentoId: est.id,
+        estabelecimentoNome: est.nome,
+        totalProcedimentos: 0,
+        valorFaturado: 0,
+        valorGlosado: 0,
+        percentualGlosa: 0,
+        topMotivosGlosa: [],
+      });
+      continue;
+    }
+
+    const arquivoIds = arquivosEst.map(a => a.id);
+
+    // Buscar procedimentos
+    const procs = await db
+      .select()
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, arquivoIds));
+
+    let valorFaturado = 0;
+    let valorGlosado = 0;
+    const motivosGlosa: { [key: string]: { count: number; valor: number } } = {};
+
+    for (const proc of procs) {
+      valorFaturado += parseFloat(proc.valorTotal || "0");
+      const glosa = parseFloat(proc.valorGlosado || "0");
+      if (glosa > 0) {
+        valorGlosado += glosa;
+        const motivo = proc.motivoGlosa || "Não especificado";
+        if (!motivosGlosa[motivo]) {
+          motivosGlosa[motivo] = { count: 0, valor: 0 };
+        }
+        motivosGlosa[motivo].count++;
+        motivosGlosa[motivo].valor += glosa;
+      }
+    }
+
+    // Top 5 motivos de glosa
+    const topMotivos = Object.entries(motivosGlosa)
+      .sort((a, b) => b[1].valor - a[1].valor)
+      .slice(0, 5)
+      .map(([motivo, dados]) => ({
+        motivo,
+        quantidade: dados.count,
+        valor: dados.valor,
+      }));
+
+    comparativo.push({
+      estabelecimentoId: est.id,
+      estabelecimentoNome: est.nome,
+      totalProcedimentos: procs.length,
+      valorFaturado,
+      valorGlosado,
+      percentualGlosa: valorFaturado > 0 ? (valorGlosado / valorFaturado) * 100 : 0,
+      topMotivosGlosa: topMotivos,
+    });
+  }
+
+  return comparativo.sort((a, b) => b.valorGlosado - a.valorGlosado);
 }

@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useEstabelecimento, Estabelecimento } from "@/contexts/EstabelecimentoContext";
+import { useEstabelecimento, Estabelecimento, TODOS_ESTABELECIMENTOS } from "@/contexts/EstabelecimentoContext";
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { 
+import {
   LayoutDashboard, 
   LogOut, 
   PanelLeft, 
@@ -47,7 +47,9 @@ import {
   Building2,
   Sliders,
   DollarSign,
-  Settings2
+  Settings2,
+  LayoutGrid,
+  Shield
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -76,6 +78,8 @@ const menuItems = [
   { icon: Sliders, label: "Regras de Conciliação", path: "/regras-conciliacao" },
   { icon: DollarSign, label: "Tabelas de Preços", path: "/tabelas-preco" },
   { icon: Settings2, label: "Regras de Negócio", path: "/regras-negocio" },
+  { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado" },
+  { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -231,6 +235,14 @@ function DashboardLayoutContent({
                   <DropdownMenuContent align="start" className="w-64">
                     <DropdownMenuLabel>Estabelecimentos</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setEstabelecimentoAtual(TODOS_ESTABELECIMENTOS)}
+                      className={`cursor-pointer ${estabelecimentoAtual?.id === 0 ? "bg-primary/10 text-primary" : ""}`}
+                    >
+                      <Building2 className="mr-2 h-4 w-4" />
+                      <span className="truncate font-semibold">Todos os Estabelecimentos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     {estabelecimentos.map((est: Estabelecimento) => (
                       <DropdownMenuItem
                         key={est.id}
@@ -252,6 +264,14 @@ function DashboardLayoutContent({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-64">
                     <DropdownMenuLabel>Estabelecimentos</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setEstabelecimentoAtual(TODOS_ESTABELECIMENTOS)}
+                      className={`cursor-pointer ${estabelecimentoAtual?.id === 0 ? "bg-primary/10 text-primary" : ""}`}
+                    >
+                      <Building2 className="mr-2 h-4 w-4" />
+                      <span className="truncate font-semibold">Todos os Estabelecimentos</span>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {estabelecimentos.map((est: Estabelecimento) => (
                       <DropdownMenuItem

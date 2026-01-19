@@ -2001,6 +2001,174 @@ export const appRouter = router({
         return db.getHistoricoValidacao(input.id);
       }),
   }),
+
+  // ============ PERMISSÕES E DASHBOARD CONSOLIDADO ============
+  permissoes: router({
+    // Buscar permissões do usuário atual
+    minhasPermissoes: protectedProcedure.query(async ({ ctx }) => {
+      return db.getPermissoesUsuario(ctx.user.id);
+    }),
+
+    // Buscar estabelecimentos permitidos para o usuário
+    estabelecimentosPermitidos: protectedProcedure.query(async ({ ctx }) => {
+      // Admins têm acesso a todos
+      if (ctx.user.role === "admin") {
+        return db.getEstabelecimentos("sim");
+      }
+      const idsPermitidos = await db.getEstabelecimentosPermitidos(ctx.user.id);
+      if (idsPermitidos.length === 0) {
+        // Se não tem permissões, dar acesso a todos (comportamento padrão)
+        return db.getEstabelecimentos("sim");
+      }
+      const todosEst = await db.getEstabelecimentos("sim");
+      return todosEst.filter(e => idsPermitidos.includes(e.id));
+    }),
+
+    // Verificar se usuário é gestor
+    verificarGestor: protectedProcedure.query(async ({ ctx }) => {
+      return db.verificarSeGestor(ctx.user.id);
+    }),
+
+    // Verificar permissão específica para um estabelecimento
+    verificarPermissao: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        tipoPermissao: z.enum(["visualizar", "editar", "excluir", "gerenciar"]).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        return db.verificarPermissaoEstabelecimento(
+          ctx.user.id,
+          input.estabelecimentoId,
+          input.tipoPermissao || "visualizar"
+        );
+      }),
+
+    // Listar usuários de um estabelecimento (apenas gestores)
+    usuariosEstabelecimento: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const podeGerenciar = await db.verificarPermissaoEstabelecimento(
+          ctx.user.id,
+          input.estabelecimentoId,
+          "gerenciar"
+        );
+        if (!podeGerenciar && ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Você não tem permissão para gerenciar este estabelecimento",
+          });
+        }
+        return db.getUsuariosEstabelecimento(input.estabelecimentoId);
+      }),
+
+    // Criar ou atualizar permissão (apenas gestores/admin)
+    upsertPermissao: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        estabelecimentoId: z.number(),
+        podeVisualizar: z.enum(["sim", "nao"]).optional(),
+        podeEditar: z.enum(["sim", "nao"]).optional(),
+        podeExcluir: z.enum(["sim", "nao"]).optional(),
+        podeGerenciar: z.enum(["sim", "nao"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const podeGerenciar = await db.verificarPermissaoEstabelecimento(
+          ctx.user.id,
+          input.estabelecimentoId,
+          "gerenciar"
+        );
+        if (!podeGerenciar && ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Você não tem permissão para gerenciar este estabelecimento",
+          });
+        }
+        return db.upsertPermissaoEstabelecimento(input);
+      }),
+
+    // Remover permissão (apenas gestores/admin)
+    removerPermissao: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        estabelecimentoId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const podeGerenciar = await db.verificarPermissaoEstabelecimento(
+          ctx.user.id,
+          input.estabelecimentoId,
+          "gerenciar"
+        );
+        if (!podeGerenciar && ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Você não tem permissão para gerenciar este estabelecimento",
+          });
+        }
+        await db.deletePermissaoEstabelecimento(input.userId, input.estabelecimentoId);
+        return { success: true };
+      }),
+
+    // Conceder acesso a todos os estabelecimentos (apenas admin)
+    concederAcessoTotal: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        permissoes: z.object({
+          podeVisualizar: z.enum(["sim", "nao"]).optional(),
+          podeEditar: z.enum(["sim", "nao"]).optional(),
+          podeExcluir: z.enum(["sim", "nao"]).optional(),
+          podeGerenciar: z.enum(["sim", "nao"]).optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas administradores podem conceder acesso total",
+          });
+        }
+        await db.concederAcessoTodosEstabelecimentos(input.userId, input.permissoes);
+        return { success: true };
+      }),
+  }),
+
+  // ============ DASHBOARD CONSOLIDADO ============
+  dashboardConsolidado: router({
+    // Buscar dados consolidados de todos os estabelecimentos
+    dados: protectedProcedure.query(async ({ ctx }) => {
+      const dados = await db.getDadosConsolidados(ctx.user.id);
+      if (!dados) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Você não tem permissão para visualizar o dashboard consolidado",
+        });
+      }
+      return dados;
+    }),
+
+    // Buscar comparativo de glosas entre estabelecimentos
+    comparativoGlosas: protectedProcedure
+      .input(z.object({
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        let periodo: { inicio: Date; fim: Date } | undefined;
+        if (input?.dataInicio && input?.dataFim) {
+          periodo = {
+            inicio: new Date(input.dataInicio),
+            fim: new Date(input.dataFim),
+          };
+        }
+        const comparativo = await db.getComparativoGlosasEstabelecimentos(ctx.user.id, periodo);
+        if (!comparativo) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Você não tem permissão para visualizar o comparativo",
+          });
+        }
+        return comparativo;
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

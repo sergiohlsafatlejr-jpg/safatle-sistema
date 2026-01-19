@@ -1,7 +1,7 @@
-import { Building2, MapPin, FileText } from "lucide-react";
+import { Building2, MapPin, FileText, LayoutGrid } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useEstabelecimento, Estabelecimento } from "@/contexts/EstabelecimentoContext";
+import { useEstabelecimento, Estabelecimento, TODOS_ESTABELECIMENTOS } from "@/contexts/EstabelecimentoContext";
 import { useLocation } from "wouter";
 
 export default function SelecionarEstabelecimento() {
@@ -37,6 +37,36 @@ export default function SelecionarEstabelecimento() {
           <p className="text-gray-600 text-lg">
             Selecione o estabelecimento para continuar
           </p>
+        </div>
+
+        {/* Opção de visualizar todos os estabelecimentos */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] hover:border-purple-300 bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 mb-6"
+          onClick={() => handleSelecionar(TODOS_ESTABELECIMENTOS)}
+        >
+          <CardContent className="flex items-center gap-4 py-6">
+            <div className="p-3 rounded-lg bg-purple-100">
+              <LayoutGrid className="h-8 w-8 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900">Dashboard Consolidado</h3>
+              <p className="text-gray-600 text-sm">Visualizar dados de todos os estabelecimentos em um único painel</p>
+            </div>
+            <Button variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-100">
+              Acessar
+            </Button>
+          </CardContent>
+        </Card>
+
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-gradient-to-br from-blue-50 to-indigo-100 px-4 text-gray-500">
+              ou selecione um estabelecimento específico
+            </span>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">

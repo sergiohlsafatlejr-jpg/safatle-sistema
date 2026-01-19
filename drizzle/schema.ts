@@ -800,3 +800,26 @@ export const historicoValidacoes = mysqlTable("historicoValidacoes", {
 
 export type HistoricoValidacao = typeof historicoValidacoes.$inferSelect;
 export type InsertHistoricoValidacao = typeof historicoValidacoes.$inferInsert;
+
+
+/**
+ * Permissões de usuário por estabelecimento
+ * Define quais estabelecimentos cada usuário pode acessar
+ */
+export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Permissões específicas
+  podeVisualizar: mysqlEnum("podeVisualizar", ["sim", "nao"]).default("sim").notNull(),
+  podeEditar: mysqlEnum("podeEditar", ["sim", "nao"]).default("nao").notNull(),
+  podeExcluir: mysqlEnum("podeExcluir", ["sim", "nao"]).default("nao").notNull(),
+  podeGerenciar: mysqlEnum("podeGerenciar", ["sim", "nao"]).default("nao").notNull(), // Gerenciar usuários e permissões
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PermissaoEstabelecimento = typeof permissoesEstabelecimento.$inferSelect;
+export type InsertPermissaoEstabelecimento = typeof permissoesEstabelecimento.$inferInsert;
