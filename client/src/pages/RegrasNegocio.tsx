@@ -24,7 +24,8 @@ import {
   Pill,
   Bed,
   Wrench,
-  MoreHorizontal
+  MoreHorizontal,
+  Copy
 } from "lucide-react";
 
 export default function RegrasNegocio() {
@@ -100,6 +101,22 @@ export default function RegrasNegocio() {
       toast.error(`Erro ao excluir regra: ${error.message}`);
     }
   });
+
+  // Função para duplicar regra
+  const handleDuplicar = (regra: any) => {
+    // Criar nova regra com os mesmos dados (sem itens inicialmente)
+    // Os itens serão copiados manualmente pelo usuário se necessário
+    createMutation.mutate({
+      convenioId: regra.convenioId || undefined,
+      nome: `${regra.nome} (Cópia)`,
+      descricao: regra.descricao || undefined,
+      codigoProcedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+      descricaoProcedimentoPrincipal: regra.descricaoProcedimentoPrincipal || undefined,
+      tipoVerificacao: regra.tipoVerificacao,
+      acaoInconsistencia: regra.acaoInconsistencia,
+      prioridade: regra.prioridade,
+    });
+  };
 
   const resetForm = () => {
     setNome("");
@@ -332,6 +349,14 @@ export default function RegrasNegocio() {
                             ) : (
                               <CheckCircle className="h-4 w-4" />
                             )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDuplicar(regra)}
+                            title="Duplicar regra"
+                          >
+                            <Copy className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -692,6 +717,7 @@ export default function RegrasNegocio() {
               }}
               onCancel={() => setShowEditDialog(false)}
               isPending={updateMutation.isPending}
+              onRefetch={refetchRegras}
             />
           )}
         </DialogContent>
@@ -705,12 +731,14 @@ function EditRegraForm({
   regra, 
   onSave, 
   onCancel, 
-  isPending 
+  isPending,
+  onRefetch
 }: { 
   regra: any; 
   onSave: (data: any) => void; 
   onCancel: () => void;
   isPending: boolean;
+  onRefetch: () => void;
 }) {
   const [nome, setNome] = useState(regra.nome || "");
   const [descricao, setDescricao] = useState(regra.descricao || "");
@@ -720,8 +748,43 @@ function EditRegraForm({
   const [acaoInconsistencia, setAcaoInconsistencia] = useState<"alerta" | "bloquear" | "sugerir_adicao" | "sugerir_remocao">(regra.acaoInconsistencia || "alerta");
   const [prioridade, setPrioridade] = useState(regra.prioridade || 5);
 
+  // Novo item form
+  const [novoItemCodigo, setNovoItemCodigo] = useState("");
+  const [novoItemDescricao, setNovoItemDescricao] = useState("");
+  const [novoItemTipo, setNovoItemTipo] = useState<"procedimento" | "taxa" | "material" | "medicamento" | "diaria" | "outros">("taxa");
+  const [novoItemQtdMin, setNovoItemQtdMin] = useState<number | undefined>(1);
+  const [novoItemQtdMax, setNovoItemQtdMax] = useState<number | undefined>();
+  const [novoItemValor, setNovoItemValor] = useState("");
+  const [novoItemObrigatorio, setNovoItemObrigatorio] = useState<"sim" | "nao">("sim");
+
   // Buscar regra com itens
-  const { data: regraCompleta } = trpc.regrasNegocio.getById.useQuery({ id: regra.id });
+  const { data: regraCompleta, refetch: refetchRegra } = trpc.regrasNegocio.getById.useQuery({ id: regra.id });
+
+  // Mutations para itens
+  const addItemMutation = trpc.regrasNegocio.addItem.useMutation({
+    onSuccess: () => {
+      toast.success("Item adicionado com sucesso!");
+      refetchRegra();
+      setNovoItemCodigo("");
+      setNovoItemDescricao("");
+      setNovoItemQtdMin(1);
+      setNovoItemQtdMax(undefined);
+      setNovoItemValor("");
+    },
+    onError: (error) => {
+      toast.error(`Erro ao adicionar item: ${error.message}`);
+    }
+  });
+
+  const removeItemMutation = trpc.regrasNegocio.removeItem.useMutation({
+    onSuccess: () => {
+      toast.success("Item removido com sucesso!");
+      refetchRegra();
+    },
+    onError: (error) => {
+      toast.error(`Erro ao remover item: ${error.message}`);
+    }
+  });
 
   const handleSave = () => {
     if (!nome || !codigoProcedimentoPrincipal) {
@@ -739,6 +802,30 @@ function EditRegraForm({
       acaoInconsistencia,
       prioridade,
     });
+  };
+
+  const handleAddItem = () => {
+    if (!novoItemCodigo) {
+      toast.error("Informe o código do item");
+      return;
+    }
+    
+    addItemMutation.mutate({
+      regraId: regra.id,
+      codigoItem: novoItemCodigo,
+      descricaoItem: novoItemDescricao || undefined,
+      tipoItem: novoItemTipo,
+      quantidadeMinima: novoItemQtdMin,
+      quantidadeMaxima: novoItemQtdMax,
+      valorEsperado: novoItemValor || undefined,
+      obrigatorio: novoItemObrigatorio
+    });
+  };
+
+  const handleRemoveItem = (itemId: number) => {
+    if (confirm("Deseja remover este item?")) {
+      removeItemMutation.mutate({ id: itemId });
+    }
   };
 
   const getTipoItemIcon = (tipo: string) => {
@@ -847,10 +934,11 @@ function EditRegraForm({
         </div>
       </div>
 
-      {/* Itens da Regra (somente visualização) */}
+      {/* Itens da Regra */}
       <div className="border rounded-lg p-4 space-y-4">
         <h3 className="font-medium">Itens Obrigatórios/Proibidos</h3>
         
+        {/* Lista de itens existentes */}
         {regraCompleta?.itens && regraCompleta.itens.length > 0 ? (
           <div className="space-y-2">
             {regraCompleta.itens.map((item: any) => (
@@ -868,6 +956,15 @@ function EditRegraForm({
                 {item.obrigatorio === "sim" && (
                   <Badge className="text-xs">Obrigatório</Badge>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => handleRemoveItem(item.id)}
+                  disabled={removeItemMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
               </div>
             ))}
           </div>
@@ -875,9 +972,107 @@ function EditRegraForm({
           <p className="text-sm text-muted-foreground">Nenhum item cadastrado para esta regra</p>
         )}
         
-        <p className="text-xs text-muted-foreground">
-          Para adicionar ou remover itens, utilize a função de gerenciamento de itens após salvar a regra.
-        </p>
+        {/* Form para adicionar novo item */}
+        <div className="border-t pt-4 space-y-3">
+          <h4 className="text-sm font-medium">Adicionar Novo Item</h4>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Código *</Label>
+              <Input
+                value={novoItemCodigo}
+                onChange={(e) => setNovoItemCodigo(e.target.value)}
+                placeholder="Código"
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Descrição</Label>
+              <Input
+                value={novoItemDescricao}
+                onChange={(e) => setNovoItemDescricao(e.target.value)}
+                placeholder="Descrição"
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <Select
+                value={novoItemTipo}
+                onValueChange={(v) => setNovoItemTipo(v as any)}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="procedimento">Procedimento</SelectItem>
+                  <SelectItem value="taxa">Taxa</SelectItem>
+                  <SelectItem value="material">Material</SelectItem>
+                  <SelectItem value="medicamento">Medicamento</SelectItem>
+                  <SelectItem value="diaria">Diária</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={handleAddItem} 
+                size="sm" 
+                className="w-full"
+                disabled={addItemMutation.isPending}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                {addItemMutation.isPending ? "Adicionando..." : "Adicionar"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Qtd Mínima</Label>
+              <Input
+                type="number"
+                value={novoItemQtdMin || ""}
+                onChange={(e) => setNovoItemQtdMin(e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="1"
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Qtd Máxima</Label>
+              <Input
+                type="number"
+                value={novoItemQtdMax || ""}
+                onChange={(e) => setNovoItemQtdMax(e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="Sem limite"
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Valor Esperado</Label>
+              <Input
+                value={novoItemValor}
+                onChange={(e) => setNovoItemValor(e.target.value)}
+                placeholder="R$ 0,00"
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Obrigatório</Label>
+              <Select
+                value={novoItemObrigatorio}
+                onValueChange={(v) => setNovoItemObrigatorio(v as any)}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sim">Sim</SelectItem>
+                  <SelectItem value="nao">Não</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
       </div>
 
       <DialogFooter>

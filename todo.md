@@ -175,3 +175,5 @@
 - [x] Corrigir exibição de itens na tela de Tabelas de Preços - itens não aparecem ao clicar nos cards de tipo
 - [x] Corrigir erro ao criar regra de negócio - problema com campo toleranciaValor na inserção de itens
 - [x] Implementar função de edição para regras de negócio existentes
+- [x] Implementar edição de itens obrigatórios no modal de edição de regras (adicionar/remover)
+- [x] Adicionar botão para duplicar regras de negócio existentes
