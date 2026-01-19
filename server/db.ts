@@ -6172,3 +6172,191 @@ export async function getGruposMotivosGlosa(estabelecimentoId?: number) {
   
   return todosGrupos;
 }
+
+
+// ============ MÉTRICAS DE ENVIO DE XML ============
+
+export interface MetricasEnvioXML {
+  resumo: {
+    totalArquivos: number;
+    totalProcedimentos: number;
+    valorTotalFaturado: number;
+    arquivosHoje: number;
+    valorHoje: number;
+  };
+  porDia: Array<{
+    data: string;
+    arquivos: number;
+    procedimentos: number;
+    valorFaturado: number;
+  }>;
+  porUsuario: Array<{
+    userId: number;
+    userName: string;
+    totalArquivos: number;
+    totalProcedimentos: number;
+    valorTotalFaturado: number;
+    mediaValorPorArquivo: number;
+  }>;
+  porConvenio: Array<{
+    convenioId: number;
+    convenioNome: string;
+    totalArquivos: number;
+    valorFaturado: number;
+  }>;
+}
+
+export async function getMetricasEnvioXML(filters: {
+  dataInicio?: Date;
+  dataFim?: Date;
+  estabelecimentoId?: number;
+}): Promise<MetricasEnvioXML> {
+  const db = await getDb();
+  if (!db) return {
+    resumo: {
+      totalArquivos: 0,
+      totalProcedimentos: 0,
+      valorTotalFaturado: 0,
+      arquivosHoje: 0,
+      valorHoje: 0,
+    },
+    porDia: [],
+    porUsuario: [],
+    porConvenio: [],
+  };
+
+  // Buscar arquivos XML enviados
+  const conditions: any[] = [
+    eq(arquivos.direcao, "enviado"),
+    eq(arquivos.status, "processado"),
+  ];
+
+  if (filters.dataInicio) {
+    conditions.push(gte(arquivos.createdAt, filters.dataInicio));
+  }
+  if (filters.dataFim) {
+    conditions.push(lte(arquivos.createdAt, filters.dataFim));
+  }
+  if (filters.estabelecimentoId) {
+    conditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+  }
+
+  const arquivosEnviados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...conditions))
+    .orderBy(desc(arquivos.createdAt));
+
+  // Buscar usuários
+  const userIds = Array.from(new Set(arquivosEnviados.filter(a => a.userId).map(a => a.userId!)));
+  const usuariosResult = userIds.length > 0 ? await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(inArray(users.id, userIds)) : [];
+  const userMap = new Map(usuariosResult.map(u => [u.id, u.name]));
+
+  // Buscar convênios
+  const convenioIds = Array.from(new Set(arquivosEnviados.filter(a => a.convenioId).map(a => a.convenioId!)));
+  const conveniosResult = convenioIds.length > 0 ? await db
+    .select({ id: convenios.id, nome: convenios.nome })
+    .from(convenios)
+    .where(inArray(convenios.id, convenioIds)) : [];
+  const convenioMap = new Map(conveniosResult.map(c => [c.id, c.nome]));
+
+  // Calcular métricas
+  const hoje = new Date().toISOString().split('T')[0];
+  let totalArquivos = 0;
+  let totalProcedimentos = 0;
+  let valorTotalFaturado = 0;
+  let arquivosHoje = 0;
+  let valorHoje = 0;
+
+  const porDiaMap: { [key: string]: { arquivos: number; procedimentos: number; valorFaturado: number } } = {};
+  const porUsuarioMap: { [key: number]: { totalArquivos: number; totalProcedimentos: number; valorTotalFaturado: number } } = {};
+  const porConvenioMap: { [key: number]: { totalArquivos: number; valorFaturado: number } } = {};
+
+  for (const arq of arquivosEnviados) {
+    const dataArq = arq.createdAt ? new Date(arq.createdAt).toISOString().split('T')[0] : 'N/A';
+    
+    // Buscar procedimentos do arquivo
+    const procs = await db
+      .select()
+      .from(procedimentos)
+      .where(eq(procedimentos.arquivoId, arq.id));
+    
+    const qtdProcedimentos = procs.length;
+    const valorArquivo = procs.reduce((sum, p) => sum + parseFloat(String(p.valorTotal || 0)), 0);
+
+    totalArquivos++;
+    totalProcedimentos += qtdProcedimentos;
+    valorTotalFaturado += valorArquivo;
+
+    if (dataArq === hoje) {
+      arquivosHoje++;
+      valorHoje += valorArquivo;
+    }
+
+    // Por dia
+    if (!porDiaMap[dataArq]) {
+      porDiaMap[dataArq] = { arquivos: 0, procedimentos: 0, valorFaturado: 0 };
+    }
+    porDiaMap[dataArq].arquivos++;
+    porDiaMap[dataArq].procedimentos += qtdProcedimentos;
+    porDiaMap[dataArq].valorFaturado += valorArquivo;
+
+    // Por usuário
+    if (arq.userId) {
+      if (!porUsuarioMap[arq.userId]) {
+        porUsuarioMap[arq.userId] = { totalArquivos: 0, totalProcedimentos: 0, valorTotalFaturado: 0 };
+      }
+      porUsuarioMap[arq.userId].totalArquivos++;
+      porUsuarioMap[arq.userId].totalProcedimentos += qtdProcedimentos;
+      porUsuarioMap[arq.userId].valorTotalFaturado += valorArquivo;
+    }
+
+    // Por convênio
+    if (arq.convenioId) {
+      if (!porConvenioMap[arq.convenioId]) {
+        porConvenioMap[arq.convenioId] = { totalArquivos: 0, valorFaturado: 0 };
+      }
+      porConvenioMap[arq.convenioId].totalArquivos++;
+      porConvenioMap[arq.convenioId].valorFaturado += valorArquivo;
+    }
+  }
+
+  // Converter mapas para arrays
+  const porDia = Object.entries(porDiaMap)
+    .map(([data, valores]) => ({ data, ...valores }))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(-30); // Últimos 30 dias
+
+  const porUsuario = Object.entries(porUsuarioMap)
+    .map(([userId, valores]) => ({
+      userId: parseInt(userId),
+      userName: userMap.get(parseInt(userId)) || 'Usuário Desconhecido',
+      ...valores,
+      mediaValorPorArquivo: valores.totalArquivos > 0 ? valores.valorTotalFaturado / valores.totalArquivos : 0,
+    }))
+    .sort((a, b) => b.valorTotalFaturado - a.valorTotalFaturado);
+
+  const porConvenio = Object.entries(porConvenioMap)
+    .map(([convenioId, valores]) => ({
+      convenioId: parseInt(convenioId),
+      convenioNome: convenioMap.get(parseInt(convenioId)) || 'Convênio Desconhecido',
+      ...valores,
+    }))
+    .sort((a, b) => b.valorFaturado - a.valorFaturado);
+
+  return {
+    resumo: {
+      totalArquivos,
+      totalProcedimentos,
+      valorTotalFaturado,
+      arquivosHoje,
+      valorHoje,
+    },
+    porDia,
+    porUsuario,
+    porConvenio,
+  };
+}

@@ -209,3 +209,6 @@
 - [x] Corrigir abas da tela de Análise de Glosa (por categoria, por convênio, por procedimento, tendência) para filtrar por estabelecimento
 
 - [x] Corrigir abas de Análise de Glosa que não trazem valores quando filtros de convênio são aplicados
+
+- [x] Adicionar métricas de envio de XML por usuário no Dashboard de Produtividade (valores faturados)
+- [x] Criar filtros no Dashboard de Produtividade para separar métricas de envio de XML e glosas

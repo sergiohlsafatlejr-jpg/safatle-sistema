@@ -2191,6 +2191,21 @@ export const appRouter = router({
           dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
         });
       }),
+
+    // Buscar métricas de envio de XML
+    metricasEnvioXML: protectedProcedure
+      .input(z.object({
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        estabelecimentoId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getMetricasEnvioXML({
+          dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
+          estabelecimentoId: input?.estabelecimentoId,
+        });
+      }),
   }),
 
   // ============ DASHBOARD CONSOLIDADO ============
