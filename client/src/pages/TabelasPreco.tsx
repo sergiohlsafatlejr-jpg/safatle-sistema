@@ -68,6 +68,7 @@ export default function TabelasPreco() {
       tipo: tipoSelecionado,
       codigo: searchTerm || undefined,
       nome: searchTerm || undefined,
+      apenasVigentes: false, // Mostrar todos os itens, não apenas os vigentes
       page,
       limit: 50,
     },

@@ -1669,17 +1669,59 @@ export const appRouter = router({
             const valorStr = String(findValue(["valor", "Valor", "VALOR", "preco", "Preco", "PRECO", "price", "Price", "PRICE", "vl", "Vl", "VL"]) || "0");
             const valor = valorStr.replace(/[^0-9.,]/g, "").replace(",", ".");
             
+            // Função para parsear datas em vários formatos (DD/MM/AAAA, AAAA-MM-DD, etc.)
+            const parseDate = (value: any): Date => {
+              if (!value) return new Date();
+              
+              // Se já for uma Date válida
+              if (value instanceof Date && !isNaN(value.getTime())) {
+                return value;
+              }
+              
+              const str = String(value).trim();
+              
+              // Formato DD/MM/AAAA ou DD-MM-AAAA (brasileiro)
+              const brMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+              if (brMatch) {
+                const [, day, month, year] = brMatch;
+                return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+              }
+              
+              // Formato AAAA-MM-DD (ISO)
+              const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+              if (isoMatch) {
+                const [, year, month, day] = isoMatch;
+                return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+              }
+              
+              // Número serial do Excel (dias desde 1900-01-01)
+              const num = parseFloat(str);
+              if (!isNaN(num) && num > 1 && num < 100000) {
+                const excelEpoch = new Date(1899, 11, 30);
+                return new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+              }
+              
+              // Tentar parse padrão
+              const parsed = new Date(str);
+              if (!isNaN(parsed.getTime())) {
+                return parsed;
+              }
+              
+              // Fallback: data atual
+              return new Date();
+            };
+
             // Vigência - suportar vários formatos de nome de coluna
-            const vigenciaInicioStr = findValue([
+            const vigenciaInicioRaw = findValue([
               "vigencia_inicio", "Vigencia_inicio", "VIGENCIA_INICIO",
               "inicio_vigencia", "Inicio_vigencia", "INICIO_VIGENCIA",
               "vigenciaInicio", "VigenciaInicio", "VIGENCIAINICIO",
               "data_inicio", "Data_inicio", "DATA_INICIO",
               "dataInicio", "DataInicio", "DATAINICIO",
               "inicio", "Inicio", "INICIO"
-            ]) || new Date().toISOString();
+            ]);
             
-            const vigenciaFimStr = findValue([
+            const vigenciaFimRaw = findValue([
               "vigencia_fim", "Vigencia_fim", "VIGENCIA_FIM",
               "final_vigencia", "Final_vigencia", "FINAL_VIGENCIA",
               "vigenciaFim", "VigenciaFim", "VIGENCIAFIM",
@@ -1694,8 +1736,8 @@ export const appRouter = router({
               codigo: String(codigo).trim(),
               nome: String(nome).trim(),
               valor: valor || "0",
-              vigenciaInicio: new Date(vigenciaInicioStr),
-              vigenciaFim: vigenciaFimStr ? new Date(vigenciaFimStr) : undefined,
+              vigenciaInicio: parseDate(vigenciaInicioRaw),
+              vigenciaFim: vigenciaFimRaw ? parseDate(vigenciaFimRaw) : undefined,
               unidade: findValue(["unidade", "Unidade", "UNIDADE", "unit", "Unit", "UNIT"]),
               observacao: findValue(["observacao", "Observacao", "OBSERVACAO", "obs", "Obs", "OBS"]),
             };

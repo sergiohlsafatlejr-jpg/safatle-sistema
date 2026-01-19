@@ -171,3 +171,5 @@
 
 - [x] Corrigir importação de diárias e taxas em arquivos Excel (não estão sendo reconhecidas ou valores incorretos)
 - [x] Remover automaticamente espaços em branco extras dos nomes das colunas ao importar arquivos Excel
+- [x] Corrigir parser de datas para formato DD/MM/AAAA na importação de tabelas de preços
+- [x] Corrigir exibição de itens na tela de Tabelas de Preços - itens não aparecem ao clicar nos cards de tipo
