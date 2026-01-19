@@ -1640,19 +1640,43 @@ export const appRouter = router({
 
           // Mapear e inserir itens
           const tabelaItems = items.map((item: any) => {
-            // Normalizar nomes de campos (suportar vários formatos)
-            const codigo = item.codigo || item.CODIGO || item.cod || item.COD || item.code || "";
-            const nome = item.nome || item.NOME || item.descricao || item.DESCRICAO || item.name || "";
-            const valorStr = String(item.valor || item.VALOR || item.preco || item.PRECO || item.price || "0");
+            // Normalizar nomes de campos (suportar vários formatos, incluindo nomes com espaços)
+            // Função auxiliar para buscar valor com variações de nome
+            const findValue = (keys: string[]): any => {
+              for (const key of keys) {
+                // Tentar chave exata
+                if (item[key] !== undefined) return item[key];
+                // Tentar com espaço no final (comum em arquivos Excel)
+                if (item[key + " "] !== undefined) return item[key + " "];
+                // Tentar com espaço no início
+                if (item[" " + key] !== undefined) return item[" " + key];
+              }
+              return undefined;
+            };
+
+            const codigo = findValue(["codigo", "Codigo", "CODIGO", "cod", "Cod", "COD", "code", "Code", "CODE"]) || "";
+            const nome = findValue(["nome", "Nome", "NOME", "descricao", "Descricao", "DESCRICAO", "name", "Name", "NAME", "desc", "Desc", "DESC"]) || "";
+            const valorStr = String(findValue(["valor", "Valor", "VALOR", "preco", "Preco", "PRECO", "price", "Price", "PRICE", "vl", "Vl", "VL"]) || "0");
             const valor = valorStr.replace(/[^0-9.,]/g, "").replace(",", ".");
             
-            // Vigência
-            const vigenciaInicioStr = item.vigencia_inicio || item.VIGENCIA_INICIO || 
-                                      item.inicio_vigencia || item.INICIO_VIGENCIA ||
-                                      item.vigenciaInicio || item.data_inicio || new Date().toISOString();
-            const vigenciaFimStr = item.vigencia_fim || item.VIGENCIA_FIM || 
-                                   item.final_vigencia || item.FINAL_VIGENCIA ||
-                                   item.vigenciaFim || item.data_fim;
+            // Vigência - suportar vários formatos de nome de coluna
+            const vigenciaInicioStr = findValue([
+              "vigencia_inicio", "Vigencia_inicio", "VIGENCIA_INICIO",
+              "inicio_vigencia", "Inicio_vigencia", "INICIO_VIGENCIA",
+              "vigenciaInicio", "VigenciaInicio", "VIGENCIAINICIO",
+              "data_inicio", "Data_inicio", "DATA_INICIO",
+              "dataInicio", "DataInicio", "DATAINICIO",
+              "inicio", "Inicio", "INICIO"
+            ]) || new Date().toISOString();
+            
+            const vigenciaFimStr = findValue([
+              "vigencia_fim", "Vigencia_fim", "VIGENCIA_FIM",
+              "final_vigencia", "Final_vigencia", "FINAL_VIGENCIA",
+              "vigenciaFim", "VigenciaFim", "VIGENCIAFIM",
+              "data_fim", "Data_fim", "DATA_FIM",
+              "dataFim", "DataFim", "DATAFIM",
+              "fim", "Fim", "FIM"
+            ]);
 
             return {
               convenioId: input.convenioId,
@@ -1662,8 +1686,8 @@ export const appRouter = router({
               valor: valor || "0",
               vigenciaInicio: new Date(vigenciaInicioStr),
               vigenciaFim: vigenciaFimStr ? new Date(vigenciaFimStr) : undefined,
-              unidade: item.unidade || item.UNIDADE || item.unit,
-              observacao: item.observacao || item.OBSERVACAO || item.obs,
+              unidade: findValue(["unidade", "Unidade", "UNIDADE", "unit", "Unit", "UNIT"]),
+              observacao: findValue(["observacao", "Observacao", "OBSERVACAO", "obs", "Obs", "OBS"]),
             };
           }).filter((item: any) => item.codigo && item.nome);
 
