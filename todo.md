@@ -174,3 +174,4 @@
 - [x] Corrigir parser de datas para formato DD/MM/AAAA na importação de tabelas de preços
 - [x] Corrigir exibição de itens na tela de Tabelas de Preços - itens não aparecem ao clicar nos cards de tipo
 - [x] Corrigir erro ao criar regra de negócio - problema com campo toleranciaValor na inserção de itens
+- [x] Implementar função de edição para regras de negócio existentes

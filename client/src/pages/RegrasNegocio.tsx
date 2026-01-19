@@ -668,6 +668,226 @@ export default function RegrasNegocio() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Dialog de Edição */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) {
+          setSelectedRegra(null);
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Regra de Negócio</DialogTitle>
+            <DialogDescription>
+              Modifique as configurações da regra de validação
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRegra && (
+            <EditRegraForm
+              regra={selectedRegra}
+              onSave={(data) => {
+                updateMutation.mutate(data);
+              }}
+              onCancel={() => setShowEditDialog(false)}
+              isPending={updateMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
+  );
+}
+
+// Componente separado para o formulário de edição
+function EditRegraForm({ 
+  regra, 
+  onSave, 
+  onCancel, 
+  isPending 
+}: { 
+  regra: any; 
+  onSave: (data: any) => void; 
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [nome, setNome] = useState(regra.nome || "");
+  const [descricao, setDescricao] = useState(regra.descricao || "");
+  const [codigoProcedimentoPrincipal, setCodigoProcedimentoPrincipal] = useState(regra.codigoProcedimentoPrincipal || "");
+  const [descricaoProcedimentoPrincipal, setDescricaoProcedimentoPrincipal] = useState(regra.descricaoProcedimentoPrincipal || "");
+  const [tipoVerificacao, setTipoVerificacao] = useState<"deve_conter" | "nao_deve_conter" | "pode_conter" | "quantidade_minima" | "quantidade_maxima">(regra.tipoVerificacao || "deve_conter");
+  const [acaoInconsistencia, setAcaoInconsistencia] = useState<"alerta" | "bloquear" | "sugerir_adicao" | "sugerir_remocao">(regra.acaoInconsistencia || "alerta");
+  const [prioridade, setPrioridade] = useState(regra.prioridade || 5);
+
+  // Buscar regra com itens
+  const { data: regraCompleta } = trpc.regrasNegocio.getById.useQuery({ id: regra.id });
+
+  const handleSave = () => {
+    if (!nome || !codigoProcedimentoPrincipal) {
+      toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+    
+    onSave({
+      id: regra.id,
+      nome,
+      descricao: descricao || undefined,
+      codigoProcedimentoPrincipal,
+      descricaoProcedimentoPrincipal: descricaoProcedimentoPrincipal || undefined,
+      tipoVerificacao,
+      acaoInconsistencia,
+      prioridade,
+    });
+  };
+
+  const getTipoItemIcon = (tipo: string) => {
+    switch (tipo) {
+      case "procedimento": return <FileText className="h-4 w-4" />;
+      case "taxa": return <Wrench className="h-4 w-4" />;
+      case "material": return <Package className="h-4 w-4" />;
+      case "medicamento": return <Pill className="h-4 w-4" />;
+      case "diaria": return <Bed className="h-4 w-4" />;
+      default: return <MoreHorizontal className="h-4 w-4" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Informações Básicas */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Nome da Regra *</Label>
+          <Input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Ex: Cirurgia com Taxa de Sala"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Prioridade</Label>
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={prioridade}
+            onChange={(e) => setPrioridade(parseInt(e.target.value) || 5)}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Descrição</Label>
+        <Textarea
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+          placeholder="Descreva quando esta regra deve ser aplicada..."
+        />
+      </div>
+
+      {/* Procedimento Principal */}
+      <div className="border rounded-lg p-4 space-y-4">
+        <h3 className="font-medium">Procedimento Principal (Gatilho)</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Código do Procedimento *</Label>
+            <Input
+              value={codigoProcedimentoPrincipal}
+              onChange={(e) => setCodigoProcedimentoPrincipal(e.target.value)}
+              placeholder="Ex: 31003079"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Descrição</Label>
+            <Input
+              value={descricaoProcedimentoPrincipal}
+              onChange={(e) => setDescricaoProcedimentoPrincipal(e.target.value)}
+              placeholder="Ex: Colecistectomia por videolaparoscopia"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Tipo de Verificação */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Tipo de Verificação</Label>
+          <Select
+            value={tipoVerificacao}
+            onValueChange={(v) => setTipoVerificacao(v as any)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="deve_conter">Deve Conter (obrigatório)</SelectItem>
+              <SelectItem value="nao_deve_conter">Não Deve Conter (proibido)</SelectItem>
+              <SelectItem value="pode_conter">Pode Conter (validar valor)</SelectItem>
+              <SelectItem value="quantidade_minima">Quantidade Mínima</SelectItem>
+              <SelectItem value="quantidade_maxima">Quantidade Máxima</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Ação quando Inconsistente</Label>
+          <Select
+            value={acaoInconsistencia}
+            onValueChange={(v) => setAcaoInconsistencia(v as any)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="alerta">Apenas Alertar</SelectItem>
+              <SelectItem value="bloquear">Bloquear Envio</SelectItem>
+              <SelectItem value="sugerir_adicao">Sugerir Adição</SelectItem>
+              <SelectItem value="sugerir_remocao">Sugerir Remoção</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Itens da Regra (somente visualização) */}
+      <div className="border rounded-lg p-4 space-y-4">
+        <h3 className="font-medium">Itens Obrigatórios/Proibidos</h3>
+        
+        {regraCompleta?.itens && regraCompleta.itens.length > 0 ? (
+          <div className="space-y-2">
+            {regraCompleta.itens.map((item: any) => (
+              <div key={item.id} className="flex items-center gap-2 p-2 bg-muted rounded">
+                {getTipoItemIcon(item.tipoItem)}
+                <code className="text-sm">{item.codigoItem}</code>
+                <span className="text-sm text-muted-foreground">
+                  {item.descricaoItem || "Sem descrição"}
+                </span>
+                {item.quantidadeMinima && (
+                  <Badge variant="outline" className="text-xs">
+                    Mín: {item.quantidadeMinima}
+                  </Badge>
+                )}
+                {item.obrigatorio === "sim" && (
+                  <Badge className="text-xs">Obrigatório</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nenhum item cadastrado para esta regra</p>
+        )}
+        
+        <p className="text-xs text-muted-foreground">
+          Para adicionar ou remover itens, utilize a função de gerenciamento de itens após salvar a regra.
+        </p>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button onClick={handleSave} disabled={isPending}>
+          {isPending ? "Salvando..." : "Salvar Alterações"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
