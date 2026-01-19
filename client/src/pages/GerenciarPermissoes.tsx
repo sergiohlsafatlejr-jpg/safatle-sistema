@@ -998,6 +998,89 @@ export default function GerenciarPermissoes() {
           </DialogHeader>
           
           <div className="space-y-4">
+            {/* Copiar permissões de grupo existente */}
+            <div className="space-y-2">
+              <Label>Copiar Permissões de</Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Selecione um grupo existente para copiar suas permissões como base.
+              </p>
+              <Select
+                onValueChange={(value) => {
+                  if (value === "none") {
+                    setNewGroup(prev => ({ ...prev, permissoesPadrao: {} }));
+                    return;
+                  }
+                  
+                  // Verificar se é um grupo padrão
+                  const grupoPadrao = GRUPOS_SERVICO_PADRAO.find(g => g.value === value);
+                  if (grupoPadrao) {
+                    // Definir permissões baseadas no grupo padrão
+                    const permissoes: Record<string, string> = {};
+                    MODULOS.forEach(modulo => {
+                      if (value === "administrador") {
+                        permissoes[modulo.key] = "sim";
+                      } else if (value === "faturista") {
+                        permissoes[modulo.key] = ["acessoDashboard", "acessoArquivos", "acessoComparacoes", "acessoFaturamento", "acessoTabelasPreco"].includes(modulo.key) ? "sim" : "nao";
+                      } else if (value === "recurso_glosa") {
+                        permissoes[modulo.key] = ["acessoDashboard", "acessoAnaliseGlosa", "acessoDicionarioGlosas", "acessoRecursosGlosa"].includes(modulo.key) ? "sim" : "nao";
+                      } else if (value === "gestor") {
+                        permissoes[modulo.key] = ["acessoDashboard", "acessoFaturamento", "acessoProdutividade", "acessoEstabelecimentos"].includes(modulo.key) ? "sim" : "nao";
+                      } else if (value === "visualizador") {
+                        permissoes[modulo.key] = modulo.key === "acessoDashboard" ? "sim" : "nao";
+                      }
+                    });
+                    setNewGroup(prev => ({ ...prev, permissoesPadrao: permissoes }));
+                    toast.success(`Permissões copiadas do grupo ${grupoPadrao.label}`);
+                  } else {
+                    // Verificar se é um grupo personalizado
+                    const grupoPersonalizado = gruposPersonalizados?.find(g => g.id.toString() === value);
+                    if (grupoPersonalizado && grupoPersonalizado.permissoesPadrao) {
+                      setNewGroup(prev => ({ 
+                        ...prev, 
+                        permissoesPadrao: grupoPersonalizado.permissoesPadrao as Record<string, string>
+                      }));
+                      toast.success(`Permissões copiadas do grupo ${grupoPersonalizado.nome}`);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um grupo para copiar (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">Não copiar - começar do zero</span>
+                  </SelectItem>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Grupos Padrão</div>
+                  {GRUPOS_SERVICO_PADRAO.map((grupo) => {
+                    const Icon = grupo.icon;
+                    return (
+                      <SelectItem key={grupo.value} value={grupo.value}>
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 rounded ${grupo.color}`} />
+                          <Icon className="h-4 w-4" />
+                          {grupo.label}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                  {gruposPersonalizados && gruposPersonalizados.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Grupos Personalizados</div>
+                      {gruposPersonalizados.map((grupo) => (
+                        <SelectItem key={grupo.id} value={grupo.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <div className={`h-3 w-3 rounded ${grupo.cor || 'bg-gray-500'}`} />
+                            {grupo.nome}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="groupName">Nome do Grupo *</Label>

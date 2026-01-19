@@ -221,3 +221,5 @@
 - [x] Implementar grupos personalizados (permitir criar novos grupos além dos pré-definidos)
 - [x] Implementar log de auditoria (registrar quem alterou permissões e quando)
 - [x] Implementar notificação de acesso negado (mensagem amigável quando usuário tentar acessar módulo sem permissão)
+
+- [x] Permitir cópia de permissões de um grupo existente ao criar novos grupos
