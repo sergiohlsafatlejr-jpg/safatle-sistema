@@ -643,6 +643,45 @@ export const importacoesTabela = mysqlTable("importacoesTabela", {
 export type ImportacaoTabela = typeof importacoesTabela.$inferSelect;
 export type InsertImportacaoTabela = typeof importacoesTabela.$inferInsert;
 
+/**
+ * Histórico de Alterações de Preços - Rastreia todas as modificações em itens de tabelas de preço
+ */
+export const historicoPrecos = mysqlTable("historicoPrecos", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  tabelaPrecoId: int("tabelaPrecoId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Tipo de alteração
+  tipoAlteracao: mysqlEnum("tipoAlteracao", [
+    "criacao",      // Item criado
+    "edicao",       // Item editado
+    "exclusao",     // Item excluído
+    "importacao"    // Item importado via planilha
+  ]).notNull(),
+  
+  // Valores anteriores (para edição/exclusão)
+  valorAnterior: decimal("valorAnterior", { precision: 12, scale: 2 }),
+  vigenciaInicioAnterior: timestamp("vigenciaInicioAnterior"),
+  vigenciaFimAnterior: timestamp("vigenciaFimAnterior"),
+  nomeAnterior: varchar("nomeAnterior", { length: 255 }),
+  codigoAnterior: varchar("codigoAnterior", { length: 50 }),
+  
+  // Valores novos (para criação/edição)
+  valorNovo: decimal("valorNovo", { precision: 12, scale: 2 }),
+  vigenciaInicioNovo: timestamp("vigenciaInicioNovo"),
+  vigenciaFimNovo: timestamp("vigenciaFimNovo"),
+  nomeNovo: varchar("nomeNovo", { length: 255 }),
+  codigoNovo: varchar("codigoNovo", { length: 50 }),
+  
+  // Observação/motivo da alteração
+  observacao: text("observacao"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoPreco = typeof historicoPrecos.$inferSelect;
+export type InsertHistoricoPreco = typeof historicoPrecos.$inferInsert;
 
 /**
  * Regras de Negócio - Composição de contas

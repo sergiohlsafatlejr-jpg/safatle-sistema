@@ -45,6 +45,7 @@ export default function TabelasPreco() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedItemForHistory, setSelectedItemForHistory] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
@@ -81,6 +82,10 @@ export default function TabelasPreco() {
   const { data: historicoImportacoes } = trpc.tabelasPreco.historicoImportacoes.useQuery(
     { convenioId },
     { enabled: !!convenioId }
+  );
+  const { data: historicoItem, isLoading: isLoadingHistorico } = trpc.tabelasPreco.getHistorico.useQuery(
+    { tabelaPrecoId: selectedItemForHistory! },
+    { enabled: !!selectedItemForHistory && historyDialogOpen }
   );
 
   // Mutations
@@ -484,8 +489,20 @@ export default function TabelasPreco() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(item)}
+                                  title="Editar"
                                 >
                                   <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedItemForHistory(item.id);
+                                    setHistoryDialogOpen(true);
+                                  }}
+                                  title="Histórico de alterações"
+                                >
+                                  <History className="h-4 w-4 text-blue-500" />
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -495,6 +512,7 @@ export default function TabelasPreco() {
                                       deleteMutation.mutate({ id: item.id });
                                     }
                                   }}
+                                  title="Excluir"
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
@@ -694,59 +712,149 @@ export default function TabelasPreco() {
           </DialogContent>
         </Dialog>
 
-        {/* Dialog de Histórico de Importações */}
-        <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-          <DialogContent className="max-w-2xl">
+        {/* Dialog de Histórico de Alterações do Item */}
+        <Dialog open={historyDialogOpen} onOpenChange={(open) => {
+          setHistoryDialogOpen(open);
+          if (!open) setSelectedItemForHistory(null);
+        }}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Histórico de Importações</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Histórico de Alterações
+              </DialogTitle>
               <DialogDescription>
-                Visualize o histórico de importações de tabelas de preços
+                Visualize todas as modificações realizadas neste item
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-96 overflow-auto">
-              {!historicoImportacoes?.length ? (
-                <p className="text-center py-4 text-muted-foreground">
-                  Nenhuma importação realizada ainda.
-                </p>
+            <div className="flex-1 overflow-auto">
+              {isLoadingHistorico ? (
+                <div className="text-center py-8 text-muted-foreground">Carregando histórico...</div>
+              ) : !historicoItem?.length ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma alteração registrada para este item.
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Arquivo</TableHead>
-                      <TableHead>Itens</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {historicoImportacoes.map((imp) => (
-                      <TableRow key={imp.id}>
-                        <TableCell>{formatDate(imp.createdAt)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{imp.tipo}</Badge>
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate">{imp.nomeArquivo}</TableCell>
-                        <TableCell>
-                          {imp.itensImportados}/{imp.totalItens}
-                          {(imp.itensErro ?? 0) > 0 && (
-                            <span className="text-destructive ml-1">({imp.itensErro} erros)</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              imp.status === "concluido" ? "default" :
-                              imp.status === "erro" ? "destructive" : "secondary"
-                            }
-                          >
-                            {imp.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-4">
+                  {historicoItem.map((registro: any) => (
+                    <Card key={registro.id} className="border-l-4 border-l-primary">
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={
+                              registro.tipoAlteracao === "criacao" ? "default" :
+                              registro.tipoAlteracao === "edicao" ? "secondary" :
+                              registro.tipoAlteracao === "exclusao" ? "destructive" : "outline"
+                            }>
+                              {registro.tipoAlteracao === "criacao" ? "Criação" :
+                               registro.tipoAlteracao === "edicao" ? "Edição" :
+                               registro.tipoAlteracao === "exclusao" ? "Exclusão" : "Importação"}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              por <strong>{registro.userName || registro.userEmail || "Usuário desconhecido"}</strong>
+                            </span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {registro.createdAt ? new Date(registro.createdAt).toLocaleString("pt-BR") : "-"}
+                          </span>
+                        </div>
+                        
+                        {registro.tipoAlteracao === "criacao" && (
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Código:</span>
+                              <span className="ml-2 font-medium">{registro.codigoNovo}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Nome:</span>
+                              <span className="ml-2 font-medium">{registro.nomeNovo}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Valor:</span>
+                              <span className="ml-2 font-medium text-green-600">
+                                {formatCurrency(registro.valorNovo)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Vigência:</span>
+                              <span className="ml-2 font-medium">
+                                {formatDate(registro.vigenciaInicioNovo)}
+                                {registro.vigenciaFimNovo && ` - ${formatDate(registro.vigenciaFimNovo)}`}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {registro.tipoAlteracao === "edicao" && (
+                          <div className="space-y-2 text-sm">
+                            {registro.valorAnterior !== registro.valorNovo && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Valor:</span>
+                                <span className="line-through text-red-500">{formatCurrency(registro.valorAnterior)}</span>
+                                <span>→</span>
+                                <span className="text-green-600 font-medium">{formatCurrency(registro.valorNovo)}</span>
+                              </div>
+                            )}
+                            {registro.nomeAnterior !== registro.nomeNovo && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Nome:</span>
+                                <span className="line-through text-red-500">{registro.nomeAnterior}</span>
+                                <span>→</span>
+                                <span className="text-green-600 font-medium">{registro.nomeNovo}</span>
+                              </div>
+                            )}
+                            {registro.codigoAnterior !== registro.codigoNovo && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Código:</span>
+                                <span className="line-through text-red-500">{registro.codigoAnterior}</span>
+                                <span>→</span>
+                                <span className="text-green-600 font-medium">{registro.codigoNovo}</span>
+                              </div>
+                            )}
+                            {(registro.vigenciaInicioAnterior?.toString() !== registro.vigenciaInicioNovo?.toString() ||
+                              registro.vigenciaFimAnterior?.toString() !== registro.vigenciaFimNovo?.toString()) && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Vigência:</span>
+                                <span className="line-through text-red-500">
+                                  {formatDate(registro.vigenciaInicioAnterior)}
+                                  {registro.vigenciaFimAnterior && ` - ${formatDate(registro.vigenciaFimAnterior)}`}
+                                </span>
+                                <span>→</span>
+                                <span className="text-green-600 font-medium">
+                                  {formatDate(registro.vigenciaInicioNovo)}
+                                  {registro.vigenciaFimNovo && ` - ${formatDate(registro.vigenciaFimNovo)}`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {registro.tipoAlteracao === "exclusao" && (
+                          <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                            <div>
+                              <span>Código:</span>
+                              <span className="ml-2 line-through">{registro.codigoAnterior}</span>
+                            </div>
+                            <div>
+                              <span>Nome:</span>
+                              <span className="ml-2 line-through">{registro.nomeAnterior}</span>
+                            </div>
+                            <div>
+                              <span>Valor:</span>
+                              <span className="ml-2 line-through">{formatCurrency(registro.valorAnterior)}</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {registro.observacao && (
+                          <div className="mt-2 text-sm text-muted-foreground italic">
+                            Obs: {registro.observacao}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
             </div>
             <DialogFooter>

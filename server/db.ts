@@ -45,6 +45,8 @@ import {
   InsertPermissaoEstabelecimento,
   motivosGlosa,
   InsertMotivoGlosa,
+  historicoPrecos,
+  InsertHistoricoPreco,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -4451,6 +4453,190 @@ export async function desativarTabelasPreco(convenioId: number, tipo: string): P
   } catch (error) {
     console.error("[Database] Erro ao desativar tabelas de preço:", error);
     return false;
+  }
+}
+
+/**
+ * Registra uma alteração no histórico de preços
+ */
+export async function registrarHistoricoPreco(data: {
+  tabelaPrecoId: number;
+  userId: number;
+  tipoAlteracao: "criacao" | "edicao" | "exclusao" | "importacao";
+  valorAnterior?: string | null;
+  vigenciaInicioAnterior?: Date | null;
+  vigenciaFimAnterior?: Date | null;
+  nomeAnterior?: string | null;
+  codigoAnterior?: string | null;
+  valorNovo?: string | null;
+  vigenciaInicioNovo?: Date | null;
+  vigenciaFimNovo?: Date | null;
+  nomeNovo?: string | null;
+  codigoNovo?: string | null;
+  observacao?: string | null;
+}): Promise<number | null> {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  try {
+    const result = await dbConn.insert(historicoPrecos).values({
+      tabelaPrecoId: data.tabelaPrecoId,
+      userId: data.userId,
+      tipoAlteracao: data.tipoAlteracao,
+      valorAnterior: data.valorAnterior || null,
+      vigenciaInicioAnterior: data.vigenciaInicioAnterior || null,
+      vigenciaFimAnterior: data.vigenciaFimAnterior || null,
+      nomeAnterior: data.nomeAnterior || null,
+      codigoAnterior: data.codigoAnterior || null,
+      valorNovo: data.valorNovo || null,
+      vigenciaInicioNovo: data.vigenciaInicioNovo || null,
+      vigenciaFimNovo: data.vigenciaFimNovo || null,
+      nomeNovo: data.nomeNovo || null,
+      codigoNovo: data.codigoNovo || null,
+      observacao: data.observacao || null,
+    });
+    return result[0].insertId;
+  } catch (error) {
+    console.error("[Database] Erro ao registrar histórico de preço:", error);
+    return null;
+  }
+}
+
+/**
+ * Busca histórico de alterações de um item de tabela de preço
+ */
+export async function getHistoricoPreco(tabelaPrecoId: number): Promise<any[]> {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  try {
+    const result = await dbConn.select({
+      id: historicoPrecos.id,
+      tabelaPrecoId: historicoPrecos.tabelaPrecoId,
+      userId: historicoPrecos.userId,
+      userName: users.name,
+      userEmail: users.email,
+      tipoAlteracao: historicoPrecos.tipoAlteracao,
+      valorAnterior: historicoPrecos.valorAnterior,
+      vigenciaInicioAnterior: historicoPrecos.vigenciaInicioAnterior,
+      vigenciaFimAnterior: historicoPrecos.vigenciaFimAnterior,
+      nomeAnterior: historicoPrecos.nomeAnterior,
+      codigoAnterior: historicoPrecos.codigoAnterior,
+      valorNovo: historicoPrecos.valorNovo,
+      vigenciaInicioNovo: historicoPrecos.vigenciaInicioNovo,
+      vigenciaFimNovo: historicoPrecos.vigenciaFimNovo,
+      nomeNovo: historicoPrecos.nomeNovo,
+      codigoNovo: historicoPrecos.codigoNovo,
+      observacao: historicoPrecos.observacao,
+      createdAt: historicoPrecos.createdAt,
+    })
+      .from(historicoPrecos)
+      .leftJoin(users, eq(historicoPrecos.userId, users.id))
+      .where(eq(historicoPrecos.tabelaPrecoId, tabelaPrecoId))
+      .orderBy(desc(historicoPrecos.createdAt));
+    
+    return result;
+  } catch (error) {
+    console.error("[Database] Erro ao buscar histórico de preço:", error);
+    return [];
+  }
+}
+
+/**
+ * Busca histórico de alterações de preços por convênio (para relatórios)
+ */
+export async function getHistoricoPrecosPorConvenio(
+  convenioId: number,
+  filtros?: {
+    tipo?: string;
+    dataInicio?: Date;
+    dataFim?: Date;
+    userId?: number;
+    tipoAlteracao?: string;
+    page?: number;
+    limit?: number;
+  }
+): Promise<{ items: any[]; total: number }> {
+  const dbConn = await getDb();
+  if (!dbConn) return { items: [], total: 0 };
+
+  try {
+    // Primeiro, buscar os IDs das tabelas de preço deste convênio
+    const tabelasIds = await dbConn.select({ id: tabelasPreco.id })
+      .from(tabelasPreco)
+      .where(eq(tabelasPreco.convenioId, convenioId));
+    
+    if (tabelasIds.length === 0) {
+      return { items: [], total: 0 };
+    }
+
+    const ids = tabelasIds.map(t => t.id);
+    
+    // Construir condições de filtro
+    const conditions: any[] = [inArray(historicoPrecos.tabelaPrecoId, ids)];
+    
+    if (filtros?.dataInicio) {
+      conditions.push(gte(historicoPrecos.createdAt, filtros.dataInicio));
+    }
+    if (filtros?.dataFim) {
+      conditions.push(lte(historicoPrecos.createdAt, filtros.dataFim));
+    }
+    if (filtros?.userId) {
+      conditions.push(eq(historicoPrecos.userId, filtros.userId));
+    }
+    if (filtros?.tipoAlteracao) {
+      conditions.push(eq(historicoPrecos.tipoAlteracao, filtros.tipoAlteracao as any));
+    }
+
+    const whereClause = and(...conditions);
+
+    // Contar total
+    const countResult = await dbConn.select({ count: sql<number>`count(*)` })
+      .from(historicoPrecos)
+      .where(whereClause);
+    const total = countResult[0]?.count || 0;
+
+    // Buscar itens com paginação
+    const page = filtros?.page || 1;
+    const limit = filtros?.limit || 50;
+    const offset = (page - 1) * limit;
+
+    const items = await dbConn.select({
+      id: historicoPrecos.id,
+      tabelaPrecoId: historicoPrecos.tabelaPrecoId,
+      userId: historicoPrecos.userId,
+      userName: users.name,
+      userEmail: users.email,
+      tipoAlteracao: historicoPrecos.tipoAlteracao,
+      valorAnterior: historicoPrecos.valorAnterior,
+      vigenciaInicioAnterior: historicoPrecos.vigenciaInicioAnterior,
+      vigenciaFimAnterior: historicoPrecos.vigenciaFimAnterior,
+      nomeAnterior: historicoPrecos.nomeAnterior,
+      codigoAnterior: historicoPrecos.codigoAnterior,
+      valorNovo: historicoPrecos.valorNovo,
+      vigenciaInicioNovo: historicoPrecos.vigenciaInicioNovo,
+      vigenciaFimNovo: historicoPrecos.vigenciaFimNovo,
+      nomeNovo: historicoPrecos.nomeNovo,
+      codigoNovo: historicoPrecos.codigoNovo,
+      observacao: historicoPrecos.observacao,
+      createdAt: historicoPrecos.createdAt,
+      // Dados do item da tabela de preço
+      itemCodigo: tabelasPreco.codigo,
+      itemNome: tabelasPreco.nome,
+      itemTipo: tabelasPreco.tipo,
+    })
+      .from(historicoPrecos)
+      .leftJoin(users, eq(historicoPrecos.userId, users.id))
+      .leftJoin(tabelasPreco, eq(historicoPrecos.tabelaPrecoId, tabelasPreco.id))
+      .where(whereClause)
+      .orderBy(desc(historicoPrecos.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
+  } catch (error) {
+    console.error("[Database] Erro ao buscar histórico de preços por convênio:", error);
+    return { items: [], total: 0 };
   }
 }
 

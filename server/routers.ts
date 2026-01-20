@@ -1818,18 +1818,36 @@ export const appRouter = router({
           observacao: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const vigenciaInicio = new Date(input.vigenciaInicio);
+        const vigenciaFim = input.vigenciaFim ? new Date(input.vigenciaFim) : undefined;
+        
         const id = await db.createTabelaPreco({
           convenioId: input.convenioId,
           tipo: input.tipo,
           codigo: input.codigo,
           nome: input.nome,
           valor: input.valor,
-          vigenciaInicio: new Date(input.vigenciaInicio),
-          vigenciaFim: input.vigenciaFim ? new Date(input.vigenciaFim) : undefined,
+          vigenciaInicio,
+          vigenciaFim,
           unidade: input.unidade,
           observacao: input.observacao,
         });
+        
+        // Registrar histórico de criação
+        if (id) {
+          await db.registrarHistoricoPreco({
+            tabelaPrecoId: id,
+            userId: ctx.user.id,
+            tipoAlteracao: "criacao",
+            valorNovo: input.valor,
+            vigenciaInicioNovo: vigenciaInicio,
+            vigenciaFimNovo: vigenciaFim || null,
+            nomeNovo: input.nome,
+            codigoNovo: input.codigo,
+          });
+        }
+        
         return { id };
       }),
 
@@ -1847,8 +1865,12 @@ export const appRouter = router({
           observacao: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
+        
+        // Buscar dados anteriores para o histórico
+        const itemAnterior = await db.getTabelaPrecoById(id);
+        
         const updateData: any = {};
         if (data.codigo) updateData.codigo = data.codigo;
         if (data.nome) updateData.nome = data.nome;
@@ -1859,14 +1881,54 @@ export const appRouter = router({
         if (data.observacao !== undefined) updateData.observacao = data.observacao;
         
         const success = await db.updateTabelaPreco(id, updateData);
+        
+        // Registrar histórico de edição
+        if (success && itemAnterior) {
+          await db.registrarHistoricoPreco({
+            tabelaPrecoId: id,
+            userId: ctx.user.id,
+            tipoAlteracao: "edicao",
+            // Valores anteriores
+            valorAnterior: itemAnterior.valor,
+            vigenciaInicioAnterior: itemAnterior.vigenciaInicio,
+            vigenciaFimAnterior: itemAnterior.vigenciaFim,
+            nomeAnterior: itemAnterior.nome,
+            codigoAnterior: itemAnterior.codigo,
+            // Valores novos
+            valorNovo: data.valor || itemAnterior.valor,
+            vigenciaInicioNovo: data.vigenciaInicio ? new Date(data.vigenciaInicio) : itemAnterior.vigenciaInicio,
+            vigenciaFimNovo: data.vigenciaFim ? new Date(data.vigenciaFim) : itemAnterior.vigenciaFim,
+            nomeNovo: data.nome || itemAnterior.nome,
+            codigoNovo: data.codigo || itemAnterior.codigo,
+          });
+        }
+        
         return { success };
       }),
 
     // Excluir item (soft delete)
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Buscar dados anteriores para o histórico
+        const itemAnterior = await db.getTabelaPrecoById(input.id);
+        
         const success = await db.deleteTabelaPreco(input.id);
+        
+        // Registrar histórico de exclusão
+        if (success && itemAnterior) {
+          await db.registrarHistoricoPreco({
+            tabelaPrecoId: input.id,
+            userId: ctx.user.id,
+            tipoAlteracao: "exclusao",
+            valorAnterior: itemAnterior.valor,
+            vigenciaInicioAnterior: itemAnterior.vigenciaInicio,
+            vigenciaFimAnterior: itemAnterior.vigenciaFim,
+            nomeAnterior: itemAnterior.nome,
+            codigoAnterior: itemAnterior.codigo,
+          });
+        }
+        
         return { success };
       }),
 
@@ -1875,6 +1937,39 @@ export const appRouter = router({
       .input(z.object({ convenioId: z.number() }))
       .query(async ({ input }) => {
         return db.contarItensTabelaPreco(input.convenioId);
+      }),
+
+    // Buscar histórico de alterações de um item
+    getHistorico: protectedProcedure
+      .input(z.object({ tabelaPrecoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getHistoricoPreco(input.tabelaPrecoId);
+      }),
+
+    // Buscar histórico de alterações por convênio (relatório)
+    getHistoricoConvenio: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          tipo: z.string().optional(),
+          dataInicio: z.string().optional(),
+          dataFim: z.string().optional(),
+          userId: z.number().optional(),
+          tipoAlteracao: z.enum(["criacao", "edicao", "exclusao", "importacao"]).optional(),
+          page: z.number().optional().default(1),
+          limit: z.number().optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.getHistoricoPrecosPorConvenio(input.convenioId, {
+          tipo: input.tipo,
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          userId: input.userId,
+          tipoAlteracao: input.tipoAlteracao,
+          page: input.page,
+          limit: input.limit,
+        });
       }),
 
     // Importar tabela de preços (Excel, CSV, DBF)

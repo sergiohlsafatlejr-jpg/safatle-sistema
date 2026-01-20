@@ -278,3 +278,8 @@
 - [x] Implementar funcionalidade de exclusão de usuários
 
 - [x] Ajustar campos de vigência nas Tabelas de Preços para aceitar formato DD/MM/AAAA
+
+- [x] Implementar histórico de alterações de preços nas Tabelas de Preços
+- [x] Criar tabela de histórico no banco de dados
+- [x] Registrar quem modificou cada item e quando
+- [x] Criar interface de visualização do histórico por item
