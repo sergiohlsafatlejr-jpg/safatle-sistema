@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Building2, Pencil, Search } from "lucide-react";
+import { Plus, Building2, Pencil, Search, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 export default function Estabelecimentos() {
@@ -16,6 +17,9 @@ export default function Estabelecimentos() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ nome: "", cnpj: "", endereco: "" });
   const [busca, setBusca] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingNome, setDeletingNome] = useState("");
 
   const { data: estabelecimentos, isLoading, refetch } = trpc.estabelecimentos.list.useQuery();
   
@@ -37,6 +41,17 @@ export default function Estabelecimentos() {
     onError: (error) => toast.error(error.message),
   });
 
+  const deleteMutation = trpc.estabelecimentos.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Estabelecimento excluído com sucesso!");
+      refetch();
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      setDeletingNome("");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingId(null);
@@ -51,6 +66,18 @@ export default function Estabelecimentos() {
       endereco: est.endereco || "",
     });
     setIsDialogOpen(true);
+  };
+
+  const openDeleteDialog = (est: { id: number; nome: string }) => {
+    setDeletingId(est.id);
+    setDeletingNome(est.nome);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate({ id: deletingId });
+    }
   };
 
   const handleSubmit = () => {
@@ -140,9 +167,19 @@ export default function Estabelecimentos() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(est)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(est)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => openDeleteDialog(est)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -199,6 +236,31 @@ export default function Estabelecimentos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Estabelecimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o estabelecimento <strong>{deletingNome}</strong>?
+              <br /><br />
+              Esta ação não pode ser desfeita. Se houver arquivos ou convênios vinculados, 
+              a exclusão será bloqueada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

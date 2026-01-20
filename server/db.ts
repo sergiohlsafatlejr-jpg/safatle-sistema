@@ -3346,6 +3346,55 @@ export async function updateEstabelecimento(id: number, data: Partial<{ nome: st
   await db.update(estabelecimentos).set(data).where(eq(estabelecimentos.id, id));
 }
 
+export async function deleteEstabelecimento(id: number): Promise<{ success: boolean; message: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Verificar se existem arquivos vinculados
+  const [arquivosCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(arquivos)
+    .where(eq(arquivos.estabelecimentoId, id));
+
+  if (arquivosCount.count > 0) {
+    return {
+      success: false,
+      message: `Não é possível excluir: existem ${arquivosCount.count} arquivo(s) vinculado(s) a este estabelecimento. Remova os arquivos primeiro ou desative o estabelecimento.`,
+    };
+  }
+
+  // Verificar se existem convênios vinculados
+  const [conveniosCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(convenios)
+    .where(eq(convenios.estabelecimentoId, id));
+
+  if (conveniosCount.count > 0) {
+    return {
+      success: false,
+      message: `Não é possível excluir: existem ${conveniosCount.count} convênio(s) vinculado(s) a este estabelecimento. Remova os convênios primeiro ou desative o estabelecimento.`,
+    };
+  }
+
+  // Verificar se existem usuários com permissão para este estabelecimento
+  const [permissoesCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(permissoesEstabelecimento)
+    .where(eq(permissoesEstabelecimento.estabelecimentoId, id));
+
+  // Remover permissões de usuários (isso é seguro pois não afeta os usuários em si)
+  if (permissoesCount.count > 0) {
+    await db.delete(permissoesEstabelecimento).where(eq(permissoesEstabelecimento.estabelecimentoId, id));
+  }
+
+  // Excluir o estabelecimento
+  await db.delete(estabelecimentos).where(eq(estabelecimentos.id, id));
+
+  return {
+    success: true,
+    message: "Estabelecimento excluído com sucesso",
+  };
+}
 
 // ============ REGRAS DE CONCILIAÇÃO FUNCTIONS ============
 

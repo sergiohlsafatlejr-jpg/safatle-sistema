@@ -270,3 +270,5 @@
 - [x] Implementar exportador genérico de recursos de glosa em Excel
 - [x] Implementar exportador genérico de recursos de glosa em PDF
 - [x] Adicionar botões de exportação na tela de Recursos de Glosa
+
+- [x] BUG: Funcionalidade de exclusão de estabelecimento não está funcionando (implementado botão + rota + validações)

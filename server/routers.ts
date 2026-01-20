@@ -227,6 +227,16 @@ export const appRouter = router({
         await db.updateEstabelecimento(id, data);
         return { success: true };
       }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const result = await db.deleteEstabelecimento(input.id);
+        if (!result.success) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        }
+        return result;
+      }),
   }),
 
   // ============ REGRAS DE CONCILIAÇÃO ============
