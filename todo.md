@@ -276,3 +276,5 @@
 - [x] Limpar todas as informações do banco de dados (reset completo)
 
 - [x] Implementar funcionalidade de exclusão de usuários
+
+- [x] Ajustar campos de vigência nas Tabelas de Preços para aceitar formato DD/MM/AAAA

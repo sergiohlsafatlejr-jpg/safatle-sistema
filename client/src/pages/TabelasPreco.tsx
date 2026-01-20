@@ -146,8 +146,25 @@ export default function TabelasPreco() {
     setFormCodigo(item.codigo);
     setFormNome(item.nome);
     setFormValor(item.valor);
-    setFormVigenciaInicio(item.vigenciaInicio ? new Date(item.vigenciaInicio).toISOString().split("T")[0] : "");
-    setFormVigenciaFim(item.vigenciaFim ? new Date(item.vigenciaFim).toISOString().split("T")[0] : "");
+    // Converte para formato DD/MM/AAAA para exibição
+    if (item.vigenciaInicio) {
+      const date = new Date(item.vigenciaInicio);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      setFormVigenciaInicio(`${day}/${month}/${year}`);
+    } else {
+      setFormVigenciaInicio("");
+    }
+    if (item.vigenciaFim) {
+      const date = new Date(item.vigenciaFim);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      setFormVigenciaFim(`${day}/${month}/${year}`);
+    } else {
+      setFormVigenciaFim("");
+    }
     setFormUnidade(item.unidade || "");
     setFormObservacao(item.observacao || "");
     setDialogOpen(true);
@@ -164,14 +181,30 @@ export default function TabelasPreco() {
       return;
     }
 
+    // Validar formato da data de início
+    if (!isValidDate(formVigenciaInicio)) {
+      toast.error("Data de início inválida. Use o formato DD/MM/AAAA");
+      return;
+    }
+
+    // Validar formato da data de fim (se preenchida)
+    if (formVigenciaFim && !isValidDate(formVigenciaFim)) {
+      toast.error("Data de fim inválida. Use o formato DD/MM/AAAA");
+      return;
+    }
+
+    // Converter datas para formato ISO (YYYY-MM-DD)
+    const vigenciaInicioISO = parseDateToISO(formVigenciaInicio);
+    const vigenciaFimISO = formVigenciaFim ? parseDateToISO(formVigenciaFim) : undefined;
+
     if (editingItem) {
       updateMutation.mutate({
         id: editingItem.id,
         codigo: formCodigo,
         nome: formNome,
         valor: formValor,
-        vigenciaInicio: formVigenciaInicio,
-        vigenciaFim: formVigenciaFim || undefined,
+        vigenciaInicio: vigenciaInicioISO,
+        vigenciaFim: vigenciaFimISO,
         unidade: formUnidade || undefined,
         observacao: formObservacao || undefined,
       });
@@ -182,8 +215,8 @@ export default function TabelasPreco() {
         codigo: formCodigo,
         nome: formNome,
         valor: formValor,
-        vigenciaInicio: formVigenciaInicio,
-        vigenciaFim: formVigenciaFim || undefined,
+        vigenciaInicio: vigenciaInicioISO,
+        vigenciaFim: vigenciaFimISO,
         unidade: formUnidade || undefined,
         observacao: formObservacao || undefined,
       });
@@ -224,6 +257,62 @@ export default function TabelasPreco() {
   const formatDate = (date: string | Date | null) => {
     if (!date) return "-";
     return new Date(date).toLocaleDateString("pt-BR");
+  };
+
+  // Função para formatar data no formato DD/MM/AAAA enquanto digita
+  const formatDateInput = (value: string): string => {
+    // Remove tudo que não for número
+    const numbers = value.replace(/\D/g, "");
+    
+    // Aplica a máscara DD/MM/AAAA
+    if (numbers.length <= 2) {
+      return numbers;
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+    }
+  };
+
+  // Função para converter DD/MM/AAAA para YYYY-MM-DD (formato ISO)
+  const parseDateToISO = (dateStr: string): string => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("/");
+    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  // Função para converter YYYY-MM-DD para DD/MM/AAAA
+  const formatISOToDisplay = (isoDate: string): string => {
+    if (!isoDate) return "";
+    // Se já está no formato DD/MM/AAAA, retorna como está
+    if (isoDate.includes("/")) return isoDate;
+    // Converte de YYYY-MM-DD para DD/MM/AAAA
+    const parts = isoDate.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
+  };
+
+  // Função para validar se a data está completa e válida
+  const isValidDate = (dateStr: string): boolean => {
+    if (!dateStr) return false;
+    const parts = dateStr.split("/");
+    if (parts.length !== 3 || parts[0].length !== 2 || parts[1].length !== 2 || parts[2].length !== 4) {
+      return false;
+    }
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > 2100) {
+      return false;
+    }
+    // Verifica se a data é válida
+    const date = new Date(year, month - 1, day);
+    return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
   };
 
   const tipoAtual = tiposTabela.find(t => t.value === tipoSelecionado);
@@ -488,21 +577,25 @@ export default function TabelasPreco() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vigenciaInicio">Vigência Início *</Label>
+                  <Label htmlFor="vigenciaInicio">Vigência Início * (DD/MM/AAAA)</Label>
                   <Input
                     id="vigenciaInicio"
-                    type="date"
+                    type="text"
                     value={formVigenciaInicio}
-                    onChange={(e) => setFormVigenciaInicio(e.target.value)}
+                    onChange={(e) => setFormVigenciaInicio(formatDateInput(e.target.value))}
+                    placeholder="Ex: 01/01/2025"
+                    maxLength={10}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="vigenciaFim">Vigência Fim</Label>
+                  <Label htmlFor="vigenciaFim">Vigência Fim (DD/MM/AAAA)</Label>
                   <Input
                     id="vigenciaFim"
-                    type="date"
+                    type="text"
                     value={formVigenciaFim}
-                    onChange={(e) => setFormVigenciaFim(e.target.value)}
+                    onChange={(e) => setFormVigenciaFim(formatDateInput(e.target.value))}
+                    placeholder="Ex: 31/12/2025"
+                    maxLength={10}
                   />
                 </div>
               </div>
