@@ -283,3 +283,5 @@
 - [x] Criar tabela de histórico no banco de dados
 - [x] Registrar quem modificou cada item e quando
 - [x] Criar interface de visualização do histórico por item
+
+- [x] BUG: Tipo não está sendo exibido corretamente na tela de detalhes da conta após importação XML (campos codigoDespesa e tipoDespesa adicionados na query)
