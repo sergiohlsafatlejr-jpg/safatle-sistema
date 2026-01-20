@@ -298,8 +298,20 @@ function DashboardLayoutContent({
           className="border-r-0 bg-sidebar"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
+          <SidebarHeader className="border-b border-sidebar-border">
+            {/* Logo da Safatle */}
+            <div className="flex items-center justify-center py-3 border-b border-sidebar-border/50">
+              <img 
+                src="/safatle-logo.png" 
+                alt="Safatle" 
+                className={`object-contain transition-all ${isCollapsed ? "w-8 h-8" : "w-12 h-12"}`}
+              />
+              {!isCollapsed && (
+                <span className="ml-2 font-bold text-sidebar-foreground text-sm">Safatle</span>
+              )}
+            </div>
+            {/* Seletor de estabelecimento */}
+            <div className="flex items-center gap-3 px-2 py-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"

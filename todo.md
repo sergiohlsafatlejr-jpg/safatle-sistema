@@ -236,3 +236,5 @@
 
 - [x] Adicionar favicon com a logo da Safatle
 - [x] Substituir ícone genérico pela logo da Safatle na página de seleção de estabelecimento e sidebar
+
+- [x] Adicionar logo da Safatle no topo da sidebar do dashboard
