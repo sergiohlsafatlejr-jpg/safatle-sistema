@@ -238,3 +238,9 @@
 - [x] Substituir ícone genérico pela logo da Safatle na página de seleção de estabelecimento e sidebar
 
 - [x] Adicionar logo da Safatle no topo da sidebar do dashboard
+
+- [x] Corrigir problema: usuário admin não vê dados do estabelecimento (paulo.borges@safatle.com.br)
+- [x] Apagar arquivos de diárias e taxas do IRG que estão puxando do estabelecimento errado (associados ao estabelecimento 1)
+- [x] Implementar classificação de itens pelo campo codigoDespesa (medicamento=2, diária=5, material=3, taxa=7, gás=1)
+- [x] Renomear tela "Itens Importados" para "Contas"
+- [x] Reformular tela Contas para exibir: Guia, Senha, Carteirinha, Data da Conta, Valor Total

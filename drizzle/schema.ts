@@ -94,8 +94,21 @@ export const procedimentos = mysqlTable("procedimentos", {
   pacienteNome: varchar("pacienteNome", { length: 255 }),
   pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),
   guiaNumero: varchar("guiaNumero", { length: 100 }),
+  senha: varchar("senha", { length: 100 }), // Senha da autorização
   nomeMedico: varchar("nomeMedico", { length: 255 }),
   crmMedico: varchar("crmMedico", { length: 50 }),
+  // Código de despesa ANS (define o tipo do item)
+  codigoDespesa: varchar("codigoDespesa", { length: 10 }),
+  // Tipo de despesa derivado do codigoDespesa (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa, outros=procedimento)
+  tipoDespesa: mysqlEnum("tipoDespesa", [
+    "gas",
+    "medicamento",
+    "material",
+    "diaria",
+    "taxa",
+    "procedimento",
+    "outros"
+  ]).default("procedimento"),
   dadosExtras: json("dadosExtras"),
   // Status de recurso de glosa
   recursoStatus: mysqlEnum("recursoStatus", [

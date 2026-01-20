@@ -73,7 +73,7 @@ const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/", modulo: "dashboard" },
   { icon: Upload, label: "Upload de Arquivos", path: "/upload", modulo: "arquivos" },
   { icon: FileSearch, label: "Arquivos", path: "/arquivos", modulo: "arquivos" },
-  { icon: List, label: "Itens Importados", path: "/itens-importados", modulo: "arquivos" },
+  { icon: List, label: "Contas", path: "/contas", modulo: "arquivos" },
   { icon: Scale, label: "Conciliação", path: "/conciliacao", modulo: "comparacoes" },
   { icon: BarChart3, label: "Faturamento", path: "/faturamento", modulo: "faturamento" },
   { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },

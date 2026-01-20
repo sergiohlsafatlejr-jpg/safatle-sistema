@@ -14,10 +14,13 @@ export interface ParsedProcedimento {
   pacienteNome?: string;
   pacienteCarteirinha?: string;
   guiaNumero?: string;
+  senha?: string; // Senha da autorização
   nomeMedico?: string;
   crmMedico?: string;
   motivoGlosa?: string;
   valorGlosado?: number;
+  codigoDespesa?: string; // Código de despesa ANS (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa)
+  tipoDespesa?: 'gas' | 'medicamento' | 'material' | 'diaria' | 'taxa' | 'procedimento' | 'outros';
   dadosExtras?: Record<string, unknown>;
 }
 
@@ -215,6 +218,7 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
       const guiaNumero = getTextValue(guiaRecord["numeroGuiaPrestador"]) || 
                          getTextValue(guiaRecord["numeroGuiaOperadora"]);
       const pacienteCarteirinha = getTextValue(guiaRecord["numeroCarteira"]);
+      const senha = getTextValue(guiaRecord["senha"]);
       
       // Get motivos de glosa da guia
       let motivosGlosaGuia: string[] = [];
@@ -293,6 +297,7 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
           valorTotal: valorLiberado !== undefined ? valorLiberado : valorInformado,
           dataExecucao: dataRealizacao,
           guiaNumero,
+          senha,
           pacienteCarteirinha,
           motivoGlosa: motivoGlosa || undefined,
           valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
@@ -449,11 +454,14 @@ function extractOutrasDespesas(guia: unknown): ParsedProcedimento[] {
     
     const despesaRecord = despesa as Record<string, unknown>;
     
+    // Get codigoDespesa from despesa node
+    const codigoDespesa = getTextValue(despesaRecord["codigoDespesa"]);
+    
     // Get servicosExecutados
     const servicos = despesaRecord["servicosExecutados"];
     if (!servicos) continue;
     
-    const proc = extractServicoFromNode(servicos);
+    const proc = extractServicoFromNode(servicos, codigoDespesa);
     if (proc) {
       procedimentos.push(proc);
     }
@@ -552,9 +560,28 @@ function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
 }
 
 /**
+ * Converte código de despesa ANS para tipo de despesa
+ * 1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa
+ */
+function codigoDespesaParaTipo(codigoDespesa?: string): ParsedProcedimento['tipoDespesa'] {
+  if (!codigoDespesa) return 'procedimento';
+  
+  const codigo = codigoDespesa.replace(/^0+/, ''); // Remove zeros à esquerda
+  
+  switch (codigo) {
+    case '1': return 'gas';
+    case '2': return 'medicamento';
+    case '3': return 'material';
+    case '5': return 'diaria';
+    case '7': return 'taxa';
+    default: return 'procedimento';
+  }
+}
+
+/**
  * Extract procedimento from servicosExecutados node
  */
-function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
+function extractServicoFromNode(node: unknown, codigoDespesa?: string): ParsedProcedimento | null {
   if (!node || typeof node !== "object") return null;
   
   const record = node as Record<string, unknown>;
@@ -568,6 +595,10 @@ function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
   const valorTotal = parseNumber(record["valorTotal"]);
   const dataExecucao = parseDate(record["dataExecucao"]);
   
+  // Extrair codigoDespesa do próprio nó se não foi passado
+  const despesaCodigo = codigoDespesa || getTextValue(record["codigoDespesa"]);
+  const tipoDespesa = codigoDespesaParaTipo(despesaCodigo);
+  
   return {
     codigo,
     descricao,
@@ -575,6 +606,8 @@ function extractServicoFromNode(node: unknown): ParsedProcedimento | null {
     valorUnitario,
     valorTotal,
     dataExecucao,
+    codigoDespesa: despesaCodigo,
+    tipoDespesa,
     dadosExtras: record,
   };
 }
@@ -1095,8 +1128,11 @@ export function toProcedimentoInsert(
     pacienteNome: parsed.pacienteNome,
     pacienteCarteirinha: parsed.pacienteCarteirinha,
     guiaNumero: parsed.guiaNumero,
+    senha: parsed.senha,
     nomeMedico: parsed.nomeMedico,
     crmMedico: parsed.crmMedico,
+    codigoDespesa: parsed.codigoDespesa,
+    tipoDespesa: parsed.tipoDespesa,
     dadosExtras: parsed.dadosExtras,
   };
 }

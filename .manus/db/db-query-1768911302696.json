@@ -1,0 +1,42 @@
+{
+  "query": "SELECT u.id, u.name, u.email, u.role, pe.estabelecimentoId, e.nome as estabelecimento_nome\nFROM users u\nLEFT JOIN permissoesEstabelecimento pe ON u.id = pe.userId\nLEFT JOIN estabelecimentos e ON pe.estabelecimentoId = e.id\nWHERE u.email = 'paulo.borges@safatle.com.br';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT u.id, u.name, u.email, u.role, pe.estabelecimentoId, e.nome as estabelecimento_nome\nFROM users u\nLEFT JOIN permissoesEstabelecimento pe ON u.id = pe.userId\nLEFT JOIN estabelecimentos e ON pe.estabelecimentoId = e.id\nWHERE u.email = 'paulo.borges@safatle.com.br';",
+  "rows": [
+    {
+      "id": "750138",
+      "name": "paulo borges ",
+      "email": "paulo.borges@safatle.com.br",
+      "role": "user",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil de Campina "
+    },
+    {
+      "id": "750138",
+      "name": "paulo borges ",
+      "email": "paulo.borges@safatle.com.br",
+      "role": "user",
+      "estabelecimentoId": "2",
+      "estabelecimento_nome": "Institudo do Rim "
+    },
+    {
+      "id": "840096",
+      "name": "paulo.borges",
+      "email": "paulo.borges@safatle.com.br",
+      "role": "user",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil de Campina "
+    },
+    {
+      "id": "840096",
+      "name": "paulo.borges",
+      "email": "paulo.borges@safatle.com.br",
+      "role": "user",
+      "estabelecimentoId": "2",
+      "estabelecimento_nome": "Institudo do Rim "
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\testabelecimentoId\testabelecimento_nome\n750138\tpaulo borges \tpaulo.borges@safatle.com.br\tuser\t1\tPronto Socorro Infantil de Campina \n750138\tpaulo borges \tpaulo.borges@safatle.com.br\tuser\t2\tInstitudo do Rim \n840096\tpaulo.borges\tpaulo.borges@safatle.com.br\tuser\t1\tPronto Socorro Infantil de Campina \n840096\tpaulo.borges\tpaulo.borges@safatle.com.br\tuser\t2\tInstitudo do Rim \n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

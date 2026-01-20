@@ -162,6 +162,20 @@
       "when": 1768873349907,
       "tag": "0022_soft_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1768912647405,
+      "tag": "0023_mute_shape",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1768913379220,
+      "tag": "0024_optimal_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

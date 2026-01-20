@@ -1,0 +1,1 @@
+ALTER TABLE `procedimentos` ADD `senha` varchar(100);
