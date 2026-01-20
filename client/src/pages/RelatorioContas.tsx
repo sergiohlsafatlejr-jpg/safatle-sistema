@@ -39,27 +39,18 @@ const TIPO_DESPESA_CONFIG: Record<string, { label: string; icon: React.ReactNode
 export default function RelatorioContas() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
-  const [mesReferencia, setMesReferencia] = useState<string>("todos");
+  const [mesReferencia, setMesReferencia] = useState<string>("");
+  const [anoReferencia, setAnoReferencia] = useState<string>("");
   const [convenioFiltro, setConvenioFiltro] = useState<string>("todos");
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
   const { data: procedimentos, isLoading } = trpc.procedimentos.list.useQuery({
     convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
+    mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
+    anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     pageSize: 10000,
   });
-
-  // Gerar lista de meses disponíveis
-  const mesesDisponiveis = useMemo(() => {
-    const meses: string[] = [];
-    const hoje = new Date();
-    for (let i = 0; i < 12; i++) {
-      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-      const mes = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
-      meses.push(mes);
-    }
-    return meses;
-  }, []);
 
   // Agrupar dados por tipo de despesa
   const resumoPorTipo = useMemo(() => {
@@ -74,13 +65,6 @@ export default function RelatorioContas() {
     }> = {};
 
     procedimentos.items.forEach((proc: any) => {
-      // Filtrar por mês se selecionado
-      if (mesReferencia !== "todos" && proc.dataExecucao) {
-        const dataExec = new Date(proc.dataExecucao);
-        const mesProcedimento = `${dataExec.getFullYear()}-${String(dataExec.getMonth() + 1).padStart(2, "0")}`;
-        if (mesProcedimento !== mesReferencia) return;
-      }
-
       const tipo = proc.codigoDespesa || "outros";
       const valor = parseFloat(proc.valorTotal || proc.valorUnitario || "0");
 
@@ -107,7 +91,7 @@ export default function RelatorioContas() {
     });
 
     return Object.values(grupos).sort((a, b) => b.valorTotal - a.valorTotal);
-  }, [procedimentos, mesReferencia]);
+  }, [procedimentos]);
 
   // Calcular totais gerais
   const totaisGerais = useMemo(() => {
@@ -173,19 +157,41 @@ export default function RelatorioContas() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4">
-            <div className="min-w-[200px]">
-              <label className="text-sm font-medium mb-2 block">Mês de Referência</label>
+            <div className="min-w-[150px]">
+              <label className="text-sm font-medium mb-2 block">Mês Referência</label>
               <Select value={mesReferencia} onValueChange={setMesReferencia}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o mês" />
+                  <SelectValue placeholder="Todos os meses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos os meses</SelectItem>
-                  {mesesDisponiveis.map((mes) => (
-                    <SelectItem key={mes} value={mes}>
-                      {new Date(mes + "-01").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">Todos os meses</SelectItem>
+                  <SelectItem value="1">Janeiro</SelectItem>
+                  <SelectItem value="2">Fevereiro</SelectItem>
+                  <SelectItem value="3">Março</SelectItem>
+                  <SelectItem value="4">Abril</SelectItem>
+                  <SelectItem value="5">Maio</SelectItem>
+                  <SelectItem value="6">Junho</SelectItem>
+                  <SelectItem value="7">Julho</SelectItem>
+                  <SelectItem value="8">Agosto</SelectItem>
+                  <SelectItem value="9">Setembro</SelectItem>
+                  <SelectItem value="10">Outubro</SelectItem>
+                  <SelectItem value="11">Novembro</SelectItem>
+                  <SelectItem value="12">Dezembro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[150px]">
+              <label className="text-sm font-medium mb-2 block">Ano Referência</label>
+              <Select value={anoReferencia} onValueChange={setAnoReferencia}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os anos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os anos</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2023">2023</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -48,6 +48,8 @@ export default function Contas() {
   const [convenioId, setConvenioId] = useState<string>("");
   const [arquivoId, setArquivoId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [mesReferencia, setMesReferencia] = useState<string>("");
+  const [anoReferencia, setAnoReferencia] = useState<string>("");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
   const pageSize = 50;
@@ -67,6 +69,8 @@ export default function Contas() {
       arquivoId: arquivoId ? parseInt(arquivoId) : undefined,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
       search: searchTerm || undefined,
+      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
+      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
       page: 1,
       pageSize: 10000, // Buscar todos para agrupar
     },
@@ -262,7 +266,53 @@ export default function Contas() {
             <CardDescription>Filtre as contas por convênio, arquivo ou busca</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Mês Referência</label>
+                <Select value={mesReferencia} onValueChange={(value) => {
+                  setMesReferencia(value === "all" ? "" : value);
+                  setPage(1);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os meses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os meses</SelectItem>
+                    <SelectItem value="1">Janeiro</SelectItem>
+                    <SelectItem value="2">Fevereiro</SelectItem>
+                    <SelectItem value="3">Março</SelectItem>
+                    <SelectItem value="4">Abril</SelectItem>
+                    <SelectItem value="5">Maio</SelectItem>
+                    <SelectItem value="6">Junho</SelectItem>
+                    <SelectItem value="7">Julho</SelectItem>
+                    <SelectItem value="8">Agosto</SelectItem>
+                    <SelectItem value="9">Setembro</SelectItem>
+                    <SelectItem value="10">Outubro</SelectItem>
+                    <SelectItem value="11">Novembro</SelectItem>
+                    <SelectItem value="12">Dezembro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Ano Referência</label>
+                <Select value={anoReferencia} onValueChange={(value) => {
+                  setAnoReferencia(value === "all" ? "" : value);
+                  setPage(1);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os anos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os anos</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={(value) => {
@@ -325,6 +375,8 @@ export default function Contas() {
                     setConvenioId("");
                     setArquivoId("");
                     setSearchTerm("");
+                    setMesReferencia("");
+                    setAnoReferencia("");
                     setPage(1);
                   }}
                 >

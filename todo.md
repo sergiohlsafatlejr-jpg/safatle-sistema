@@ -285,3 +285,6 @@
 - [x] Criar interface de visualização do histórico por item
 
 - [x] BUG: Tipo não está sendo exibido corretamente na tela de detalhes da conta após importação XML (campos codigoDespesa e tipoDespesa adicionados na query)
+
+- [x] Adicionar filtro de data de referência (dataReferencia) na tela de Contas
+- [x] Vincular filtros do Relatório de Contas à coluna dataReferencia
