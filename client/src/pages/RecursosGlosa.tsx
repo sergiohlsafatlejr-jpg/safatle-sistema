@@ -329,26 +329,211 @@ export default function RecursosGlosa() {
 
   const handleExportExcel = () => {
     if (!recursosData?.recursos) return;
-    const data = recursosData.recursos.map((r) => ({
+    
+    // Dados principais
+    const data = recursosData.recursos.map((r, index) => ({
+      "#": index + 1,
       "Convênio": r.convenioNome,
-      "Código": r.codigoProcedimento || "-",
-      "Descrição": r.descricaoProcedimento || "-",
       "Guia": r.guiaNumero || "-",
       "Paciente": r.pacienteNome || "-",
-      "Valor Cobrado": r.valorCobrado || "0",
-      "Valor Glosado": r.valorGlosado || "0",
-      "Valor Recuperado": r.valorRecuperado || "0",
+      "Código Proc.": r.codigoProcedimento || "-",
+      "Descrição Proc.": r.descricaoProcedimento || "-",
+      "Valor Cobrado": parseFloat(r.valorCobrado || "0"),
+      "Valor Glosado": parseFloat(r.valorGlosado || "0"),
+      "Valor Recuperado": parseFloat(r.valorRecuperado || "0"),
+      "Motivo Glosa": r.motivoGlosaConvenio || "-",
+      "Justificativa Recurso": r.justificativaRecurso || "-",
       "Status": STATUS_CONFIG[r.status]?.label || r.status,
       "Prioridade": PRIORIDADE_CONFIG[r.prioridade]?.label || r.prioridade,
       "Protocolo": r.protocoloRecurso || "-",
+      "Data Glosa": formatDate(r.dataGlosa),
       "Data Criação": formatDate(r.createdAt),
       "Data Envio": formatDate(r.dataEnvioRecurso),
       "Data Resposta": formatDate(r.dataResposta),
+      "Resposta Convênio": r.respostaConvenio || "-",
     }));
+    
+    // Calcular totais
+    const totalCobrado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorCobrado || "0"), 0);
+    const totalGlosado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorGlosado || "0"), 0);
+    const totalRecuperado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorRecuperado || "0"), 0);
+    
+    // Adicionar linha de totais
+    data.push({
+      "#": "TOTAL",
+      "Convênio": "",
+      "Guia": "",
+      "Paciente": "",
+      "Código Proc.": "",
+      "Descrição Proc.": "",
+      "Valor Cobrado": totalCobrado,
+      "Valor Glosado": totalGlosado,
+      "Valor Recuperado": totalRecuperado,
+      "Motivo Glosa": "",
+      "Justificativa Recurso": "",
+      "Status": `${recursosData.recursos.length} recursos`,
+      "Prioridade": "",
+      "Protocolo": "",
+      "Data Glosa": "",
+      "Data Criação": "",
+      "Data Envio": "",
+      "Data Resposta": "",
+      "Resposta Convênio": "",
+    } as any);
+    
     const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajustar largura das colunas
+    ws["!cols"] = [
+      { wch: 5 },   // #
+      { wch: 20 },  // Convênio
+      { wch: 15 },  // Guia
+      { wch: 25 },  // Paciente
+      { wch: 12 },  // Código
+      { wch: 35 },  // Descrição
+      { wch: 14 },  // Valor Cobrado
+      { wch: 14 },  // Valor Glosado
+      { wch: 16 },  // Valor Recuperado
+      { wch: 30 },  // Motivo Glosa
+      { wch: 50 },  // Justificativa
+      { wch: 15 },  // Status
+      { wch: 12 },  // Prioridade
+      { wch: 15 },  // Protocolo
+      { wch: 12 },  // Data Glosa
+      { wch: 12 },  // Data Criação
+      { wch: 12 },  // Data Envio
+      { wch: 12 },  // Data Resposta
+      { wch: 40 },  // Resposta
+    ];
+    
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Recursos");
+    XLSX.utils.book_append_sheet(wb, ws, "Recursos de Glosa");
     XLSX.writeFile(wb, `recursos_glosa_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast.success("Arquivo Excel exportado com sucesso!");
+  };
+
+  const handleExportPDF = () => {
+    if (!recursosData?.recursos || recursosData.recursos.length === 0) {
+      toast.error("Nenhum recurso para exportar");
+      return;
+    }
+    
+    // Calcular totais
+    const totalCobrado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorCobrado || "0"), 0);
+    const totalGlosado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorGlosado || "0"), 0);
+    const totalRecuperado = recursosData.recursos.reduce((sum, r) => sum + parseFloat(r.valorRecuperado || "0"), 0);
+    
+    // Criar conteúdo HTML para o PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Relatório de Recursos de Glosa</title>
+        <style>
+          body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+          h1 { color: #1e3a5f; font-size: 18px; text-align: center; margin-bottom: 5px; }
+          h2 { color: #666; font-size: 12px; text-align: center; margin-bottom: 20px; }
+          .resumo { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          .resumo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+          .resumo-item { text-align: center; }
+          .resumo-valor { font-size: 16px; font-weight: bold; color: #1e3a5f; }
+          .resumo-label { font-size: 10px; color: #666; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th { background: #1e3a5f; color: white; padding: 8px 4px; text-align: left; font-size: 9px; }
+          td { padding: 6px 4px; border-bottom: 1px solid #ddd; font-size: 9px; vertical-align: top; }
+          tr:nth-child(even) { background: #f9f9f9; }
+          .valor { text-align: right; }
+          .status { padding: 2px 6px; border-radius: 4px; font-size: 8px; }
+          .status-deferido { background: #d4edda; color: #155724; }
+          .status-indeferido { background: #f8d7da; color: #721c24; }
+          .status-enviado { background: #cce5ff; color: #004085; }
+          .status-pendente { background: #fff3cd; color: #856404; }
+          .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #666; }
+          .justificativa { max-width: 200px; word-wrap: break-word; }
+          @media print { body { margin: 10px; } }
+        </style>
+      </head>
+      <body>
+        <h1>Relatório de Recursos de Glosa</h1>
+        <h2>Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</h2>
+        
+        <div class="resumo">
+          <div class="resumo-grid">
+            <div class="resumo-item">
+              <div class="resumo-valor">${recursosData.recursos.length}</div>
+              <div class="resumo-label">Total de Recursos</div>
+            </div>
+            <div class="resumo-item">
+              <div class="resumo-valor">R$ ${totalCobrado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+              <div class="resumo-label">Valor Cobrado</div>
+            </div>
+            <div class="resumo-item">
+              <div class="resumo-valor">R$ ${totalGlosado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+              <div class="resumo-label">Valor Glosado</div>
+            </div>
+            <div class="resumo-item">
+              <div class="resumo-valor">R$ ${totalRecuperado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+              <div class="resumo-label">Valor Recuperado</div>
+            </div>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Convênio</th>
+              <th>Guia</th>
+              <th>Paciente</th>
+              <th>Código</th>
+              <th>Descrição</th>
+              <th>Vlr. Glosado</th>
+              <th>Motivo Glosa</th>
+              <th>Justificativa Recurso</th>
+              <th>Status</th>
+              <th>Protocolo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${recursosData.recursos.map((r, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${r.convenioNome}</td>
+                <td>${r.guiaNumero || "-"}</td>
+                <td>${r.pacienteNome || "-"}</td>
+                <td>${r.codigoProcedimento || "-"}</td>
+                <td>${(r.descricaoProcedimento || "-").substring(0, 40)}${(r.descricaoProcedimento || "").length > 40 ? "..." : ""}</td>
+                <td class="valor">R$ ${parseFloat(r.valorGlosado || "0").toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                <td>${(r.motivoGlosaConvenio || "-").substring(0, 30)}${(r.motivoGlosaConvenio || "").length > 30 ? "..." : ""}</td>
+                <td class="justificativa">${(r.justificativaRecurso || "-").substring(0, 80)}${(r.justificativaRecurso || "").length > 80 ? "..." : ""}</td>
+                <td><span class="status status-${r.status === "deferido" || r.status === "deferido_parcial" ? "deferido" : r.status === "indeferido" ? "indeferido" : r.status === "enviado" || r.status === "em_analise" ? "enviado" : "pendente"}">${STATUS_CONFIG[r.status]?.label || r.status}</span></td>
+                <td>${r.protocoloRecurso || "-"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Safatle Gerenciamento - Sistema de Gestão Hospitalar</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    // Abrir em nova janela para impressão/PDF
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+      toast.success("Relatório PDF gerado! Use 'Salvar como PDF' na caixa de impressão.");
+    } else {
+      toast.error("Não foi possível abrir a janela de impressão. Verifique se popups estão bloqueados.");
+    }
   };
 
   const totalPages = Math.ceil((recursosData?.total || 0) / 15);
@@ -372,10 +557,29 @@ export default function RecursosGlosa() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <Button variant="outline" onClick={handleExportExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar
-            </Button>
+            <Select onValueChange={(value) => {
+              if (value === "excel") handleExportExcel();
+              else if (value === "pdf") handleExportPDF();
+            }}>
+              <SelectTrigger className="w-[140px]">
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="excel">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Excel (.xlsx)
+                  </div>
+                </SelectItem>
+                <SelectItem value="pdf">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    PDF
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <Dialog open={showNovoRecurso} onOpenChange={(open) => {
               setShowNovoRecurso(open);
               if (!open) resetNovoRecurso();

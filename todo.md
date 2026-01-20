@@ -266,3 +266,7 @@
 - [x] Implementar atualização de contas ao reimportar arquivos XML (evitar duplicatas)
 - [x] Garantir que exclusão de arquivo remove procedimentos associados da tela de Contas
 - [x] Ao reimportar arquivo com mesmo nome/convênio, atualizar dados em vez de duplicar
+
+- [x] Implementar exportador genérico de recursos de glosa em Excel
+- [x] Implementar exportador genérico de recursos de glosa em PDF
+- [x] Adicionar botões de exportação na tela de Recursos de Glosa

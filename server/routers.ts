@@ -1592,6 +1592,73 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getDetalhesLoteRecurso(input.loteId);
       }),
+
+    // ============ EXPORTAÇÃO DE RECURSOS ============
+    exportar: protectedProcedure
+      .input(
+        z.object({
+          formato: z.enum(["excel", "pdf"]),
+          convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
+          status: z.string().optional(),
+          dataInicio: z.date().optional(),
+          dataFim: z.date().optional(),
+          ids: z.array(z.number()).optional(), // IDs específicos para exportar
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const recursos = await db.getRecursosParaExportacao(ctx.user.id, {
+          convenioId: input.convenioId,
+          estabelecimentoId: input.estabelecimentoId,
+          status: input.status,
+          dataInicio: input.dataInicio,
+          dataFim: input.dataFim,
+          ids: input.ids,
+        });
+
+        if (recursos.length === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum recurso encontrado para exportação" });
+        }
+
+        // Formatar dados para exportação
+        const dadosExportacao = recursos.map((r, index) => ({
+          numero: index + 1,
+          convenio: r.convenioNome,
+          estabelecimento: r.estabelecimentoNome,
+          guia: r.guiaNumero || "N/A",
+          paciente: r.pacienteNome || "N/A",
+          codigoProcedimento: r.codigoProcedimento || "N/A",
+          descricaoProcedimento: r.descricaoProcedimento || "N/A",
+          valorCobrado: r.valorCobrado ? parseFloat(r.valorCobrado) : 0,
+          valorGlosado: r.valorGlosado ? parseFloat(r.valorGlosado) : 0,
+          valorRecuperado: r.valorRecuperado ? parseFloat(r.valorRecuperado) : 0,
+          motivoGlosa: r.motivoGlosaConvenio || "N/A",
+          justificativaRecurso: r.justificativaRecurso || "N/A",
+          status: r.status,
+          prioridade: r.prioridade,
+          protocolo: r.protocoloRecurso || "N/A",
+          dataGlosa: r.dataGlosa ? new Date(r.dataGlosa).toLocaleDateString("pt-BR") : "N/A",
+          dataEnvio: r.dataEnvioRecurso ? new Date(r.dataEnvioRecurso).toLocaleDateString("pt-BR") : "N/A",
+          dataResposta: r.dataResposta ? new Date(r.dataResposta).toLocaleDateString("pt-BR") : "N/A",
+          respostaConvenio: r.respostaConvenio || "N/A",
+          dataCriacao: new Date(r.createdAt).toLocaleDateString("pt-BR"),
+        }));
+
+        // Calcular totais
+        const totais = {
+          totalRecursos: recursos.length,
+          totalValorCobrado: dadosExportacao.reduce((sum, r) => sum + r.valorCobrado, 0),
+          totalValorGlosado: dadosExportacao.reduce((sum, r) => sum + r.valorGlosado, 0),
+          totalValorRecuperado: dadosExportacao.reduce((sum, r) => sum + r.valorRecuperado, 0),
+        };
+
+        return {
+          dados: dadosExportacao,
+          totais,
+          formato: input.formato,
+          dataExportacao: new Date().toISOString(),
+        };
+      }),
   }),
 
   // ============ CONCILIAÇÃO AUTOMÁTICA ============

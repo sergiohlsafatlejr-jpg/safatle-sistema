@@ -1934,6 +1934,73 @@ export async function getRecursoById(id: number) {
   };
 }
 
+/**
+ * Buscar recursos para exportação (sem paginação)
+ */
+export async function getRecursosParaExportacao(
+  userId: number,
+  filters?: {
+    convenioId?: number;
+    estabelecimentoId?: number;
+    status?: string;
+    dataInicio?: Date;
+    dataFim?: Date;
+    ids?: number[];
+  }
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [eq(recursosGlosa.userId, userId)];
+
+  if (filters?.convenioId) {
+    conditions.push(eq(recursosGlosa.convenioId, filters.convenioId));
+  }
+  if (filters?.estabelecimentoId) {
+    conditions.push(eq(recursosGlosa.estabelecimentoId, filters.estabelecimentoId));
+  }
+  if (filters?.status) {
+    conditions.push(eq(recursosGlosa.status, filters.status as any));
+  }
+  if (filters?.dataInicio) {
+    conditions.push(gte(recursosGlosa.createdAt, filters.dataInicio));
+  }
+  if (filters?.dataFim) {
+    conditions.push(lte(recursosGlosa.createdAt, filters.dataFim));
+  }
+  if (filters?.ids && filters.ids.length > 0) {
+    conditions.push(inArray(recursosGlosa.id, filters.ids));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const recursos = await db
+    .select()
+    .from(recursosGlosa)
+    .where(whereClause)
+    .orderBy(desc(recursosGlosa.createdAt));
+
+  // Enriquecer com nome do convênio e estabelecimento
+  const convenioIds = Array.from(new Set(recursos.map(r => r.convenioId)));
+  const estabelecimentoIds = Array.from(new Set(recursos.filter(r => r.estabelecimentoId).map(r => r.estabelecimentoId!)));
+
+  const conveniosList = convenioIds.length > 0 
+    ? await db.select().from(convenios).where(inArray(convenios.id, convenioIds))
+    : [];
+  const convenioMap = new Map(conveniosList.map(c => [c.id, c.nome]));
+
+  const estabelecimentosList = estabelecimentoIds.length > 0
+    ? await db.select().from(estabelecimentos).where(inArray(estabelecimentos.id, estabelecimentoIds))
+    : [];
+  const estabelecimentoMap = new Map(estabelecimentosList.map(e => [e.id, e.nome]));
+
+  return recursos.map(r => ({
+    ...r,
+    convenioNome: convenioMap.get(r.convenioId) || "Desconhecido",
+    estabelecimentoNome: r.estabelecimentoId ? estabelecimentoMap.get(r.estabelecimentoId) || "N/A" : "N/A",
+  }));
+}
+
 export async function deleteRecursoGlosa(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
