@@ -153,7 +153,7 @@ export default function Upload() {
           new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
         );
 
-        await uploadMutation.mutateAsync({
+        const result = await uploadMutation.mutateAsync({
           nome: fileItem.file.name,
           tipoArquivo: detectFileType(fileItem.file),
           direcao,
@@ -168,6 +168,11 @@ export default function Upload() {
         setSelectedFiles(prev => prev.map((f, idx) => 
           idx === fileIndex ? { ...f, status: "success" as const } : f
         ));
+        
+        // Mostrar feedback se foi reimportação
+        if (result.reimportado) {
+          toast.info(`Arquivo "${fileItem.file.name}" atualizado (reimportação)`);
+        }
         successCount++;
       } catch (error) {
         console.error("Upload error:", error);

@@ -262,3 +262,7 @@
 
 - [x] CORREÇÃO: Problema na importação de arquivos XML - arquivo não aparece na tela de arquivos (estabelecimentoId corrigido)
 - [x] Adicionar alerta visual de prazo de recurso na tela de Análise de Glosa (usa dataPagamento + prazo do convênio)
+
+- [x] Implementar atualização de contas ao reimportar arquivos XML (evitar duplicatas)
+- [x] Garantir que exclusão de arquivo remove procedimentos associados da tela de Contas
+- [x] Ao reimportar arquivo com mesmo nome/convênio, atualizar dados em vez de duplicar

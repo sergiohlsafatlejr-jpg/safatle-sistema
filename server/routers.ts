@@ -327,35 +327,89 @@ export const appRouter = router({
         // Sanitize filename to remove special characters
         const sanitizedNome = sanitizeFilename(input.nome);
         
-        // Generate unique S3 key with sanitized filename
-        const ext = input.tipoArquivo === "excel" ? "xlsx" : input.tipoArquivo;
-        const s3Key = `arquivos/${ctx.user.id}/${nanoid()}-${sanitizedNome}.${ext}`;
-        
-        // Upload to S3
-        const contentType =
-          input.tipoArquivo === "xml"
-            ? "application/xml"
-            : input.tipoArquivo === "excel"
-            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            : "application/pdf";
-        
-        const { url } = await storagePut(s3Key, buffer, contentType);
-        
-        // Create arquivo record
-        const { id: arquivoId } = await db.createArquivo({
+        // Verificar se já existe um arquivo com mesmo nome, convênio e estabelecimento
+        const arquivoExistente = await db.findArquivoExistente({
           nome: input.nome,
-          tipoArquivo: input.tipoArquivo,
-          direcao: input.direcao,
           convenioId: input.convenioId,
           estabelecimentoId: input.estabelecimentoId,
           userId: ctx.user.id,
-          s3Key,
-          s3Url: url,
-          tamanho: buffer.length,
-          status: "pendente",
-          dataReferencia: input.dataReferencia ? new Date(input.dataReferencia) : null,
-          dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
+          direcao: input.direcao,
         });
+        
+        let arquivoId: number;
+        let s3Key: string;
+        let url: string;
+        let isReimportacao = false;
+        
+        if (arquivoExistente) {
+          // Reimportação: atualizar arquivo existente
+          console.log('[Upload] Arquivo existente encontrado, atualizando:', arquivoExistente.id);
+          isReimportacao = true;
+          arquivoId = arquivoExistente.id;
+          
+          // Gerar nova chave S3 para o arquivo atualizado
+          const ext = input.tipoArquivo === "excel" ? "xlsx" : input.tipoArquivo;
+          s3Key = `arquivos/${ctx.user.id}/${nanoid()}-${sanitizedNome}.${ext}`;
+          
+          // Upload to S3
+          const contentType =
+            input.tipoArquivo === "xml"
+              ? "application/xml"
+              : input.tipoArquivo === "excel"
+              ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              : "application/pdf";
+          
+          const uploadResult = await storagePut(s3Key, buffer, contentType);
+          url = uploadResult.url;
+          
+          // Excluir procedimentos antigos
+          await db.deleteProcedimentosByArquivoId(arquivoId);
+          
+          // Atualizar registro do arquivo
+          await db.updateArquivo(arquivoId, {
+            s3Key,
+            s3Url: url,
+            tamanho: buffer.length,
+            status: "pendente",
+            progresso: 0,
+            itensProcessados: 0,
+            totalItens: null,
+            dataReferencia: input.dataReferencia ? new Date(input.dataReferencia) : null,
+            dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
+          });
+        } else {
+          // Novo arquivo: criar registro
+          const ext = input.tipoArquivo === "excel" ? "xlsx" : input.tipoArquivo;
+          s3Key = `arquivos/${ctx.user.id}/${nanoid()}-${sanitizedNome}.${ext}`;
+          
+          // Upload to S3
+          const contentType =
+            input.tipoArquivo === "xml"
+              ? "application/xml"
+              : input.tipoArquivo === "excel"
+              ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              : "application/pdf";
+          
+          const uploadResult = await storagePut(s3Key, buffer, contentType);
+          url = uploadResult.url;
+          
+          // Create arquivo record
+          const result = await db.createArquivo({
+            nome: input.nome,
+            tipoArquivo: input.tipoArquivo,
+            direcao: input.direcao,
+            convenioId: input.convenioId,
+            estabelecimentoId: input.estabelecimentoId,
+            userId: ctx.user.id,
+            s3Key,
+            s3Url: url,
+            tamanho: buffer.length,
+            status: "pendente",
+            dataReferencia: input.dataReferencia ? new Date(input.dataReferencia) : null,
+            dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
+          });
+          arquivoId = result.id;
+        }
         
         // Parse file and extract procedimentos
         try {
@@ -416,7 +470,7 @@ export const appRouter = router({
           await db.updateArquivoStatus(arquivoId, "erro");
         }
         
-        return { id: arquivoId, s3Url: url };
+        return { id: arquivoId, s3Url: url, reimportado: isReimportacao };
       }),
 
     procedimentos: protectedProcedure

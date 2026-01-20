@@ -191,6 +191,48 @@ export async function createArquivo(data: InsertArquivo) {
   return { id: Number(result[0].insertId) };
 }
 
+/**
+ * Busca arquivo existente por nome, convênio e estabelecimento
+ * Usado para detectar reimportação de arquivos
+ */
+export async function findArquivoExistente(params: {
+  nome: string;
+  convenioId: number;
+  estabelecimentoId: number;
+  userId: number;
+  direcao: "enviado" | "retornado";
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(arquivos)
+    .where(
+      and(
+        eq(arquivos.nome, params.nome),
+        eq(arquivos.convenioId, params.convenioId),
+        eq(arquivos.estabelecimentoId, params.estabelecimentoId),
+        eq(arquivos.userId, params.userId),
+        eq(arquivos.direcao, params.direcao)
+      )
+    )
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Atualiza um arquivo existente (para reimportação)
+ */
+export async function updateArquivo(id: number, data: Partial<InsertArquivo>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(arquivos).set(data).where(eq(arquivos.id, id));
+  return { success: true };
+}
+
 export async function getArquivos(filters?: {
   convenioId?: number;
   direcao?: "enviado" | "retornado";
