@@ -155,12 +155,28 @@ export async function createConvenio(data: InsertConvenio) {
   return { id: Number(result[0].insertId) };
 }
 
-export async function getConvenios(ativo?: "sim" | "nao") {
+export async function getConvenios(ativo?: "sim" | "nao", estabelecimentoId?: number) {
   const db = await getDb();
   if (!db) return [];
 
+  const conditions = [];
+  
   if (ativo) {
-    return db.select().from(convenios).where(eq(convenios.ativo, ativo));
+    conditions.push(eq(convenios.ativo, ativo));
+  }
+  
+  // Filtrar por estabelecimento: mostrar convênios do estabelecimento ou convênios globais (estabelecimentoId = null)
+  if (estabelecimentoId) {
+    conditions.push(
+      or(
+        eq(convenios.estabelecimentoId, estabelecimentoId),
+        isNull(convenios.estabelecimentoId)
+      )
+    );
+  }
+  
+  if (conditions.length > 0) {
+    return db.select().from(convenios).where(and(...conditions)).orderBy(desc(convenios.createdAt));
   }
   return db.select().from(convenios).orderBy(desc(convenios.createdAt));
 }
@@ -4283,6 +4299,7 @@ export async function atualizarStatusProcedimentosPorRecurso(
  */
 export async function getTabelasPreco(filtros: {
   convenioId?: number;
+  estabelecimentoId?: number;
   tipo?: "diarias" | "mat_med" | "taxas" | "procedimentos";
   codigo?: string;
   nome?: string;
@@ -4299,6 +4316,15 @@ export async function getTabelasPreco(filtros: {
     if (filtros.convenioId) {
       conditions.push(eq(tabelasPreco.convenioId, filtros.convenioId));
     }
+    // Filtrar por estabelecimento: mostrar tabelas do estabelecimento ou tabelas globais (estabelecimentoId = null)
+    if (filtros.estabelecimentoId) {
+      conditions.push(
+        or(
+          eq(tabelasPreco.estabelecimentoId, filtros.estabelecimentoId),
+          isNull(tabelasPreco.estabelecimentoId)
+        )
+      );
+    }
     if (filtros.tipo) {
       conditions.push(eq(tabelasPreco.tipo, filtros.tipo));
     }
@@ -4311,10 +4337,7 @@ export async function getTabelasPreco(filtros: {
     if (filtros.apenasVigentes) {
       const hoje = new Date();
       conditions.push(lte(tabelasPreco.vigenciaInicio, hoje));
-      conditions.push(or(
-        isNull(tabelasPreco.vigenciaFim),
-        gte(tabelasPreco.vigenciaFim, hoje)
-      ));
+      // Campo vigenciaFim removido - agora só verifica se a vigência já iniciou
     }
     conditions.push(eq(tabelasPreco.ativo, "sim"));
 
@@ -4476,12 +4499,10 @@ export async function registrarHistoricoPreco(data: {
   tipoAlteracao: "criacao" | "edicao" | "exclusao" | "importacao";
   valorAnterior?: string | null;
   vigenciaInicioAnterior?: Date | null;
-  vigenciaFimAnterior?: Date | null;
   nomeAnterior?: string | null;
   codigoAnterior?: string | null;
   valorNovo?: string | null;
   vigenciaInicioNovo?: Date | null;
-  vigenciaFimNovo?: Date | null;
   nomeNovo?: string | null;
   codigoNovo?: string | null;
   observacao?: string | null;
@@ -4496,12 +4517,10 @@ export async function registrarHistoricoPreco(data: {
       tipoAlteracao: data.tipoAlteracao,
       valorAnterior: data.valorAnterior || null,
       vigenciaInicioAnterior: data.vigenciaInicioAnterior || null,
-      vigenciaFimAnterior: data.vigenciaFimAnterior || null,
       nomeAnterior: data.nomeAnterior || null,
       codigoAnterior: data.codigoAnterior || null,
       valorNovo: data.valorNovo || null,
       vigenciaInicioNovo: data.vigenciaInicioNovo || null,
-      vigenciaFimNovo: data.vigenciaFimNovo || null,
       nomeNovo: data.nomeNovo || null,
       codigoNovo: data.codigoNovo || null,
       observacao: data.observacao || null,
@@ -4530,12 +4549,10 @@ export async function getHistoricoPreco(tabelaPrecoId: number): Promise<any[]> {
       tipoAlteracao: historicoPrecos.tipoAlteracao,
       valorAnterior: historicoPrecos.valorAnterior,
       vigenciaInicioAnterior: historicoPrecos.vigenciaInicioAnterior,
-      vigenciaFimAnterior: historicoPrecos.vigenciaFimAnterior,
       nomeAnterior: historicoPrecos.nomeAnterior,
       codigoAnterior: historicoPrecos.codigoAnterior,
       valorNovo: historicoPrecos.valorNovo,
       vigenciaInicioNovo: historicoPrecos.vigenciaInicioNovo,
-      vigenciaFimNovo: historicoPrecos.vigenciaFimNovo,
       nomeNovo: historicoPrecos.nomeNovo,
       codigoNovo: historicoPrecos.codigoNovo,
       observacao: historicoPrecos.observacao,
@@ -4621,12 +4638,10 @@ export async function getHistoricoPrecosPorConvenio(
       tipoAlteracao: historicoPrecos.tipoAlteracao,
       valorAnterior: historicoPrecos.valorAnterior,
       vigenciaInicioAnterior: historicoPrecos.vigenciaInicioAnterior,
-      vigenciaFimAnterior: historicoPrecos.vigenciaFimAnterior,
       nomeAnterior: historicoPrecos.nomeAnterior,
       codigoAnterior: historicoPrecos.codigoAnterior,
       valorNovo: historicoPrecos.valorNovo,
       vigenciaInicioNovo: historicoPrecos.vigenciaInicioNovo,
-      vigenciaFimNovo: historicoPrecos.vigenciaFimNovo,
       nomeNovo: historicoPrecos.nomeNovo,
       codigoNovo: historicoPrecos.codigoNovo,
       observacao: historicoPrecos.observacao,
@@ -4665,10 +4680,6 @@ export async function getPrecoItem(convenioId: number, codigo: string, tipo?: st
       eq(tabelasPreco.codigo, codigo),
       eq(tabelasPreco.ativo, "sim"),
       lte(tabelasPreco.vigenciaInicio, hoje),
-      or(
-        isNull(tabelasPreco.vigenciaFim),
-        gte(tabelasPreco.vigenciaFim, hoje)
-      )
     ];
 
     if (tipo) {

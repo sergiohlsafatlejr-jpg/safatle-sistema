@@ -138,9 +138,12 @@ export const appRouter = router({
   // ============ CONVENIOS ============
   convenios: router({
     list: protectedProcedure
-      .input(z.object({ ativo: z.enum(["sim", "nao"]).optional() }).optional())
+      .input(z.object({ 
+        ativo: z.enum(["sim", "nao"]).optional(),
+        estabelecimentoId: z.number().optional()
+      }).optional())
       .query(async ({ input }) => {
-        return db.getConvenios(input?.ativo);
+        return db.getConvenios(input?.ativo, input?.estabelecimentoId);
       }),
 
     get: protectedProcedure
@@ -1892,6 +1895,7 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
           tipo: z.enum(["diarias", "mat_med", "taxas", "procedimentos"]).optional(),
           codigo: z.string().optional(),
           nome: z.string().optional(),
@@ -1903,6 +1907,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getTabelasPreco({
           convenioId: input?.convenioId,
+          estabelecimentoId: input?.estabelecimentoId,
           tipo: input?.tipo,
           codigo: input?.codigo,
           nome: input?.nome,
@@ -1929,14 +1934,12 @@ export const appRouter = router({
           nome: z.string(),
           valor: z.string(),
           vigenciaInicio: z.string(),
-          vigenciaFim: z.string().optional(),
           unidade: z.string().optional(),
           observacao: z.string().optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
         const vigenciaInicio = new Date(input.vigenciaInicio);
-        const vigenciaFim = input.vigenciaFim ? new Date(input.vigenciaFim) : undefined;
         
         const id = await db.createTabelaPreco({
           convenioId: input.convenioId,
@@ -1945,7 +1948,6 @@ export const appRouter = router({
           nome: input.nome,
           valor: input.valor,
           vigenciaInicio,
-          vigenciaFim,
           unidade: input.unidade,
           observacao: input.observacao,
         });
@@ -1958,7 +1960,6 @@ export const appRouter = router({
             tipoAlteracao: "criacao",
             valorNovo: input.valor,
             vigenciaInicioNovo: vigenciaInicio,
-            vigenciaFimNovo: vigenciaFim || null,
             nomeNovo: input.nome,
             codigoNovo: input.codigo,
           });
@@ -1976,7 +1977,6 @@ export const appRouter = router({
           nome: z.string().optional(),
           valor: z.string().optional(),
           vigenciaInicio: z.string().optional(),
-          vigenciaFim: z.string().optional(),
           unidade: z.string().optional(),
           observacao: z.string().optional(),
         })
@@ -1992,7 +1992,6 @@ export const appRouter = router({
         if (data.nome) updateData.nome = data.nome;
         if (data.valor) updateData.valor = data.valor;
         if (data.vigenciaInicio) updateData.vigenciaInicio = new Date(data.vigenciaInicio);
-        if (data.vigenciaFim) updateData.vigenciaFim = new Date(data.vigenciaFim);
         if (data.unidade !== undefined) updateData.unidade = data.unidade;
         if (data.observacao !== undefined) updateData.observacao = data.observacao;
         
@@ -2007,13 +2006,11 @@ export const appRouter = router({
             // Valores anteriores
             valorAnterior: itemAnterior.valor,
             vigenciaInicioAnterior: itemAnterior.vigenciaInicio,
-            vigenciaFimAnterior: itemAnterior.vigenciaFim,
             nomeAnterior: itemAnterior.nome,
             codigoAnterior: itemAnterior.codigo,
             // Valores novos
             valorNovo: data.valor || itemAnterior.valor,
             vigenciaInicioNovo: data.vigenciaInicio ? new Date(data.vigenciaInicio) : itemAnterior.vigenciaInicio,
-            vigenciaFimNovo: data.vigenciaFim ? new Date(data.vigenciaFim) : itemAnterior.vigenciaFim,
             nomeNovo: data.nome || itemAnterior.nome,
             codigoNovo: data.codigo || itemAnterior.codigo,
           });
@@ -2039,7 +2036,6 @@ export const appRouter = router({
             tipoAlteracao: "exclusao",
             valorAnterior: itemAnterior.valor,
             vigenciaInicioAnterior: itemAnterior.vigenciaInicio,
-            vigenciaFimAnterior: itemAnterior.vigenciaFim,
             nomeAnterior: itemAnterior.nome,
             codigoAnterior: itemAnterior.codigo,
           });
@@ -2239,14 +2235,7 @@ export const appRouter = router({
               "inicio", "Inicio", "INICIO"
             ]);
             
-            const vigenciaFimRaw = findValue([
-              "vigencia_fim", "Vigencia_fim", "VIGENCIA_FIM",
-              "final_vigencia", "Final_vigencia", "FINAL_VIGENCIA",
-              "vigenciaFim", "VigenciaFim", "VIGENCIAFIM",
-              "data_fim", "Data_fim", "DATA_FIM",
-              "dataFim", "DataFim", "DATAFIM",
-              "fim", "Fim", "FIM"
-            ]);
+            // Campo vigenciaFim removido conforme solicitação do usuário
 
             return {
               convenioId: input.convenioId,
@@ -2255,7 +2244,6 @@ export const appRouter = router({
               nome: String(nome).trim(),
               valor: valor || "0",
               vigenciaInicio: parseDate(vigenciaInicioRaw),
-              vigenciaFim: vigenciaFimRaw ? parseDate(vigenciaFimRaw) : undefined,
               unidade: findValue(["unidade", "Unidade", "UNIDADE", "unit", "Unit", "UNIT"]),
               observacao: findValue(["observacao", "Observacao", "OBSERVACAO", "obs", "Obs", "OBS"]),
             };

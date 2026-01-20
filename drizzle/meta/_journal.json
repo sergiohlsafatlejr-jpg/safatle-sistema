@@ -211,6 +211,13 @@
       "when": 1768942675126,
       "tag": "0029_stormy_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1768946306755,
+      "tag": "0030_colossal_karnak",
+      "breakpoints": true
     }
   ]
 }

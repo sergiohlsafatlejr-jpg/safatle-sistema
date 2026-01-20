@@ -590,7 +590,7 @@ export const tabelasPreco = mysqlTable("tabelasPreco", {
   
   // Vigência
   vigenciaInicio: timestamp("vigenciaInicio").notNull(),
-  vigenciaFim: timestamp("vigenciaFim"),
+  // Campo vigenciaFim removido conforme solicitação do usuário
   
   // Dados adicionais
   unidade: varchar("unidade", { length: 50 }), // UN, ML, MG, etc.
@@ -663,14 +663,12 @@ export const historicoPrecos = mysqlTable("historicoPrecos", {
   // Valores anteriores (para edição/exclusão)
   valorAnterior: decimal("valorAnterior", { precision: 12, scale: 2 }),
   vigenciaInicioAnterior: timestamp("vigenciaInicioAnterior"),
-  vigenciaFimAnterior: timestamp("vigenciaFimAnterior"),
   nomeAnterior: varchar("nomeAnterior", { length: 255 }),
   codigoAnterior: varchar("codigoAnterior", { length: 50 }),
   
   // Valores novos (para criação/edição)
   valorNovo: decimal("valorNovo", { precision: 12, scale: 2 }),
   vigenciaInicioNovo: timestamp("vigenciaInicioNovo"),
-  vigenciaFimNovo: timestamp("vigenciaFimNovo"),
   nomeNovo: varchar("nomeNovo", { length: 255 }),
   codigoNovo: varchar("codigoNovo", { length: 50 }),
   

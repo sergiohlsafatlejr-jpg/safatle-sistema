@@ -310,3 +310,12 @@
 - [x] Corrigir vazamento de dados entre estabelecimentos (ID 90001 aparecendo no ID 90002)
 - [x] Garantir que cada estabelecimento veja apenas seus próprios dados
 - [x] Adicionar filtro de estabelecimentoId na tela de Demonstrativo
+
+
+## Ajustes em Convênios e Tabelas de Preços
+- [x] Adicionar estabelecimentoId na tabela de convênios (convênios exclusivos por estabelecimento)
+- [x] Adicionar estabelecimentoId na tabela de preços (tabelas exclusivas por estabelecimento)
+- [x] Remover campo vigenciaFim da tabela de preços
+- [x] Remover campo vigenciaFim do importador de dados de tabelas de preços
+- [x] Atualizar queries para filtrar convênios por estabelecimento
+- [x] Atualizar queries para filtrar tabelas de preços por estabelecimento

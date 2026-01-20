@@ -53,7 +53,6 @@ export default function TabelasPreco() {
   const [formNome, setFormNome] = useState("");
   const [formValor, setFormValor] = useState("");
   const [formVigenciaInicio, setFormVigenciaInicio] = useState("");
-  const [formVigenciaFim, setFormVigenciaFim] = useState("");
   const [formUnidade, setFormUnidade] = useState("");
   const [formObservacao, setFormObservacao] = useState("");
 
@@ -140,7 +139,6 @@ export default function TabelasPreco() {
     setFormNome("");
     setFormValor("");
     setFormVigenciaInicio("");
-    setFormVigenciaFim("");
     setFormUnidade("");
     setFormObservacao("");
     setEditingItem(null);
@@ -160,15 +158,6 @@ export default function TabelasPreco() {
       setFormVigenciaInicio(`${day}/${month}/${year}`);
     } else {
       setFormVigenciaInicio("");
-    }
-    if (item.vigenciaFim) {
-      const date = new Date(item.vigenciaFim);
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      setFormVigenciaFim(`${day}/${month}/${year}`);
-    } else {
-      setFormVigenciaFim("");
     }
     setFormUnidade(item.unidade || "");
     setFormObservacao(item.observacao || "");
@@ -192,15 +181,8 @@ export default function TabelasPreco() {
       return;
     }
 
-    // Validar formato da data de fim (se preenchida)
-    if (formVigenciaFim && !isValidDate(formVigenciaFim)) {
-      toast.error("Data de fim inválida. Use o formato DD/MM/AAAA");
-      return;
-    }
-
     // Converter datas para formato ISO (YYYY-MM-DD)
     const vigenciaInicioISO = parseDateToISO(formVigenciaInicio);
-    const vigenciaFimISO = formVigenciaFim ? parseDateToISO(formVigenciaFim) : undefined;
 
     if (editingItem) {
       updateMutation.mutate({
@@ -209,7 +191,6 @@ export default function TabelasPreco() {
         nome: formNome,
         valor: formValor,
         vigenciaInicio: vigenciaInicioISO,
-        vigenciaFim: vigenciaFimISO,
         unidade: formUnidade || undefined,
         observacao: formObservacao || undefined,
       });
@@ -221,7 +202,6 @@ export default function TabelasPreco() {
         nome: formNome,
         valor: formValor,
         vigenciaInicio: vigenciaInicioISO,
-        vigenciaFim: vigenciaFimISO,
         unidade: formUnidade || undefined,
         observacao: formObservacao || undefined,
       });
@@ -468,7 +448,6 @@ export default function TabelasPreco() {
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Unidade</TableHead>
                           <TableHead>Vigência Início</TableHead>
-                          <TableHead>Vigência Fim</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -482,7 +461,6 @@ export default function TabelasPreco() {
                             </TableCell>
                             <TableCell>{item.unidade || "-"}</TableCell>
                             <TableCell>{formatDate(item.vigenciaInicio)}</TableCell>
-                            <TableCell>{formatDate(item.vigenciaFim)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
                                 <Button
@@ -605,17 +583,7 @@ export default function TabelasPreco() {
                     maxLength={10}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vigenciaFim">Vigência Fim (DD/MM/AAAA)</Label>
-                  <Input
-                    id="vigenciaFim"
-                    type="text"
-                    value={formVigenciaFim}
-                    onChange={(e) => setFormVigenciaFim(formatDateInput(e.target.value))}
-                    placeholder="Ex: 31/12/2025"
-                    maxLength={10}
-                  />
-                </div>
+
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -779,7 +747,6 @@ export default function TabelasPreco() {
                               <span className="text-muted-foreground">Vigência:</span>
                               <span className="ml-2 font-medium">
                                 {formatDate(registro.vigenciaInicioNovo)}
-                                {registro.vigenciaFimNovo && ` - ${formatDate(registro.vigenciaFimNovo)}`}
                               </span>
                             </div>
                           </div>
@@ -811,18 +778,15 @@ export default function TabelasPreco() {
                                 <span className="text-green-600 font-medium">{registro.codigoNovo}</span>
                               </div>
                             )}
-                            {(registro.vigenciaInicioAnterior?.toString() !== registro.vigenciaInicioNovo?.toString() ||
-                              registro.vigenciaFimAnterior?.toString() !== registro.vigenciaFimNovo?.toString()) && (
+                            {registro.vigenciaInicioAnterior?.toString() !== registro.vigenciaInicioNovo?.toString() && (
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">Vigência:</span>
                                 <span className="line-through text-red-500">
                                   {formatDate(registro.vigenciaInicioAnterior)}
-                                  {registro.vigenciaFimAnterior && ` - ${formatDate(registro.vigenciaFimAnterior)}`}
                                 </span>
                                 <span>→</span>
                                 <span className="text-green-600 font-medium">
                                   {formatDate(registro.vigenciaInicioNovo)}
-                                  {registro.vigenciaFimNovo && ` - ${formatDate(registro.vigenciaFimNovo)}`}
                                 </span>
                               </div>
                             )}
