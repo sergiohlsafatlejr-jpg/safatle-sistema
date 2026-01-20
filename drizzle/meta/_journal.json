@@ -204,6 +204,13 @@
       "when": 1768925277893,
       "tag": "0028_powerful_silhouette",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1768942675126,
+      "tag": "0029_stormy_wendigo",
+      "breakpoints": true
     }
   ]
 }

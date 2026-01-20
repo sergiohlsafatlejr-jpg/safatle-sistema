@@ -47,6 +47,10 @@ import {
   InsertMotivoGlosa,
   historicoPrecos,
   InsertHistoricoPreco,
+  padroesCobranca,
+  InsertPadraoCobranca,
+  insightsIA,
+  InsertInsightIA,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -7738,4 +7742,515 @@ export async function getDetalhesLoteRecurso(loteId: number) {
     recursos: recursosDoLote,
     totalRecursos: recursosDoLote.length,
   };
+}
+
+
+// ============ PADRÕES DE COBRANÇA E INSIGHTS DE IA ============
+
+/**
+ * Analisa os padrões de cobrança de um estabelecimento/convênio
+ * Agrupa procedimentos por tipo e calcula médias, frequências e associações
+ */
+export async function analisarPadroesCobranca(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+}): Promise<{
+  padroes: Array<{
+    codigoProcedimento: string;
+    descricao: string;
+    tipo: string;
+    quantidadeMedia: number;
+    valorMedio: number;
+    frequencia: number;
+    itensAssociados: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      frequencia: number;
+      quantidadeMedia: number;
+    }>;
+  }>;
+  totalContas: number;
+}> {
+  const db = await getDb();
+  if (!db) return { padroes: [], totalContas: 0 };
+
+  // Buscar arquivos do estabelecimento
+  const conditions: any[] = [
+    eq(arquivos.estabelecimentoId, params.estabelecimentoId),
+    eq(arquivos.direcao, "enviado"),
+    eq(arquivos.status, "processado"),
+  ];
+
+  if (params.convenioId) {
+    conditions.push(eq(arquivos.convenioId, params.convenioId));
+  }
+
+  const arquivosEnviados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...conditions));
+
+  if (arquivosEnviados.length === 0) {
+    return { padroes: [], totalContas: 0 };
+  }
+
+  const arquivoIds = arquivosEnviados.map(a => a.id);
+
+  // Buscar todos os procedimentos
+  const procs = await db
+    .select()
+    .from(procedimentos)
+    .where(inArray(procedimentos.arquivoId, arquivoIds));
+
+  // Agrupar por guia (conta)
+  const contasPorGuia = new Map<string, typeof procs>();
+  for (const proc of procs) {
+    const guia = proc.guiaNumero || `arquivo_${proc.arquivoId}`;
+    if (!contasPorGuia.has(guia)) {
+      contasPorGuia.set(guia, []);
+    }
+    contasPorGuia.get(guia)!.push(proc);
+  }
+
+  const totalContas = contasPorGuia.size;
+
+  // Analisar padrões por código de procedimento
+  const padroesPorCodigo = new Map<string, {
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    ocorrencias: number;
+    quantidadeTotal: number;
+    valorTotal: number;
+    contasComItem: Set<string>;
+    itensAssociados: Map<string, {
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      ocorrencias: number;
+      quantidadeTotal: number;
+    }>;
+  }>();
+
+  for (const [guia, procsGuia] of Array.from(contasPorGuia.entries())) {
+    const codigosNaGuia = new Set(procsGuia.map(p => p.codigo));
+
+    for (const proc of procsGuia) {
+      if (!padroesPorCodigo.has(proc.codigo)) {
+        padroesPorCodigo.set(proc.codigo, {
+          codigo: proc.codigo,
+          descricao: proc.descricao || "",
+          tipo: proc.codigoDespesa || "procedimento",
+          ocorrencias: 0,
+          quantidadeTotal: 0,
+          valorTotal: 0,
+          contasComItem: new Set(),
+          itensAssociados: new Map(),
+        });
+      }
+
+      const padrao = padroesPorCodigo.get(proc.codigo)!;
+      padrao.ocorrencias++;
+      padrao.quantidadeTotal += parseFloat(String(proc.quantidade || "1"));
+      padrao.valorTotal += parseFloat(proc.valorTotal || "0");
+      padrao.contasComItem.add(guia);
+
+      // Registrar itens associados (outros itens na mesma conta)
+      for (const outroCodigo of Array.from(codigosNaGuia)) {
+        if (outroCodigo === proc.codigo) continue;
+
+        const outroProc = procsGuia.find(p => p.codigo === outroCodigo);
+        if (!outroProc) continue;
+
+        if (!padrao.itensAssociados.has(outroCodigo)) {
+          padrao.itensAssociados.set(outroCodigo, {
+            codigo: outroCodigo,
+            descricao: outroProc.descricao || "",
+            tipo: outroProc.codigoDespesa || "procedimento",
+            ocorrencias: 0,
+            quantidadeTotal: 0,
+          });
+        }
+
+        const assoc = padrao.itensAssociados.get(outroCodigo)!;
+        assoc.ocorrencias++;
+        assoc.quantidadeTotal += parseFloat(String(outroProc.quantidade || "1"));
+      }
+    }
+  }
+
+  // Converter para array e calcular médias
+  const padroes = Array.from(padroesPorCodigo.values())
+    .filter(p => p.contasComItem.size >= 3) // Mínimo 3 ocorrências
+    .map(p => ({
+      codigoProcedimento: p.codigo,
+      descricao: p.descricao,
+      tipo: p.tipo,
+      quantidadeMedia: p.quantidadeTotal / p.ocorrencias,
+      valorMedio: p.valorTotal / p.ocorrencias,
+      frequencia: (p.contasComItem.size / totalContas) * 100,
+      itensAssociados: Array.from(p.itensAssociados.values())
+        .filter(a => a.ocorrencias >= 2)
+        .map(a => ({
+          codigo: a.codigo,
+          descricao: a.descricao,
+          tipo: a.tipo,
+          frequencia: (a.ocorrencias / p.contasComItem.size) * 100,
+          quantidadeMedia: a.quantidadeTotal / a.ocorrencias,
+        }))
+        .sort((a, b) => b.frequencia - a.frequencia)
+        .slice(0, 10),
+    }))
+    .sort((a, b) => b.frequencia - a.frequencia);
+
+  return { padroes, totalContas };
+}
+
+/**
+ * Salva um padrão de cobrança no banco de dados
+ */
+export async function salvarPadraoCobranca(dados: InsertPadraoCobranca): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    // Verificar se já existe padrão para este código/convênio/estabelecimento
+    const conditions: any[] = [
+      eq(padroesCobranca.codigoProcedimentoPrincipal, dados.codigoProcedimentoPrincipal)
+    ];
+    if (dados.estabelecimentoId) {
+      conditions.push(eq(padroesCobranca.estabelecimentoId, dados.estabelecimentoId));
+    }
+    if (dados.convenioId) {
+      conditions.push(eq(padroesCobranca.convenioId, dados.convenioId));
+    }
+    
+    const existente = await db
+      .select()
+      .from(padroesCobranca)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (existente.length > 0) {
+      // Atualizar existente
+      await db.update(padroesCobranca)
+        .set({
+          ...dados,
+          totalOcorrencias: (existente[0].totalOcorrencias || 0) + (dados.totalOcorrencias || 1),
+          updatedAt: new Date(),
+        })
+        .where(eq(padroesCobranca.id, existente[0].id));
+      return existente[0].id;
+    }
+
+    const result = await db.insert(padroesCobranca).values(dados);
+    return Number(result[0].insertId);
+  } catch (error) {
+    console.error("[Database] Erro ao salvar padrão de cobrança:", error);
+    return null;
+  }
+}
+
+/**
+ * Busca padrões de cobrança salvos
+ */
+export async function getPadroesCobranca(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+  codigoProcedimento?: string;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [
+    eq(padroesCobranca.estabelecimentoId, params.estabelecimentoId),
+    eq(padroesCobranca.status, "ativo"),
+  ];
+
+  if (params.convenioId) {
+    conditions.push(eq(padroesCobranca.convenioId, params.convenioId));
+  }
+
+  if (params.codigoProcedimento) {
+    conditions.push(eq(padroesCobranca.codigoProcedimentoPrincipal, params.codigoProcedimento));
+  }
+
+  const result = await db
+    .select()
+    .from(padroesCobranca)
+    .where(and(...conditions))
+    .orderBy(desc(padroesCobranca.totalOcorrencias));
+
+  return result;
+}
+
+/**
+ * Salva um insight de IA no banco de dados
+ */
+export async function salvarInsightIA(dados: InsertInsightIA): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const result = await db.insert(insightsIA).values(dados);
+    return Number(result[0].insertId);
+  } catch (error) {
+    console.error("[Database] Erro ao salvar insight de IA:", error);
+    return null;
+  }
+}
+
+/**
+ * Busca insights de IA
+ */
+export async function getInsightsIA(params: {
+  estabelecimentoId?: number;
+  arquivoId?: number;
+  tipoInsight?: string;
+  status?: string;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: any[] = [];
+
+  if (params.estabelecimentoId) {
+    conditions.push(eq(insightsIA.estabelecimentoId, params.estabelecimentoId));
+  }
+
+  if (params.arquivoId) {
+    conditions.push(eq(insightsIA.arquivoId, params.arquivoId));
+  }
+
+  if (params.tipoInsight) {
+    conditions.push(eq(insightsIA.tipoInsight, params.tipoInsight as any));
+  }
+
+  if (params.status) {
+    conditions.push(eq(insightsIA.status, params.status as any));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const result = await db
+    .select()
+    .from(insightsIA)
+    .where(whereClause)
+    .orderBy(desc(insightsIA.createdAt))
+    .limit(params.limit || 50);
+
+  return result;
+}
+
+/**
+ * Atualiza o status de um insight de IA
+ */
+export async function atualizarStatusInsightIA(
+  id: number,
+  status: "pendente" | "aceito" | "ignorado" | "rejeitado",
+  feedback?: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db.update(insightsIA)
+      .set({
+        status,
+        feedbackUsuario: feedback || null,
+        dataProcessamento: new Date(),
+      })
+      .where(eq(insightsIA.id, id));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar status do insight:", error);
+    return false;
+  }
+}
+
+/**
+ * Analisa uma conta e gera insights de IA sobre possíveis itens faltantes ou quantidades abaixo do esperado
+ */
+export async function gerarInsightsContaIA(params: {
+  arquivoId: number;
+  estabelecimentoId: number;
+  convenioId?: number;
+  userId: number;
+}): Promise<Array<{
+  tipo: string;
+  titulo: string;
+  descricao: string;
+  impactoEstimado: number;
+  confianca: number;
+  detalhes: any;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Buscar procedimentos do arquivo
+  const procsArquivo = await db
+    .select()
+    .from(procedimentos)
+    .where(eq(procedimentos.arquivoId, params.arquivoId));
+
+  if (procsArquivo.length === 0) return [];
+
+  // Buscar padrões de cobrança do estabelecimento/convênio
+  const padroes = await getPadroesCobranca({
+    estabelecimentoId: params.estabelecimentoId,
+    convenioId: params.convenioId,
+  });
+
+  if (padroes.length === 0) {
+    // Se não há padrões salvos, analisar em tempo real
+    const analise = await analisarPadroesCobranca({
+      estabelecimentoId: params.estabelecimentoId,
+      convenioId: params.convenioId,
+    });
+
+    if (analise.padroes.length === 0) return [];
+
+    // Usar padrões analisados
+    for (const padrao of analise.padroes.slice(0, 20)) {
+      await salvarPadraoCobranca({
+        estabelecimentoId: params.estabelecimentoId,
+        convenioId: params.convenioId,
+        codigoProcedimentoPrincipal: padrao.codigoProcedimento,
+        descricaoProcedimentoPrincipal: padrao.descricao,
+        tipoProcedimentoPrincipal: padrao.tipo,
+        valorMedioConta: padrao.valorMedio.toString(),
+        confianca: Math.round(padrao.frequencia),
+        itensAssociados: padrao.itensAssociados,
+        totalOcorrencias: Math.round(padrao.frequencia * analise.totalContas / 100),
+      });
+    }
+  }
+
+  // Buscar padrões atualizados
+  const padroesAtualizados = await getPadroesCobranca({
+    estabelecimentoId: params.estabelecimentoId,
+    convenioId: params.convenioId,
+  });
+
+  const insights: Array<{
+    tipo: string;
+    titulo: string;
+    descricao: string;
+    impactoEstimado: number;
+    confianca: number;
+    detalhes: any;
+  }> = [];
+
+  // Criar mapa de códigos presentes no arquivo
+  const codigosPresentes = new Map<string, {
+    quantidade: number;
+    valor: number;
+    descricao: string;
+  }>();
+
+  for (const proc of procsArquivo) {
+    const qtd = parseFloat(String(proc.quantidade || "1"));
+    const valor = parseFloat(proc.valorTotal || "0");
+
+    if (codigosPresentes.has(proc.codigo)) {
+      const atual = codigosPresentes.get(proc.codigo)!;
+      atual.quantidade += qtd;
+      atual.valor += valor;
+    } else {
+      codigosPresentes.set(proc.codigo, {
+        quantidade: qtd,
+        valor,
+        descricao: proc.descricao || "",
+      });
+    }
+  }
+
+  // Verificar cada padrão
+  for (const padrao of padroesAtualizados) {
+    const presente = codigosPresentes.get(padrao.codigoProcedimentoPrincipal);
+    const itensAssociados = padrao.itensAssociados as Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      frequencia: number;
+      quantidadeMedia: number;
+    }> || [];
+
+    if (presente) {
+      // Item presente - verificar quantidade
+      // Extrair quantidade média dos itens associados ou usar 1 como padrão
+      const itensAssoc = padrao.itensAssociados as Array<any> || [];
+      const qtdMedia = itensAssoc.length > 0 ? itensAssoc.reduce((sum: number, i: any) => sum + (i.quantidadeMedia || 1), 0) / itensAssoc.length : 1;
+      const qtdAtual = presente.quantidade;
+
+      if (qtdAtual < qtdMedia * 0.5 && qtdMedia > 1) {
+        // Quantidade muito abaixo da média
+        const valorMedio = parseFloat(padrao.valorMedioConta || "0");
+        const impactoEstimado = (qtdMedia - qtdAtual) * (valorMedio / qtdMedia);
+
+        insights.push({
+          tipo: "quantidade_baixa",
+          titulo: `Quantidade abaixo do esperado: ${padrao.codigoProcedimentoPrincipal}`,
+          descricao: `O item "${padrao.descricaoProcedimentoPrincipal}" tem quantidade ${qtdAtual.toFixed(0)}, mas a média histórica é ${qtdMedia.toFixed(1)}. Possível falta de cobrança.`,
+          impactoEstimado,
+          confianca: Math.min(padrao.confianca || 50, 95),
+          detalhes: {
+            codigo: padrao.codigoProcedimentoPrincipal,
+            descricao: padrao.descricaoProcedimentoPrincipal,
+            quantidadeAtual: qtdAtual,
+            quantidadeMedia: qtdMedia,
+            valorMedio,
+          },
+        });
+      }
+
+      // Verificar itens associados faltantes
+      for (const assoc of itensAssociados) {
+        if (assoc.frequencia >= 70 && !codigosPresentes.has(assoc.codigo)) {
+          // Item associado frequente está faltando
+          const valorEstimado = (assoc.quantidadeMedia || 1) * (parseFloat(padrao.valorMedioConta || "0") / Math.max(qtdMedia, 1));
+
+          insights.push({
+            tipo: "item_faltante",
+            titulo: `Possível item faltante: ${assoc.codigo}`,
+            descricao: `Quando "${padrao.descricaoProcedimentoPrincipal}" está presente, "${assoc.descricao}" aparece em ${(assoc.frequencia || 0).toFixed(0)}% das contas. Este item não foi encontrado.`,
+            impactoEstimado: valorEstimado,
+            confianca: assoc.frequencia,
+            detalhes: {
+              codigoFaltante: assoc.codigo,
+              descricaoFaltante: assoc.descricao,
+              tipoFaltante: assoc.tipo,
+              codigoReferencia: padrao.codigoProcedimentoPrincipal,
+              descricaoReferencia: padrao.descricaoProcedimentoPrincipal,
+              frequenciaAssociacao: assoc.frequencia,
+              quantidadeEsperada: assoc.quantidadeMedia,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  // Salvar insights no banco
+  for (const insight of insights) {
+    await salvarInsightIA({
+      estabelecimentoId: params.estabelecimentoId,
+      convenioId: params.convenioId,
+      arquivoId: params.arquivoId,
+      tipoInsight: insight.tipo as any,
+      titulo: insight.titulo,
+      descricao: insight.descricao,
+      codigoProcedimento: insight.detalhes.codigo || insight.detalhes.codigoFaltante,
+      descricaoProcedimento: insight.detalhes.descricao || insight.detalhes.descricaoFaltante,
+      quantidadeEsperada: insight.detalhes.quantidadeMedia?.toString() || insight.detalhes.quantidadeEsperada?.toString(),
+      quantidadeAtual: insight.detalhes.quantidadeAtual?.toString(),
+      valorEsperado: insight.detalhes.valorMedio?.toString(),
+      valorEstimado: insight.impactoEstimado.toString(),
+      confianca: insight.confianca,
+    });
+  }
+
+  return insights;
 }

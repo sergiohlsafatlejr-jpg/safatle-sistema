@@ -292,3 +292,9 @@
 - [x] BUG: Dados importados em um estabelecimento não aparecem para outros usuários com acesso ao mesmo estabelecimento (filtro alterado de userId para estabelecimentoId)
 
 - [x] BUG: Usuário administrador paulo.borges@safatle.com.br não está vendo os dados nas telas (removido filtro userId das queries, usando estabelecimentoId)
+
+- [x] Implementar sistema de aprendizado por IA para padrões de cobrança
+- [x] Criar tabela para armazenar padrões aprendidos dos XMLs
+- [x] Implementar análise de padrões com LLM para identificar falta de itens
+- [x] Alertar sobre quantidades abaixo do esperado baseado no histórico
+- [x] Adicionar seção de insights de IA na tela de Comparações

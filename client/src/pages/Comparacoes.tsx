@@ -21,7 +21,13 @@ import {
   AlertCircle,
   Play,
   FileText,
-  RefreshCw
+  RefreshCw,
+  Brain,
+  Lightbulb,
+  ThumbsUp,
+  ThumbsDown,
+  Sparkles,
+  BookOpen
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -317,10 +323,14 @@ export default function Comparacoes() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="validacao" className="flex items-center gap-2">
               <Play className="h-4 w-4" />
               Validar XML
+            </TabsTrigger>
+            <TabsTrigger value="insightsIA" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Insights IA
             </TabsTrigger>
             <TabsTrigger value="arquivos" className="flex items-center gap-2">
               <GitCompare className="h-4 w-4" />
@@ -718,6 +728,15 @@ export default function Comparacoes() {
             )}
           </TabsContent>
 
+          {/* Aba de Insights de IA */}
+          <TabsContent value="insightsIA" className="space-y-6">
+            <InsightsIATab 
+              estabelecimentoId={estabelecimentoId}
+              arquivosXml={arquivosXml}
+              convenios={convenios}
+            />
+          </TabsContent>
+
           {/* Aba de Comparação de Arquivos */}
           <TabsContent value="arquivos" className="space-y-6">
             <Card className="border-0 shadow-sm">
@@ -954,5 +973,395 @@ export default function Comparacoes() {
         </DialogContent>
       </Dialog>
     </DashboardLayout>
+  );
+}
+
+// Componente da aba de Insights de IA
+function InsightsIATab({ 
+  estabelecimentoId, 
+  arquivosXml, 
+  convenios 
+}: { 
+  estabelecimentoId?: number;
+  arquivosXml?: any[];
+  convenios?: any[];
+}) {
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<string>("");
+  const [gerandoInsights, setGerandoInsights] = useState(false);
+  const [aprendendo, setAprendendo] = useState(false);
+  
+  // Query para buscar insights existentes
+  const { data: insights, refetch: refetchInsights } = trpc.insightsIA.list.useQuery(
+    { 
+      arquivoId: arquivoSelecionado ? parseInt(arquivoSelecionado) : undefined,
+      estabelecimentoId 
+    },
+    { enabled: !!estabelecimentoId }
+  );
+  
+  // Query para buscar padrões aprendidos
+  const { data: padroes, refetch: refetchPadroes } = trpc.insightsIA.padroes.useQuery(
+    { estabelecimentoId: estabelecimentoId || 0 },
+    { enabled: !!estabelecimentoId }
+  );
+  
+  // Mutations
+  const gerarInsightsMutation = trpc.insightsIA.gerar.useMutation();
+  const aprenderPadroesMutation = trpc.insightsIA.aprenderPadroes.useMutation();
+  const atualizarStatusMutation = trpc.insightsIA.atualizarStatus.useMutation();
+  
+  const handleGerarInsights = async () => {
+    if (!arquivoSelecionado || !estabelecimentoId) {
+      toast.error("Selecione um arquivo XML para análise");
+      return;
+    }
+    
+    setGerandoInsights(true);
+    try {
+      const arquivo = arquivosXml?.find(a => a.id.toString() === arquivoSelecionado);
+      await gerarInsightsMutation.mutateAsync({
+        arquivoId: parseInt(arquivoSelecionado),
+        estabelecimentoId,
+        convenioId: arquivo?.convenioId,
+      });
+      toast.success("Insights gerados com sucesso!");
+      refetchInsights();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao gerar insights");
+    } finally {
+      setGerandoInsights(false);
+    }
+  };
+  
+  const handleAprenderPadroes = async () => {
+    if (!estabelecimentoId) {
+      toast.error("Selecione um estabelecimento");
+      return;
+    }
+    
+    setAprendendo(true);
+    try {
+      const resultado = await aprenderPadroesMutation.mutateAsync({
+        estabelecimentoId,
+      });
+      toast.success(`Padrões atualizados! ${resultado.padroes?.length || 0} padrões identificados.`);
+      refetchPadroes();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao aprender padrões");
+    } finally {
+      setAprendendo(false);
+    }
+  };
+  
+  const handleFeedback = async (insightId: number, status: "aceito" | "rejeitado") => {
+    try {
+      await atualizarStatusMutation.mutateAsync({
+        id: insightId,
+        status,
+      });
+      toast.success(status === "aceito" ? "Insight aceito!" : "Insight rejeitado");
+      refetchInsights();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar status");
+    }
+  };
+  
+  const formatCurrency = (value: string | number | null) => {
+    if (value === null || value === undefined) return "R$ 0,00";
+    const num = typeof value === "string" ? parseFloat(value) : value;
+    return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  };
+  
+  const arquivo = arquivosXml?.find(a => a.id.toString() === arquivoSelecionado);
+  
+  return (
+    <div className="space-y-6">
+      {/* Card de Aprendizado de Padrões */}
+      <Card className="border-0 shadow-sm bg-gradient-to-r from-purple-50 to-blue-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-purple-500" />
+            Aprendizado de Padrões de Cobrança
+          </CardTitle>
+          <CardDescription>
+            O sistema analisa os XMLs importados para identificar padrões de cobrança e sugerir itens que podem estar faltando ou com quantidades abaixo do esperado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                <p className="text-3xl font-bold text-purple-600">{padroes?.length || 0}</p>
+                <p className="text-sm text-slate-600">Padrões Aprendidos</p>
+              </div>
+              <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                <p className="text-3xl font-bold text-blue-600">{insights?.length || 0}</p>
+                <p className="text-sm text-slate-600">Insights Gerados</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleAprenderPadroes}
+              disabled={aprendendo || !estabelecimentoId}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {aprendendo ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Atualizar Padrões
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Card de Geração de Insights */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-amber-500" />
+            Gerar Insights para Arquivo
+          </CardTitle>
+          <CardDescription>
+            Selecione um arquivo XML para a IA analisar e identificar possíveis itens faltantes ou quantidades abaixo do padrão.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Arquivo XML</Label>
+              <Select value={arquivoSelecionado} onValueChange={setArquivoSelecionado}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um arquivo XML processado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {arquivosXml?.filter(a => a.tipoArquivo === "xml").map((arq) => (
+                    <SelectItem key={arq.id} value={arq.id.toString()}>
+                      {arq.nome} - {convenios?.find(c => c.id === arq.convenioId)?.nome || "Convênio não identificado"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={handleGerarInsights}
+              disabled={gerandoInsights || !arquivoSelecionado}
+            >
+              {gerandoInsights ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <Brain className="h-4 w-4 mr-2" />
+                  Gerar Insights
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Lista de Insights */}
+      {insights && insights.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Insights Identificados
+              <Badge className="bg-amber-100 text-amber-700 ml-2">
+                {insights.length}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Possíveis itens faltantes ou quantidades abaixo do esperado baseado nos padrões aprendidos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {insights.map((insight: any) => (
+                <div 
+                  key={insight.id} 
+                  className={`p-4 border rounded-lg ${
+                    insight.status === "aceito" ? "bg-green-50 border-green-200" :
+                    insight.status === "rejeitado" ? "bg-red-50 border-red-200" :
+                    "bg-amber-50 border-amber-200"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      {insight.tipo === "item_faltante" ? (
+                        <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                      ) : insight.tipo === "quantidade_baixa" ? (
+                        <TrendingDown className="h-5 w-5 text-amber-500 mt-0.5" />
+                      ) : (
+                        <Lightbulb className="h-5 w-5 text-blue-500 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-900">{insight.titulo}</p>
+                          <Badge className={`text-xs ${
+                            insight.tipo === "item_faltante" ? "bg-red-100 text-red-700" :
+                            insight.tipo === "quantidade_baixa" ? "bg-amber-100 text-amber-700" :
+                            "bg-blue-100 text-blue-700"
+                          }`}>
+                            {insight.tipo === "item_faltante" ? "Item Faltante" :
+                             insight.tipo === "quantidade_baixa" ? "Quantidade Baixa" :
+                             "Sugestão"}
+                          </Badge>
+                          {insight.confianca && (
+                            <Badge className="bg-slate-100 text-slate-700 text-xs">
+                              Confiança: {(parseFloat(insight.confianca) * 100).toFixed(0)}%
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-600 mt-1">{insight.descricao}</p>
+                        {insight.impactoEstimado && parseFloat(insight.impactoEstimado) > 0 && (
+                          <p className="text-sm font-medium text-green-600 mt-2">
+                            Impacto estimado: {formatCurrency(insight.impactoEstimado)}
+                          </p>
+                        )}
+                        {insight.codigoProcedimentoPrincipal && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded">
+                              Código: {insight.codigoProcedimentoPrincipal}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {insight.status === "pendente" && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 hover:bg-green-50"
+                          onClick={() => handleFeedback(insight.id, "aceito")}
+                        >
+                          <ThumbsUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50"
+                          onClick={() => handleFeedback(insight.id, "rejeitado")}
+                        >
+                          <ThumbsDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    {insight.status !== "pendente" && (
+                      <Badge className={insight.status === "aceito" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
+                        {insight.status === "aceito" ? "Aceito" : "Rejeitado"}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Padrões Aprendidos */}
+      {padroes && padroes.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-purple-500" />
+              Padrões Aprendidos
+              <Badge className="bg-purple-100 text-purple-700 ml-2">
+                {padroes.length}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Padrões de cobrança identificados a partir dos XMLs importados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Procedimento Principal</TableHead>
+                    <TableHead>Itens Associados</TableHead>
+                    <TableHead className="text-right">Ocorrências</TableHead>
+                    <TableHead className="text-right">Confiança</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {padroes.slice(0, 10).map((padrao: any) => (
+                    <TableRow key={padrao.id}>
+                      <TableCell>
+                        <div>
+                          <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">
+                            {padrao.codigoProcedimentoPrincipal}
+                          </span>
+                          {padrao.descricaoProcedimento && (
+                            <p className="text-sm text-slate-600 mt-1">{padrao.descricaoProcedimento}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {padrao.itensAssociados && JSON.parse(padrao.itensAssociados).slice(0, 3).map((item: any, idx: number) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {item.codigo || item.descricao?.substring(0, 20)}
+                            </Badge>
+                          ))}
+                          {padrao.itensAssociados && JSON.parse(padrao.itensAssociados).length > 3 && (
+                            <Badge variant="outline" className="text-xs bg-slate-50">
+                              +{JSON.parse(padrao.itensAssociados).length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {padrao.ocorrencias || 0}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge className={`${
+                          parseFloat(padrao.confianca || "0") >= 0.8 ? "bg-green-100 text-green-700" :
+                          parseFloat(padrao.confianca || "0") >= 0.5 ? "bg-amber-100 text-amber-700" :
+                          "bg-slate-100 text-slate-700"
+                        }`}>
+                          {(parseFloat(padrao.confianca || "0") * 100).toFixed(0)}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {padroes.length > 10 && (
+              <p className="text-sm text-slate-500 mt-4 text-center">
+                Mostrando 10 de {padroes.length} padrões
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Mensagem quando não há dados */}
+      {(!padroes || padroes.length === 0) && (!insights || insights.length === 0) && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center">
+              <Brain className="h-12 w-12 text-slate-300 mb-4" />
+              <h3 className="text-lg font-medium text-slate-900">Nenhum padrão aprendido ainda</h3>
+              <p className="text-slate-500 mt-2 max-w-md">
+                Importe mais arquivos XML e clique em "Atualizar Padrões" para que a IA aprenda os padrões de cobrança do seu estabelecimento.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

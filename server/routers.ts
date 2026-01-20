@@ -701,6 +701,84 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ INSIGHTS DE IA ============
+  insightsIA: router({
+    // Gerar insights para um arquivo
+    gerar: protectedProcedure
+      .input(
+        z.object({
+          arquivoId: z.number(),
+          estabelecimentoId: z.number(),
+          convenioId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const insights = await db.gerarInsightsContaIA({
+          arquivoId: input.arquivoId,
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          userId: ctx.user.id!,
+        });
+        return insights;
+      }),
+
+    // Listar insights de um arquivo ou estabelecimento
+    list: protectedProcedure
+      .input(
+        z.object({
+          arquivoId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
+          convenioId: z.number().optional(),
+          status: z.enum(["pendente", "aceito", "rejeitado", "ignorado"]).optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.getInsightsIA(input);
+      }),
+
+    // Atualizar status de um insight
+    atualizarStatus: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          status: z.enum(["pendente", "aceito", "rejeitado", "ignorado"]),
+          feedback: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const success = await db.atualizarStatusInsightIA(input.id, input.status, input.feedback);
+        return { success };
+      }),
+
+    // Aprender padrões de um convênio/estabelecimento
+    aprenderPadroes: protectedProcedure
+      .input(
+        z.object({
+          estabelecimentoId: z.number(),
+          convenioId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const resultado = await db.analisarPadroesCobranca({
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+        });
+        return resultado;
+      }),
+
+    // Listar padrões aprendidos
+    padroes: protectedProcedure
+      .input(
+        z.object({
+          estabelecimentoId: z.number(),
+          convenioId: z.number().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.getPadroesCobranca(input);
+      }),
+  }),
+
   // ============ CODIGOS PROCEDIMENTOS (ADMIN) ============
   codigosProcedimentos: router({
     list: protectedProcedure

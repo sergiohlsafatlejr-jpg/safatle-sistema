@@ -1092,3 +1092,123 @@ export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
 });
 export type LogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferSelect;
 export type InsertLogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferInsert;
+
+/**
+ * Padrões de Cobrança Aprendidos - IA aprende com os XMLs importados
+ * Identifica padrões de itens que normalmente aparecem juntos
+ */
+export const padroesCobranca = mysqlTable("padroesCobranca", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Escopo do padrão
+  convenioId: int("convenioId"),
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Procedimento principal que dispara o padrão
+  codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
+  descricaoProcedimentoPrincipal: varchar("descricaoProcedimentoPrincipal", { length: 255 }),
+  tipoProcedimentoPrincipal: varchar("tipoProcedimentoPrincipal", { length: 50 }), // procedimento, diaria, mat_med, etc.
+  
+  // Itens associados aprendidos (JSON array)
+  // [{codigo, descricao, tipo, frequencia, quantidadeMedia, quantidadeMin, quantidadeMax, valorMedio}]
+  itensAssociados: json("itensAssociados").notNull(),
+  
+  // Estatísticas do padrão
+  totalOcorrencias: int("totalOcorrencias").default(1).notNull(),
+  valorMedioConta: decimal("valorMedioConta", { precision: 12, scale: 2 }),
+  valorMinConta: decimal("valorMinConta", { precision: 12, scale: 2 }),
+  valorMaxConta: decimal("valorMaxConta", { precision: 12, scale: 2 }),
+  
+  // Confiança do padrão (0-100)
+  confianca: int("confianca").default(50),
+  
+  // Status do padrão
+  status: mysqlEnum("status", [
+    "aprendendo",    // Ainda coletando dados
+    "ativo",         // Padrão confirmado e ativo
+    "revisao",       // Precisa de revisão manual
+    "inativo"        // Desativado
+  ]).default("aprendendo").notNull(),
+  
+  // Validação manual
+  validadoPor: int("validadoPor"),
+  dataValidacao: timestamp("dataValidacao"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PadraoCobranca = typeof padroesCobranca.$inferSelect;
+export type InsertPadraoCobranca = typeof padroesCobranca.$inferInsert;
+
+/**
+ * Insights de IA - Sugestões geradas pela análise de padrões
+ */
+export const insightsIA = mysqlTable("insightsIA", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência
+  arquivoId: int("arquivoId").notNull(),
+  comparacaoId: int("comparacaoId"),
+  estabelecimentoId: int("estabelecimentoId"),
+  convenioId: int("convenioId"),
+  
+  // Tipo de insight
+  tipoInsight: mysqlEnum("tipoInsight", [
+    "item_faltante",           // Item que deveria estar na conta
+    "quantidade_baixa",        // Quantidade abaixo do esperado
+    "quantidade_alta",         // Quantidade acima do esperado
+    "valor_divergente",        // Valor diferente do padrão
+    "item_incomum",            // Item que não costuma aparecer
+    "padrao_incompleto",       // Padrão de cobrança incompleto
+    "oportunidade_cobranca"    // Possível item não cobrado
+  ]).notNull(),
+  
+  // Severidade
+  severidade: mysqlEnum("severidade", ["baixa", "media", "alta"]).default("media").notNull(),
+  
+  // Detalhes do insight
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao").notNull(),
+  
+  // Procedimento/guia relacionado
+  guiaNumero: varchar("guiaNumero", { length: 100 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  descricaoProcedimento: varchar("descricaoProcedimento", { length: 255 }),
+  
+  // Item sugerido (se aplicável)
+  codigoItemSugerido: varchar("codigoItemSugerido", { length: 50 }),
+  descricaoItemSugerido: varchar("descricaoItemSugerido", { length: 255 }),
+  quantidadeSugerida: decimal("quantidadeSugerida", { precision: 10, scale: 2 }),
+  valorEstimado: decimal("valorEstimado", { precision: 12, scale: 2 }),
+  
+  // Valores atuais vs esperados
+  quantidadeAtual: decimal("quantidadeAtual", { precision: 10, scale: 2 }),
+  quantidadeEsperada: decimal("quantidadeEsperada", { precision: 10, scale: 2 }),
+  valorAtual: decimal("valorAtual", { precision: 12, scale: 2 }),
+  valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
+  
+  // Confiança da sugestão (0-100)
+  confianca: int("confianca").default(50),
+  
+  // Padrão que gerou o insight
+  padraoId: int("padraoId"),
+  
+  // Status do insight
+  status: mysqlEnum("status", [
+    "pendente",      // Aguardando análise
+    "aceito",        // Usuário aceitou a sugestão
+    "rejeitado",     // Usuário rejeitou
+    "ignorado"       // Usuário ignorou
+  ]).default("pendente").notNull(),
+  
+  // Feedback do usuário
+  feedbackUsuario: text("feedbackUsuario"),
+  processadoPor: int("processadoPor"),
+  dataProcessamento: timestamp("dataProcessamento"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type InsightIA = typeof insightsIA.$inferSelect;
+export type InsertInsightIA = typeof insightsIA.$inferInsert;
