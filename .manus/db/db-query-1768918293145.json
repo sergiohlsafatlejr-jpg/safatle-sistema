@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  codigoDespesa,\n  tipoDespesa,\n  COUNT(*) as quantidade \nFROM procedimentos \nGROUP BY codigoDespesa, tipoDespesa \nORDER BY quantidade DESC \nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  codigoDespesa,\n  tipoDespesa,\n  COUNT(*) as quantidade \nFROM procedimentos \nGROUP BY codigoDespesa, tipoDespesa \nORDER BY quantidade DESC \nLIMIT 20;",
+  "rows": [
+    {
+      "codigoDespesa": "NULL",
+      "tipoDespesa": "procedimento",
+      "quantidade": "49764"
+    }
+  ],
+  "messages": [],
+  "stdout": "codigoDespesa\ttipoDespesa\tquantidade\nNULL\tprocedimento\t49764\n",
+  "stderr": "",
+  "execution_time_ms": 483
+}

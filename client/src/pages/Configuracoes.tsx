@@ -17,6 +17,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import {
   Table,
@@ -533,7 +534,7 @@ export default function Configuracoes() {
                 <CardDescription>Gerencie os estabelecimentos do sistema</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Acesse a página de <a href="/estabelecimentos" className="text-primary underline">Estabelecimentos</a> para gerenciar.</p>
+                <p className="text-muted-foreground">Acesse a página de <Link href="/estabelecimentos" className="text-primary underline">Estabelecimentos</Link> para gerenciar.</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -546,7 +547,7 @@ export default function Configuracoes() {
                 <CardDescription>Configure as regras de conciliação de contas</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Acesse a página de <a href="/regras-conciliacao" className="text-primary underline">Regras de Conciliação</a> para gerenciar.</p>
+                <p className="text-muted-foreground">Acesse a página de <Link href="/regras-conciliacao" className="text-primary underline">Regras de Conciliação</Link> para gerenciar.</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -559,7 +560,7 @@ export default function Configuracoes() {
                 <CardDescription>Configure as regras de negócio do sistema</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Acesse a página de <a href="/regras-negocio" className="text-primary underline">Regras de Negócio</a> para gerenciar.</p>
+                <p className="text-muted-foreground">Acesse a página de <Link href="/regras-negocio" className="text-primary underline">Regras de Negócio</Link> para gerenciar.</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -572,7 +573,7 @@ export default function Configuracoes() {
                 <CardDescription>Gerencie as tabelas de preço do sistema</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Acesse a página de <a href="/tabelas-preco" className="text-primary underline">Tabelas de Preço</a> para gerenciar.</p>
+                <p className="text-muted-foreground">Acesse a página de <Link href="/tabelas-preco" className="text-primary underline">Tabelas de Preço</Link> para gerenciar.</p>
               </CardContent>
             </Card>
           </TabsContent>

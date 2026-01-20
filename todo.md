@@ -254,3 +254,8 @@
 - [ ] Recursos de Glosa: criar exportador em XML, PDF e Excel (aguardando formatos dos convênios)
 - [x] Criar tela de acompanhamento de recursos enviados (lotes, prazos, valores, status, anexos)
 - [x] Criar relatório de contas agrupado por tipo de despesa
+
+- [x] CORREÇÃO: Tela de Detalhes da Conta - campo Tipo não mostra corretamente (Medicamento=02, Diária=05, Material=03, Taxas=07, Gás=01)
+- [x] CORREÇÃO: Relatório de Contas - dados incorretos devido ao problema do tipo de despesa
+- [x] CORREÇÃO: Configurações - links "Acesse a página de X" redirecionando para tela inicial
+- [x] CORREÇÃO: Upload - campo de Data de Pagamento não está aparecendo (aparece apenas para arquivos retornados)
