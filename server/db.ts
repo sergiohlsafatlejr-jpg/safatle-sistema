@@ -6857,6 +6857,60 @@ export async function listarTodosUsuarios() {
   return usuariosComContagem;
 }
 
+/**
+ * Exclui um usuário do sistema
+ */
+export async function deleteUsuario(userId: number, adminId: number): Promise<{ success: boolean; message: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Verificar se o usuário existe
+  const [usuario] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!usuario) {
+    return { success: false, message: "Usuário não encontrado" };
+  }
+
+  // Não permitir excluir a si mesmo
+  if (userId === adminId) {
+    return { success: false, message: "Você não pode excluir seu próprio usuário" };
+  }
+
+  // Verificar se é o owner do sistema (não pode ser excluído)
+  const ownerOpenId = process.env.OWNER_OPEN_ID;
+  if (usuario.openId === ownerOpenId) {
+    return { success: false, message: "O proprietário do sistema não pode ser excluído" };
+  }
+
+  // Remover permissões de estabelecimento do usuário
+  await db.delete(permissoesEstabelecimento).where(eq(permissoesEstabelecimento.userId, userId));
+
+  // Remover logs de auditoria relacionados ao usuário
+  await db.delete(logAuditoriaPermissoes).where(
+    or(
+      eq(logAuditoriaPermissoes.usuarioId, userId),
+      eq(logAuditoriaPermissoes.usuarioAfetadoId, userId)
+    )
+  );
+
+  // Buscar nome do admin para o log
+  const [admin] = await db.select().from(users).where(eq(users.id, adminId)).limit(1);
+
+  // Excluir o usuário
+  await db.delete(users).where(eq(users.id, userId));
+
+  // Registrar log de auditoria (o usuário já foi excluído, então usamos o admin como afetado também)
+  await db.insert(logAuditoriaPermissoes).values({
+    usuarioId: adminId,
+    usuarioNome: admin?.name || "Admin",
+    usuarioAfetadoId: adminId, // O usuário já foi excluído
+    usuarioAfetadoNome: usuario.name || "Usuário excluído",
+    tipoAcao: "remover_permissao",
+    descricao: `Usuário ${usuario.name} (${usuario.email || usuario.openId}) excluído do sistema`,
+  });
+
+  return { success: true, message: "Usuário excluído com sucesso" };
+}
+
 
 // ============================================
 // Grupos de Serviço Personalizados

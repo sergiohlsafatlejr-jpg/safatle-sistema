@@ -2766,6 +2766,23 @@ export const appRouter = router({
         await db.concederAcessoTodosEstabelecimentos(input.userId, input.permissoes);
         return { success: true };
       }),
+
+    // Excluir usuário do sistema
+    excluirUsuario: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Apenas administradores podem excluir usuários",
+          });
+        }
+        const result = await db.deleteUsuario(input.userId, ctx.user.id);
+        if (!result.success) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        }
+        return result;
+      }),
   }),
 
   // ============ MÉTRICAS DE PRODUTIVIDADE ============

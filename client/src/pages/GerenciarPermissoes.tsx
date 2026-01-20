@@ -18,6 +18,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -141,6 +151,8 @@ export default function GerenciarPermissoes() {
   const [showEditEstabelecimentosDialog, setShowEditEstabelecimentosDialog] = useState(false);
   const [editingUserEstabelecimentos, setEditingUserEstabelecimentos] = useState<any>(null);
   const [selectedEstabelecimentosIds, setSelectedEstabelecimentosIds] = useState<number[]>([]);
+  const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
   
   // Estado para novo usuário
   const [newUser, setNewUser] = useState({
@@ -279,6 +291,22 @@ export default function GerenciarPermissoes() {
     },
     onError: (error) => {
       toast.error("Erro ao excluir grupo", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Mutation para excluir usuário
+  const excluirUsuario = trpc.permissoes.excluirUsuario.useMutation({
+    onSuccess: () => {
+      toast.success("Usuário excluído com sucesso!");
+      refetchTodosUsuarios();
+      refetchUsuarios();
+      setShowDeleteUserDialog(false);
+      setUserToDelete(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir usuário", {
         description: error.message,
       });
     },
@@ -873,14 +901,27 @@ export default function GerenciarPermissoes() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditEstabelecimentos(user)}
-                          >
-                            <Building2 className="h-4 w-4 mr-2" />
-                            Editar Estabelecimentos
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditEstabelecimentos(user)}
+                            >
+                              <Building2 className="h-4 w-4 mr-2" />
+                              Editar Estabelecimentos
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                setUserToDelete(user);
+                                setShowDeleteUserDialog(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1704,6 +1745,45 @@ export default function GerenciarPermissoes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmação de exclusão de usuário */}
+      <AlertDialog open={showDeleteUserDialog} onOpenChange={setShowDeleteUserDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o usuário <strong>{userToDelete?.name}</strong>?
+              <br /><br />
+              Esta ação irá:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Remover todas as permissões de estabelecimentos</li>
+                <li>Excluir o usuário permanentemente do sistema</li>
+              </ul>
+              <br />
+              <strong className="text-destructive">Esta ação não pode ser desfeita.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteUserDialog(false);
+              setUserToDelete(null);
+            }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (userToDelete) {
+                  excluirUsuario.mutate({ userId: userToDelete.id });
+                }
+              }}
+              disabled={excluirUsuario.isPending}
+            >
+              {excluirUsuario.isPending ? "Excluindo..." : "Excluir Usuário"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

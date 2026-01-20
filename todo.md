@@ -272,3 +272,7 @@
 - [x] Adicionar botões de exportação na tela de Recursos de Glosa
 
 - [x] BUG: Funcionalidade de exclusão de estabelecimento não está funcionando (implementado botão + rota + validações)
+
+- [x] Limpar todas as informações do banco de dados (reset completo)
+
+- [x] Implementar funcionalidade de exclusão de usuários
