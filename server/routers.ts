@@ -1929,6 +1929,7 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number(),
+          estabelecimentoId: z.number().optional(), // Estabelecimento específico ou null para global
           tipo: z.enum(["diarias", "mat_med", "taxas", "procedimentos"]),
           codigo: z.string(),
           nome: z.string(),
@@ -1943,6 +1944,7 @@ export const appRouter = router({
         
         const id = await db.createTabelaPreco({
           convenioId: input.convenioId,
+          estabelecimentoId: input.estabelecimentoId || null,
           tipo: input.tipo,
           codigo: input.codigo,
           nome: input.nome,

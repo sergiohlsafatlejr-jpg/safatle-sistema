@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,10 @@ export default function TabelasPreco() {
   const [formVigenciaInicio, setFormVigenciaInicio] = useState("");
   const [formUnidade, setFormUnidade] = useState("");
   const [formObservacao, setFormObservacao] = useState("");
+  const [formEstabelecimentoId, setFormEstabelecimentoId] = useState<number | undefined>();
+  
+  // Contexto de estabelecimento
+  const { estabelecimentoAtual, estabelecimentos } = useEstabelecimento();
 
   // Import states
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -141,6 +146,7 @@ export default function TabelasPreco() {
     setFormVigenciaInicio("");
     setFormUnidade("");
     setFormObservacao("");
+    setFormEstabelecimentoId(estabelecimentoAtual?.id); // Pré-seleciona o estabelecimento atual
     setEditingItem(null);
   };
 
@@ -161,6 +167,7 @@ export default function TabelasPreco() {
     }
     setFormUnidade(item.unidade || "");
     setFormObservacao(item.observacao || "");
+    setFormEstabelecimentoId(item.estabelecimentoId || undefined);
     setDialogOpen(true);
   };
 
@@ -197,6 +204,7 @@ export default function TabelasPreco() {
     } else {
       createMutation.mutate({
         convenioId,
+        estabelecimentoId: formEstabelecimentoId,
         tipo: tipoSelecionado,
         codigo: formCodigo,
         nome: formNome,
@@ -605,6 +613,30 @@ export default function TabelasPreco() {
                   />
                 </div>
               </div>
+              {!editingItem && (
+                <div className="space-y-2">
+                  <Label htmlFor="estabelecimento">Estabelecimento (opcional)</Label>
+                  <Select
+                    value={formEstabelecimentoId?.toString() || "global"}
+                    onValueChange={(value) => setFormEstabelecimentoId(value === "global" ? undefined : parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um estabelecimento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">Global (todos os estabelecimentos)</SelectItem>
+                      {estabelecimentos?.map((est) => (
+                        <SelectItem key={est.id} value={est.id.toString()}>
+                          {est.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Deixe como "Global" para que a tabela seja visível em todos os estabelecimentos
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>

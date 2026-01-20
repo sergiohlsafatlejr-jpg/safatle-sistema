@@ -319,3 +319,9 @@
 - [x] Remover campo vigenciaFim do importador de dados de tabelas de preços
 - [x] Atualizar queries para filtrar convênios por estabelecimento
 - [x] Atualizar queries para filtrar tabelas de preços por estabelecimento
+
+
+## Tabelas de Preços por Estabelecimento
+- [x] Adicionar seletor de estabelecimento na criação de tabelas de preços
+- [x] Atualizar rota de criação para aceitar estabelecimentoId
+- [x] Mostrar estabelecimento associado na listagem de tabelas
