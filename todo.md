@@ -304,3 +304,9 @@
 - [x] Criar dashboard de acurácia dos insights (taxa de acerto)
 - [x] Adicionar gráficos de evolução do aprendizado da IA
 - [x] Mostrar métricas de insights aceitos vs rejeitados por período
+
+
+## Bug - Isolamento de Dados entre Estabelecimentos
+- [x] Corrigir vazamento de dados entre estabelecimentos (ID 90001 aparecendo no ID 90002)
+- [x] Garantir que cada estabelecimento veja apenas seus próprios dados
+- [x] Adicionar filtro de estabelecimentoId na tela de Demonstrativo

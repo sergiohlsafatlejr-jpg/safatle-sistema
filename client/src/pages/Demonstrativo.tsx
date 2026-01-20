@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { 
   FileSpreadsheet, 
   Download,
@@ -51,6 +52,7 @@ const getAnos = () => {
 
 export default function Demonstrativo() {
   const { user } = useAuth();
+  const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [busca, setBusca] = useState<string>("");
@@ -82,9 +84,11 @@ export default function Demonstrativo() {
 
   // Buscar procedimentos do convênio selecionado com filtros no backend
   // Apenas arquivos retornados (para evitar duplicação com arquivos enviados)
+  // IMPORTANTE: Filtrar por estabelecimentoId para garantir isolamento de dados
   const { data: procedimentosData, isLoading: isLoadingProcedimentos } = trpc.procedimentos.list.useQuery(
     { 
       convenioId: parseInt(convenioId), 
+      estabelecimentoId: estabelecimentoAtual?.id,
       page, 
       pageSize,
       search: buscaDebounced || undefined,
@@ -93,7 +97,7 @@ export default function Demonstrativo() {
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     },
-    { enabled: !!convenioId }
+    { enabled: !!convenioId && !!estabelecimentoAtual }
   );
 
   const formatCurrency = (value: number) => {
