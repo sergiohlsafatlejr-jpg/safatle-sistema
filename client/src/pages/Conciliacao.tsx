@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,7 @@ interface ResumoConciliacao {
 
 export default function Conciliacao() {
   const { user } = useAuth();
+  const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
@@ -96,12 +98,15 @@ export default function Conciliacao() {
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
   // Buscar resumo de todos os convênios
-  const { data: resumoGeral, isLoading: isLoadingResumo } = trpc.conciliacao.resumo.useQuery({});
+  const { data: resumoGeral, isLoading: isLoadingResumo } = trpc.conciliacao.resumo.useQuery({
+    estabelecimentoId: estabelecimentoAtual?.id,
+  });
 
   // Buscar conciliação detalhada do convênio selecionado
   const { data: conciliacaoData, isLoading: isLoadingConciliacao, refetch } = trpc.conciliacao.porConvenio.useQuery(
     { 
       convenioId: convenioId ? parseInt(convenioId) : 0,
+      estabelecimentoId: estabelecimentoAtual?.id,
       dataInicio: dataInicio || undefined,
       dataFim: dataFim || undefined,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,

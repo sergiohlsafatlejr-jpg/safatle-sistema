@@ -1797,6 +1797,7 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number(),
+          estabelecimentoId: z.number().optional(),
           dataInicio: z.string().optional(),
           dataFim: z.string().optional(),
           mesReferencia: z.number().min(1).max(12).optional(),
@@ -1807,6 +1808,7 @@ export const appRouter = router({
         return db.getConciliacaoPorConvenio({
           convenioId: input.convenioId,
           userId: ctx.user.id,
+          estabelecimentoId: input.estabelecimentoId,
           dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
           mesReferencia: input.mesReferencia,
@@ -1819,12 +1821,14 @@ export const appRouter = router({
       .input(
         z.object({
           convenioId: z.number().optional(),
+          estabelecimentoId: z.number().optional(),
         }).optional()
       )
       .query(async ({ input, ctx }) => {
         return db.getResumoConciliacao({
           convenioId: input?.convenioId,
           userId: ctx.user.id,
+          estabelecimentoId: input?.estabelecimentoId,
         });
       }),
   }),

@@ -2198,6 +2198,7 @@ export interface ResumoConciliacao {
 export async function getConciliacaoPorConvenio(filters: {
   convenioId: number;
   userId: number;
+  estabelecimentoId?: number;
   dataInicio?: Date;
   dataFim?: Date;
   mesReferencia?: number; // 1-12
@@ -2223,8 +2224,12 @@ export async function getConciliacaoPorConvenio(filters: {
     eq(arquivos.convenioId, filters.convenioId),
     eq(arquivos.direcao, "enviado"),
     eq(arquivos.status, "processado"),
-    eq(arquivos.userId, filters.userId),
   ];
+  
+  // Filtrar por estabelecimento se informado
+  if (filters.estabelecimentoId) {
+    arquivosEnviadosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+  }
 
   if (filters.dataInicio) {
     arquivosEnviadosConditions.push(gte(arquivos.createdAt, filters.dataInicio));
@@ -2257,8 +2262,12 @@ export async function getConciliacaoPorConvenio(filters: {
     eq(arquivos.convenioId, filters.convenioId),
     eq(arquivos.direcao, "retornado"),
     eq(arquivos.status, "processado"),
-    eq(arquivos.userId, filters.userId),
   ];
+  
+  // Filtrar por estabelecimento se informado
+  if (filters.estabelecimentoId) {
+    arquivosRetornadosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+  }
 
   if (filters.dataInicio) {
     arquivosRetornadosConditions.push(gte(arquivos.createdAt, filters.dataInicio));
@@ -2619,6 +2628,7 @@ export async function getConciliacaoPorConvenio(filters: {
 export async function getResumoConciliacao(filters: {
   convenioId?: number;
   userId: number;
+  estabelecimentoId?: number;
 }): Promise<ResumoConciliacao[]> {
   const db = await getDb();
   if (!db) return [];
@@ -2643,6 +2653,7 @@ export async function getResumoConciliacao(filters: {
     const { resumo } = await getConciliacaoPorConvenio({
       convenioId: conv.id,
       userId: filters.userId,
+      estabelecimentoId: filters.estabelecimentoId,
     });
 
     if (resumo && (resumo.totalEnviados > 0 || resumo.totalRetornados > 0)) {

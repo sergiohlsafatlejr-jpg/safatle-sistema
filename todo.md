@@ -353,3 +353,9 @@
 ## Coluna de Lote na Tela de Comparativo
 - [x] Adicionar campo numeroLote na interface ItemConciliacao
 - [x] Exibir coluna Lote na tabela de comparativo
+
+
+## Bug - Isolamento de Dados na Conciliação
+- [x] Verificar se estabelecimentoId está sendo salvo na importação de arquivos XML
+- [x] Corrigir filtro de estabelecimento na tela de Conciliação
+- [x] Garantir que cada estabelecimento veja apenas seus próprios dados
