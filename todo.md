@@ -379,3 +379,8 @@
 - [x] Adicionar botão "Gerar Insights" na listagem de arquivos
 - [x] Implementar chamada para gerar insights manualmente
 - [x] Mostrar feedback de sucesso/erro ao usuário
+
+
+## Bug - Erro na Importação de Excel no Estabelecimento 90002
+- [x] Investigar erro na importação do arquivo demonstrativo-0282629.xlsx
+- [x] Corrigir o problema identificado (arquivo reprocessado manualmente)
