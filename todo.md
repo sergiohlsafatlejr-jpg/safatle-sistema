@@ -336,3 +336,9 @@
 - [x] Ajustar listagem de guias para não agrupar por numeroGuiaPrestador
 - [x] Exibir múltiplas linhas para mesma guia (faturamentos parciais)
 - [x] Adicionar coluna Número do Lote na listagem
+
+
+## Script de Reimportação de Arquivos XML
+- [x] Criar script para reimportar arquivos XML existentes
+- [x] Preencher campos numeroLote e sequencialTransacao nos procedimentos
+- [x] Executar script e validar resultados
