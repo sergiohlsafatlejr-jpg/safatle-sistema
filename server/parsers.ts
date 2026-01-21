@@ -22,6 +22,9 @@ export interface ParsedProcedimento {
   codigoDespesa?: string; // Código de despesa ANS (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa)
   tipoDespesa?: 'gas' | 'medicamento' | 'material' | 'diaria' | 'taxa' | 'procedimento' | 'outros';
   dadosExtras?: Record<string, unknown>;
+  // Chave composta para identificar faturamento único
+  numeroLote?: string; // Número do lote do cabeçalho TISS
+  sequencialTransacao?: string; // Sequencial da transação da guia
 }
 
 export interface ParseResult {
@@ -84,13 +87,25 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
     
     const procedimentos: ParsedProcedimento[] = [];
     
+    // Extrair número do lote do cabeçalho TISS
+    const numeroLote = extractNumeroLote(result);
+    if (numeroLote) {
+      console.log('[Parser] Número do lote TISS:', numeroLote);
+    }
+    
     // Check if this is a GEAP Portal format (GuiaPortalXml)
     const guiasGEAP = findGuiasGEAP(result);
     if (guiasGEAP.length > 0) {
       console.log('[Parser] Detected GEAP Portal format, found', guiasGEAP.length, 'guias');
       for (const guiaPortal of guiasGEAP) {
         const procsGEAP = extractProcedimentosFromGEAP(guiaPortal);
-        procedimentos.push(...procsGEAP);
+        // Adicionar numeroLote aos procedimentos
+        for (const proc of procsGEAP) {
+          procedimentos.push({
+            ...proc,
+            numeroLote,
+          });
+        }
       }
     }
     // Check if this is a demonstrativo de retorno (operadoraParaPrestador)
@@ -100,15 +115,25 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
         // Process demonstrativo de retorno
         for (const demonstrativo of demonstrativos) {
           const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
-          procedimentos.push(...procsRetorno);
+          // Adicionar numeroLote aos procedimentos
+          for (const proc of procsRetorno) {
+            procedimentos.push({
+              ...proc,
+              numeroLote,
+            });
+          }
         }
       } else {
-        // Process regular guias (prestadorParaOperadora)
-        const guias = findGuias(result);
+        // Process regular guias (prestadorParaOperadora) com guiasTISS
+        const guiasComSequencial = findGuiasComSequencial(result);
         
-        for (const guia of guias) {
+        for (const { guia, sequencialTransacao } of guiasComSequencial) {
           const guiaNumero = extractGuiaNumero(guia);
           const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+          
+          if (sequencialTransacao) {
+            console.log(`[Parser] Guia ${guiaNumero} - Sequencial: ${sequencialTransacao}`);
+          }
           
           // Extract procedimentos executados
           const procedimentosExecutados = extractProcedimentosExecutados(guia);
@@ -117,6 +142,8 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
               ...proc,
               guiaNumero: proc.guiaNumero || guiaNumero,
               pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+              numeroLote,
+              sequencialTransacao,
             });
           }
           
@@ -127,6 +154,8 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
               ...proc,
               guiaNumero: proc.guiaNumero || guiaNumero,
               pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+              numeroLote,
+              sequencialTransacao,
             });
           }
         }
@@ -351,6 +380,115 @@ function findGuias(obj: unknown): unknown[] {
   
   search(obj);
   return guias;
+}
+
+/**
+ * Extract número do lote from TISS header
+ * Path: mensagemTISS -> cabecalho -> numeroLote
+ */
+function extractNumeroLote(obj: unknown): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  
+  function search(node: unknown, depth: number = 0): string | undefined {
+    if (!node || typeof node !== "object" || depth > 10) return undefined;
+    
+    const record = node as Record<string, unknown>;
+    
+    for (const [key, value] of Object.entries(record)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Skip attributes
+      if (key === '$') continue;
+      
+      // Check for numeroLote in cabecalho
+      if (lowerKey === 'numerolote') {
+        const lote = getTextValue(value);
+        if (lote) return lote;
+      }
+      
+      // Continue searching in nested objects
+      if (typeof value === 'object' && value !== null) {
+        const found = search(value, depth + 1);
+        if (found) return found;
+      }
+    }
+    
+    return undefined;
+  }
+  
+  return search(obj);
+}
+
+/**
+ * Find all guias with their sequencialTransacao
+ * Structure: mensagemTISS -> prestadorParaOperadora -> loteGuias -> guiasTISS
+ * Each guiasTISS contains sequencialTransacao and the actual guia (guiaSP-SADT, etc.)
+ */
+function findGuiasComSequencial(obj: unknown): Array<{ guia: unknown; sequencialTransacao?: string }> {
+  const result: Array<{ guia: unknown; sequencialTransacao?: string }> = [];
+  
+  function searchGuiasTISS(node: unknown, depth: number = 0): void {
+    if (!node || typeof node !== "object" || depth > 15) return;
+    
+    const record = node as Record<string, unknown>;
+    
+    for (const [key, value] of Object.entries(record)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Skip attributes and simple values
+      if (key === '$' || typeof value !== 'object' || value === null) continue;
+      
+      // Check if this is guiasTISS container
+      if (lowerKey === 'guiastiss') {
+        const guiasTISSItems = Array.isArray(value) ? value : [value];
+        
+        for (const guiasTISSItem of guiasTISSItems) {
+          if (!guiasTISSItem || typeof guiasTISSItem !== 'object') continue;
+          
+          const guiasTISSRecord = guiasTISSItem as Record<string, unknown>;
+          
+          // Extract sequencialTransacao from this guiasTISS
+          const sequencialTransacao = getTextValue(guiasTISSRecord['sequencialTransacao']);
+          
+          // Find the actual guia inside guiasTISS (guiaSP-SADT, guiaConsulta, guiaResumoInternacao, etc.)
+          for (const [guiaKey, guiaValue] of Object.entries(guiasTISSRecord)) {
+            const guiaKeyLower = guiaKey.toLowerCase();
+            
+            // Check if this is a guia node
+            if (guiaKeyLower.startsWith('guia') && 
+                guiaKeyLower !== 'guiastiss' && 
+                !guiaKeyLower.includes('numero') &&
+                typeof guiaValue === 'object' && 
+                guiaValue !== null) {
+              
+              const guiaItems = Array.isArray(guiaValue) ? guiaValue : [guiaValue];
+              for (const guiaItem of guiaItems) {
+                result.push({
+                  guia: guiaItem,
+                  sequencialTransacao,
+                });
+              }
+            }
+          }
+        }
+      } else {
+        // Continue searching in nested objects
+        searchGuiasTISS(value, depth + 1);
+      }
+    }
+  }
+  
+  searchGuiasTISS(obj);
+  
+  // Se não encontrou guias com sequencial, usar o método antigo (findGuias)
+  if (result.length === 0) {
+    const guias = findGuias(obj);
+    for (const guia of guias) {
+      result.push({ guia, sequencialTransacao: undefined });
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -1134,6 +1272,9 @@ export function toProcedimentoInsert(
     codigoDespesa: parsed.codigoDespesa,
     tipoDespesa: parsed.tipoDespesa,
     dadosExtras: parsed.dadosExtras,
+    // Chave composta para identificar faturamento único
+    numeroLote: parsed.numeroLote,
+    sequencialTransacao: parsed.sequencialTransacao,
   };
 }
 

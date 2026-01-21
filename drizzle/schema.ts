@@ -85,6 +85,9 @@ export type InsertArquivo = typeof arquivos.$inferInsert;
 export const procedimentos = mysqlTable("procedimentos", {
   id: int("id").autoincrement().primaryKey(),
   arquivoId: int("arquivoId").notNull(),
+  // Chave composta para identificar faturamento único (evita duplicação)
+  numeroLote: varchar("numeroLote", { length: 50 }), // Número do lote do cabeçalho TISS
+  sequencialTransacao: varchar("sequencialTransacao", { length: 50 }), // Sequencial da transação da guia
   codigo: varchar("codigo", { length: 50 }).notNull(),
   descricao: text("descricao"),
   quantidade: int("quantidade").default(1),

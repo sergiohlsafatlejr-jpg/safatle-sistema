@@ -218,6 +218,13 @@
       "when": 1768946306755,
       "tag": "0030_colossal_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1769018429876,
+      "tag": "0031_wakeful_white_queen",
+      "breakpoints": true
     }
   ]
 }

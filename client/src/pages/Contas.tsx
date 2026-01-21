@@ -30,8 +30,11 @@ import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
 // Interface para conta agrupada
+// Agora usa chave composta (numeroLote + sequencialTransacao) para identificar faturamentos únicos
 interface ContaAgrupada {
   guiaNumero: string;
+  numeroLote: string; // Número do lote TISS
+  sequencialTransacao: string; // Sequencial da transação
   senha: string;
   carteirinha: string;
   dataConta: Date | null;
@@ -82,16 +85,27 @@ export default function Contas() {
 
   const procedimentos = procedimentosData?.items || [];
 
-  // Agrupar procedimentos por guia (conta)
+  // Agrupar procedimentos por chave composta (numeroLote + sequencialTransacao)
+  // Isso permite que uma mesma guia tenha múltiplos faturamentos parciais (altas administrativas)
   const contasAgrupadas = useMemo(() => {
     const grupos: Record<string, ContaAgrupada> = {};
     
     procedimentos.forEach((p: any) => {
-      const chave = p.guiaNumero || `sem_guia_${p.id}`;
+      // Usar chave composta: numeroLote + sequencialTransacao
+      // Se não tiver esses campos, usar guiaNumero como fallback
+      const numeroLote = p.numeroLote || '';
+      const sequencialTransacao = p.sequencialTransacao || '';
+      
+      // Chave única: se tiver lote e sequencial, usar eles; senão, usar guia
+      const chave = (numeroLote && sequencialTransacao) 
+        ? `${numeroLote}_${sequencialTransacao}` 
+        : (p.guiaNumero || `sem_guia_${p.id}`);
       
       if (!grupos[chave]) {
         grupos[chave] = {
           guiaNumero: p.guiaNumero || "-",
+          numeroLote: numeroLote || "-",
+          sequencialTransacao: sequencialTransacao || "-",
           senha: p.senha || p.dadosExtras?.senha || "-",
           carteirinha: p.pacienteCarteirinha || "-",
           dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
@@ -148,9 +162,11 @@ export default function Contas() {
   const handleExportCSV = () => {
     if (!contasAgrupadas.length) return;
 
-    const headers = ["Guia", "Senha", "Carteirinha", "Paciente", "Data Conta", "Valor Total", "Qtd Itens", "Convênio", "Arquivo"];
+    const headers = ["Guia", "Nº Lote", "Seq. Transação", "Senha", "Carteirinha", "Paciente", "Data Conta", "Valor Total", "Qtd Itens", "Convênio", "Arquivo"];
     const rows = contasAgrupadas.map((c) => [
       c.guiaNumero,
+      c.numeroLote,
+      c.sequencialTransacao,
       c.senha,
       c.carteirinha,
       c.pacienteNome,
@@ -179,6 +195,8 @@ export default function Contas() {
 
     const excelData = contasAgrupadas.map((c) => ({
       "Guia": c.guiaNumero,
+      "Nº Lote": c.numeroLote,
+      "Seq. Transação": c.sequencialTransacao,
       "Senha": c.senha,
       "Carteirinha": c.carteirinha,
       "Paciente": c.pacienteNome,
@@ -194,6 +212,8 @@ export default function Contas() {
 
     ws["!cols"] = [
       { wch: 15 },  // Guia
+      { wch: 15 },  // Nº Lote
+      { wch: 15 },  // Seq. Transação
       { wch: 15 },  // Senha
       { wch: 20 },  // Carteirinha
       { wch: 35 },  // Paciente
@@ -463,6 +483,8 @@ export default function Contas() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Guia</TableHead>
+                        <TableHead>Lote</TableHead>
+                        <TableHead>Seq.</TableHead>
                         <TableHead>Senha</TableHead>
                         <TableHead>Carteirinha</TableHead>
                         <TableHead>Paciente</TableHead>
@@ -475,12 +497,18 @@ export default function Contas() {
                     <TableBody>
                       {contasPaginadas.map((conta, index) => (
                         <TableRow 
-                          key={`${conta.guiaNumero}-${index}`}
+                          key={`${conta.numeroLote}-${conta.sequencialTransacao}-${index}`}
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => handleVerDetalhes(conta)}
                         >
                           <TableCell className="font-mono font-medium">
                             {conta.guiaNumero}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {conta.numeroLote !== "-" ? conta.numeroLote : "-"}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {conta.sequencialTransacao !== "-" ? conta.sequencialTransacao : "-"}
                           </TableCell>
                           <TableCell className="font-mono">
                             {conta.senha}

@@ -325,3 +325,14 @@
 - [x] Adicionar seletor de estabelecimento na criação de tabelas de preços
 - [x] Atualizar rota de criação para aceitar estabelecimentoId
 - [x] Mostrar estabelecimento associado na listagem de tabelas
+
+
+## Refatoração Importação TISS - Chave Composta (numeroLote + sequencialTransacao)
+- [x] Criar/alterar tabela de faturamentos com colunas numero_lote e sequencial_transacao
+- [x] Adicionar índice único na combinação (numero_lote, sequencial_transacao)
+- [x] Modificar parser XML para extrair numeroLote do cabeçalho
+- [x] Modificar parser XML para extrair sequencialTransacao de cada guia
+- [x] Refatorar lógica de INSERT/UPDATE para verificar chave composta
+- [x] Ajustar listagem de guias para não agrupar por numeroGuiaPrestador
+- [x] Exibir múltiplas linhas para mesma guia (faturamentos parciais)
+- [x] Adicionar coluna Número do Lote na listagem

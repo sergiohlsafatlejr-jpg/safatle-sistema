@@ -505,6 +505,83 @@ export async function deleteProcedimentosByArquivoId(arquivoId: number) {
   return { success: true };
 }
 
+/**
+ * Verifica se já existem procedimentos com a mesma chave composta (numeroLote + sequencialTransacao)
+ * Retorna os IDs dos arquivos que contêm esses procedimentos duplicados
+ */
+export async function verificarDuplicatasPorChaveComposta(
+  numeroLote: string,
+  sequencialTransacao: string,
+  estabelecimentoId?: number
+): Promise<{ arquivoId: number; count: number }[]> {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  try {
+    // Buscar procedimentos com a mesma chave composta
+    const conditions = [
+      eq(procedimentos.numeroLote, numeroLote),
+      eq(procedimentos.sequencialTransacao, sequencialTransacao),
+    ];
+
+    const result = await dbConn
+      .select({
+        arquivoId: procedimentos.arquivoId,
+        count: sql<number>`count(*)`
+      })
+      .from(procedimentos)
+      .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+      .where(
+        estabelecimentoId
+          ? and(...conditions, eq(arquivos.estabelecimentoId, estabelecimentoId))
+          : and(...conditions)
+      )
+      .groupBy(procedimentos.arquivoId);
+
+    return result;
+  } catch (error) {
+    console.error('[DB] Erro ao verificar duplicatas:', error);
+    return [];
+  }
+}
+
+/**
+ * Busca procedimentos existentes por chave composta para atualização
+ */
+export async function getProcedimentosPorChaveComposta(
+  numeroLote: string,
+  sequencialTransacao: string,
+  guiaNumero?: string
+): Promise<{ id: number; arquivoId: number; guiaNumero: string | null }[]> {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  try {
+    const conditions = [
+      eq(procedimentos.numeroLote, numeroLote),
+      eq(procedimentos.sequencialTransacao, sequencialTransacao),
+    ];
+
+    if (guiaNumero) {
+      conditions.push(eq(procedimentos.guiaNumero, guiaNumero));
+    }
+
+    const result = await dbConn
+      .select({
+        id: procedimentos.id,
+        arquivoId: procedimentos.arquivoId,
+        guiaNumero: procedimentos.guiaNumero,
+      })
+      .from(procedimentos)
+      .where(and(...conditions));
+
+    return result;
+  } catch (error) {
+    console.error('[DB] Erro ao buscar procedimentos por chave composta:', error);
+    return [];
+  }
+}
+
 export async function getProcedimentoById(id: number) {
   const db = await getDb();
   if (!db) return null;
