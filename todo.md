@@ -348,3 +348,8 @@
 - [x] Corrigir comparativo para usar chave composta (GUIA + LOTE + CÓDIGO + QUANTIDADE + DATA + VALOR)
 - [x] Tratar diferenças de valor como glosa
 - [x] Testar com a guia 66883762 e código 1902776626
+
+
+## Coluna de Lote na Tela de Comparativo
+- [x] Adicionar campo numeroLote na interface ItemConciliacao
+- [x] Exibir coluna Lote na tabela de comparativo

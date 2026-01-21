@@ -53,6 +53,7 @@ import * as XLSX from "xlsx";
 
 interface ItemConciliacao {
   guiaNumero: string;
+  numeroLote: string;
   dataExecucao: string;
   codigo: string;
   descricao: string;
@@ -173,6 +174,7 @@ export default function Conciliacao() {
 
     const excelData = conciliacaoData.itens.map(item => ({
       "Guia": item.guiaNumero,
+      "Lote": item.numeroLote || "",
       "Data Execução": item.dataExecucao,
       "Código": item.codigo,
       "Descrição": item.descricao,
@@ -189,7 +191,7 @@ export default function Conciliacao() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
     ws["!cols"] = [
-      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 30 },
+      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 30 },
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 15 }
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Conciliação");
@@ -516,6 +518,7 @@ export default function Conciliacao() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[120px]">Guia</TableHead>
+                          <TableHead className="w-[100px]">Lote</TableHead>
                           <TableHead className="w-[100px]">Data</TableHead>
                           <TableHead className="w-[100px]">Código</TableHead>
                           <TableHead>Descrição</TableHead>
@@ -532,7 +535,7 @@ export default function Conciliacao() {
                           <>
                             {/* Cabeçalho do grupo */}
                             <TableRow key={`header-${guia}`} className="bg-muted/50">
-                              <TableCell colSpan={10} className="font-semibold">
+                              <TableCell colSpan={11} className="font-semibold">
                                 <div className="flex items-center gap-2">
                                   <FileText className="h-4 w-4" />
                                   Guia: {guia}
@@ -554,6 +557,7 @@ export default function Conciliacao() {
                                 }
                               >
                                 <TableCell className="text-muted-foreground text-sm">{item.guiaNumero}</TableCell>
+                                <TableCell className="text-muted-foreground text-sm">{item.numeroLote || "-"}</TableCell>
                                 <TableCell>{item.dataExecucao}</TableCell>
                                 <TableCell className="font-mono text-sm">{item.codigo}</TableCell>
                                 <TableCell className="max-w-[300px] truncate" title={item.descricao}>

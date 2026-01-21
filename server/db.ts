@@ -2169,6 +2169,7 @@ export async function getEstatisticasRecursos(userId: number) {
 
 export interface ItemConciliacao {
   guiaNumero: string;
+  numeroLote: string;
   dataExecucao: string;
   codigo: string;
   descricao: string;
@@ -2399,6 +2400,7 @@ export async function getConciliacaoPorConvenio(filters: {
         // Itens não encontrados são considerados pagos
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
+          numeroLote: env.numeroLote || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2415,6 +2417,7 @@ export async function getConciliacaoPorConvenio(filters: {
         // Marcar para análise manual
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
+          numeroLote: env.numeroLote || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2430,6 +2433,7 @@ export async function getConciliacaoPorConvenio(filters: {
         // Glosado total (padrão)
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
+          numeroLote: env.numeroLote || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2473,6 +2477,7 @@ export async function getConciliacaoPorConvenio(filters: {
         
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
+          numeroLote: env.numeroLote || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2490,6 +2495,7 @@ export async function getConciliacaoPorConvenio(filters: {
         
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
+          numeroLote: env.numeroLote || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2510,6 +2516,7 @@ export async function getConciliacaoPorConvenio(filters: {
           // Valores iguais - OK
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
+            numeroLote: env.numeroLote || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2525,6 +2532,7 @@ export async function getConciliacaoPorConvenio(filters: {
           // Glosa parcial
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
+            numeroLote: env.numeroLote || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2541,6 +2549,7 @@ export async function getConciliacaoPorConvenio(filters: {
           // Valor retornado maior que enviado (divergência)
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
+            numeroLote: env.numeroLote || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2566,6 +2575,7 @@ export async function getConciliacaoPorConvenio(filters: {
         
         itensConciliados.push({
           guiaNumero: ret.guiaNumero || "",
+          numeroLote: ret.numeroLote || "",
           dataExecucao: ret.dataExecucao ? new Date(ret.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: ret.codigo,
           descricao: ret.descricao || "",
