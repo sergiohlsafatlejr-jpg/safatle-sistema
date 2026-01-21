@@ -342,3 +342,9 @@
 - [x] Criar script para reimportar arquivos XML existentes
 - [x] Preencher campos numeroLote e sequencialTransacao nos procedimentos
 - [x] Executar script e validar resultados
+
+
+## Correção da Lógica de Comparativo/Conciliação
+- [x] Corrigir comparativo para usar chave composta (GUIA + LOTE + CÓDIGO + QUANTIDADE + DATA + VALOR)
+- [x] Tratar diferenças de valor como glosa
+- [x] Testar com a guia 66883762 e código 1902776626

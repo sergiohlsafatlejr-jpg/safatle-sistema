@@ -2305,11 +2305,37 @@ export async function getConciliacaoPorConvenio(filters: {
     procedimentosRetornados.push(...procs);
   }
 
-  // Criar mapa de procedimentos retornados por código + guia
+  // Criar mapa de procedimentos retornados por chave composta
+  // Chave: GUIA + LOTE + CÓDIGO + QUANTIDADE + DATA
   const retornadosMap = new Map<string, any[]>();
+  
+  // Função para gerar chave composta
+  const gerarChaveComposta = (proc: any): string => {
+    const guia = (proc.guiaNumero || "").toString().toLowerCase().trim();
+    const lote = (proc.numeroLote || "").toString().toLowerCase().trim();
+    const codigo = (proc.codigo || "").toString().toLowerCase().trim();
+    const quantidade = (proc.quantidade || 1).toString();
+    // Normalizar data para formato YYYY-MM-DD
+    let dataStr = "";
+    if (proc.dataExecucao) {
+      const data = new Date(proc.dataExecucao);
+      if (!isNaN(data.getTime())) {
+        dataStr = data.toISOString().split('T')[0];
+      }
+    }
+    return `${guia}|${lote}|${codigo}|${quantidade}|${dataStr}`;
+  };
+  
+  // Função para gerar chave simplificada (fallback sem lote e data)
+  const gerarChaveSimplificada = (proc: any): string => {
+    const guia = (proc.guiaNumero || "").toString().toLowerCase().trim();
+    const codigo = (proc.codigo || "").toString().toLowerCase().trim();
+    const quantidade = (proc.quantidade || 1).toString();
+    return `${guia}|${codigo}|${quantidade}`;
+  };
+  
   for (const proc of procedimentosRetornados) {
-    // Chave: código + guia (normalizado)
-    const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
+    const chave = gerarChaveComposta(proc);
     if (!retornadosMap.has(chave)) {
       retornadosMap.set(chave, []);
     }
@@ -2329,9 +2355,36 @@ export async function getConciliacaoPorConvenio(filters: {
   let valorTotalGlosado = 0;
 
   for (const env of procedimentosEnviados) {
-    const chave = `${env.codigo}|${env.guiaNumero || ""}`.toLowerCase();
-    const retornados = retornadosMap.get(chave) || [];
-    chavesProcessadas.add(chave);
+    // Usar chave composta para buscar correspondência exata
+    const chaveComposta = gerarChaveComposta(env);
+    const chaveSimplificada = gerarChaveSimplificada(env);
+    
+    // Primeiro tenta buscar pela chave composta (mais precisa)
+    let retornados = retornadosMap.get(chaveComposta) || [];
+    let chaveUsada = chaveComposta;
+    
+    // Se não encontrou, tenta pela chave simplificada (fallback)
+    if (retornados.length === 0) {
+      // Buscar em todas as chaves que correspondem à chave simplificada
+      for (const [key, procs] of Array.from(retornadosMap.entries())) {
+        const procSimplificada = gerarChaveSimplificada(procs[0]);
+        if (procSimplificada === chaveSimplificada) {
+          // Encontrou correspondência - verificar se os valores batem
+          const valorEnv = parseFloat(env.valorTotal || "0");
+          for (const proc of procs) {
+            const valorRet = parseFloat(proc.valorTotal || "0");
+            if (Math.abs(valorEnv - valorRet) < 0.01) {
+              retornados = [proc];
+              chaveUsada = key;
+              break;
+            }
+          }
+          if (retornados.length > 0) break;
+        }
+      }
+    }
+    
+    chavesProcessadas.add(chaveUsada);
     totalEnviados++;
 
     const valorEnviado = parseFloat(env.valorTotal || "0");
