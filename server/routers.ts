@@ -469,8 +469,22 @@ export const appRouter = router({
             await db.updateArquivoStatus(arquivoId, "processado");
             await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
             
-            // Nota: A validação de regras e comparação com tabela de preços agora é feita sob demanda
-            // pelo usuário na tela de Comparações, não mais automaticamente no upload
+            // Gerar insights de IA automaticamente após processamento (apenas para arquivos enviados/XML)
+            if (input.direcao === "enviado" && input.tipoArquivo === "xml") {
+              try {
+                console.log('[Upload] Gerando insights de IA para arquivo:', arquivoId);
+                const resultadoIA = await db.processarInsightsAutomaticos({
+                  arquivoId,
+                  estabelecimentoId: input.estabelecimentoId,
+                  convenioId: input.convenioId,
+                  userId: ctx.user.id!,
+                });
+                console.log('[Upload] Insights gerados:', resultadoIA.insightsGerados, 'críticos:', resultadoIA.insightsCriticos);
+              } catch (iaError) {
+                // Não falhar o upload se a geração de insights falhar
+                console.error('[Upload] Erro ao gerar insights de IA:', iaError);
+              }
+            }
           } else if (!parseResult.success) {
             await db.updateArquivoStatus(arquivoId, "erro");
           } else {

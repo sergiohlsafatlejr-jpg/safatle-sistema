@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_insights,\n  SUM(CASE WHEN status = 'aceito' THEN 1 ELSE 0 END) as aceitos,\n  SUM(CASE WHEN status = 'rejeitado' THEN 1 ELSE 0 END) as rejeitados,\n  SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,\n  SUM(CASE WHEN status = 'ignorado' THEN 1 ELSE 0 END) as ignorados\nFROM insightsIA;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  COUNT(*) as total_insights,\n  SUM(CASE WHEN status = 'aceito' THEN 1 ELSE 0 END) as aceitos,\n  SUM(CASE WHEN status = 'rejeitado' THEN 1 ELSE 0 END) as rejeitados,\n  SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,\n  SUM(CASE WHEN status = 'ignorado' THEN 1 ELSE 0 END) as ignorados\nFROM insightsIA;",
+  "rows": [
+    {
+      "total_insights": "0",
+      "aceitos": "NULL",
+      "rejeitados": "NULL",
+      "pendentes": "NULL",
+      "ignorados": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_insights\taceitos\trejeitados\tpendentes\tignorados\n0\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 66
+}

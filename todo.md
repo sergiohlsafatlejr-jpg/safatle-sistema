@@ -368,3 +368,8 @@
 
 ## Limpeza de Estabelecimentos de Teste
 - [x] Remover estabelecimentos de teste do banco de dados
+
+
+## Geração Automática de Insights da IA
+- [x] Adicionar chamada de geração de insights na importação de arquivos XML
+- [x] Garantir que insights sejam gerados automaticamente após processamento
