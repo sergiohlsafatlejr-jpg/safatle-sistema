@@ -416,3 +416,11 @@
 - [x] Adicionar alertas visuais: vermelho (glosa), verde (sem glosa), amarelo (não encontrada)
 - [x] Implementar modal de detalhes ao clicar na conta
 - [x] Mostrar itens da conta com: Valor Faturado, Valor Recebido, Valor da Glosa
+
+
+## Melhorias na Tela de Recursos de Glosa - Envio em Lote
+- [x] Criar tela de recursos agrupados por convênio (clicável para ver itens)
+- [x] Implementar envio em lote de todos os recursos de um convênio
+- [x] Criar lote automático ao enviar recursos (agrupar itens enviados)
+- [x] Corrigir botão de exportação (Excel/PDF) na tela de acompanhamento de recursos
+- [x] Garantir que lotes criados apareçam na tela de acompanhamento

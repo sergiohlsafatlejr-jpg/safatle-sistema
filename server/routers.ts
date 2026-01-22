@@ -1736,6 +1736,74 @@ export const appRouter = router({
         return db.getDetalhesLoteRecurso(input.loteId);
       }),
 
+    // ============ RECURSOS AGRUPADOS POR CONVÊNIO ============
+    agrupadosPorConvenio: protectedProcedure
+      .input(
+        z.object({
+          estabelecimentoId: z.number().optional(),
+          status: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        return db.getRecursosAgrupadosPorConvenio({
+          estabelecimentoId: input?.estabelecimentoId,
+          status: input?.status,
+        });
+      }),
+
+    recursosDoConvenio: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          estabelecimentoId: z.number().optional(),
+          status: z.string().optional(),
+          apenasNaoEnviados: z.boolean().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.getRecursosDoConvenio({
+          convenioId: input.convenioId,
+          estabelecimentoId: input.estabelecimentoId,
+          status: input.status,
+          apenasNaoEnviados: input.apenasNaoEnviados,
+        });
+      }),
+
+    criarLote: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          estabelecimentoId: z.number(),
+          recursosIds: z.array(z.number()),
+          descricao: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        return db.criarLoteRecurso({
+          convenioId: input.convenioId,
+          estabelecimentoId: input.estabelecimentoId,
+          userId: ctx.user.id,
+          recursosIds: input.recursosIds,
+          descricao: input.descricao,
+        });
+      }),
+
+    enviarLote: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+          protocoloEnvio: z.string().optional(),
+          dataPrazoPagamento: z.date().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return db.enviarLoteRecurso({
+          loteId: input.loteId,
+          protocoloEnvio: input.protocoloEnvio,
+          dataPrazoPagamento: input.dataPrazoPagamento,
+        });
+      }),
+
     // ============ EXPORTAÇÃO DE RECURSOS ============
     exportar: protectedProcedure
       .input(

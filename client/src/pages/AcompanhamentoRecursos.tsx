@@ -26,8 +26,13 @@ import {
   Eye,
   Paperclip,
   Building2,
-  ChevronRight
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  Send,
+  Loader2
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const formatCurrency = (value: number | string | null | undefined) => {
   const num = typeof value === "string" ? parseFloat(value) : value;
@@ -61,6 +66,7 @@ export default function AcompanhamentoRecursos() {
   const [dialogAnexo, setDialogAnexo] = useState(false);
   const [loteParaAnexo, setLoteParaAnexo] = useState<number | null>(null);
   const [protocoloEnvio, setProtocoloEnvio] = useState("");
+  const [exportando, setExportando] = useState(false);
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
@@ -115,6 +121,37 @@ export default function AcompanhamentoRecursos() {
     return diff;
   };
 
+  const exportarMutation = trpc.recursos.exportar.useMutation({
+    onSuccess: (data) => {
+      setExportando(false);
+      if (data.formato === "excel") {
+        // Criar workbook Excel
+        const ws = XLSX.utils.json_to_sheet(data.dados);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Recursos");
+        XLSX.writeFile(wb, `recursos_glosa_${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success("Arquivo Excel exportado com sucesso!");
+      } else {
+        // Para PDF, mostrar dados para download
+        toast.success(`${data.dados.length} recursos exportados`);
+      }
+    },
+    onError: (error) => {
+      setExportando(false);
+      toast.error("Erro ao exportar: " + error.message);
+    },
+  });
+
+  const handleExportarExcel = () => {
+    setExportando(true);
+    exportarMutation.mutate({
+      formato: "excel",
+      estabelecimentoId: estabelecimentoAtual?.id,
+      convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
+      status: statusFiltro !== "todos" ? statusFiltro : undefined,
+    });
+  };
+
   if (!user) return null;
 
   return (
@@ -126,6 +163,26 @@ export default function AcompanhamentoRecursos() {
           <p className="text-muted-foreground">
             Gerencie os lotes de recursos enviados aos convênios
           </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportarExcel}
+            disabled={exportando || !lotes?.lotes?.length}
+          >
+            {exportando ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            )}
+            Exportar Excel
+          </Button>
+          <Button asChild>
+            <a href="/envio-recursos-lote">
+              <Send className="h-4 w-4 mr-2" />
+              Enviar em Lote
+            </a>
+          </Button>
         </div>
       </div>
 

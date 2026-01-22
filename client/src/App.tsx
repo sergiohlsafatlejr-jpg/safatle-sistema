@@ -36,6 +36,7 @@ import RelatorioContas from "./pages/RelatorioContas";
 import AcompanhamentoRecursos from "./pages/AcompanhamentoRecursos";
 import DashboardIA from "./pages/DashboardIA";
 import NaoRecebidos from "./pages/NaoRecebidos";
+import EnvioRecursosLote from "./pages/EnvioRecursosLote";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -80,6 +81,7 @@ function Router() {
       <Route path={"/acompanhamento-recursos"} component={AcompanhamentoRecursos} />
       <Route path={"/dashboard-ia"} component={DashboardIA} />
       <Route path={"/nao-recebidos"} component={NaoRecebidos} />
+      <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

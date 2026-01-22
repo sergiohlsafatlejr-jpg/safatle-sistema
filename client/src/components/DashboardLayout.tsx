@@ -94,6 +94,7 @@ const menuItems: MenuItem[] = [
   { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
   { icon: FileText, label: "Relatório de Contas", path: "/relatorio-contas", modulo: "faturamento" },
   { icon: History, label: "Acompanhamento Recursos", path: "/acompanhamento-recursos", modulo: "recursosGlosa" },
+  { icon: Gavel, label: "Envio em Lote", path: "/envio-recursos-lote", modulo: "recursosGlosa" },
   { icon: Brain, label: "Dashboard IA", path: "/dashboard-ia", modulo: "comparacoes" },
   { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "faturamento" },
 ];
