@@ -442,3 +442,13 @@
 - [x] Incluir dados: Paciente, Guia, Carteirinha, Data do Item, Valor Glosado, Valor Recursado, Motivo da Glosa, Descrição do Recurso
 - [x] Adicionar campo para anexar PDF de protocolo do recurso por lote
 - [x] Criar função no backend para buscar recursos detalhados de um lote
+
+
+## Correções e Melhorias - Janeiro 2025
+- [x] Corrigir menu lateral sumindo em Acompanhamento de Recursos e outras telas
+- [x] Corrigir filtros de KPIs na tela de Faturamento
+- [x] Melhorar tela de itens da Conciliação (abrir em nova tela)
+- [x] Padronizar datas no formato Brasil (dd/mm/yyyy)
+- [x] Adicionar funcionalidade para visualizar/baixar PDF anexado
+- [x] Incluir campo Carteirinha ao criar recursos
+- [ ] Adicionar filtro por período no relatório de recursos (pendente)

@@ -68,19 +68,31 @@ export default function Faturamento() {
   const [mesReferencia, setMesReferencia] = useState<string>("");
   const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
 
-  // Buscar dados
+  // Buscar dados com filtros de período
+  const mesReferenciaNum = mesReferencia && mesReferencia !== "todos" ? parseInt(mesReferencia) : undefined;
+  const anoReferenciaNum = anoReferencia ? parseInt(anoReferencia) : undefined;
+
   const { data: faturamentoConvenio, isLoading: loadingConvenio, refetch: refetchConvenio } = 
-    trpc.faturamento.porConvenio.useQuery({ estabelecimentoId });
+    trpc.faturamento.porConvenio.useQuery({ 
+      estabelecimentoId,
+      mesReferencia: mesReferenciaNum,
+      anoReferencia: anoReferenciaNum,
+    });
   
   const { data: faturamentoMes, isLoading: loadingMes, refetch: refetchMes } = 
     trpc.faturamento.porMes.useQuery({
       convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
       meses: parseInt(periodoMeses),
       estabelecimentoId,
+      anoReferencia: anoReferenciaNum,
     });
 
   const { data: resumoGeral, isLoading: loadingResumo } = 
-    trpc.faturamento.resumoGeral.useQuery({ estabelecimentoId });
+    trpc.faturamento.resumoGeral.useQuery({ 
+      estabelecimentoId,
+      mesReferencia: mesReferenciaNum,
+      anoReferencia: anoReferenciaNum,
+    });
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 

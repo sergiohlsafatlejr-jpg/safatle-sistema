@@ -1091,7 +1091,12 @@ export interface FaturamentoPorMes {
   totalGlosado: number;
 }
 
-export async function getFaturamentoPorConvenio(userId?: number, estabelecimentoId?: number): Promise<FaturamentoConvenio[]> {
+export async function getFaturamentoPorConvenio(
+  userId?: number, 
+  estabelecimentoId?: number,
+  mesReferencia?: number,
+  anoReferencia?: number
+): Promise<FaturamentoConvenio[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -1118,6 +1123,18 @@ export async function getFaturamentoPorConvenio(userId?: number, estabelecimento
     if (estabelecimentoId && estabelecimentoId > 0) {
       conditionsEnviados.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
     }
+    // Filtrar por mês/ano usando dataReferencia
+    if (mesReferencia && anoReferencia) {
+      const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+      const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+      conditionsEnviados.push(gte(arquivos.dataReferencia, dataInicio));
+      conditionsEnviados.push(lte(arquivos.dataReferencia, dataFim));
+    } else if (anoReferencia) {
+      const dataInicio = new Date(anoReferencia, 0, 1);
+      const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
+      conditionsEnviados.push(gte(arquivos.dataReferencia, dataInicio));
+      conditionsEnviados.push(lte(arquivos.dataReferencia, dataFim));
+    }
 
     const arquivosEnviados = await db
       .select()
@@ -1136,6 +1153,18 @@ export async function getFaturamentoPorConvenio(userId?: number, estabelecimento
     }
     if (estabelecimentoId && estabelecimentoId > 0) {
       conditionsRetornados.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
+    }
+    // Filtrar por mês/ano usando dataReferencia
+    if (mesReferencia && anoReferencia) {
+      const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+      const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+      conditionsRetornados.push(gte(arquivos.dataReferencia, dataInicio));
+      conditionsRetornados.push(lte(arquivos.dataReferencia, dataFim));
+    } else if (anoReferencia) {
+      const dataInicio = new Date(anoReferencia, 0, 1);
+      const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
+      conditionsRetornados.push(gte(arquivos.dataReferencia, dataInicio));
+      conditionsRetornados.push(lte(arquivos.dataReferencia, dataFim));
     }
 
     const arquivosRetornados = await db
@@ -1208,16 +1237,18 @@ export async function getFaturamentoPorMes(
   userId?: number,
   convenioId?: number,
   meses: number = 12,
-  estabelecimentoId?: number
+  estabelecimentoId?: number,
+  anoReferencia?: number
 ): Promise<FaturamentoPorMes[]> {
   const db = await getDb();
   if (!db) return [];
 
   const resultado: FaturamentoPorMes[] = [];
   const hoje = new Date();
+  const anoBase = anoReferencia || hoje.getFullYear();
 
   for (let i = 0; i < meses; i++) {
-    const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const data = new Date(anoBase, hoje.getMonth() - i, 1);
     const mes = data.toLocaleString("pt-BR", { month: "short" });
     const ano = data.getFullYear();
     const inicioMes = new Date(data.getFullYear(), data.getMonth(), 1);
@@ -1301,9 +1332,29 @@ export async function getFaturamentoPorMes(
   return resultado.reverse();
 }
 
-export async function getResumoGeral(userId?: number, estabelecimentoId?: number) {
+export async function getResumoGeral(
+  userId?: number, 
+  estabelecimentoId?: number,
+  mesReferencia?: number,
+  anoReferencia?: number
+) {
   const db = await getDb();
   if (!db) return null;
+
+  // Função auxiliar para adicionar filtros de período
+  const addPeriodoConditions = (conditions: any[]) => {
+    if (mesReferencia && anoReferencia) {
+      const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+      const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+      conditions.push(gte(arquivos.dataReferencia, dataInicio));
+      conditions.push(lte(arquivos.dataReferencia, dataFim));
+    } else if (anoReferencia) {
+      const dataInicio = new Date(anoReferencia, 0, 1);
+      const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
+      conditions.push(gte(arquivos.dataReferencia, dataInicio));
+      conditions.push(lte(arquivos.dataReferencia, dataFim));
+    }
+  };
 
   // Total de arquivos
   const arquivosConditions: any[] = [];
@@ -1313,6 +1364,7 @@ export async function getResumoGeral(userId?: number, estabelecimentoId?: number
   if (estabelecimentoId && estabelecimentoId > 0) {
     arquivosConditions.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
   }
+  addPeriodoConditions(arquivosConditions);
 
   const totalArquivos = await db
     .select({ count: sql<number>`count(*)` })
@@ -1327,6 +1379,7 @@ export async function getResumoGeral(userId?: number, estabelecimentoId?: number
   if (estabelecimentoId && estabelecimentoId > 0) {
     arquivosEnviadosConditions.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
   }
+  addPeriodoConditions(arquivosEnviadosConditions);
 
   const arquivosEnviados = await db
     .select({ id: arquivos.id })
@@ -1358,6 +1411,7 @@ export async function getResumoGeral(userId?: number, estabelecimentoId?: number
   if (estabelecimentoId && estabelecimentoId > 0) {
     arquivosRetornadosConditions.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
   }
+  addPeriodoConditions(arquivosRetornadosConditions);
 
   const arquivosRetornados = await db
     .select({ id: arquivos.id })
@@ -9194,7 +9248,7 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     numero: index + 1,
     paciente: recurso.pacienteNome || "N/A",
     guia: recurso.guiaNumero || "N/A",
-    carteirinha: "", // Campo a ser preenchido se disponível
+    carteirinha: recurso.pacienteCarteirinha || "N/A",
     dataItem: recurso.dataGlosa ? new Date(recurso.dataGlosa).toLocaleDateString("pt-BR") : "N/A",
     valorGlosado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0,
     valorRecursado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0, // Valor recursado = valor glosado inicialmente
@@ -9252,4 +9306,196 @@ export async function atualizarAnexoProtocoloLote(
     console.error("[Database] Erro ao atualizar anexo do lote:", error);
     return false;
   }
+}
+
+
+// ============ DETALHES DA CONTA DE CONCILIAÇÃO ============
+interface DetalhesContaParams {
+  convenioId: number;
+  guiaNumero: string;
+  userId?: number;
+  estabelecimentoId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+}
+
+export async function getDetalhesConta(params: DetalhesContaParams) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const { convenioId, guiaNumero, userId, estabelecimentoId, mesReferencia, anoReferencia } = params;
+
+  // Buscar arquivos enviados do convênio
+  const conditionsEnviados: any[] = [
+    eq(arquivos.convenioId, convenioId),
+    eq(arquivos.direcao, "enviado"),
+    eq(arquivos.status, "processado"),
+  ];
+  
+  if (userId) {
+    conditionsEnviados.push(eq(arquivos.userId, userId));
+  }
+  if (estabelecimentoId && estabelecimentoId > 0) {
+    conditionsEnviados.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
+  }
+  if (mesReferencia && anoReferencia) {
+    const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+    const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+    conditionsEnviados.push(gte(arquivos.dataReferencia, dataInicio));
+    conditionsEnviados.push(lte(arquivos.dataReferencia, dataFim));
+  }
+
+  const arquivosEnviados = await db
+    .select({ id: arquivos.id })
+    .from(arquivos)
+    .where(and(...conditionsEnviados));
+
+  if (arquivosEnviados.length === 0) {
+    return null;
+  }
+
+  const arquivosEnviadosIds = arquivosEnviados.map(a => a.id);
+
+  // Buscar procedimentos enviados da guia específica
+  const procsEnviados = await db
+    .select()
+    .from(procedimentos)
+    .where(
+      and(
+        inArray(procedimentos.arquivoId, arquivosEnviadosIds),
+        eq(procedimentos.guiaNumero, guiaNumero)
+      )
+    );
+
+  if (procsEnviados.length === 0) {
+    return null;
+  }
+
+  // Buscar arquivos retornados
+  const conditionsRetornados: any[] = [
+    eq(arquivos.convenioId, convenioId),
+    eq(arquivos.direcao, "retornado"),
+    eq(arquivos.status, "processado"),
+  ];
+  
+  if (userId) {
+    conditionsRetornados.push(eq(arquivos.userId, userId));
+  }
+  if (estabelecimentoId && estabelecimentoId > 0) {
+    conditionsRetornados.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
+  }
+  if (mesReferencia && anoReferencia) {
+    const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+    const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+    conditionsRetornados.push(gte(arquivos.dataReferencia, dataInicio));
+    conditionsRetornados.push(lte(arquivos.dataReferencia, dataFim));
+  }
+
+  const arquivosRetornados = await db
+    .select({ id: arquivos.id })
+    .from(arquivos)
+    .where(and(...conditionsRetornados));
+
+  const arquivosRetornadosIds = arquivosRetornados.map(a => a.id);
+
+  // Buscar procedimentos retornados da guia
+  const procsRetornados = arquivosRetornadosIds.length > 0
+    ? await db
+        .select()
+        .from(procedimentos)
+        .where(
+          and(
+            inArray(procedimentos.arquivoId, arquivosRetornadosIds),
+            eq(procedimentos.guiaNumero, guiaNumero)
+          )
+        )
+    : [];
+
+  // Criar mapa de retornados por código
+  const retornadosMap = new Map<string, typeof procsRetornados[0]>();
+  for (const proc of procsRetornados) {
+    retornadosMap.set(proc.codigo, proc);
+  }
+
+  // Montar itens da conta
+  const itens: any[] = [];
+  let valorTotalFaturado = 0;
+  let valorTotalRecebido = 0;
+  let valorTotalGlosado = 0;
+  let pacienteNome = "";
+  let dataExecucao = "";
+
+  for (const procEnv of procsEnviados) {
+    const valorFaturado = parseFloat(String(procEnv.valorTotal || 0));
+    valorTotalFaturado += valorFaturado;
+    
+    if (!pacienteNome && procEnv.pacienteNome) {
+      pacienteNome = procEnv.pacienteNome;
+    }
+    if (!dataExecucao && procEnv.dataExecucao) {
+      dataExecucao = procEnv.dataExecucao instanceof Date 
+        ? procEnv.dataExecucao.toLocaleDateString("pt-BR")
+        : String(procEnv.dataExecucao);
+    }
+
+    const procRet = retornadosMap.get(procEnv.codigo);
+    
+    let valorPago = 0;
+    let valorGlosado = 0;
+    let motivoGlosa = "";
+    let status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido" = "nao_recebido";
+
+    if (procRet) {
+      valorPago = parseFloat(String(procRet.valorTotal || 0));
+      valorGlosado = parseFloat(String(procRet.valorGlosado || 0));
+      motivoGlosa = procRet.motivoGlosa || "";
+      valorTotalRecebido += valorPago;
+      valorTotalGlosado += valorGlosado;
+
+      if (valorGlosado > 0) {
+        status = "glosado";
+      } else if (Math.abs(valorFaturado - valorPago) < 0.01) {
+        status = "ok";
+      } else {
+        status = "divergente";
+      }
+    }
+
+    itens.push({
+      guiaNumero: procEnv.guiaNumero || guiaNumero,
+      numeroLote: procEnv.numeroLote || "",
+      dataExecucao: procEnv.dataExecucao instanceof Date 
+        ? procEnv.dataExecucao.toLocaleDateString("pt-BR")
+        : String(procEnv.dataExecucao || ""),
+      codigo: procEnv.codigo,
+      descricao: procEnv.descricao || "",
+      pacienteNome: procEnv.pacienteNome || "",
+      valorFaturado,
+      valorPago,
+      valorGlosado,
+      motivoGlosa,
+      status,
+    });
+  }
+
+  // Determinar status geral da conta
+  let statusConta: "ok" | "glosado" | "nao_encontrado" | "parcial" = "ok";
+  if (valorTotalGlosado > 0) {
+    statusConta = valorTotalRecebido > 0 ? "parcial" : "glosado";
+  } else if (valorTotalRecebido === 0 && valorTotalFaturado > 0) {
+    statusConta = "nao_encontrado";
+  }
+
+  return {
+    guiaNumero,
+    numeroLote: procsEnviados[0]?.numeroLote || "",
+    pacienteNome,
+    dataExecucao,
+    valorTotalFaturado,
+    valorTotalRecebido,
+    valorTotalGlosado,
+    status: statusConta,
+    totalItens: itens.length,
+    itens,
+  };
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -567,16 +568,19 @@ export default function GerenciarPermissoes() {
 
   if (loadingGestor || loadingEstabelecimentos) {
     return (
-      <div className="container py-6 space-y-6">
+      <DashboardLayout>
+      <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64" />
       </div>
+      </DashboardLayout>
     );
   }
 
   if (!isGestor) {
     return (
-      <div className="container py-6">
+      <DashboardLayout>
+      <div className="space-y-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -585,11 +589,13 @@ export default function GerenciarPermissoes() {
           </AlertDescription>
         </Alert>
       </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="container py-6 space-y-6">
+    <DashboardLayout>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1785,5 +1791,6 @@ export default function GerenciarPermissoes() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </DashboardLayout>
   );
 }

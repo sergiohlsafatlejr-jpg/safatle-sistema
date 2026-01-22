@@ -313,6 +313,7 @@ export const recursosGlosa = mysqlTable("recursosGlosa", {
   descricaoProcedimento: text("descricaoProcedimento"),
   guiaNumero: varchar("guiaNumero", { length: 100 }),
   pacienteNome: varchar("pacienteNome", { length: 255 }),
+  pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),
   
   // Valores
   valorCobrado: decimal("valorCobrado", { precision: 10, scale: 2 }),

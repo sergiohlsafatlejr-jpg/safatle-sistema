@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,17 +113,20 @@ export default function AlterarSenha() {
 
   if (loadingHasPassword) {
     return (
-      <div className="container py-6 max-w-lg mx-auto">
+      <DashboardLayout>
+      <div className="max-w-lg mx-auto">
         <Skeleton className="h-8 w-64 mb-6" />
         <Skeleton className="h-96" />
       </div>
+      </DashboardLayout>
     );
   }
 
   const isLoading = changePassword.isPending || setInitialPassword.isPending;
 
   return (
-    <div className="container py-6 max-w-lg mx-auto">
+    <DashboardLayout>
+    <div className="max-w-lg mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <KeyRound className="h-6 w-6" />
@@ -328,5 +332,6 @@ export default function AlterarSenha() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

@@ -29,6 +29,7 @@ import {
   CircleMinus
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -105,6 +106,7 @@ interface ResumoConciliacao {
 type Etapa = "selecao_periodo" | "resumo_convenios" | "lista_contas";
 
 export default function Conciliacao() {
+  const [, setLocation] = useLocation();
   const { estabelecimentoAtual } = useEstabelecimento();
   
   // Estado do fluxo
@@ -300,8 +302,9 @@ export default function Conciliacao() {
   };
 
   const handleAbrirDetalhes = (conta: ContaConciliacao) => {
-    setContaSelecionada(conta);
-    setModalAberto(true);
+    // Navegar para a tela de detalhes da conta
+    const guiaEncoded = encodeURIComponent(conta.guiaNumero || "sem-guia");
+    setLocation(`/conciliacao/${convenioId}/${guiaEncoded}?mes=${mesReferencia}&ano=${anoReferencia}`);
   };
 
   // Calcular total de páginas

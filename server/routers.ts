@@ -1077,9 +1077,18 @@ export const appRouter = router({
   // ============ FATURAMENTO ============
   faturamento: router({
     porConvenio: protectedProcedure
-      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .input(z.object({ 
+        estabelecimentoId: z.number().optional(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+      }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getFaturamentoPorConvenio(ctx.user.id, input?.estabelecimentoId);
+        return db.getFaturamentoPorConvenio(
+          ctx.user.id, 
+          input?.estabelecimentoId,
+          input?.mesReferencia,
+          input?.anoReferencia
+        );
       }),
 
     porMes: protectedProcedure
@@ -1088,6 +1097,7 @@ export const appRouter = router({
           convenioId: z.number().optional(),
           meses: z.number().default(12),
           estabelecimentoId: z.number().optional(),
+          anoReferencia: z.number().optional(),
         }).optional()
       )
       .query(async ({ input, ctx }) => {
@@ -1095,14 +1105,24 @@ export const appRouter = router({
           ctx.user.id,
           input?.convenioId,
           input?.meses || 12,
-          input?.estabelecimentoId
+          input?.estabelecimentoId,
+          input?.anoReferencia
         );
       }),
 
     resumoGeral: protectedProcedure
-      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .input(z.object({ 
+        estabelecimentoId: z.number().optional(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+      }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getResumoGeral(ctx.user.id, input?.estabelecimentoId);
+        return db.getResumoGeral(
+          ctx.user.id, 
+          input?.estabelecimentoId,
+          input?.mesReferencia,
+          input?.anoReferencia
+        );
       }),
   }),
 
@@ -1980,6 +2000,28 @@ export const appRouter = router({
           anoReferencia: input.anoReferencia,
           pagina: input.pagina,
           itensPorPagina: input.itensPorPagina,
+        });
+      }),
+
+    // Buscar detalhes de uma conta específica
+    detalhesConta: protectedProcedure
+      .input(
+        z.object({
+          convenioId: z.number(),
+          guiaNumero: z.string(),
+          estabelecimentoId: z.number().optional(),
+          mesReferencia: z.number().min(1).max(12).optional(),
+          anoReferencia: z.number().min(2000).max(2100).optional(),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        return db.getDetalhesConta({
+          convenioId: input.convenioId,
+          guiaNumero: input.guiaNumero,
+          userId: ctx.user.id,
+          estabelecimentoId: input.estabelecimentoId,
+          mesReferencia: input.mesReferencia,
+          anoReferencia: input.anoReferencia,
         });
       }),
 

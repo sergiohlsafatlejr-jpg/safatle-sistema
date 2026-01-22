@@ -37,6 +37,7 @@ import AcompanhamentoRecursos from "./pages/AcompanhamentoRecursos";
 import DashboardIA from "./pages/DashboardIA";
 import NaoRecebidos from "./pages/NaoRecebidos";
 import EnvioRecursosLote from "./pages/EnvioRecursosLote";
+import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -61,6 +62,7 @@ function Router() {
       <Route path={"/contas"} component={Contas} />
       <Route path={"/contas/:guiaNumero"} component={ContaDetalhes} />
       <Route path={"/conciliacao"} component={Conciliacao} />
+      <Route path={"/conciliacao/:convenioId/:guiaNumero"} component={ConciliacaoDetalhes} />
       <Route path={"/faturamento"} component={Faturamento} />
       <Route path={"/analise-glosa"} component={AnaliseGlosa} />
       <Route path={"/recursos"} component={RecursosGlosa} />

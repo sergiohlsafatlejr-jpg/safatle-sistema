@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,6 +151,7 @@ export default function EnvioRecursosLote() {
   const valorTotalPendente = recursosAgrupados?.reduce((sum, g) => sum + g.valorTotalGlosado, 0) || 0;
 
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -448,5 +450,6 @@ export default function EnvioRecursosLote() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -177,7 +178,8 @@ export default function NaoRecebidos() {
   }
 
   return (
-    <div className="container py-6 space-y-6">
+    <DashboardLayout>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -375,5 +377,6 @@ export default function NaoRecebidos() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

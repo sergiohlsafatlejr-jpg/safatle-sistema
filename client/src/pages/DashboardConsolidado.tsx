@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +61,8 @@ export default function DashboardConsolidado() {
 
   if (loadingGestor) {
     return (
-      <div className="container py-6 space-y-6">
+      <DashboardLayout>
+      <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -68,12 +70,14 @@ export default function DashboardConsolidado() {
           ))}
         </div>
       </div>
+      </DashboardLayout>
     );
   }
 
   if (!isGestor) {
     return (
-      <div className="container py-6">
+      <DashboardLayout>
+      <div className="space-y-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -82,11 +86,13 @@ export default function DashboardConsolidado() {
           </AlertDescription>
         </Alert>
       </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="container py-6 space-y-6">
+    <DashboardLayout>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -391,5 +397,6 @@ export default function DashboardConsolidado() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

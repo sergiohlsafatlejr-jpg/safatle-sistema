@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -222,8 +223,14 @@ export default function AcompanhamentoRecursos() {
     },
   });
 
-  const handleAbrirAnexarPdf = (loteId: number, e: React.MouseEvent) => {
+  const handleAbrirAnexarPdf = (loteId: number, e: React.MouseEvent, anexoPdfUrl?: string) => {
     e.stopPropagation();
+    // Se já tem PDF anexado, abrir em nova aba
+    if (anexoPdfUrl) {
+      window.open(anexoPdfUrl, "_blank");
+      return;
+    }
+    // Senão, abrir dialog para anexar
     setLoteParaAnexarPdf(loteId);
     setDialogAnexarPdf(true);
   };
@@ -260,6 +267,7 @@ export default function AcompanhamentoRecursos() {
   if (!user) return null;
 
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -526,10 +534,13 @@ export default function AcompanhamentoRecursos() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={(e) => handleAbrirAnexarPdf(lote.id, e)}
+                          onClick={(e) => handleAbrirAnexarPdf(lote.id, e, lote.anexoPdfUrl)}
                         >
-                          <Upload className="h-4 w-4 mr-1" />
-                          {lote.anexoPdfUrl ? "Ver PDF" : "Anexar PDF"}
+                          {lote.anexoPdfUrl ? (
+                            <><Eye className="h-4 w-4 mr-1" /> Ver PDF</>
+                          ) : (
+                            <><Upload className="h-4 w-4 mr-1" /> Anexar PDF</>
+                          )}
                         </Button>
                         
                         {!lote.protocoloEnvio && lote.status === "pendente_envio" && (
@@ -770,5 +781,6 @@ export default function AcompanhamentoRecursos() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   );
 }
