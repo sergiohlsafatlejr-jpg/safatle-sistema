@@ -2353,25 +2353,23 @@ export async function getConciliacaoPorConvenio(filters: {
     .from(arquivos)
     .where(and(...arquivosRetornadosConditions));
 
-  // Buscar procedimentos enviados
-  const procedimentosEnviados: any[] = [];
-  for (const arq of arquivosEnviados) {
-    const procs = await db
-      .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
-    procedimentosEnviados.push(...procs);
-  }
+  // Buscar procedimentos enviados - OTIMIZADO: query única com IN
+  const arquivosEnviadosIds = arquivosEnviados.map(a => a.id);
+  const procedimentosEnviados = arquivosEnviadosIds.length > 0 
+    ? await db
+        .select()
+        .from(procedimentos)
+        .where(inArray(procedimentos.arquivoId, arquivosEnviadosIds))
+    : [];
 
-  // Buscar procedimentos retornados
-  const procedimentosRetornados: any[] = [];
-  for (const arq of arquivosRetornados) {
-    const procs = await db
-      .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
-    procedimentosRetornados.push(...procs);
-  }
+  // Buscar procedimentos retornados - OTIMIZADO: query única com IN
+  const arquivosRetornadosIds = arquivosRetornados.map(a => a.id);
+  const procedimentosRetornados = arquivosRetornadosIds.length > 0
+    ? await db
+        .select()
+        .from(procedimentos)
+        .where(inArray(procedimentos.arquivoId, arquivosRetornadosIds))
+    : [];
 
   // Criar mapa de procedimentos retornados por chave composta
   // Chave: GUIA + LOTE + CÓDIGO + QUANTIDADE + DATA
@@ -2402,12 +2400,23 @@ export async function getConciliacaoPorConvenio(filters: {
     return `${guia}|${codigo}|${quantidade}`;
   };
   
+  // Mapa adicional para busca simplificada (fallback) - OTIMIZAÇÃO: evita iteração O(n²)
+  const retornadosMapSimplificado = new Map<string, any[]>();
+  
   for (const proc of procedimentosRetornados) {
     const chave = gerarChaveComposta(proc);
+    const chaveSimples = gerarChaveSimplificada(proc);
+    
     if (!retornadosMap.has(chave)) {
       retornadosMap.set(chave, []);
     }
     retornadosMap.get(chave)!.push(proc);
+    
+    // Também indexar pela chave simplificada
+    if (!retornadosMapSimplificado.has(chaveSimples)) {
+      retornadosMapSimplificado.set(chaveSimples, []);
+    }
+    retornadosMapSimplificado.get(chaveSimples)!.push(proc);
   }
 
   // Processar conciliação
@@ -2433,23 +2442,24 @@ export async function getConciliacaoPorConvenio(filters: {
     let retornados = retornadosMap.get(chaveComposta) || [];
     let chaveUsada = chaveComposta;
     
-    // Se não encontrou, tenta pela chave simplificada (fallback)
+    // Se não encontrou, tenta pela chave simplificada (fallback) - OTIMIZADO: lookup O(1)
     if (retornados.length === 0) {
-      // Buscar em todas as chaves que correspondem à chave simplificada
-      for (const [key, procs] of Array.from(retornadosMap.entries())) {
-        const procSimplificada = gerarChaveSimplificada(procs[0]);
-        if (procSimplificada === chaveSimplificada) {
-          // Encontrou correspondência - verificar se os valores batem
-          const valorEnv = parseFloat(env.valorTotal || "0");
-          for (const proc of procs) {
-            const valorRet = parseFloat(proc.valorTotal || "0");
-            if (Math.abs(valorEnv - valorRet) < 0.01) {
-              retornados = [proc];
-              chaveUsada = key;
-              break;
-            }
+      const procsSimplificados = retornadosMapSimplificado.get(chaveSimplificada) || [];
+      if (procsSimplificados.length > 0) {
+        // Encontrou correspondência - verificar se os valores batem
+        const valorEnv = parseFloat(env.valorTotal || "0");
+        for (const proc of procsSimplificados) {
+          const valorRet = parseFloat(proc.valorTotal || "0");
+          if (Math.abs(valorEnv - valorRet) < 0.01) {
+            retornados = [proc];
+            chaveUsada = gerarChaveComposta(proc);
+            break;
           }
-          if (retornados.length > 0) break;
+        }
+        // Se não encontrou por valor, pega o primeiro
+        if (retornados.length === 0 && procsSimplificados.length > 0) {
+          retornados = [procsSimplificados[0]];
+          chaveUsada = gerarChaveComposta(procsSimplificados[0]);
         }
       }
     }
