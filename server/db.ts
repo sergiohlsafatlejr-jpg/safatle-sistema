@@ -9159,3 +9159,97 @@ export async function getRecursosDoConvenio(params: {
 
   return recursos;
 }
+
+
+/**
+ * Busca recursos de um lote para exportação com dados detalhados
+ */
+export async function getRecursosLoteParaExportacao(loteId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Buscar lote
+  const [lote] = await db
+    .select()
+    .from(lotesRecurso)
+    .where(eq(lotesRecurso.id, loteId))
+    .limit(1);
+
+  if (!lote) return null;
+
+  // Buscar recursos do lote
+  const recursosDoLote = await db
+    .select()
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.loteId, loteId))
+    .orderBy(recursosGlosa.pacienteNome, recursosGlosa.guiaNumero);
+
+  // Buscar convênio
+  const [convenio] = lote.convenioId
+    ? await db.select().from(convenios).where(eq(convenios.id, lote.convenioId)).limit(1)
+    : [null];
+
+  // Formatar dados para exportação
+  const dadosExportacao = recursosDoLote.map((recurso, index) => ({
+    numero: index + 1,
+    paciente: recurso.pacienteNome || "N/A",
+    guia: recurso.guiaNumero || "N/A",
+    carteirinha: "", // Campo a ser preenchido se disponível
+    dataItem: recurso.dataGlosa ? new Date(recurso.dataGlosa).toLocaleDateString("pt-BR") : "N/A",
+    valorGlosado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0,
+    valorRecursado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0, // Valor recursado = valor glosado inicialmente
+    motivoGlosa: recurso.motivoGlosaConvenio || "N/A",
+    descricaoRecurso: recurso.justificativaRecurso || "N/A",
+    codigoProcedimento: recurso.codigoProcedimento || "N/A",
+    descricaoProcedimento: recurso.descricaoProcedimento || "N/A",
+    status: recurso.status,
+    valorRecuperado: recurso.valorRecuperado ? parseFloat(recurso.valorRecuperado) : 0,
+  }));
+
+  // Calcular totais
+  const totais = {
+    totalItens: dadosExportacao.length,
+    totalValorGlosado: dadosExportacao.reduce((sum, r) => sum + r.valorGlosado, 0),
+    totalValorRecursado: dadosExportacao.reduce((sum, r) => sum + r.valorRecursado, 0),
+    totalValorRecuperado: dadosExportacao.reduce((sum, r) => sum + r.valorRecuperado, 0),
+  };
+
+  return {
+    lote: {
+      id: lote.id,
+      numeroLote: lote.numeroLote,
+      convenioNome: convenio?.nome || "N/A",
+      status: lote.status,
+      dataEnvio: lote.dataEnvio,
+      protocoloEnvio: lote.protocoloEnvio,
+    },
+    recursos: dadosExportacao,
+    totais,
+  };
+}
+
+/**
+ * Atualiza o anexo de protocolo de um lote
+ */
+export async function atualizarAnexoProtocoloLote(
+  loteId: number,
+  anexoUrl: string,
+  anexoKey: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db
+      .update(lotesRecurso)
+      .set({
+        anexoPdfUrl: anexoUrl,
+        anexoPdfKey: anexoKey,
+      })
+      .where(eq(lotesRecurso.id, loteId));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar anexo do lote:", error);
+    return false;
+  }
+}

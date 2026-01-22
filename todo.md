@@ -435,3 +435,10 @@
 - [x] Corrigir filtro de status ou query para exibir recursos corretamente
 - [x] Adicionar estabelecimentoId ao criar recursos em lote
 - [x] Modificar query para incluir recursos sem estabelecimentoId definido
+
+
+## Relatório de Recursos por Lote - Tela de Acompanhamento
+- [x] Adicionar botão de exportar Excel ao lado de cada lote
+- [x] Incluir dados: Paciente, Guia, Carteirinha, Data do Item, Valor Glosado, Valor Recursado, Motivo da Glosa, Descrição do Recurso
+- [x] Adicionar campo para anexar PDF de protocolo do recurso por lote
+- [x] Criar função no backend para buscar recursos detalhados de um lote

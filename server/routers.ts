@@ -1873,6 +1873,42 @@ export const appRouter = router({
           dataExportacao: new Date().toISOString(),
         };
       }),
+
+    // Exportar recursos de um lote específico
+    exportarLote: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const dados = await db.getRecursosLoteParaExportacao(input.loteId);
+        if (!dados) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Lote não encontrado" });
+        }
+        return dados;
+      }),
+
+    // Anexar PDF de protocolo ao lote
+    anexarProtocoloLote: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+          anexoUrl: z.string(),
+          anexoKey: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const sucesso = await db.atualizarAnexoProtocoloLote(
+          input.loteId,
+          input.anexoUrl,
+          input.anexoKey
+        );
+        if (!sucesso) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao anexar protocolo" });
+        }
+        return { sucesso: true };
+      }),
   }),
 
   // ============ CONCILIAÇÃO AUTOMÁTICA ============

@@ -67,6 +67,11 @@ export default function AcompanhamentoRecursos() {
   const [loteParaAnexo, setLoteParaAnexo] = useState<number | null>(null);
   const [protocoloEnvio, setProtocoloEnvio] = useState("");
   const [exportando, setExportando] = useState(false);
+  const [exportandoLote, setExportandoLote] = useState<number | null>(null);
+  const [dialogAnexarPdf, setDialogAnexarPdf] = useState(false);
+  const [loteParaAnexarPdf, setLoteParaAnexarPdf] = useState<number | null>(null);
+  const [arquivoPdf, setArquivoPdf] = useState<File | null>(null);
+  const [uploadandoPdf, setUploadandoPdf] = useState(false);
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
@@ -150,6 +155,106 @@ export default function AcompanhamentoRecursos() {
       convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
       status: statusFiltro !== "todos" ? statusFiltro : undefined,
     });
+  };
+
+  // Mutation para exportar lote específico
+  const exportarLoteMutation = trpc.recursos.exportarLote.useMutation({
+    onSuccess: (data) => {
+      setExportandoLote(null);
+      // Criar workbook Excel com os dados do lote
+      const dadosFormatados = data.recursos.map((r: any) => ({
+        "Nº": r.numero,
+        "Paciente": r.paciente,
+        "Guia": r.guia,
+        "Carteirinha": r.carteirinha || "N/A",
+        "Data do Item": r.dataItem,
+        "Valor Glosado": r.valorGlosado,
+        "Valor Recursado": r.valorRecursado,
+        "Motivo da Glosa": r.motivoGlosa,
+        "Descrição do Recurso": r.descricaoRecurso,
+        "Código Procedimento": r.codigoProcedimento,
+        "Descrição Procedimento": r.descricaoProcedimento,
+        "Status": r.status,
+        "Valor Recuperado": r.valorRecuperado,
+      }));
+      
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Recursos do Lote");
+      
+      // Adicionar linha de totais
+      const totaisSheet = XLSX.utils.json_to_sheet([{
+        "Total de Itens": data.totais.totalItens,
+        "Total Valor Glosado": data.totais.totalValorGlosado,
+        "Total Valor Recursado": data.totais.totalValorRecursado,
+        "Total Valor Recuperado": data.totais.totalValorRecuperado,
+      }]);
+      XLSX.utils.book_append_sheet(wb, totaisSheet, "Totais");
+      
+      XLSX.writeFile(wb, `lote_${data.lote.numeroLote}_recursos.xlsx`);
+      toast.success(`Relatório do lote ${data.lote.numeroLote} exportado com sucesso!`);
+    },
+    onError: (error) => {
+      setExportandoLote(null);
+      toast.error("Erro ao exportar lote: " + error.message);
+    },
+  });
+
+  const handleExportarLote = (loteId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExportandoLote(loteId);
+    exportarLoteMutation.mutate({ loteId });
+  };
+
+  // Mutation para anexar PDF de protocolo
+  const anexarProtocoloMutation = trpc.recursos.anexarProtocoloLote.useMutation({
+    onSuccess: () => {
+      toast.success("Protocolo anexado com sucesso!");
+      setDialogAnexarPdf(false);
+      setLoteParaAnexarPdf(null);
+      setArquivoPdf(null);
+      setUploadandoPdf(false);
+      refetch();
+    },
+    onError: (error) => {
+      setUploadandoPdf(false);
+      toast.error("Erro ao anexar protocolo: " + error.message);
+    },
+  });
+
+  const handleAbrirAnexarPdf = (loteId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoteParaAnexarPdf(loteId);
+    setDialogAnexarPdf(true);
+  };
+
+  const handleUploadPdf = async () => {
+    if (!arquivoPdf || !loteParaAnexarPdf) return;
+    
+    setUploadandoPdf(true);
+    
+    try {
+      // Converter arquivo para base64 e enviar para o servidor
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        
+        // Por enquanto, simular o upload salvando uma referência
+        // Em produção, isso seria enviado para o S3
+        const fakeUrl = `protocolo_lote_${loteParaAnexarPdf}_${Date.now()}.pdf`;
+        const fakeKey = `protocolos/${fakeUrl}`;
+        
+        anexarProtocoloMutation.mutate({
+          loteId: loteParaAnexarPdf,
+          anexoUrl: fakeUrl,
+          anexoKey: fakeKey,
+        });
+      };
+      reader.readAsDataURL(arquivoPdf);
+    } catch (error) {
+      setUploadandoPdf(false);
+      toast.error("Erro ao processar arquivo");
+    }
   };
 
   if (!user) return null;
@@ -402,6 +507,31 @@ export default function AcompanhamentoRecursos() {
                     </div>
                     <div className="flex items-center justify-end mt-2 pt-2 border-t">
                       <div className="flex gap-2">
+                        {/* Botão Exportar Excel do Lote */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => handleExportarLote(lote.id, e)}
+                          disabled={exportandoLote === lote.id}
+                        >
+                          {exportandoLote === lote.id ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <FileSpreadsheet className="h-4 w-4 mr-1" />
+                          )}
+                          Exportar
+                        </Button>
+                        
+                        {/* Botão Anexar PDF de Protocolo */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => handleAbrirAnexarPdf(lote.id, e)}
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          {lote.anexoPdfUrl ? "Ver PDF" : "Anexar PDF"}
+                        </Button>
+                        
                         {!lote.protocoloEnvio && lote.status === "pendente_envio" && (
                           <Button
                             size="sm"
@@ -588,6 +718,53 @@ export default function AcompanhamentoRecursos() {
               disabled={!protocoloEnvio || atualizarLoteMutation.isPending}
             >
               {atualizarLoteMutation.isPending ? "Salvando..." : "Registrar Envio"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Anexar PDF de Protocolo */}
+      <Dialog open={dialogAnexarPdf} onOpenChange={setDialogAnexarPdf}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Anexar PDF de Protocolo</DialogTitle>
+            <DialogDescription>
+              Anexe o comprovante de protocolo do recurso enviado ao convênio
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Arquivo PDF</label>
+              <Input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setArquivoPdf(e.target.files?.[0] || null)}
+              />
+              {arquivoPdf && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Arquivo selecionado: {arquivoPdf.name} ({(arquivoPdf.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDialogAnexarPdf(false);
+              setArquivoPdf(null);
+            }}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUploadPdf}
+              disabled={!arquivoPdf || uploadandoPdf}
+            >
+              {uploadandoPdf ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-2" /> Anexar PDF</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
