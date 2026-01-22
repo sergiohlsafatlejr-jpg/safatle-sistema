@@ -2641,6 +2641,108 @@ export async function getConciliacaoPorConvenio(filters: {
   return { itens: itensPaginados, resumo, total };
 }
 
+// Interface para conta agrupada na conciliação
+export interface ContaConciliacao {
+  guiaNumero: string;
+  numeroLote: string;
+  pacienteNome: string;
+  dataExecucao: string;
+  valorTotalFaturado: number;
+  valorTotalRecebido: number;
+  valorTotalGlosado: number;
+  status: "ok" | "glosado" | "nao_encontrado" | "parcial";
+  totalItens: number;
+  itens: ItemConciliacao[];
+}
+
+// Função para agrupar conciliação por conta
+export async function getConciliacaoAgrupadaPorConta(filters: {
+  convenioId: number;
+  userId: number;
+  estabelecimentoId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+  pagina?: number;
+  itensPorPagina?: number;
+}): Promise<{ contas: ContaConciliacao[]; resumo: ResumoConciliacao | null; total: number }> {
+  // Buscar todos os itens da conciliação
+  const resultado = await getConciliacaoPorConvenio({
+    ...filters,
+    pagina: 1,
+    itensPorPagina: 50000, // Buscar todos para agrupar
+  });
+
+  // Se não houver resumo, retornar vazio
+  if (!resultado.resumo) {
+    return { contas: [], resumo: null, total: 0 };
+  }
+
+  // Agrupar por guia (conta)
+  const contasMap = new Map<string, ContaConciliacao>();
+
+  for (const item of resultado.itens) {
+    const chave = item.guiaNumero || "SEM_GUIA";
+    
+    if (!contasMap.has(chave)) {
+      contasMap.set(chave, {
+        guiaNumero: item.guiaNumero,
+        numeroLote: item.numeroLote,
+        pacienteNome: item.pacienteNome,
+        dataExecucao: item.dataExecucao,
+        valorTotalFaturado: 0,
+        valorTotalRecebido: 0,
+        valorTotalGlosado: 0,
+        status: "ok",
+        totalItens: 0,
+        itens: [],
+      });
+    }
+
+    const conta = contasMap.get(chave)!;
+    conta.valorTotalFaturado += item.valorFaturado;
+    conta.valorTotalRecebido += item.valorPago;
+    conta.valorTotalGlosado += item.valorGlosado;
+    conta.totalItens++;
+    conta.itens.push(item);
+
+    // Atualizar status da conta
+    if (item.status === "nao_recebido") {
+      if (conta.status === "ok") {
+        conta.status = "nao_encontrado";
+      }
+    } else if (item.status === "glosado") {
+      if (conta.status === "ok" || conta.status === "nao_encontrado") {
+        conta.status = "glosado";
+      }
+    } else if (item.status === "divergente") {
+      if (conta.status === "ok") {
+        conta.status = "parcial";
+      }
+    }
+  }
+
+  // Converter para array e ordenar
+  const contasArray = Array.from(contasMap.values());
+  contasArray.sort((a, b) => {
+    // Ordenar por status (glosado primeiro, depois não encontrado, depois ok)
+    const statusOrder = { glosado: 0, nao_encontrado: 1, parcial: 2, ok: 3 };
+    if (statusOrder[a.status] !== statusOrder[b.status]) {
+      return statusOrder[a.status] - statusOrder[b.status];
+    }
+    return a.guiaNumero.localeCompare(b.guiaNumero);
+  });
+
+  // Aplicar paginação
+  const total = contasArray.length;
+  const pagina = filters.pagina || 1;
+  const itensPorPagina = filters.itensPorPagina || 50;
+  const inicio = (pagina - 1) * itensPorPagina;
+  const fim = inicio + itensPorPagina;
+  const contasPaginadas = contasArray.slice(inicio, fim);
+
+  return { contas: contasPaginadas, resumo: resultado.resumo, total };
+}
+
 // Função para buscar itens não recebidos (pendentes de pagamento)
 export async function getItensNaoRecebidos(filters: {
   convenioId?: number;

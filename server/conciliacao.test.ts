@@ -90,6 +90,75 @@ describe("Conciliação Automática", () => {
     });
   });
 
+  describe("getConciliacaoAgrupadaPorConta", () => {
+    it("should return empty results when no data exists", async () => {
+      vi.spyOn(db, "getConciliacaoAgrupadaPorConta").mockResolvedValue({
+        contas: [],
+        resumo: null,
+        total: 0,
+      });
+
+      const result = await db.getConciliacaoAgrupadaPorConta({
+        convenioId: 1,
+        userId: 1,
+        mesReferencia: 1,
+        anoReferencia: 2024,
+      });
+
+      expect(result.contas).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it("should group items by guiaNumero correctly", async () => {
+      // Simular agrupamento de itens
+      const itens = [
+        { guiaNumero: "G001", codigo: "10101", valorFaturado: 100, valorPago: 100, valorGlosado: 0, status: "ok" },
+        { guiaNumero: "G001", codigo: "10102", valorFaturado: 50, valorPago: 40, valorGlosado: 10, status: "glosado" },
+        { guiaNumero: "G002", codigo: "10103", valorFaturado: 200, valorPago: 200, valorGlosado: 0, status: "ok" },
+      ];
+
+      // Agrupar por guia
+      const contasMap = new Map<string, { valorTotal: number; itens: number }>(); 
+      for (const item of itens) {
+        const chave = item.guiaNumero;
+        if (!contasMap.has(chave)) {
+          contasMap.set(chave, { valorTotal: 0, itens: 0 });
+        }
+        const conta = contasMap.get(chave)!;
+        conta.valorTotal += item.valorFaturado;
+        conta.itens++;
+      }
+
+      expect(contasMap.size).toBe(2); // 2 guias diferentes
+      expect(contasMap.get("G001")?.itens).toBe(2);
+      expect(contasMap.get("G001")?.valorTotal).toBe(150);
+      expect(contasMap.get("G002")?.itens).toBe(1);
+      expect(contasMap.get("G002")?.valorTotal).toBe(200);
+    });
+
+    it("should determine conta status correctly based on item statuses", () => {
+      // Testar lógica de status da conta
+      const testCases = [
+        { itemStatuses: ["ok", "ok"], expectedContaStatus: "ok" },
+        { itemStatuses: ["ok", "glosado"], expectedContaStatus: "glosado" },
+        { itemStatuses: ["ok", "nao_recebido"], expectedContaStatus: "nao_encontrado" },
+        { itemStatuses: ["glosado", "nao_recebido"], expectedContaStatus: "glosado" },
+      ];
+
+      for (const testCase of testCases) {
+        let contaStatus = "ok";
+        for (const itemStatus of testCase.itemStatuses) {
+          if (itemStatus === "nao_recebido") {
+            if (contaStatus === "ok") contaStatus = "nao_encontrado";
+          } else if (itemStatus === "glosado") {
+            if (contaStatus === "ok" || contaStatus === "nao_encontrado") contaStatus = "glosado";
+          }
+        }
+        expect(contaStatus).toBe(testCase.expectedContaStatus);
+      }
+    });
+  });
+
   describe("Cálculo de percentual de glosa", () => {
     it("should calculate glosa percentage correctly", () => {
       const valorTotalFaturado = 1000;

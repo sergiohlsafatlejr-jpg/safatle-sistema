@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { 
   GitCompare, 
@@ -20,7 +21,12 @@ import {
   FileText,
   Search,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  ChevronLeft,
+  Eye,
+  AlertCircle,
+  CircleCheck,
+  CircleMinus
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
@@ -66,6 +72,19 @@ interface ItemConciliacao {
   status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido";
 }
 
+interface ContaConciliacao {
+  guiaNumero: string;
+  numeroLote: string;
+  pacienteNome: string;
+  dataExecucao: string;
+  valorTotalFaturado: number;
+  valorTotalRecebido: number;
+  valorTotalGlosado: number;
+  status: "ok" | "glosado" | "nao_encontrado" | "parcial";
+  totalItens: number;
+  itens: ItemConciliacao[];
+}
+
 interface ResumoConciliacao {
   convenioId: number;
   convenioNome: string;
@@ -83,7 +102,7 @@ interface ResumoConciliacao {
 }
 
 // Etapas do fluxo
-type Etapa = "selecao_periodo" | "resumo_convenios" | "detalhes_convenio";
+type Etapa = "selecao_periodo" | "resumo_convenios" | "lista_contas";
 
 export default function Conciliacao() {
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -93,12 +112,16 @@ export default function Conciliacao() {
   const [mesReferencia, setMesReferencia] = useState<string>("");
   const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
   
-  // Estado para detalhes do convênio
+  // Estado para lista de contas
   const [convenioId, setConvenioId] = useState<string>("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [busca, setBusca] = useState<string>("");
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 100;
+  const itensPorPagina = 50;
+
+  // Estado para modal de detalhes da conta
+  const [contaSelecionada, setContaSelecionada] = useState<ContaConciliacao | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
 
   // Memoize anos para evitar recriação a cada render
   const anos = useMemo(() => getAnos(), []);
@@ -115,21 +138,52 @@ export default function Conciliacao() {
     enabled: etapa !== "selecao_periodo" && !!mesReferencia && !!anoReferencia,
   });
 
-  // Buscar conciliação detalhada do convênio selecionado - com paginação
-  const { data: conciliacaoData, isLoading: isLoadingConciliacao, refetch } = trpc.conciliacao.porConvenio.useQuery(
+  // Buscar conciliação agrupada por conta
+  const { data: contasData, isLoading: isLoadingContas, refetch } = trpc.conciliacao.agrupadaPorConta.useQuery(
     { 
       convenioId: convenioId ? parseInt(convenioId) : 0,
       estabelecimentoId: estabelecimentoAtual?.id,
-      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
+      mesReferencia: mesReferencia ? parseInt(mesReferencia) : 1,
+      anoReferencia: anoReferencia ? parseInt(anoReferencia) : 2024,
       pagina: paginaAtual,
       itensPorPagina,
     },
-    { enabled: etapa === "detalhes_convenio" && !!convenioId }
+    { enabled: etapa === "lista_contas" && !!convenioId && !!mesReferencia && !!anoReferencia }
   );
 
   const formatCurrency = (value: number) => {
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  };
+
+  // Ícone de status da conta
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "ok":
+        return <CircleCheck className="h-5 w-5 text-green-500" />;
+      case "glosado":
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case "nao_encontrado":
+        return <AlertCircle className="h-5 w-5 text-amber-500" />;
+      case "parcial":
+        return <CircleMinus className="h-5 w-5 text-orange-500" />;
+      default:
+        return <AlertTriangle className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "ok":
+        return "100% Recebido";
+      case "glosado":
+        return "Com Glosa";
+      case "nao_encontrado":
+        return "Não Encontrado";
+      case "parcial":
+        return "Parcial";
+      default:
+        return status;
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -149,70 +203,62 @@ export default function Conciliacao() {
     }
   };
 
-  // Filtrar itens localmente (busca e status)
-  const itensFiltrados = useMemo(() => {
-    if (!conciliacaoData?.itens) return [];
+  // Filtrar contas localmente (busca e status)
+  const contasFiltradas = useMemo(() => {
+    if (!contasData?.contas) return [];
     
-    return conciliacaoData.itens.filter(item => {
+    return contasData.contas.filter(conta => {
       // Filtro de status
-      if (filtroStatus !== "todos" && item.status !== filtroStatus) return false;
+      if (filtroStatus !== "todos" && conta.status !== filtroStatus) return false;
       
       // Filtro de busca
       if (busca) {
         const termoBusca = busca.toLowerCase();
         return (
-          item.codigo.toLowerCase().includes(termoBusca) ||
-          item.descricao.toLowerCase().includes(termoBusca) ||
-          item.guiaNumero.toLowerCase().includes(termoBusca) ||
-          item.pacienteNome.toLowerCase().includes(termoBusca) ||
-          item.motivoGlosa.toLowerCase().includes(termoBusca)
+          conta.guiaNumero.toLowerCase().includes(termoBusca) ||
+          conta.pacienteNome.toLowerCase().includes(termoBusca) ||
+          conta.numeroLote.toLowerCase().includes(termoBusca)
         );
       }
       
       return true;
     });
-  }, [conciliacaoData?.itens, filtroStatus, busca]);
-
-  // Agrupar por guia
-  const itensAgrupados = useMemo(() => {
-    const grupos: { [key: string]: ItemConciliacao[] } = {};
-    for (const item of itensFiltrados) {
-      const chave = item.guiaNumero || "Sem Guia";
-      if (!grupos[chave]) {
-        grupos[chave] = [];
-      }
-      grupos[chave].push(item);
-    }
-    return grupos;
-  }, [itensFiltrados]);
+  }, [contasData?.contas, filtroStatus, busca]);
 
   const handleExportExcel = () => {
-    if (!conciliacaoData?.itens || conciliacaoData.itens.length === 0) {
+    if (!contasData?.contas || contasData.contas.length === 0) {
       toast.error("Nenhum dado para exportar");
       return;
     }
 
-    const excelData = conciliacaoData.itens.map(item => ({
-      "Guia": item.guiaNumero,
-      "Lote": item.numeroLote || "",
-      "Data Execução": item.dataExecucao,
-      "Código": item.codigo,
-      "Descrição": item.descricao,
-      "Paciente": item.pacienteNome,
-      "Valor Faturado": item.valorFaturado,
-      "Valor Pago": item.valorPago,
-      "Valor Glosado": item.valorGlosado,
-      "Motivo Glosa": item.motivoGlosa,
-      "Status": item.status === "ok" ? "OK" : 
-               item.status === "divergente" ? "Divergente" :
-               item.status === "glosado" ? "Glosado" : 
-               item.status === "nao_recebido" ? "Não Recebido" : "Não Encontrado",
-    }));
+    // Exportar todas as contas com seus itens
+    const excelData: any[] = [];
+    
+    for (const conta of contasData.contas) {
+      for (const item of conta.itens) {
+        excelData.push({
+          "Conta (Guia)": item.guiaNumero,
+          "Lote": item.numeroLote || "",
+          "Paciente": item.pacienteNome,
+          "Data Execução": item.dataExecucao,
+          "Código": item.codigo,
+          "Descrição": item.descricao,
+          "Valor Faturado": item.valorFaturado,
+          "Valor Pago": item.valorPago,
+          "Valor Glosado": item.valorGlosado,
+          "Motivo Glosa": item.motivoGlosa,
+          "Status": item.status === "ok" ? "OK" : 
+                   item.status === "divergente" ? "Divergente" :
+                   item.status === "glosado" ? "Glosado" : 
+                   item.status === "nao_recebido" ? "Não Recebido" : "Não Encontrado",
+        });
+      }
+    }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
     ws["!cols"] = [
-      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 30 },
+      { wch: 15 }, { wch: 12 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 50 },
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 15 }
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Conciliação");
@@ -234,7 +280,7 @@ export default function Conciliacao() {
   const handleSelecionarConvenio = (convId: string) => {
     setConvenioId(convId);
     setPaginaAtual(1);
-    setEtapa("detalhes_convenio");
+    setEtapa("lista_contas");
   };
 
   const handleVoltarResumo = () => {
@@ -253,8 +299,13 @@ export default function Conciliacao() {
     setEtapa("selecao_periodo");
   };
 
+  const handleAbrirDetalhes = (conta: ContaConciliacao) => {
+    setContaSelecionada(conta);
+    setModalAberto(true);
+  };
+
   // Calcular total de páginas
-  const totalPaginas = conciliacaoData?.total ? Math.ceil(conciliacaoData.total / itensPorPagina) : 1;
+  const totalPaginas = contasData?.total ? Math.ceil(contasData.total / itensPorPagina) : 1;
 
   return (
     <DashboardLayout>
@@ -415,45 +466,51 @@ export default function Conciliacao() {
           </div>
         )}
 
-        {/* ETAPA 3: Detalhes do Convênio */}
-        {etapa === "detalhes_convenio" && (
+        {/* ETAPA 3: Lista de Contas */}
+        {etapa === "lista_contas" && (
           <>
-            {/* Filtros */}
+            {/* Header com filtros */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitCompare className="h-5 w-5" />
-                  {convenios?.find(c => c.id === parseInt(convenioId))?.nome || "Convênio"}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    - {MESES.find(m => m.value === mesReferencia)?.label} / {anoReferencia}
-                  </span>
-                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={handleVoltarResumo}>
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <GitCompare className="h-5 w-5" />
+                      {convenios?.find(c => c.id === parseInt(convenioId))?.nome || "Convênio"}
+                    </CardTitle>
+                    <CardDescription>
+                      {MESES.find(m => m.value === mesReferencia)?.label} / {anoReferencia}
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Status</label>
+                    <label className="text-sm font-medium">Status da Conta</label>
                     <Select value={filtroStatus} onValueChange={setFiltroStatus}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        <SelectItem value="ok">OK</SelectItem>
-                        <SelectItem value="glosado">Glosado</SelectItem>
-                        <SelectItem value="divergente">Divergente</SelectItem>
+                        <SelectItem value="todos">Todas as Contas</SelectItem>
+                        <SelectItem value="ok">100% Recebido</SelectItem>
+                        <SelectItem value="glosado">Com Glosa</SelectItem>
                         <SelectItem value="nao_encontrado">Não Encontrado</SelectItem>
-                        <SelectItem value="nao_recebido">Não Recebido</SelectItem>
+                        <SelectItem value="parcial">Parcial</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium">Busca</label>
+                    <label className="text-sm font-medium">Buscar Conta</label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="Código, guia, paciente..."
+                        placeholder="Número da guia, paciente, lote..."
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
                         className="pl-9"
@@ -463,18 +520,15 @@ export default function Conciliacao() {
                 </div>
 
                 <div className="flex gap-2 mt-4">
-                  <Button variant="outline" onClick={handleVoltarResumo}>
-                    Voltar ao Resumo
-                  </Button>
                   <Button 
                     variant="outline" 
                     onClick={() => refetch()}
-                    disabled={isLoadingConciliacao}
+                    disabled={isLoadingContas}
                   >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingConciliacao ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingContas ? 'animate-spin' : ''}`} />
                     Atualizar
                   </Button>
-                  <Button onClick={handleExportExcel} disabled={!conciliacaoData?.itens?.length}>
+                  <Button onClick={handleExportExcel} disabled={!contasData?.contas?.length}>
                     <Download className="h-4 w-4 mr-2" />
                     Exportar Excel
                   </Button>
@@ -482,16 +536,16 @@ export default function Conciliacao() {
               </CardContent>
             </Card>
 
-            {/* Cards de resumo do convênio selecionado */}
-            {conciliacaoData?.resumo && (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {/* Cards de resumo */}
+            {contasData?.resumo && (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-2">
                       <FileText className="h-5 w-5 text-blue-600" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Enviados</p>
-                        <p className="text-2xl font-bold">{conciliacaoData.resumo.totalEnviados}</p>
+                        <p className="text-sm text-muted-foreground">Total Contas</p>
+                        <p className="text-2xl font-bold">{contasData.total}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -503,7 +557,7 @@ export default function Conciliacao() {
                       <DollarSign className="h-5 w-5 text-blue-600" />
                       <div>
                         <p className="text-sm text-muted-foreground">Faturado</p>
-                        <p className="text-lg font-bold text-blue-600">{formatCurrency(conciliacaoData.resumo.valorTotalFaturado)}</p>
+                        <p className="text-lg font-bold text-blue-600">{formatCurrency(contasData.resumo.valorTotalFaturado)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -514,8 +568,8 @@ export default function Conciliacao() {
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Pago</p>
-                        <p className="text-lg font-bold text-green-600">{formatCurrency(conciliacaoData.resumo.valorTotalPago)}</p>
+                        <p className="text-sm text-muted-foreground">Recebido</p>
+                        <p className="text-lg font-bold text-green-600">{formatCurrency(contasData.resumo.valorTotalPago)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -527,7 +581,7 @@ export default function Conciliacao() {
                       <XCircle className="h-5 w-5 text-red-600" />
                       <div>
                         <p className="text-sm text-muted-foreground">Glosado</p>
-                        <p className="text-lg font-bold text-red-600">{formatCurrency(conciliacaoData.resumo.valorTotalGlosado)}</p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(contasData.resumo.valorTotalGlosado)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -539,7 +593,7 @@ export default function Conciliacao() {
                       <AlertTriangle className="h-5 w-5 text-orange-600" />
                       <div>
                         <p className="text-sm text-muted-foreground">Não Recebido</p>
-                        <p className="text-lg font-bold text-orange-600">{formatCurrency(conciliacaoData.resumo.valorTotalNaoRecebido || 0)}</p>
+                        <p className="text-lg font-bold text-orange-600">{formatCurrency(contasData.resumo.valorTotalNaoRecebido || 0)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -551,19 +605,7 @@ export default function Conciliacao() {
                       <TrendingDown className="h-5 w-5 text-amber-600" />
                       <div>
                         <p className="text-sm text-muted-foreground">% Glosa</p>
-                        <p className="text-2xl font-bold text-amber-600">{conciliacaoData.resumo.percentualGlosa.toFixed(1)}%</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-600" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Divergentes</p>
-                        <p className="text-2xl font-bold">{conciliacaoData.resumo.totalDivergentes}</p>
+                        <p className="text-2xl font-bold text-amber-600">{contasData.resumo.percentualGlosa.toFixed(1)}%</p>
                       </div>
                     </div>
                   </CardContent>
@@ -571,98 +613,90 @@ export default function Conciliacao() {
               </div>
             )}
 
-            {/* Tabela de itens */}
+            {/* Lista de Contas */}
             <Card>
               <CardHeader>
                 <CardTitle>
-                  Detalhes da Conciliação
-                  {conciliacaoData?.total && (
+                  Lista de Contas
+                  {contasData?.total && (
                     <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      ({conciliacaoData.total} itens total - Página {paginaAtual} de {totalPaginas})
+                      ({contasData.total} contas - Página {paginaAtual} de {totalPaginas})
                     </span>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Comparação item a item entre valores faturados e pagos
+                  Clique em uma conta para ver os detalhes dos procedimentos
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingConciliacao ? (
+                {isLoadingContas ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : itensFiltrados.length > 0 ? (
+                ) : contasFiltradas.length > 0 ? (
                   <>
                     <div className="rounded-md border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[120px]">Guia</TableHead>
-                            <TableHead className="w-[100px]">Lote</TableHead>
+                            <TableHead className="w-[50px]">Status</TableHead>
+                            <TableHead className="w-[120px]">Conta (Guia)</TableHead>
+                            <TableHead>Paciente</TableHead>
                             <TableHead className="w-[100px]">Data</TableHead>
-                            <TableHead className="w-[100px]">Código</TableHead>
-                            <TableHead>Descrição</TableHead>
-                            <TableHead className="w-[150px]">Paciente</TableHead>
-                            <TableHead className="w-[120px] text-right">Faturado</TableHead>
-                            <TableHead className="w-[120px] text-right">Pago</TableHead>
-                            <TableHead className="w-[120px] text-right">Glosado</TableHead>
-                            <TableHead className="w-[200px]">Motivo Glosa</TableHead>
-                            <TableHead className="w-[120px]">Status</TableHead>
+                            <TableHead className="w-[80px] text-center">Itens</TableHead>
+                            <TableHead className="w-[130px] text-right">Faturado</TableHead>
+                            <TableHead className="w-[130px] text-right">Recebido</TableHead>
+                            <TableHead className="w-[130px] text-right">Glosado</TableHead>
+                            <TableHead className="w-[80px]">Ação</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {Object.entries(itensAgrupados).map(([guia, itens]) => (
-                            <>
-                              {/* Cabeçalho do grupo */}
-                              <TableRow key={`header-${guia}`} className="bg-muted/50">
-                                <TableCell colSpan={11} className="font-semibold">
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4" />
-                                    Guia: {guia}
-                                    <span className="text-muted-foreground font-normal">
-                                      ({itens.length} procedimentos)
-                                    </span>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                              {/* Itens do grupo */}
-                              {itens.map((item, idx) => (
-                                <TableRow 
-                                  key={`${guia}-${idx}`}
-                                  className={
-                                    item.status === "glosado" ? "bg-red-50 dark:bg-red-950/20" :
-                                    item.status === "nao_encontrado" ? "bg-gray-50 dark:bg-gray-950/20" :
-                                    item.status === "divergente" ? "bg-amber-50 dark:bg-amber-950/20" :
-                                    item.status === "nao_recebido" ? "bg-orange-50 dark:bg-orange-950/20" :
-                                    ""
-                                  }
+                          {contasFiltradas.map((conta, idx) => (
+                            <TableRow 
+                              key={`${conta.guiaNumero}-${idx}`}
+                              className={`cursor-pointer hover:bg-muted/50 ${
+                                conta.status === "glosado" ? "bg-red-50/50 dark:bg-red-950/20" :
+                                conta.status === "nao_encontrado" ? "bg-amber-50/50 dark:bg-amber-950/20" :
+                                conta.status === "parcial" ? "bg-orange-50/50 dark:bg-orange-950/20" :
+                                ""
+                              }`}
+                              onClick={() => handleAbrirDetalhes(conta)}
+                            >
+                              <TableCell>
+                                <div className="flex items-center justify-center" title={getStatusLabel(conta.status)}>
+                                  {getStatusIcon(conta.status)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-medium">{conta.guiaNumero || "Sem Guia"}</TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={conta.pacienteNome}>
+                                {conta.pacienteNome}
+                              </TableCell>
+                              <TableCell>{conta.dataExecucao}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="secondary">{conta.totalItens}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {formatCurrency(conta.valorTotalFaturado)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-green-600">
+                                {formatCurrency(conta.valorTotalRecebido)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-red-600">
+                                {conta.valorTotalGlosado > 0 ? formatCurrency(conta.valorTotalGlosado) : "-"}
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAbrirDetalhes(conta);
+                                  }}
                                 >
-                                  <TableCell className="text-muted-foreground text-sm">{item.guiaNumero}</TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">{item.numeroLote || "-"}</TableCell>
-                                  <TableCell>{item.dataExecucao}</TableCell>
-                                  <TableCell className="font-mono text-sm">{item.codigo}</TableCell>
-                                  <TableCell className="max-w-[300px] truncate" title={item.descricao}>
-                                    {item.descricao}
-                                  </TableCell>
-                                  <TableCell className="max-w-[150px] truncate" title={item.pacienteNome}>
-                                    {item.pacienteNome}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {formatCurrency(item.valorFaturado)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono text-green-600">
-                                    {formatCurrency(item.valorPago)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono text-red-600">
-                                    {item.valorGlosado > 0 ? formatCurrency(item.valorGlosado) : "-"}
-                                  </TableCell>
-                                  <TableCell className="max-w-[200px] truncate text-sm" title={item.motivoGlosa}>
-                                    {item.motivoGlosa || "-"}
-                                  </TableCell>
-                                  <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
                           ))}
                         </TableBody>
                       </Table>
@@ -696,13 +730,101 @@ export default function Conciliacao() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <GitCompare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhum item encontrado para os filtros selecionados.</p>
+                    <p>Nenhuma conta encontrada para os filtros selecionados.</p>
                   </div>
                 )}
               </CardContent>
             </Card>
           </>
         )}
+
+        {/* Modal de Detalhes da Conta */}
+        <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {contaSelecionada && getStatusIcon(contaSelecionada.status)}
+                Detalhes da Conta: {contaSelecionada?.guiaNumero || "Sem Guia"}
+              </DialogTitle>
+              <DialogDescription>
+                Paciente: {contaSelecionada?.pacienteNome} • Data: {contaSelecionada?.dataExecucao}
+              </DialogDescription>
+            </DialogHeader>
+
+            {contaSelecionada && (
+              <div className="space-y-4">
+                {/* Resumo da conta */}
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-sm text-muted-foreground">Valor Faturado</p>
+                      <p className="text-xl font-bold text-blue-600">{formatCurrency(contaSelecionada.valorTotalFaturado)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-sm text-muted-foreground">Valor Recebido</p>
+                      <p className="text-xl font-bold text-green-600">{formatCurrency(contaSelecionada.valorTotalRecebido)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-sm text-muted-foreground">Valor Glosado</p>
+                      <p className="text-xl font-bold text-red-600">{formatCurrency(contaSelecionada.valorTotalGlosado)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Tabela de itens */}
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[100px]">Código</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className="w-[100px]">Data</TableHead>
+                        <TableHead className="w-[110px] text-right">Faturado</TableHead>
+                        <TableHead className="w-[110px] text-right">Recebido</TableHead>
+                        <TableHead className="w-[110px] text-right">Glosado</TableHead>
+                        <TableHead className="w-[100px]">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contaSelecionada.itens.map((item, idx) => (
+                        <TableRow 
+                          key={idx}
+                          className={
+                            item.status === "glosado" ? "bg-red-50 dark:bg-red-950/20" :
+                            item.status === "nao_recebido" ? "bg-orange-50 dark:bg-orange-950/20" :
+                            item.status === "divergente" ? "bg-amber-50 dark:bg-amber-950/20" :
+                            ""
+                          }
+                        >
+                          <TableCell className="font-mono text-sm">{item.codigo}</TableCell>
+                          <TableCell className="max-w-[250px]">
+                            <div className="truncate" title={item.descricao}>{item.descricao}</div>
+                            {item.motivoGlosa && (
+                              <div className="text-xs text-red-600 mt-1 truncate" title={item.motivoGlosa}>
+                                {item.motivoGlosa}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>{item.dataExecucao}</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(item.valorFaturado)}</TableCell>
+                          <TableCell className="text-right font-mono text-green-600">{formatCurrency(item.valorPago)}</TableCell>
+                          <TableCell className="text-right font-mono text-red-600">
+                            {item.valorGlosado > 0 ? formatCurrency(item.valorGlosado) : "-"}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(item.status)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

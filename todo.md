@@ -408,3 +408,11 @@
 - [x] Criar tela de relatório com filtros por convênio, período e estabelecimento
 - [x] Adicionar métricas: total de itens, valor total pendente, resumo por convênio
 - [x] Adicionar exportação para Excel
+
+
+## Refatoração da Tela de Conciliação - Lista de Contas
+- [x] Criar função no backend para agrupar dados por conta com totais (faturado, recebido, glosado)
+- [x] Criar lista de contas com colunas: Conta, Nome, Data, Valor Faturado, Valor Recebido, Valor Glosado
+- [x] Adicionar alertas visuais: vermelho (glosa), verde (sem glosa), amarelo (não encontrada)
+- [x] Implementar modal de detalhes ao clicar na conta
+- [x] Mostrar itens da conta com: Valor Faturado, Valor Recebido, Valor da Glosa
