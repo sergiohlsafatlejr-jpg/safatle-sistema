@@ -480,3 +480,11 @@
 - [x] Analisar código de conciliação e identificar gargalos de performance
 - [x] Implementar otimizações (queries com IN, HashMap para lookup O(1))
 - [ ] Adicionar indicador de progresso durante o processamento (pendente)
+
+
+## Bug - Erro NotFoundError removeChild
+- [ ] Investigar erro "NotFoundError: Falha ao executar 'removeChild'" no frontend (pendente - precisa de mais informações sobre qual tela)
+
+## Padrão de Envio de Recurso de Glosa - Unimed
+- [x] Criar modelo/template de recurso de glosa específico para Unimed
+- [x] Implementar formato padrão de exportação Excel com campos: Seq, Protocolo(DP), Nº Guia, Seq(DP), Nome Beneficiário, Cód.Beneficiário, Data Atendto, Período Atendto, Código Serviço, Descrição, Participação, Qtde, Valor Recursado, Local Atendimento, Motivo da Glosa, Justificativa para o pagamento, Anexo, Qtde Acatado, Valor Acatado, Pago pelo código, Observações

@@ -178,21 +178,29 @@ export default function AcompanhamentoRecursos() {
   const exportarLoteMutation = trpc.recursos.exportarLote.useMutation({
     onSuccess: (data) => {
       setExportandoLote(null);
-      // Criar workbook Excel com os dados do lote
+      // Criar workbook Excel com os dados do lote - Padrão Unimed
       const dadosFormatados = data.recursos.map((r: any) => ({
-        "Nº": r.numero,
-        "Paciente": r.paciente,
-        "Guia": r.guia,
-        "Carteirinha": r.carteirinha || "N/A",
-        "Data do Item": r.dataItem,
-        "Valor Glosado": r.valorGlosado,
+        "Seq.": r.sequencial,
+        "Protocolo (DP)": r.protocoloDP,
+        "Nº Guia": r.guia,
+        "Seq. (DP)": r.seqDP,
+        "Nome do Beneficiário": r.paciente,
+        "Cód.Beneficiário": r.codigoBeneficiario,
+        "Data Atendto": r.dataAtendimento,
+        "Período Atendto": r.periodoAtendimento,
+        "Código Serviço": r.codigoServico,
+        "Descrição": r.descricao,
+        "Participação": r.participacao,
+        "Qtde": r.quantidade,
         "Valor Recursado": r.valorRecursado,
+        "Local Atendimento": r.localAtendimento,
         "Motivo da Glosa": r.motivoGlosa,
-        "Descrição do Recurso": r.descricaoRecurso,
-        "Código Procedimento": r.codigoProcedimento,
-        "Descrição Procedimento": r.descricaoProcedimento,
-        "Status": r.status,
-        "Valor Recuperado": r.valorRecuperado,
+        "Justificativa para o pagamento": r.justificativaPagamento,
+        "Anexo": r.anexo,
+        "Qtde Acatado": r.qtdeAcatado,
+        "Valor Acatado": r.valorAcatado,
+        "Pago pelo código": r.pagoPeloCodigo,
+        "Observações": r.observacoes,
       }));
       
       const ws = XLSX.utils.json_to_sheet(dadosFormatados);

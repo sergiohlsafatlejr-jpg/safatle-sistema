@@ -9258,21 +9258,40 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     ? await db.select().from(convenios).where(eq(convenios.id, lote.convenioId)).limit(1)
     : [null];
 
-  // Formatar dados para exportação
+  // Formatar dados para exportação - Padrão Unimed
   const dadosExportacao = recursosDoLote.map((recurso, index) => ({
+    // Campos padrão
     numero: index + 1,
     paciente: recurso.pacienteNome || "N/A",
     guia: recurso.guiaNumero || "N/A",
     carteirinha: recurso.pacienteCarteirinha || "N/A",
     dataItem: recurso.dataGlosa ? new Date(recurso.dataGlosa).toLocaleDateString("pt-BR") : "N/A",
     valorGlosado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0,
-    valorRecursado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0, // Valor recursado = valor glosado inicialmente
+    valorRecursado: recurso.valorGlosado ? parseFloat(recurso.valorGlosado) : 0,
     motivoGlosa: recurso.motivoGlosaConvenio || "N/A",
     descricaoRecurso: recurso.justificativaRecurso || "N/A",
     codigoProcedimento: recurso.codigoProcedimento || "N/A",
     descricaoProcedimento: recurso.descricaoProcedimento || "N/A",
     status: recurso.status,
     valorRecuperado: recurso.valorRecuperado ? parseFloat(recurso.valorRecuperado) : 0,
+    // Campos adicionais para padrão Unimed
+    sequencial: index + 1,
+    protocoloDP: lote.protocoloEnvio || "",
+    seqDP: recurso.guiaNumero || "",
+    codigoBeneficiario: recurso.pacienteCarteirinha || "",
+    dataAtendimento: recurso.dataGlosa ? new Date(recurso.dataGlosa).toLocaleDateString("pt-BR") : "",
+    periodoAtendimento: recurso.dataGlosa ? new Date(recurso.dataGlosa).toLocaleDateString("pt-BR") : "",
+    codigoServico: recurso.codigoProcedimento || "",
+    descricao: recurso.descricaoProcedimento || "",
+    participacao: "",
+    quantidade: 1, // Quantidade padrão
+    localAtendimento: "",
+    justificativaPagamento: recurso.justificativaRecurso || "",
+    anexo: "",
+    qtdeAcatado: 0,
+    valorAcatado: 0,
+    pagoPeloCodigo: "",
+    observacoes: "",
   }));
 
   // Calcular totais
