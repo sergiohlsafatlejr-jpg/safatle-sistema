@@ -424,3 +424,14 @@
 - [x] Criar lote automático ao enviar recursos (agrupar itens enviados)
 - [x] Corrigir botão de exportação (Excel/PDF) na tela de acompanhamento de recursos
 - [x] Garantir que lotes criados apareçam na tela de acompanhamento
+
+
+## Documentação do Fluxo de Recursos de Glosa
+- [x] Verificar localização do botão "Criar Recurso em Lote" na tela de Análise de Glosa
+
+
+## Bug - Tela de Envio em Lote não mostra recursos
+- [x] Verificar por que recursos criados não aparecem na tela de Envio em Lote
+- [x] Corrigir filtro de status ou query para exibir recursos corretamente
+- [x] Adicionar estabelecimentoId ao criar recursos em lote
+- [x] Modificar query para incluir recursos sem estabelecimentoId definido

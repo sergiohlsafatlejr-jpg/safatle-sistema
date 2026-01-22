@@ -8956,9 +8956,14 @@ export async function getRecursosAgrupadosPorConvenio(params: {
     );
   }
 
-  // Filtrar por estabelecimento
+  // Filtrar por estabelecimento (ou recursos sem estabelecimento definido)
   if (params.estabelecimentoId) {
-    conditions.push(eq(recursosGlosa.estabelecimentoId, params.estabelecimentoId));
+    conditions.push(
+      or(
+        eq(recursosGlosa.estabelecimentoId, params.estabelecimentoId),
+        isNull(recursosGlosa.estabelecimentoId)
+      )!
+    );
   }
 
   // Filtrar recursos sem lote (ainda não enviados em lote)

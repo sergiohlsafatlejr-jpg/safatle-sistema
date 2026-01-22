@@ -1525,6 +1525,7 @@ export const appRouter = router({
             z.object({
               procedimentoId: z.number().optional(), // ID do procedimento para marcar como "recurso criado"
               convenioId: z.number(),
+              estabelecimentoId: z.number().optional(), // ID do estabelecimento
               codigoProcedimento: z.string().optional(),
               descricaoProcedimento: z.string().optional(),
               guiaNumero: z.string().optional(),
@@ -1534,6 +1535,7 @@ export const appRouter = router({
               motivoGlosaConvenio: z.string().optional(),
             })
           ),
+          estabelecimentoId: z.number().optional(), // ID do estabelecimento (para todos os itens)
           justificativaRecurso: z.string(),
           prioridade: z.enum(["baixa", "media", "alta", "urgente"]).default("media"),
         })
@@ -1556,6 +1558,7 @@ export const appRouter = router({
 
             const id = await db.createRecursoGlosa({
               ...item,
+              estabelecimentoId: item.estabelecimentoId || input.estabelecimentoId,
               justificativaRecurso: input.justificativaRecurso,
               prioridade: input.prioridade,
               userId: ctx.user.id,

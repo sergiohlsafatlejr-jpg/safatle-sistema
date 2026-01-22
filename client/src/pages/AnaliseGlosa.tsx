@@ -407,6 +407,7 @@ export default function AnaliseGlosa() {
       itens: itens.map(item => ({
         procedimentoId: item.id, // ID do procedimento para marcar como "recurso criado"
         convenioId: item.convenioId,
+        estabelecimentoId: estabelecimentoAtual?.id,
         codigoProcedimento: item.codigo,
         descricaoProcedimento: item.descricao || "",
         valorGlosado: item.valorGlosado.toString(),
@@ -415,6 +416,7 @@ export default function AnaliseGlosa() {
         pacienteNome: item.pacienteNome,
         guiaNumero: item.guiaNumero,
       })),
+      estabelecimentoId: estabelecimentoAtual?.id,
       justificativaRecurso: `${recursoForm.motivo}\n\n${recursoForm.argumento}`,
       prioridade: recursoForm.prioridade,
     });
