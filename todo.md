@@ -556,3 +556,20 @@
 - [ ] Criar tela de conciliação com DataFrame unificado
 - [ ] Destacar em vermelho linhas com DIFERENÇA > 0
 - [ ] Adicionar testes automatizados
+
+
+## Melhoria do Parser XML de Retorno e Drill-down
+- [ ] Implementar parser com namespace TISS (http://www.ans.gov.br/padroes/tiss/schemas)
+- [ ] Extrair relacaoGuias do XML de retorno
+- [ ] Extrair valorInformado, valorLiberado de cada guia
+- [ ] Extrair codigoGlosa e descricaoGlosa de cada item
+- [ ] Adicionar drill-down para expandir itens de cada guia na Conciliação Tasy
+- [ ] Mostrar detalhes dos itens ao clicar em uma guia
+- [ ] Adicionar testes automatizados para o novo parser
+
+## Melhoria do Parser XML de Retorno e Drill-down
+- [x] Melhorar parser para extrair valorInformado, valorLiberado, codigoGlosa, descricaoGlosa
+- [x] Implementar drill-down nos itens da Conciliação Tasy
+- [x] Agrupar itens por guia com expansão/colapso
+- [x] Adicionar modal de detalhes da guia com todos os itens
+- [x] Destacar em vermelho linhas com diferença > 0

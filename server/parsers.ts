@@ -215,6 +215,7 @@ function findDemonstrativosRetorno(obj: unknown): unknown[] {
 /**
  * Extract procedimentos from demonstrativo de retorno
  * Structure: dadosConta -> dadosProtocolo -> relacaoGuias -> detalhesGuia
+ * Namespace TISS: http://www.ans.gov.br/padroes/tiss/schemas
  */
 function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedProcedimento[] {
   if (!demonstrativo || typeof demonstrativo !== "object") return [];
@@ -247,7 +248,9 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
       const guiaNumero = getTextValue(guiaRecord["numeroGuiaPrestador"]) || 
                          getTextValue(guiaRecord["numeroGuiaOperadora"]);
       const pacienteCarteirinha = getTextValue(guiaRecord["numeroCarteira"]);
+      const pacienteNome = getTextValue(guiaRecord["nomeBeneficiario"]);
       const senha = getTextValue(guiaRecord["senha"]);
+      const atendimento = getTextValue(guiaRecord["numeroAtendimento"]);
       
       // Get motivos de glosa da guia
       let motivosGlosaGuia: string[] = [];
@@ -318,6 +321,14 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
           valorGlosado = Math.max(0, valorInformado - valorLiberado);
         }
         
+        // Extrair código de glosa do relacaoGlosa
+        let codigoGlosa = '';
+        let descricaoGlosa = '';
+        if (relacaoGlosa) {
+          codigoGlosa = getTextValue(relacaoGlosa["codigoGlosa"]) || getTextValue(relacaoGlosa["tipoGlosa"]) || '';
+          descricaoGlosa = getTextValue(relacaoGlosa["descricaoGlosa"]) || '';
+        }
+        
         procedimentos.push({
           codigo,
           descricao,
@@ -327,6 +338,7 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
           dataExecucao: dataRealizacao,
           guiaNumero,
           senha,
+          pacienteNome,
           pacienteCarteirinha,
           motivoGlosa: motivoGlosa || undefined,
           valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
@@ -336,6 +348,9 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
             valorLiberado,
             valorGlosado: valorGlosado > 0 ? valorGlosado : undefined,
             motivoGlosa: motivoGlosa || undefined,
+            codigoGlosa: codigoGlosa || undefined,
+            descricaoGlosa: descricaoGlosa || undefined,
+            atendimento: atendimento || undefined,
           },
         });
       }

@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -29,7 +29,15 @@ import {
   TrendingUp,
   DollarSign,
   FileText,
-  Search
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  User,
+  Stethoscope,
+  Building2,
+  Hash,
+  Calendar
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
@@ -49,6 +57,29 @@ interface ItemConciliacao {
   diferenca: number;
   motivoGlosa: string;
   codigoGlosa: string;
+  descricaoGlosa: string;
+  status: 'ok' | 'glosa' | 'divergencia' | 'nao_encontrado';
+  quantidade: number;
+  dataExecucao?: string;
+  tipo: string;
+}
+
+// Interface para guia agrupada
+interface GuiaAgrupada {
+  guia: string;
+  atendimento: string;
+  paciente: string;
+  medico: string;
+  setor: string;
+  itens: ItemConciliacao[];
+  valorTotalTasy: number;
+  valorTotalXmlInformado: number;
+  valorTotalXmlLiberado: number;
+  valorTotalDiferenca: number;
+  totalGlosas: number;
+  totalDivergencias: number;
+  totalOk: number;
+  totalNaoEncontrados: number;
   status: 'ok' | 'glosa' | 'divergencia' | 'nao_encontrado';
 }
 
@@ -60,8 +91,9 @@ export default function ConciliacaoTasy() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const [conciliando, setConciliando] = useState(false);
-  const pageSize = 50;
+  const [expandedGuias, setExpandedGuias] = useState<Set<string>>(new Set());
+  const [selectedGuia, setSelectedGuia] = useState<GuiaAgrupada | null>(null);
+  const pageSize = 20;
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
@@ -70,7 +102,7 @@ export default function ConciliacaoTasy() {
   const { data: arquivos } = trpc.arquivos.list.useQuery(
     { 
       convenioId: convenioId ? parseInt(convenioId) : undefined,
-      direcao: 'retornado' // Filtrar apenas arquivos de retorno
+      direcao: 'retornado'
     },
     { enabled: true }
   );
@@ -130,6 +162,7 @@ export default function ConciliacaoTasy() {
       const valorGlosado = parseFloat(procXML.valorGlosado || '0');
       const motivoGlosa = procXML.motivoGlosa || '';
       const codigoGlosa = String(dadosExtras?.codigoGlosa || '');
+      const descricaoGlosa = String(dadosExtras?.descricaoGlosa || '');
 
       // Determinar status
       let status: ItemConciliacao['status'] = 'ok';
@@ -154,41 +187,101 @@ export default function ConciliacaoTasy() {
         valorXmlLiberado,
         diferenca,
         motivoGlosa,
-        codigoGlosa: String(codigoGlosa),
+        codigoGlosa,
+        descricaoGlosa,
         status,
+        quantidade: procXML.quantidade || 1,
+        dataExecucao: procXML.dataExecucao ? new Date(procXML.dataExecucao).toLocaleDateString('pt-BR') : undefined,
+        tipo: itemTasy?.tipo || 'PROCEDIMENTO',
       });
     }
 
     return itens;
   }, [dadosTasy, procedimentosXML]);
 
-  // Filtrar itens
-  const itensFiltrados = useMemo(() => {
-    let filtrados = [...itensConciliacao];
+  // Agrupar itens por guia
+  const guiasAgrupadas = useMemo(() => {
+    const guiasMap = new Map<string, GuiaAgrupada>();
+
+    for (const item of itensConciliacao) {
+      if (!guiasMap.has(item.guia)) {
+        guiasMap.set(item.guia, {
+          guia: item.guia,
+          atendimento: item.atendimento,
+          paciente: item.paciente,
+          medico: item.medico,
+          setor: item.setor,
+          itens: [],
+          valorTotalTasy: 0,
+          valorTotalXmlInformado: 0,
+          valorTotalXmlLiberado: 0,
+          valorTotalDiferenca: 0,
+          totalGlosas: 0,
+          totalDivergencias: 0,
+          totalOk: 0,
+          totalNaoEncontrados: 0,
+          status: 'ok',
+        });
+      }
+
+      const guia = guiasMap.get(item.guia)!;
+      guia.itens.push(item);
+      guia.valorTotalTasy += item.valorTasy;
+      guia.valorTotalXmlInformado += item.valorXmlInformado;
+      guia.valorTotalXmlLiberado += item.valorXmlLiberado;
+      guia.valorTotalDiferenca += item.diferenca;
+
+      if (item.status === 'glosa') guia.totalGlosas++;
+      else if (item.status === 'divergencia') guia.totalDivergencias++;
+      else if (item.status === 'nao_encontrado') guia.totalNaoEncontrados++;
+      else guia.totalOk++;
+
+      // Atualizar paciente/medico/setor se ainda não definido
+      if (guia.paciente === '-' && item.paciente !== '-') guia.paciente = item.paciente;
+      if (guia.medico === '-' && item.medico !== '-') guia.medico = item.medico;
+      if (guia.setor === '-' && item.setor !== '-') guia.setor = item.setor;
+    }
+
+    // Determinar status da guia
+    guiasMap.forEach((guia) => {
+      if (guia.totalGlosas > 0) guia.status = 'glosa';
+      else if (guia.totalDivergencias > 0) guia.status = 'divergencia';
+      else if (guia.totalNaoEncontrados > 0) guia.status = 'nao_encontrado';
+      else guia.status = 'ok';
+    });
+
+    const guiasArray: GuiaAgrupada[] = [];
+    guiasMap.forEach(guia => guiasArray.push(guia));
+    return guiasArray;
+  }, [itensConciliacao]);
+
+  // Filtrar guias
+  const guiasFiltradas = useMemo(() => {
+    let filtradas = [...guiasAgrupadas];
 
     // Filtrar por status
     if (statusFiltro !== 'all') {
-      filtrados = filtrados.filter(i => i.status === statusFiltro);
+      filtradas = filtradas.filter(g => g.status === statusFiltro);
     }
 
     // Filtrar por busca
     if (searchTerm) {
       const termo = searchTerm.toLowerCase();
-      filtrados = filtrados.filter(i => 
-        i.guia.toLowerCase().includes(termo) ||
-        i.paciente.toLowerCase().includes(termo) ||
-        i.codigo.toLowerCase().includes(termo) ||
-        i.descricao.toLowerCase().includes(termo)
+      filtradas = filtradas.filter(g => 
+        g.guia.toLowerCase().includes(termo) ||
+        g.paciente.toLowerCase().includes(termo) ||
+        g.atendimento.toLowerCase().includes(termo) ||
+        g.itens.some((i: ItemConciliacao) => i.codigo.toLowerCase().includes(termo) || i.descricao.toLowerCase().includes(termo))
       );
     }
 
-    return filtrados;
-  }, [itensConciliacao, statusFiltro, searchTerm]);
+    return filtradas;
+  }, [guiasAgrupadas, statusFiltro, searchTerm]);
 
   // Paginação
-  const totalItens = itensFiltrados.length;
-  const totalPages = Math.ceil(totalItens / pageSize);
-  const itensPaginados = itensFiltrados.slice((page - 1) * pageSize, page * pageSize);
+  const totalGuias = guiasFiltradas.length;
+  const totalPages = Math.ceil(totalGuias / pageSize);
+  const guiasPaginadas = guiasFiltradas.slice((page - 1) * pageSize, page * pageSize);
 
   // Estatísticas
   const estatisticas = useMemo(() => {
@@ -206,6 +299,7 @@ export default function ConciliacaoTasy() {
 
     return {
       total,
+      totalGuias: guiasAgrupadas.length,
       ok,
       glosas,
       divergencias,
@@ -217,12 +311,22 @@ export default function ConciliacaoTasy() {
       valorTotalDiferenca,
       percentualGlosa: valorTotalXmlInformado > 0 ? (valorTotalGlosado / valorTotalXmlInformado) * 100 : 0,
     };
-  }, [itensConciliacao]);
+  }, [itensConciliacao, guiasAgrupadas]);
+
+  const toggleGuiaExpanded = (guia: string) => {
+    const newExpanded = new Set(expandedGuias);
+    if (newExpanded.has(guia)) {
+      newExpanded.delete(guia);
+    } else {
+      newExpanded.add(guia);
+    }
+    setExpandedGuias(newExpanded);
+  };
 
   const handleExportExcel = () => {
-    if (!itensFiltrados.length) return;
+    if (!itensConciliacao.length) return;
 
-    const excelData = itensFiltrados.map((item) => ({
+    const excelData = itensConciliacao.map((item) => ({
       "Guia": item.guia,
       "Atendimento": item.atendimento,
       "Paciente": item.paciente,
@@ -230,6 +334,9 @@ export default function ConciliacaoTasy() {
       "Setor": item.setor,
       "Código": item.codigo,
       "Descrição": item.descricao,
+      "Quantidade": item.quantidade,
+      "Tipo": item.tipo,
+      "Data Execução": item.dataExecucao || '-',
       "Valor Tasy": item.valorTasy,
       "Valor XML Informado": item.valorXmlInformado,
       "Valor XML Liberado": item.valorXmlLiberado,
@@ -245,20 +352,10 @@ export default function ConciliacaoTasy() {
     const ws = XLSX.utils.json_to_sheet(excelData);
 
     ws["!cols"] = [
-      { wch: 15 },  // Guia
-      { wch: 15 },  // Atendimento
-      { wch: 30 },  // Paciente
-      { wch: 25 },  // Médico
-      { wch: 20 },  // Setor
-      { wch: 15 },  // Código
-      { wch: 40 },  // Descrição
-      { wch: 15 },  // Valor Tasy
-      { wch: 18 },  // Valor XML Informado
-      { wch: 18 },  // Valor XML Liberado
-      { wch: 15 },  // Diferença
-      { wch: 15 },  // Código Glosa
-      { wch: 40 },  // Motivo Glosa
-      { wch: 15 },  // Status
+      { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 25 }, { wch: 20 },
+      { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 15 },
+      { wch: 40 }, { wch: 15 },
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Conciliação");
@@ -302,7 +399,7 @@ export default function ConciliacaoTasy() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <Button onClick={handleExportExcel} disabled={!itensFiltrados.length}>
+            <Button onClick={handleExportExcel} disabled={!itensConciliacao.length}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Exportar Excel
             </Button>
@@ -407,7 +504,7 @@ export default function ConciliacaoTasy() {
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <div className="text-2xl font-bold">{estatisticas.total}</div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Total de Itens</p>
+                  <p className="text-xs text-muted-foreground">Total de Itens ({estatisticas.totalGuias} guias)</p>
                 </CardContent>
               </Card>
               <Card>
@@ -504,15 +601,15 @@ export default function ConciliacaoTasy() {
               </Alert>
             )}
 
-            {/* Tabela de Conciliação */}
+            {/* Tabela de Conciliação por Guia */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileSearch className="h-5 w-5" />
-                  Resultado da Conciliação
+                  Resultado da Conciliação por Guia
                 </CardTitle>
                 <CardDescription>
-                  Itens com diferença maior que zero estão destacados em vermelho
+                  Clique em uma guia para expandir e ver todos os itens detalhados. Itens com diferença maior que zero estão destacados em vermelho.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -520,79 +617,132 @@ export default function ConciliacaoTasy() {
                   <div className="flex items-center justify-center py-8">
                     <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : itensPaginados.length === 0 ? (
+                ) : guiasPaginadas.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    {arquivoId ? "Nenhum item encontrado para conciliação" : "Selecione um arquivo de retorno para iniciar a conciliação"}
+                    {arquivoId ? "Nenhuma guia encontrada para conciliação" : "Selecione um arquivo de retorno para iniciar a conciliação"}
                   </div>
                 ) : (
                   <>
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Guia</TableHead>
-                            <TableHead>Atendimento</TableHead>
-                            <TableHead>Paciente</TableHead>
-                            <TableHead>Código</TableHead>
-                            <TableHead>Descrição</TableHead>
-                            <TableHead className="text-right">Valor Tasy</TableHead>
-                            <TableHead className="text-right">Valor Informado</TableHead>
-                            <TableHead className="text-right">Valor Liberado</TableHead>
-                            <TableHead className="text-right">Diferença</TableHead>
-                            <TableHead>Motivo Glosa</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {itensPaginados.map((item, index) => (
-                            <TableRow 
-                              key={`${item.guia}-${item.codigo}-${index}`}
-                              className={item.diferenca > 0.01 ? "bg-red-50" : ""}
-                            >
-                              <TableCell className="font-mono font-medium">
-                                {item.guia}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {item.atendimento}
-                              </TableCell>
-                              <TableCell className="max-w-[150px] truncate" title={item.paciente}>
-                                {item.paciente}
-                              </TableCell>
-                              <TableCell className="font-mono">
-                                {item.codigo}
-                              </TableCell>
-                              <TableCell className="max-w-[200px] truncate" title={item.descricao}>
-                                {item.descricao}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(item.valorTasy)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(item.valorXmlInformado)}
-                              </TableCell>
-                              <TableCell className="text-right text-green-600 font-medium">
-                                {formatCurrency(item.valorXmlLiberado)}
-                              </TableCell>
-                              <TableCell className={`text-right font-bold ${item.diferenca > 0.01 ? 'text-red-600' : item.diferenca < -0.01 ? 'text-yellow-600' : ''}`}>
-                                {formatCurrency(item.diferenca)}
-                              </TableCell>
-                              <TableCell className="max-w-[150px] truncate text-xs text-red-600" title={item.motivoGlosa}>
-                                {item.motivoGlosa || '-'}
-                              </TableCell>
-                              <TableCell>
-                                {getStatusBadge(item.status)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                    <div className="space-y-2">
+                      {guiasPaginadas.map((guia) => (
+                        <Collapsible
+                          key={guia.guia}
+                          open={expandedGuias.has(guia.guia)}
+                          onOpenChange={() => toggleGuiaExpanded(guia.guia)}
+                        >
+                          <div className={`rounded-lg border ${guia.status === 'glosa' ? 'border-red-200 bg-red-50/50' : guia.status === 'divergencia' ? 'border-yellow-200 bg-yellow-50/50' : ''}`}>
+                            <CollapsibleTrigger asChild>
+                              <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-2">
+                                    {expandedGuias.has(guia.guia) ? (
+                                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <div className="font-mono font-bold text-lg">{guia.guia}</div>
+                                  </div>
+                                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      {guia.paciente}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Hash className="h-3 w-3" />
+                                      {guia.atendimento}
+                                    </span>
+                                    <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                      {guia.itens.length} itens
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <div className="text-sm font-medium">Tasy: {formatCurrency(guia.valorTotalTasy)}</div>
+                                    <div className="text-sm text-green-600">Liberado: {formatCurrency(guia.valorTotalXmlLiberado)}</div>
+                                  </div>
+                                  <div className={`text-right font-bold ${guia.valorTotalDiferenca > 0.01 ? 'text-red-600' : guia.valorTotalDiferenca < -0.01 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                    {formatCurrency(guia.valorTotalDiferenca)}
+                                  </div>
+                                  {getStatusBadge(guia.status)}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedGuia(guia);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="border-t px-4 pb-4">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Código</TableHead>
+                                      <TableHead>Descrição</TableHead>
+                                      <TableHead>Qtd</TableHead>
+                                      <TableHead>Tipo</TableHead>
+                                      <TableHead className="text-right">Valor Tasy</TableHead>
+                                      <TableHead className="text-right">Informado</TableHead>
+                                      <TableHead className="text-right">Liberado</TableHead>
+                                      <TableHead className="text-right">Diferença</TableHead>
+                                      <TableHead>Glosa</TableHead>
+                                      <TableHead>Status</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {guia.itens.map((item, index) => (
+                                      <TableRow 
+                                        key={`${item.codigo}-${index}`}
+                                        className={item.diferenca > 0.01 ? "bg-red-50" : ""}
+                                      >
+                                        <TableCell className="font-mono">{item.codigo}</TableCell>
+                                        <TableCell className="max-w-[200px] truncate" title={item.descricao}>
+                                          {item.descricao}
+                                        </TableCell>
+                                        <TableCell>{item.quantidade}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline" className="text-xs">
+                                            {item.tipo}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">
+                                          {formatCurrency(item.valorTasy)}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          {formatCurrency(item.valorXmlInformado)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-green-600">
+                                          {formatCurrency(item.valorXmlLiberado)}
+                                        </TableCell>
+                                        <TableCell className={`text-right font-bold ${item.diferenca > 0.01 ? 'text-red-600' : item.diferenca < -0.01 ? 'text-yellow-600' : ''}`}>
+                                          {formatCurrency(item.diferenca)}
+                                        </TableCell>
+                                        <TableCell className="max-w-[120px] truncate text-xs text-red-600" title={item.motivoGlosa}>
+                                          {item.codigoGlosa && <span className="font-mono">[{item.codigoGlosa}]</span>} {item.motivoGlosa || '-'}
+                                        </TableCell>
+                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      ))}
                     </div>
 
                     {/* Paginação */}
                     {totalPages > 1 && (
                       <div className="flex items-center justify-between mt-4">
                         <p className="text-sm text-muted-foreground">
-                          Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalItens)} de {totalItens} itens
+                          Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalGuias)} de {totalGuias} guias
                         </p>
                         <div className="flex items-center gap-2">
                           <Button
@@ -639,6 +789,142 @@ export default function ConciliacaoTasy() {
           </Card>
         )}
       </div>
+
+      {/* Modal de Detalhes da Guia */}
+      <Dialog open={!!selectedGuia} onOpenChange={() => setSelectedGuia(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSearch className="h-5 w-5" />
+              Detalhes da Guia {selectedGuia?.guia}
+            </DialogTitle>
+            <DialogDescription>
+              Informações completas da guia e todos os itens conciliados
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedGuia && (
+            <div className="space-y-6">
+              {/* Informações da Guia */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Hash className="h-3 w-3" /> Atendimento
+                  </p>
+                  <p className="font-mono font-medium">{selectedGuia.atendimento}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <User className="h-3 w-3" /> Paciente
+                  </p>
+                  <p className="font-medium">{selectedGuia.paciente}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Stethoscope className="h-3 w-3" /> Médico
+                  </p>
+                  <p className="font-medium">{selectedGuia.medico}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-3 w-3" /> Setor
+                  </p>
+                  <p className="font-medium">{selectedGuia.setor}</p>
+                </div>
+              </div>
+
+              {/* Resumo de Valores */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Valor Tasy</p>
+                    <p className="text-lg font-bold">{formatCurrency(selectedGuia.valorTotalTasy)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Valor Informado</p>
+                    <p className="text-lg font-bold">{formatCurrency(selectedGuia.valorTotalXmlInformado)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Valor Liberado</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(selectedGuia.valorTotalXmlLiberado)}</p>
+                  </CardContent>
+                </Card>
+                <Card className={selectedGuia.valorTotalDiferenca > 0 ? "border-red-200 bg-red-50" : ""}>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Diferença</p>
+                    <p className={`text-lg font-bold ${selectedGuia.valorTotalDiferenca > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatCurrency(selectedGuia.valorTotalDiferenca)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Resumo de Status */}
+              <div className="flex gap-4">
+                <Badge className="bg-green-100 text-green-700">{selectedGuia.totalOk} OK</Badge>
+                <Badge className="bg-red-100 text-red-700">{selectedGuia.totalGlosas} Glosas</Badge>
+                <Badge className="bg-yellow-100 text-yellow-700">{selectedGuia.totalDivergencias} Divergências</Badge>
+                <Badge className="bg-gray-100 text-gray-700">{selectedGuia.totalNaoEncontrados} Não Encontrados</Badge>
+              </div>
+
+              {/* Tabela de Itens */}
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Qtd</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Valor Tasy</TableHead>
+                      <TableHead className="text-right">Informado</TableHead>
+                      <TableHead className="text-right">Liberado</TableHead>
+                      <TableHead className="text-right">Diferença</TableHead>
+                      <TableHead>Código Glosa</TableHead>
+                      <TableHead>Motivo Glosa</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedGuia.itens.map((item, index) => (
+                      <TableRow 
+                        key={`${item.codigo}-${index}`}
+                        className={item.diferenca > 0.01 ? "bg-red-50" : ""}
+                      >
+                        <TableCell className="font-mono">{item.codigo}</TableCell>
+                        <TableCell className="max-w-[150px]" title={item.descricao}>
+                          <div className="truncate">{item.descricao}</div>
+                        </TableCell>
+                        <TableCell>{item.quantidade}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{item.tipo}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{item.dataExecucao || '-'}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(item.valorTasy)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.valorXmlInformado)}</TableCell>
+                        <TableCell className="text-right text-green-600">{formatCurrency(item.valorXmlLiberado)}</TableCell>
+                        <TableCell className={`text-right font-bold ${item.diferenca > 0.01 ? 'text-red-600' : ''}`}>
+                          {formatCurrency(item.diferenca)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{item.codigoGlosa || '-'}</TableCell>
+                        <TableCell className="max-w-[150px] text-xs text-red-600" title={item.motivoGlosa || item.descricaoGlosa}>
+                          <div className="truncate">{item.motivoGlosa || item.descricaoGlosa || '-'}</div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
