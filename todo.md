@@ -531,3 +531,10 @@
 - [x] Aplicar regras de negócio existentes aos dados importados do Tasy
 - [x] Criar funções de validação de dados do Tasy com alertas de inconsistências
 - [x] Adicionar testes automatizados para as novas funcionalidades (240 testes passando)
+
+
+## Isolamento de Dados do Tasy por Estabelecimento
+- [x] Verificar que tabela dadosTasy já tem campo estabelecimentoId
+- [x] Garantir que todas as queries filtram por estabelecimentoId
+- [x] Atualizar script Python para incluir código do estabelecimento
+- [x] Criar documentação de configuração do script Python

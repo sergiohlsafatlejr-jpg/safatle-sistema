@@ -7,6 +7,10 @@ Este script conecta no banco de dados Oracle do Tasy via VPN,
 exporta os dados de materiais e honorários, e faz upload automático
 para o sistema Safatle Gerenciamento.
 
+IMPORTANTE: Cada estabelecimento deve ter seu próprio arquivo .env
+configurado com o ESTABELECIMENTO_ID correto. Os dados são isolados
+por estabelecimento no sistema Safatle.
+
 Requisitos:
     pip install cx_Oracle requests python-dotenv
 
@@ -25,7 +29,9 @@ Configuração:
 
 Uso:
     python exportar_tasy.py
-    python exportar_tasy.py --data-inicio 2025-01-01 --data-fim 2025-12-31
+    python exportar_tasy.py --data-inicio 01/01/2025 --data-fim 31/12/2025
+    python exportar_tasy.py --estabelecimento 2
+    python exportar_tasy.py --apenas-exportar
 """
 
 import os
@@ -70,17 +76,19 @@ except ImportError:
     logger.warning("python-dotenv não instalado. Usando variáveis de ambiente do sistema.")
 
 
-# Configurações do ambiente
-CONFIG = {
-    'TASY_HOST': os.getenv('TASY_HOST', 'localhost'),
-    'TASY_PORT': os.getenv('TASY_PORT', '1521'),
-    'TASY_SERVICE': os.getenv('TASY_SERVICE', 'TASY'),
-    'TASY_USER': os.getenv('TASY_USER', ''),
-    'TASY_PASSWORD': os.getenv('TASY_PASSWORD', ''),
-    'SAFATLE_API_URL': os.getenv('SAFATLE_API_URL', ''),
-    'SAFATLE_API_KEY': os.getenv('SAFATLE_API_KEY', ''),
-    'ESTABELECIMENTO_ID': int(os.getenv('ESTABELECIMENTO_ID', '1')),
-}
+def get_config(estabelecimento_id=None):
+    """Retorna configuração, permitindo override do estabelecimento."""
+    config = {
+        'TASY_HOST': os.getenv('TASY_HOST', 'localhost'),
+        'TASY_PORT': os.getenv('TASY_PORT', '1521'),
+        'TASY_SERVICE': os.getenv('TASY_SERVICE', 'TASY'),
+        'TASY_USER': os.getenv('TASY_USER', ''),
+        'TASY_PASSWORD': os.getenv('TASY_PASSWORD', ''),
+        'SAFATLE_API_URL': os.getenv('SAFATLE_API_URL', ''),
+        'SAFATLE_API_KEY': os.getenv('SAFATLE_API_KEY', ''),
+        'ESTABELECIMENTO_ID': estabelecimento_id or int(os.getenv('ESTABELECIMENTO_ID', '1')),
+    }
+    return config
 
 
 # Query para materiais
@@ -155,22 +163,22 @@ WHERE   C.DT_MESANO_REFERENCIA BETWEEN TO_DATE(:data_inicio, 'DD/MM/YYYY') AND T
 """
 
 
-def conectar_tasy():
+def conectar_tasy(config):
     """Conecta ao banco de dados Oracle do Tasy."""
     if not HAS_ORACLE:
         raise ImportError("cx_Oracle não está instalado. Execute: pip install cx_Oracle")
     
     dsn = cx_Oracle.makedsn(
-        CONFIG['TASY_HOST'],
-        CONFIG['TASY_PORT'],
-        service_name=CONFIG['TASY_SERVICE']
+        config['TASY_HOST'],
+        config['TASY_PORT'],
+        service_name=config['TASY_SERVICE']
     )
     
-    logger.info(f"Conectando ao Tasy em {CONFIG['TASY_HOST']}:{CONFIG['TASY_PORT']}")
+    logger.info(f"Conectando ao Tasy em {config['TASY_HOST']}:{config['TASY_PORT']}")
     
     connection = cx_Oracle.connect(
-        user=CONFIG['TASY_USER'],
-        password=CONFIG['TASY_PASSWORD'],
+        user=config['TASY_USER'],
+        password=config['TASY_PASSWORD'],
         dsn=dsn,
         encoding="UTF-8"
     )
@@ -203,9 +211,10 @@ def executar_query(connection, query, params):
     return results
 
 
-def exportar_para_sqlite(materiais, honorarios, arquivo_saida):
+def exportar_para_sqlite(materiais, honorarios, arquivo_saida, estabelecimento_id):
     """Exporta os dados para um arquivo SQLite."""
     logger.info(f"Exportando {len(materiais)} materiais e {len(honorarios)} honorários para {arquivo_saida}")
+    logger.info(f"Estabelecimento ID: {estabelecimento_id}")
     
     # Remove arquivo existente
     if os.path.exists(arquivo_saida):
@@ -316,16 +325,17 @@ def exportar_para_sqlite(materiais, honorarios, arquivo_saida):
     return total
 
 
-def fazer_upload_safatle(arquivo_sqlite):
+def fazer_upload_safatle(arquivo_sqlite, config):
     """Faz upload do arquivo SQLite para o Safatle Gerenciamento via API."""
     if not HAS_REQUESTS:
         raise ImportError("requests não está instalado. Execute: pip install requests")
     
-    if not CONFIG['SAFATLE_API_URL'] or not CONFIG['SAFATLE_API_KEY']:
+    if not config['SAFATLE_API_URL'] or not config['SAFATLE_API_KEY']:
         logger.warning("API do Safatle não configurada. Upload ignorado.")
         return None
     
-    logger.info(f"Fazendo upload para {CONFIG['SAFATLE_API_URL']}")
+    logger.info(f"Fazendo upload para {config['SAFATLE_API_URL']}")
+    logger.info(f"Estabelecimento ID: {config['ESTABELECIMENTO_ID']}")
     
     # Lê o arquivo e converte para base64
     import base64
@@ -334,7 +344,7 @@ def fazer_upload_safatle(arquivo_sqlite):
     
     # Prepara o payload
     payload = {
-        'estabelecimentoId': CONFIG['ESTABELECIMENTO_ID'],
+        'estabelecimentoId': config['ESTABELECIMENTO_ID'],
         'nomeArquivo': os.path.basename(arquivo_sqlite),
         'tamanhoArquivo': os.path.getsize(arquivo_sqlite),
         'conteudoBase64': conteudo,
@@ -343,11 +353,11 @@ def fazer_upload_safatle(arquivo_sqlite):
     # Faz a requisição
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {CONFIG["SAFATLE_API_KEY"]}'
+        'Authorization': f'Bearer {config["SAFATLE_API_KEY"]}'
     }
     
     response = requests.post(
-        f"{CONFIG['SAFATLE_API_URL']}/trpc/importacaoTasy.uploadAutomatico",
+        f"{config['SAFATLE_API_URL']}/trpc/importacaoTasy.uploadAutomatico",
         json=payload,
         headers=headers,
         timeout=300
@@ -362,28 +372,82 @@ def fazer_upload_safatle(arquivo_sqlite):
         raise Exception(f"Erro no upload: {response.status_code}")
 
 
+def validar_configuracao(config):
+    """Valida se todas as configurações necessárias estão presentes."""
+    erros = []
+    
+    if not config['TASY_HOST']:
+        erros.append("TASY_HOST não configurado")
+    if not config['TASY_USER']:
+        erros.append("TASY_USER não configurado")
+    if not config['TASY_PASSWORD']:
+        erros.append("TASY_PASSWORD não configurado")
+    if not config['ESTABELECIMENTO_ID'] or config['ESTABELECIMENTO_ID'] < 1:
+        erros.append("ESTABELECIMENTO_ID inválido (deve ser um número maior que 0)")
+    
+    if erros:
+        logger.error("Erros de configuração encontrados:")
+        for erro in erros:
+            logger.error(f"  - {erro}")
+        return False
+    
+    return True
+
+
 def main():
     """Função principal."""
-    parser = argparse.ArgumentParser(description='Exporta dados do Tasy para o Safatle Gerenciamento')
+    parser = argparse.ArgumentParser(
+        description='Exporta dados do Tasy para o Safatle Gerenciamento',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos de uso:
+  python exportar_tasy.py
+  python exportar_tasy.py --data-inicio 01/01/2025 --data-fim 31/12/2025
+  python exportar_tasy.py --estabelecimento 2
+  python exportar_tasy.py --apenas-exportar --arquivo-saida meus_dados.db
+
+IMPORTANTE: O ESTABELECIMENTO_ID deve corresponder ao ID do estabelecimento
+cadastrado no Safatle Gerenciamento. Os dados serão visíveis apenas para
+usuários com acesso a esse estabelecimento.
+        """
+    )
     parser.add_argument('--data-inicio', type=str, help='Data inicial (DD/MM/YYYY)', 
                         default=(datetime.now() - timedelta(days=30)).strftime('%d/%m/%Y'))
     parser.add_argument('--data-fim', type=str, help='Data final (DD/MM/YYYY)',
                         default=datetime.now().strftime('%d/%m/%Y'))
+    parser.add_argument('--estabelecimento', type=int, 
+                        help='ID do estabelecimento no Safatle (sobrescreve .env)')
     parser.add_argument('--apenas-exportar', action='store_true', 
                         help='Apenas exporta para SQLite, sem fazer upload')
     parser.add_argument('--arquivo-saida', type=str, default='dados_tasy.db',
                         help='Nome do arquivo SQLite de saída')
+    parser.add_argument('--validar', action='store_true',
+                        help='Apenas valida a configuração sem executar')
     
     args = parser.parse_args()
     
+    # Obtém configuração com possível override do estabelecimento
+    config = get_config(args.estabelecimento)
+    
     logger.info("=" * 60)
-    logger.info("Iniciando exportação do Tasy")
+    logger.info("Exportação do Tasy para Safatle Gerenciamento")
+    logger.info("=" * 60)
+    logger.info(f"Estabelecimento ID: {config['ESTABELECIMENTO_ID']}")
     logger.info(f"Período: {args.data_inicio} a {args.data_fim}")
     logger.info("=" * 60)
     
+    # Valida configuração
+    if not validar_configuracao(config):
+        logger.error("Configuração inválida. Verifique o arquivo .env")
+        sys.exit(1)
+    
+    if args.validar:
+        logger.info("Configuração válida!")
+        sys.exit(0)
+    
     try:
         # Conecta ao Tasy
-        connection = conectar_tasy()
+        connection = conectar_tasy(config)
         
         params = {
             'data_inicio': args.data_inicio,
@@ -404,14 +468,23 @@ def main():
         connection.close()
         
         # Exporta para SQLite
-        total = exportar_para_sqlite(materiais, honorarios, args.arquivo_saida)
+        total = exportar_para_sqlite(
+            materiais, 
+            honorarios, 
+            args.arquivo_saida,
+            config['ESTABELECIMENTO_ID']
+        )
         
         # Faz upload se não for apenas exportar
         if not args.apenas_exportar:
-            fazer_upload_safatle(args.arquivo_saida)
+            fazer_upload_safatle(args.arquivo_saida, config)
         
         logger.info("=" * 60)
-        logger.info(f"Exportação concluída! Total: {total} registros")
+        logger.info(f"Exportação concluída!")
+        logger.info(f"  - Total de registros: {total}")
+        logger.info(f"  - Materiais: {len(materiais)}")
+        logger.info(f"  - Honorários: {len(honorarios)}")
+        logger.info(f"  - Estabelecimento: {config['ESTABELECIMENTO_ID']}")
         logger.info("=" * 60)
         
     except Exception as e:
