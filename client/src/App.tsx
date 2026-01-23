@@ -40,6 +40,8 @@ import EnvioRecursosLote from "./pages/EnvioRecursosLote";
 import RegrasIA from "./pages/RegrasIA";
 import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
 import ImportacaoTasy from "./pages/ImportacaoTasy";
+import ConciliacaoTasy from "./pages/ConciliacaoTasy";
+import ContasTasy from "./pages/ContasTasy";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -88,6 +90,8 @@ function Router() {
       <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
       <Route path={"/regras-ia"} component={RegrasIA} />
       <Route path={"/importacao-tasy"} component={ImportacaoTasy} />
+      <Route path={"/conciliacao-tasy"} component={ConciliacaoTasy} />
+      <Route path={"/contas-tasy"} component={ContasTasy} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

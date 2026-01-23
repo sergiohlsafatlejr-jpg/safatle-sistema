@@ -538,3 +538,21 @@
 - [x] Garantir que todas as queries filtram por estabelecimentoId
 - [x] Atualizar script Python para incluir código do estabelecimento
 - [x] Criar documentação de configuração do script Python
+
+
+## Integração Tasy no Menu de Contas
+- [x] Criar página de Contas Tasy com visualização agrupada por atendimento
+- [x] Criar página de Conciliação Tasy x XML com cruzamento de dados
+- [x] Adicionar links no menu lateral
+
+## Melhoria na Lógica de Importação do XML de Retorno e Melhoria do XML de Retorno
+- [ ] Integrar dados do Tasy na tela de Contas existente
+- [ ] Melhorar parser do XML de retorno com namespace TISS (http://www.ans.gov.br/padroes/tiss/schemas)
+- [ ] Implementar loop em //ans:relacaoGuias para extrair dados
+- [ ] Fazer lookup do numeroGuiaPrestador na base de dados do Tasy
+- [ ] Cruzar valorInformado do XML com valor faturado no Tasy
+- [ ] Extrair codigoGlosa e descricaoGlosa de cada guia
+- [ ] Enriquecer dados com Paciente, Médico e Setor do banco de dados
+- [ ] Criar tela de conciliação com DataFrame unificado
+- [ ] Destacar em vermelho linhas com DIFERENÇA > 0
+- [ ] Adicionar testes automatizados
