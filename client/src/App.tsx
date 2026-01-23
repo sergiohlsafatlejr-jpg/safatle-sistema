@@ -37,6 +37,7 @@ import AcompanhamentoRecursos from "./pages/AcompanhamentoRecursos";
 import DashboardIA from "./pages/DashboardIA";
 import NaoRecebidos from "./pages/NaoRecebidos";
 import EnvioRecursosLote from "./pages/EnvioRecursosLote";
+import RegrasIA from "./pages/RegrasIA";
 import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
 
 function Router() {
@@ -84,6 +85,7 @@ function Router() {
       <Route path={"/dashboard-ia"} component={DashboardIA} />
       <Route path={"/nao-recebidos"} component={NaoRecebidos} />
       <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
+      <Route path={"/regras-ia"} component={RegrasIA} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -3444,6 +3444,127 @@ export const appRouter = router({
         return db.gerarAlertasIA(input.estabelecimentoId);
       }),
   }),
+
+  // ============ REGRAS DE IA ============
+  regrasIA: router({
+    // Listar todas as regras de IA
+    list: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getRegrasIA(input?.estabelecimentoId);
+      }),
+
+    // Buscar regra por ID
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getRegraIAById(input.id);
+      }),
+
+    // Buscar regra por código
+    getPorCodigo: protectedProcedure
+      .input(z.object({
+        codigo: z.string(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getRegraIAPorCodigo(input.codigo, input.estabelecimentoId);
+      }),
+
+    // Criar nova regra
+    create: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        codigo: z.string().min(1),
+        nome: z.string().min(1),
+        descricao: z.string().optional(),
+        categoria: z.enum(['outlier', 'padrao_erro', 'risco_glosa', 'tendencia', 'comparacao']),
+        tipoAlerta: z.enum(['critico', 'alerta', 'info']).optional(),
+        parametros: z.object({
+          limiteDesvioAbaixo: z.number().optional(),
+          limiteDesvioAcima: z.number().optional(),
+          minimoContasHistorico: z.number().optional(),
+          periodoAnalise: z.number().optional(),
+          taxaGlosaMinima: z.number().optional(),
+          minimoProcedimentos: z.number().optional(),
+          periodoMeses: z.number().optional(),
+          scoreRiscoMinimo: z.number().optional(),
+          historicoMinimoContas: z.number().optional(),
+          variacaoMinima: z.number().optional(),
+          periodoComparacao: z.number().optional(),
+          maxResultados: z.number().optional(),
+        }).optional(),
+        prioridade: z.number().optional(),
+        ativo: z.enum(['sim', 'nao']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        return db.createRegraIA({
+          ...input,
+          criadoPor: ctx.user.id,
+        });
+      }),
+
+    // Atualizar regra existente
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().optional(),
+        descricao: z.string().optional(),
+        tipoAlerta: z.enum(['critico', 'alerta', 'info']).optional(),
+        parametros: z.object({
+          limiteDesvioAbaixo: z.number().optional(),
+          limiteDesvioAcima: z.number().optional(),
+          minimoContasHistorico: z.number().optional(),
+          periodoAnalise: z.number().optional(),
+          taxaGlosaMinima: z.number().optional(),
+          minimoProcedimentos: z.number().optional(),
+          periodoMeses: z.number().optional(),
+          scoreRiscoMinimo: z.number().optional(),
+          historicoMinimoContas: z.number().optional(),
+          variacaoMinima: z.number().optional(),
+          periodoComparacao: z.number().optional(),
+          maxResultados: z.number().optional(),
+        }).optional(),
+        prioridade: z.number().optional(),
+        ativo: z.enum(['sim', 'nao']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        return db.updateRegraIA(id, {
+          ...data,
+          atualizadoPor: ctx.user.id,
+        });
+      }),
+
+    // Excluir regra
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteRegraIA(input.id);
+      }),
+
+    // Ativar/desativar regra
+    toggle: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        ativo: z.enum(['sim', 'nao']),
+      }))
+      .mutation(async ({ input }) => {
+        return db.toggleRegraIA(input.id, input.ativo);
+      }),
+
+    // Restaurar regra para valores padrão
+    restaurarPadrao: protectedProcedure
+      .input(z.object({
+        codigo: z.string(),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.restaurarRegraPadrao(input.codigo, input.estabelecimentoId);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

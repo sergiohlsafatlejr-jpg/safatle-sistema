@@ -51,6 +51,8 @@ import {
   InsertPadraoCobranca,
   insightsIA,
   InsertInsightIA,
+  regrasIA,
+  InsertRegraIA,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -9890,6 +9892,7 @@ export async function calcularRiscoGlosa(estabelecimentoId: number, arquivoId?: 
 
 /**
  * Gera alertas e recomendações da IA para o dashboard
+ * Utiliza as regras configuráveis do banco de dados
  */
 export async function gerarAlertasIA(estabelecimentoId: number) {
   const alertas: Array<{
@@ -9900,58 +9903,378 @@ export async function gerarAlertasIA(estabelecimentoId: number) {
     dados?: any;
   }> = [];
 
-  // 1. Verifica outliers
-  const outliers = await getContasOutliers(estabelecimentoId, undefined, 2);
-  const outliersAbaixo = outliers.filter(o => o.tipo === 'abaixo_media').slice(0, 5);
-  const outliersAcima = outliers.filter(o => o.tipo === 'acima_media').slice(0, 5);
+  // Busca parâmetros das regras configuradas
+  const regraOutlierAbaixo = await getParametrosRegra('outlier_abaixo_media', estabelecimentoId);
+  const regraOutlierAcima = await getParametrosRegra('outlier_acima_media', estabelecimentoId);
+  const regraPadraoErro = await getParametrosRegra('padrao_erro_funcionario', estabelecimentoId);
+  const regraRiscoGlosa = await getParametrosRegra('risco_glosa_alto', estabelecimentoId);
 
-  if (outliersAbaixo.length > 0) {
-    alertas.push({
-      tipo: 'alerta',
-      categoria: 'outlier',
-      titulo: `${outliersAbaixo.length} conta(s) com valor muito abaixo da média`,
-      descricao: `Foram identificadas contas com valores significativamente menores que a média histórica. Verifique se há itens faltando ou valores incorretos.`,
-      dados: outliersAbaixo,
-    });
+  // 1. Verifica outliers (se as regras estiverem ativas)
+  if (regraOutlierAbaixo || regraOutlierAcima) {
+    const limiteDesvio = Math.max(
+      regraOutlierAbaixo?.limiteDesvioAbaixo || 2,
+      regraOutlierAcima?.limiteDesvioAcima || 2
+    );
+    const outliers = await getContasOutliers(estabelecimentoId, undefined, limiteDesvio);
+    
+    if (regraOutlierAbaixo) {
+      const maxResultados = regraOutlierAbaixo.maxResultados || 5;
+      const outliersAbaixo = outliers.filter(o => o.tipo === 'abaixo_media').slice(0, maxResultados);
+      
+      if (outliersAbaixo.length > 0) {
+        alertas.push({
+          tipo: (regraOutlierAbaixo.tipoAlerta as 'critico' | 'alerta' | 'info') || 'alerta',
+          categoria: 'outlier',
+          titulo: `${outliersAbaixo.length} conta(s) com valor muito abaixo da média`,
+          descricao: `Foram identificadas contas com valores significativamente menores que a média histórica. Verifique se há itens faltando ou valores incorretos.`,
+          dados: outliersAbaixo,
+        });
+      }
+    }
+
+    if (regraOutlierAcima) {
+      const maxResultados = regraOutlierAcima.maxResultados || 5;
+      const outliersAcima = outliers.filter(o => o.tipo === 'acima_media').slice(0, maxResultados);
+      
+      if (outliersAcima.length > 0) {
+        alertas.push({
+          tipo: (regraOutlierAcima.tipoAlerta as 'critico' | 'alerta' | 'info') || 'info',
+          categoria: 'outlier',
+          titulo: `${outliersAcima.length} conta(s) com valor acima da média`,
+          descricao: `Foram identificadas contas com valores acima da média histórica. Verifique se os valores estão corretos antes de enviar.`,
+          dados: outliersAcima,
+        });
+      }
+    }
   }
 
-  if (outliersAcima.length > 0) {
-    alertas.push({
-      tipo: 'info',
-      categoria: 'outlier',
-      titulo: `${outliersAcima.length} conta(s) com valor acima da média`,
-      descricao: `Foram identificadas contas com valores acima da média histórica. Verifique se os valores estão corretos antes de enviar.`,
-      dados: outliersAcima,
-    });
+  // 2. Verifica padrões de erro por funcionário (se a regra estiver ativa)
+  if (regraPadraoErro) {
+    const taxaMinima = regraPadraoErro.taxaGlosaMinima || 20;
+    const minProcedimentos = regraPadraoErro.minimoProcedimentos || 50;
+    const maxResultados = regraPadraoErro.maxResultados || 10;
+    
+    const padroes = await getPadroesErroPorFuncionario(estabelecimentoId);
+    const funcionariosProblematicos = padroes
+      .filter((p: { taxaGlosa: number; totalProcedimentos: number }) => 
+        p.taxaGlosa > taxaMinima && p.totalProcedimentos >= minProcedimentos
+      )
+      .slice(0, maxResultados);
+
+    if (funcionariosProblematicos.length > 0) {
+      alertas.push({
+        tipo: (regraPadraoErro.tipoAlerta as 'critico' | 'alerta' | 'info') || 'critico',
+        categoria: 'padrao_erro',
+        titulo: `${funcionariosProblematicos.length} funcionário(s) com taxa de glosa elevada`,
+        descricao: `Funcionários com taxa de glosa acima de ${taxaMinima}% foram identificados. Recomenda-se treinamento ou revisão dos processos.`,
+        dados: funcionariosProblematicos,
+      });
+    }
   }
 
-  // 2. Verifica padrões de erro por funcionário
-  const padroes = await getPadroesErroPorFuncionario(estabelecimentoId);
-  const funcionariosProblematicos = padroes.filter((p: { taxaGlosa: number; totalProcedimentos: number }) => p.taxaGlosa > 20 && p.totalProcedimentos >= 50);
+  // 3. Verifica contas com alto risco de glosa (se a regra estiver ativa)
+  if (regraRiscoGlosa) {
+    const scoreMinimo = regraRiscoGlosa.scoreRiscoMinimo || 30;
+    const maxResultados = regraRiscoGlosa.maxResultados || 10;
+    
+    const contasRisco = await calcularRiscoGlosa(estabelecimentoId);
+    const contasAltoRisco = contasRisco
+      .filter(c => c.riscoMaximo > scoreMinimo)
+      .slice(0, maxResultados);
 
-  if (funcionariosProblematicos.length > 0) {
-    alertas.push({
-      tipo: 'critico',
-      categoria: 'padrao_erro',
-      titulo: `${funcionariosProblematicos.length} funcionário(s) com taxa de glosa elevada`,
-      descricao: `Funcionários com taxa de glosa acima de 20% foram identificados. Recomenda-se treinamento ou revisão dos processos.`,
-      dados: funcionariosProblematicos,
-    });
-  }
-
-  // 3. Verifica contas com alto risco de glosa
-  const contasRisco = await calcularRiscoGlosa(estabelecimentoId);
-  const contasAltoRisco = contasRisco.filter(c => c.riscoMaximo > 50).slice(0, 10);
-
-  if (contasAltoRisco.length > 0) {
-    alertas.push({
-      tipo: 'alerta',
-      categoria: 'risco_glosa',
-      titulo: `${contasAltoRisco.length} conta(s) com alto risco de glosa`,
-      descricao: `Contas com procedimentos que historicamente têm alta taxa de glosa. Revise antes de enviar ao convênio.`,
-      dados: contasAltoRisco,
-    });
+    if (contasAltoRisco.length > 0) {
+      alertas.push({
+        tipo: (regraRiscoGlosa.tipoAlerta as 'critico' | 'alerta' | 'info') || 'alerta',
+        categoria: 'risco_glosa',
+        titulo: `${contasAltoRisco.length} conta(s) com alto risco de glosa`,
+        descricao: `Contas com procedimentos que historicamente têm taxa de glosa acima de ${scoreMinimo}%. Revise antes de enviar ao convênio.`,
+        dados: contasAltoRisco,
+      });
+    }
   }
 
   return alertas;
+}
+
+
+// ============ REGRAS DE IA ============
+
+// Regras padrão do sistema
+const REGRAS_PADRAO: InsertRegraIA[] = [
+  {
+    codigo: 'outlier_abaixo_media',
+    nome: 'Valores Abaixo da Média',
+    descricao: 'Detecta contas com valores significativamente menores que a média histórica. Pode indicar itens faltantes ou valores incorretos.',
+    categoria: 'outlier',
+    tipoAlerta: 'alerta',
+    parametros: {
+      limiteDesvioAbaixo: 2,
+      minimoContasHistorico: 3,
+      periodoAnalise: 90,
+      maxResultados: 5,
+    },
+    prioridade: 10,
+    ativo: 'sim',
+  },
+  {
+    codigo: 'outlier_acima_media',
+    nome: 'Valores Acima da Média',
+    descricao: 'Detecta contas com valores significativamente maiores que a média histórica. Recomenda-se verificar antes de enviar.',
+    categoria: 'outlier',
+    tipoAlerta: 'info',
+    parametros: {
+      limiteDesvioAcima: 2,
+      minimoContasHistorico: 3,
+      periodoAnalise: 90,
+      maxResultados: 5,
+    },
+    prioridade: 20,
+    ativo: 'sim',
+  },
+  {
+    codigo: 'padrao_erro_funcionario',
+    nome: 'Taxa de Glosa por Funcionário',
+    descricao: 'Identifica funcionários com taxa de glosa elevada nos últimos meses. Pode indicar necessidade de treinamento.',
+    categoria: 'padrao_erro',
+    tipoAlerta: 'critico',
+    parametros: {
+      taxaGlosaMinima: 20,
+      minimoProcedimentos: 50,
+      periodoMeses: 6,
+      maxResultados: 10,
+    },
+    prioridade: 5,
+    ativo: 'sim',
+  },
+  {
+    codigo: 'risco_glosa_alto',
+    nome: 'Alto Risco de Glosa',
+    descricao: 'Identifica contas com procedimentos que historicamente têm alta taxa de glosa. Priorize a revisão dessas contas.',
+    categoria: 'risco_glosa',
+    tipoAlerta: 'alerta',
+    parametros: {
+      scoreRiscoMinimo: 30,
+      historicoMinimoContas: 5,
+      maxResultados: 10,
+    },
+    prioridade: 15,
+    ativo: 'sim',
+  },
+];
+
+/**
+ * Inicializa as regras padrão do sistema se não existirem
+ */
+export async function inicializarRegrasPadrao(estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  for (const regra of REGRAS_PADRAO) {
+    // Verifica se a regra já existe
+    const existente = await db
+      .select()
+      .from(regrasIA)
+      .where(
+        and(
+          eq(regrasIA.codigo, regra.codigo),
+          estabelecimentoId 
+            ? eq(regrasIA.estabelecimentoId, estabelecimentoId)
+            : isNull(regrasIA.estabelecimentoId)
+        )
+      )
+      .limit(1);
+
+    if (existente.length === 0) {
+      await db.insert(regrasIA).values({
+        ...regra,
+        estabelecimentoId: estabelecimentoId || null,
+      });
+    }
+  }
+}
+
+/**
+ * Lista todas as regras de IA de um estabelecimento
+ */
+export async function getRegrasIA(estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Inicializa regras padrão se necessário
+  await inicializarRegrasPadrao(estabelecimentoId);
+
+  const conditions = [];
+  
+  if (estabelecimentoId) {
+    // Busca regras do estabelecimento ou regras globais
+    conditions.push(
+      or(
+        eq(regrasIA.estabelecimentoId, estabelecimentoId),
+        isNull(regrasIA.estabelecimentoId)
+      )
+    );
+  }
+
+  const result = await db
+    .select()
+    .from(regrasIA)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(regrasIA.prioridade, regrasIA.nome);
+
+  return result;
+}
+
+/**
+ * Busca uma regra de IA por ID
+ */
+export async function getRegraIAById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db
+    .select()
+    .from(regrasIA)
+    .where(eq(regrasIA.id, id))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Busca uma regra de IA por código
+ */
+export async function getRegraIAPorCodigo(codigo: string, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  let whereCondition;
+  
+  if (estabelecimentoId) {
+    whereCondition = and(
+      eq(regrasIA.codigo, codigo),
+      or(
+        eq(regrasIA.estabelecimentoId, estabelecimentoId),
+        isNull(regrasIA.estabelecimentoId)
+      )
+    );
+  } else {
+    whereCondition = eq(regrasIA.codigo, codigo);
+  }
+
+  // Prioriza regra do estabelecimento sobre a global
+  const result = await db
+    .select()
+    .from(regrasIA)
+    .where(whereCondition)
+    .orderBy(desc(regrasIA.estabelecimentoId)) // Estabelecimento específico primeiro
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Cria uma nova regra de IA
+ */
+export async function createRegraIA(data: InsertRegraIA) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db.insert(regrasIA).values(data);
+  return { id: Number(result[0].insertId) };
+}
+
+/**
+ * Atualiza uma regra de IA existente
+ */
+export async function updateRegraIA(id: number, data: Partial<InsertRegraIA>) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.update(regrasIA).set(data).where(eq(regrasIA.id, id));
+  return { success: true };
+}
+
+/**
+ * Exclui uma regra de IA
+ */
+export async function deleteRegraIA(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.delete(regrasIA).where(eq(regrasIA.id, id));
+  return { success: true };
+}
+
+/**
+ * Ativa ou desativa uma regra de IA
+ */
+export async function toggleRegraIA(id: number, ativo: 'sim' | 'nao') {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.update(regrasIA).set({ ativo }).where(eq(regrasIA.id, id));
+  return { success: true };
+}
+
+/**
+ * Restaura uma regra para os valores padrão
+ */
+export async function restaurarRegraPadrao(codigo: string, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const regraPadrao = REGRAS_PADRAO.find(r => r.codigo === codigo);
+  if (!regraPadrao) {
+    throw new Error(`Regra padrão não encontrada: ${codigo}`);
+  }
+
+  // Busca a regra existente
+  const conditions = [eq(regrasIA.codigo, codigo)];
+  if (estabelecimentoId) {
+    conditions.push(eq(regrasIA.estabelecimentoId, estabelecimentoId));
+  } else {
+    conditions.push(isNull(regrasIA.estabelecimentoId));
+  }
+
+  const existente = await db
+    .select()
+    .from(regrasIA)
+    .where(and(...conditions))
+    .limit(1);
+
+  if (existente.length > 0) {
+    // Atualiza para valores padrão
+    await db.update(regrasIA).set({
+      nome: regraPadrao.nome,
+      descricao: regraPadrao.descricao,
+      tipoAlerta: regraPadrao.tipoAlerta,
+      parametros: regraPadrao.parametros,
+      prioridade: regraPadrao.prioridade,
+      ativo: 'sim',
+    }).where(eq(regrasIA.id, existente[0].id));
+  } else {
+    // Cria a regra
+    await db.insert(regrasIA).values({
+      ...regraPadrao,
+      estabelecimentoId: estabelecimentoId || null,
+    });
+  }
+
+  return { success: true };
+}
+
+/**
+ * Obtém os parâmetros de uma regra específica para uso nas análises
+ */
+export async function getParametrosRegra(codigo: string, estabelecimentoId?: number) {
+  const regra = await getRegraIAPorCodigo(codigo, estabelecimentoId);
+  
+  if (!regra || regra.ativo !== 'sim') {
+    return null;
+  }
+
+  return {
+    ...regra.parametros,
+    tipoAlerta: regra.tipoAlerta,
+  };
 }

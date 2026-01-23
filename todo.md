@@ -497,3 +497,15 @@
 - [x] Detectar padrões de erro por funcionário (faturista)
 - [x] Priorizar contas com maior risco de glosa
 - [x] Criar dashboard de IA com alertas e recomendações
+
+
+## Painel de Administração de Regras de IA
+- [x] Criar tabela no banco de dados para armazenar regras de IA configuráveis
+- [x] Implementar rotas CRUD para gerenciar regras de IA
+- [x] Criar tela de administração de regras de IA
+- [x] Permitir configurar limite de desvio padrão para detecção de outliers
+- [x] Permitir configurar taxa mínima de glosa para alertas de funcionário
+- [x] Permitir configurar score mínimo de risco para alertas de glosa
+- [x] Permitir ativar/desativar tipos de alertas individualmente
+- [x] Integrar regras configuráveis nas funções de análise de IA
+- [x] Adicionar testes automatizados para as novas funcionalidades

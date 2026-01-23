@@ -1215,3 +1215,73 @@ export const insightsIA = mysqlTable("insightsIA", {
 
 export type InsightIA = typeof insightsIA.$inferSelect;
 export type InsertInsightIA = typeof insightsIA.$inferInsert;
+
+
+/**
+ * Regras de IA configuráveis para geração de alertas
+ */
+export const regrasIA = mysqlTable("regrasIA", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId"), // Null = regra global para todos os estabelecimentos
+  
+  // Identificador único da regra
+  codigo: varchar("codigo", { length: 50 }).notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  
+  // Categoria da regra
+  categoria: mysqlEnum("categoria", [
+    "outlier",           // Detecção de valores fora da média
+    "padrao_erro",       // Padrões de erro por funcionário
+    "risco_glosa",       // Score de risco de glosa
+    "tendencia",         // Análise de tendências
+    "comparacao"         // Comparação entre contas similares
+  ]).notNull(),
+  
+  // Tipo de alerta gerado
+  tipoAlerta: mysqlEnum("tipoAlerta", [
+    "critico",    // Vermelho - requer ação imediata
+    "alerta",     // Amarelo - atenção necessária
+    "info"        // Azul - informativo
+  ]).default("alerta").notNull(),
+  
+  // Parâmetros configuráveis (JSON)
+  parametros: json("parametros").$type<{
+    // Para outliers
+    limiteDesvioAbaixo?: number;     // Desvio padrão para valores abaixo da média (ex: 2)
+    limiteDesvioAcima?: number;      // Desvio padrão para valores acima da média (ex: 2)
+    minimoContasHistorico?: number;  // Mínimo de contas para ter estatísticas (ex: 3)
+    periodoAnalise?: number;         // Dias para análise (ex: 90)
+    
+    // Para padrões de erro
+    taxaGlosaMinima?: number;        // Taxa mínima de glosa para alerta (ex: 20)
+    minimoProcedimentos?: number;    // Mínimo de procedimentos para análise (ex: 50)
+    periodoMeses?: number;           // Período em meses (ex: 6)
+    
+    // Para risco de glosa
+    scoreRiscoMinimo?: number;       // Score mínimo para alerta (ex: 30)
+    historicoMinimoContas?: number;  // Mínimo de contas no histórico (ex: 5)
+    
+    // Para tendências
+    variacaoMinima?: number;         // Variação mínima percentual para alerta (ex: 10)
+    periodoComparacao?: number;      // Meses para comparação (ex: 3)
+    
+    // Configurações gerais
+    maxResultados?: number;          // Máximo de resultados a exibir (ex: 10)
+  }>(),
+  
+  // Prioridade para ordenação (menor = mais importante)
+  prioridade: int("prioridade").default(100),
+  
+  // Status da regra
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  // Auditoria
+  criadoPor: int("criadoPor"),
+  atualizadoPor: int("atualizadoPor"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RegraIA = typeof regrasIA.$inferSelect;
+export type InsertRegraIA = typeof regrasIA.$inferInsert;

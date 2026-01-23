@@ -111,6 +111,7 @@ const menuItems: MenuItem[] = [
   // Administração
   { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
+  { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
