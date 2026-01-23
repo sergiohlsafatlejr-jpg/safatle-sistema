@@ -3797,6 +3797,201 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getDadosTasyPorConvenio(input.estabelecimentoId);
       }),
+
+    // Upload automático via API (para script Python)
+    uploadAutomatico: publicProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nomeArquivo: z.string(),
+        tamanhoArquivo: z.number().optional(),
+        apiKey: z.string(), // Chave de API para autenticação
+        dados: z.array(z.object({
+          atendimento: z.string(),
+          nrInternoConta: z.string().optional(),
+          sequencia: z.string().optional(),
+          dataFaturado: z.string().optional(),
+          guia: z.string().optional(),
+          convenio: z.string().optional(),
+          paciente: z.string().optional(),
+          dataConta: z.string().optional(),
+          codigo: z.string().optional(),
+          codigoConvenio: z.string().optional(),
+          descricao: z.string().optional(),
+          quantidade: z.number().optional(),
+          unidade: z.string().optional(),
+          valorUnitario: z.number().optional(),
+          valorTotal: z.number().optional(),
+          setor: z.string().optional(),
+          protocolo: z.string().optional(),
+          statusProtocolo: z.string().optional(),
+          tipo: z.enum(['MATERIAL', 'HONORARIO']),
+          medico: z.string().optional(),
+          funcaoMedico: z.string().optional(),
+          crm: z.string().optional(),
+          valorMedico: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        // Valida a chave de API
+        const apiKeyValida = await db.validarApiKey(input.apiKey, input.estabelecimentoId);
+        if (!apiKeyValida) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Chave de API inválida ou sem permissão para este estabelecimento',
+          });
+        }
+
+        // Cria o registro de importação
+        const importacao = await db.createImportacaoTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          userId: apiKeyValida.userId,
+          nomeArquivo: input.nomeArquivo,
+          tamanhoArquivo: input.tamanhoArquivo,
+          status: 'processando',
+          progresso: 0,
+          totalRegistros: input.dados.length,
+        });
+
+        // Prepara os registros para inserção
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: input.estabelecimentoId,
+          importacaoId: importacao.id,
+          atendimento: d.atendimento,
+          nrInternoConta: d.nrInternoConta || null,
+          sequencia: d.sequencia || null,
+          dataFaturado: d.dataFaturado ? new Date(d.dataFaturado) : null,
+          guia: d.guia || null,
+          convenio: d.convenio || null,
+          paciente: d.paciente || null,
+          dataConta: d.dataConta ? new Date(d.dataConta) : null,
+          codigo: d.codigo || null,
+          codigoConvenio: d.codigoConvenio || null,
+          descricao: d.descricao || null,
+          quantidade: d.quantidade?.toString() || null,
+          unidade: d.unidade || null,
+          valorUnitario: d.valorUnitario?.toString() || null,
+          valorTotal: d.valorTotal?.toString() || null,
+          setor: d.setor || null,
+          protocolo: d.protocolo || null,
+          statusProtocolo: d.statusProtocolo || null,
+          tipo: d.tipo,
+          medico: d.medico || null,
+          funcaoMedico: d.funcaoMedico || null,
+          crm: d.crm || null,
+          valorMedico: d.valorMedico?.toString() || null,
+        }));
+
+        // Insere em lotes
+        const resultado = await db.insertDadosTasyBatch(
+          registros as any,
+          input.estabelecimentoId
+        );
+
+        // Conta por tipo
+        const totalMateriais = input.dados.filter(d => d.tipo === 'MATERIAL').length;
+        const totalHonorarios = input.dados.filter(d => d.tipo === 'HONORARIO').length;
+
+        // Calcula datas
+        const datas = input.dados
+          .filter(d => d.dataFaturado)
+          .map(d => new Date(d.dataFaturado!));
+        const dataInicio = datas.length > 0 ? new Date(Math.min(...datas.map(d => d.getTime()))) : null;
+        const dataFim = datas.length > 0 ? new Date(Math.max(...datas.map(d => d.getTime()))) : null;
+
+        // Atualiza estatísticas
+        const status = resultado.erros > 0 ? 'concluido_parcial' : 'concluido';
+        await db.updateImportacaoTasy(importacao.id, {
+          status,
+          progresso: 100,
+          registrosImportados: resultado.inseridos,
+          registrosIgnorados: resultado.ignorados,
+          registrosErro: resultado.erros,
+          totalMateriais,
+          totalHonorarios,
+          dataInicio,
+          dataFim,
+        });
+
+        return {
+          success: true,
+          importacaoId: importacao.id,
+          inseridos: resultado.inseridos,
+          ignorados: resultado.ignorados,
+          erros: resultado.erros,
+        };
+      }),
+
+    // Conciliação Tasy x XML
+    conciliar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        arquivoId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.compararTasyComXML(input.estabelecimentoId, input.arquivoId);
+      }),
+
+    // Resumo de conciliação por convênio
+    resumoConciliacao: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getResumoConciliacaoTasy(input.estabelecimentoId);
+      }),
+
+    // Buscar dados para conciliação
+    dadosParaConciliacao: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        atendimento: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getDadosTasyParaConciliacao(input.estabelecimentoId, {
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          convenio: input.convenio,
+          guia: input.guia,
+          atendimento: input.atendimento,
+        });
+      }),
+
+    // Marcar dados como processados
+    marcarProcessados: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()),
+        procedimentoId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.marcarDadosTasyProcessados(input.ids, input.procedimentoId);
+      }),
+
+    // Validar dados do Tasy com regras de negócio
+    validarComRegras: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        convenio: z.string().optional(),
+        atendimento: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.validarDadosTasyComRegras(input.estabelecimentoId, {
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          convenio: input.convenio,
+          atendimento: input.atendimento,
+        });
+      }),
+
+    // Resumo de validação por convênio
+    resumoValidacao: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getResumoValidacaoTasyPorConvenio(input.estabelecimentoId);
+      }),
   }),
 });
 

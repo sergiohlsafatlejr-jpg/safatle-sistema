@@ -1396,3 +1396,48 @@ export const importacoesTasy = mysqlTable("importacoesTasy", {
 
 export type ImportacaoTasy = typeof importacoesTasy.$inferSelect;
 export type InsertImportacaoTasy = typeof importacoesTasy.$inferInsert;
+
+
+/**
+ * Chaves de API para acesso externo
+ * Permite que scripts externos (como o de exportação do Tasy) acessem a API
+ */
+export const apiKeys = mysqlTable("apiKeys", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Usuário dono da chave
+  userId: int("userId").notNull(),
+  
+  // Nome/descrição da chave
+  nome: varchar("nome", { length: 255 }).notNull(),
+  
+  // Chave de API (hash)
+  keyHash: varchar("keyHash", { length: 255 }).notNull(),
+  
+  // Prefixo da chave (para identificação, ex: "sk_live_abc...")
+  keyPrefix: varchar("keyPrefix", { length: 20 }).notNull(),
+  
+  // Estabelecimentos permitidos (JSON array de IDs, null = todos)
+  estabelecimentosPermitidos: json("estabelecimentosPermitidos"),
+  
+  // Permissões (JSON array de strings)
+  permissoes: json("permissoes"),
+  
+  // Último uso
+  ultimoUso: timestamp("ultimoUso"),
+  
+  // Contador de uso
+  totalUsos: int("totalUsos").default(0),
+  
+  // Data de expiração (null = não expira)
+  expiraEm: timestamp("expiraEm"),
+  
+  // Status
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;

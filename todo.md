@@ -522,3 +522,12 @@
 - [x] Adicionar validação de estrutura do arquivo SQLite
 - [x] Implementar mapeamento de campos Tasy -> Safatle
 - [x] Adicionar testes automatizados para importação
+
+
+## Automação e Integração Tasy
+- [x] Criar script Python para exportação automática do Tasy (roda na máquina do usuário via VPN)
+- [x] Criar API de upload automático para receber dados do script
+- [x] Integrar dados do Tasy com a conciliação existente
+- [x] Aplicar regras de negócio existentes aos dados importados do Tasy
+- [x] Criar funções de validação de dados do Tasy com alertas de inconsistências
+- [x] Adicionar testes automatizados para as novas funcionalidades (240 testes passando)

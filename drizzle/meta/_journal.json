@@ -253,6 +253,13 @@
       "when": 1769185137615,
       "tag": "0035_shallow_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1769186410875,
+      "tag": "0036_majestic_corsair",
+      "breakpoints": true
     }
   ]
 }

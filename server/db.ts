@@ -57,6 +57,8 @@ import {
   InsertDadoTasy,
   importacoesTasy,
   InsertImportacaoTasy,
+  apiKeys,
+  InsertApiKey,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -10586,4 +10588,721 @@ export async function deleteImportacaoTasy(id: number) {
   await db.delete(importacoesTasy).where(eq(importacoesTasy.id, id));
   
   return { success: true };
+}
+
+
+// ============ API KEYS ============
+
+import * as crypto from 'crypto';
+
+/**
+ * Gera uma nova chave de API
+ */
+export function generateApiKey(): { key: string; hash: string; prefix: string } {
+  const key = `sk_live_${crypto.randomBytes(32).toString('hex')}`;
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
+  const prefix = key.substring(0, 15);
+  return { key, hash, prefix };
+}
+
+/**
+ * Cria uma nova chave de API
+ */
+export async function createApiKey(data: {
+  userId: number;
+  nome: string;
+  estabelecimentosPermitidos?: number[] | null;
+  permissoes?: string[] | null;
+  expiraEm?: Date | null;
+}): Promise<{ id: number; key: string }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const { key, hash, prefix } = generateApiKey();
+
+  const result = await db.insert(apiKeys).values({
+    userId: data.userId,
+    nome: data.nome,
+    keyHash: hash,
+    keyPrefix: prefix,
+    estabelecimentosPermitidos: data.estabelecimentosPermitidos || null,
+    permissoes: data.permissoes || null,
+    expiraEm: data.expiraEm || null,
+    ativo: 'sim',
+  });
+
+  return { id: Number(result[0].insertId), key };
+}
+
+/**
+ * Valida uma chave de API e retorna os dados do usuário se válida
+ */
+export async function validarApiKey(
+  key: string,
+  estabelecimentoId?: number
+): Promise<{ userId: number; apiKeyId: number } | null> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Calcula o hash da chave
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
+
+  // Busca a chave
+  const result = await db
+    .select()
+    .from(apiKeys)
+    .where(
+      and(
+        eq(apiKeys.keyHash, hash),
+        eq(apiKeys.ativo, 'sim')
+      )
+    )
+    .limit(1);
+
+  if (result.length === 0) {
+    return null;
+  }
+
+  const apiKey = result[0];
+
+  // Verifica se expirou
+  if (apiKey.expiraEm && new Date(apiKey.expiraEm) < new Date()) {
+    return null;
+  }
+
+  // Verifica se tem permissão para o estabelecimento
+  if (estabelecimentoId && apiKey.estabelecimentosPermitidos) {
+    const permitidos = apiKey.estabelecimentosPermitidos as number[];
+    if (!permitidos.includes(estabelecimentoId)) {
+      return null;
+    }
+  }
+
+  // Atualiza último uso
+  await db.update(apiKeys).set({
+    ultimoUso: new Date(),
+    totalUsos: sql`${apiKeys.totalUsos} + 1`,
+  }).where(eq(apiKeys.id, apiKey.id));
+
+  return { userId: apiKey.userId, apiKeyId: apiKey.id };
+}
+
+/**
+ * Lista as chaves de API de um usuário
+ */
+export async function getApiKeysByUser(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db
+    .select({
+      id: apiKeys.id,
+      nome: apiKeys.nome,
+      keyPrefix: apiKeys.keyPrefix,
+      estabelecimentosPermitidos: apiKeys.estabelecimentosPermitidos,
+      permissoes: apiKeys.permissoes,
+      ultimoUso: apiKeys.ultimoUso,
+      totalUsos: apiKeys.totalUsos,
+      expiraEm: apiKeys.expiraEm,
+      ativo: apiKeys.ativo,
+      createdAt: apiKeys.createdAt,
+    })
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, userId))
+    .orderBy(desc(apiKeys.createdAt));
+
+  return result;
+}
+
+/**
+ * Revoga (desativa) uma chave de API
+ */
+export async function revogarApiKey(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.update(apiKeys).set({
+    ativo: 'nao',
+  }).where(
+    and(
+      eq(apiKeys.id, id),
+      eq(apiKeys.userId, userId)
+    )
+  );
+
+  return { success: true };
+}
+
+/**
+ * Exclui uma chave de API
+ */
+export async function deleteApiKey(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.delete(apiKeys).where(
+    and(
+      eq(apiKeys.id, id),
+      eq(apiKeys.userId, userId)
+    )
+  );
+
+  return { success: true };
+}
+
+
+// ============ CONCILIAÇÃO TASY x XML ============
+
+/**
+ * Busca dados do Tasy para conciliação com XML
+ * Agrupa por guia/atendimento para comparar com procedimentos do XML
+ */
+export async function getDadosTasyParaConciliacao(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenio?: string;
+    guia?: string;
+    atendimento?: string;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const conditions: any[] = [eq(dadosTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.dataInicio) {
+    conditions.push(sql`${dadosTasy.dataFaturado} >= ${filtros.dataInicio}`);
+  }
+  if (filtros?.dataFim) {
+    conditions.push(sql`${dadosTasy.dataFaturado} <= ${filtros.dataFim}`);
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${dadosTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.guia) {
+    conditions.push(eq(dadosTasy.guia, filtros.guia));
+  }
+  if (filtros?.atendimento) {
+    conditions.push(eq(dadosTasy.atendimento, filtros.atendimento));
+  }
+
+  const result = await db
+    .select()
+    .from(dadosTasy)
+    .where(and(...conditions))
+    .orderBy(dadosTasy.atendimento, dadosTasy.sequencia);
+
+  return result;
+}
+
+/**
+ * Compara dados do Tasy com procedimentos do XML
+ * Retorna divergências encontradas
+ */
+export async function compararTasyComXML(
+  estabelecimentoId: number,
+  arquivoId: number
+): Promise<{
+  totalTasy: number;
+  totalXML: number;
+  coincidentes: number;
+  apenasNoTasy: any[];
+  apenasNoXML: any[];
+  divergencias: any[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Busca procedimentos do XML
+  const procedimentosXML = await db
+    .select()
+    .from(procedimentos)
+    .where(eq(procedimentos.arquivoId, arquivoId));
+
+  // Busca o arquivo para obter informações do convênio e período
+  const arquivo = await db
+    .select()
+    .from(arquivos)
+    .where(eq(arquivos.id, arquivoId))
+    .limit(1);
+
+  if (!arquivo[0]) {
+    throw new Error('Arquivo não encontrado');
+  }
+
+  // Busca dados do Tasy para o mesmo período e convênio
+  const dadosTasyResult = await getDadosTasyParaConciliacao(estabelecimentoId, {
+    dataInicio: arquivo[0].dataReferencia || undefined,
+    dataFim: arquivo[0].dataReferencia || undefined,
+  });
+
+  // Agrupa dados do Tasy por código
+  const tasyPorCodigo = new Map<string, any[]>();
+  for (const item of dadosTasyResult) {
+    const codigo = item.codigo || item.codigoConvenio || '';
+    if (!tasyPorCodigo.has(codigo)) {
+      tasyPorCodigo.set(codigo, []);
+    }
+    tasyPorCodigo.get(codigo)!.push(item);
+  }
+
+  // Agrupa procedimentos do XML por código
+  const xmlPorCodigo = new Map<string, any[]>();
+  for (const proc of procedimentosXML) {
+    const codigo = proc.codigo || '';
+    if (!xmlPorCodigo.has(codigo)) {
+      xmlPorCodigo.set(codigo, []);
+    }
+    xmlPorCodigo.get(codigo)!.push(proc);
+  }
+
+  // Encontra divergências
+  const apenasNoTasy: any[] = [];
+  const apenasNoXML: any[] = [];
+  const divergencias: any[] = [];
+  let coincidentes = 0;
+
+  // Verifica itens do Tasy
+  for (const [codigo, itensTasy] of Array.from(tasyPorCodigo.entries())) {
+    const itensXML = xmlPorCodigo.get(codigo);
+    
+    if (!itensXML || itensXML.length === 0) {
+      // Item existe no Tasy mas não no XML
+      apenasNoTasy.push(...itensTasy.map(item => ({
+        ...item,
+        motivo: 'Item não encontrado no XML do convênio',
+      })));
+    } else {
+      // Compara quantidades e valores
+      const qtdTasy = itensTasy.reduce((sum, i) => sum + (parseFloat(i.quantidade) || 0), 0);
+      const qtdXML = itensXML.reduce((sum, i) => sum + (parseFloat(i.quantidade) || 0), 0);
+      const valorTasy = itensTasy.reduce((sum, i) => sum + (parseFloat(i.valorTotal) || 0), 0);
+      const valorXML = itensXML.reduce((sum, i) => sum + (parseFloat(i.valorCobrado) || 0), 0);
+
+      if (Math.abs(qtdTasy - qtdXML) > 0.01 || Math.abs(valorTasy - valorXML) > 0.01) {
+        divergencias.push({
+          codigo,
+          descricao: itensTasy[0]?.descricao || itensXML[0]?.descricaoProcedimento,
+          qtdTasy,
+          qtdXML,
+          valorTasy,
+          valorXML,
+          diferencaQtd: qtdTasy - qtdXML,
+          diferencaValor: valorTasy - valorXML,
+          itensTasy,
+          itensXML,
+        });
+      } else {
+        coincidentes++;
+      }
+    }
+  }
+
+  // Verifica itens do XML que não estão no Tasy
+  for (const [codigo, itensXML] of Array.from(xmlPorCodigo.entries())) {
+    if (!tasyPorCodigo.has(codigo)) {
+      apenasNoXML.push(...itensXML.map((item: any) => ({
+        ...item,
+        motivo: 'Item não encontrado nos dados do Tasy',
+      })));
+    }
+  }
+
+  return {
+    totalTasy: dadosTasyResult.length,
+    totalXML: procedimentosXML.length,
+    coincidentes,
+    apenasNoTasy,
+    apenasNoXML,
+    divergencias,
+  };
+}
+
+/**
+ * Busca resumo de conciliação por convênio
+ */
+export async function getResumoConciliacaoTasy(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Busca total de dados do Tasy por convênio
+  const dadosTasyPorConvenio = await db
+    .select({
+      convenio: dadosTasy.convenio,
+      totalRegistros: sql<number>`COUNT(*)`,
+      totalValor: sql<number>`SUM(CAST(${dadosTasy.valorTotal} AS DECIMAL(12,2)))`,
+      processados: sql<number>`SUM(CASE WHEN ${dadosTasy.processado} = 'sim' THEN 1 ELSE 0 END)`,
+      pendentes: sql<number>`SUM(CASE WHEN ${dadosTasy.processado} = 'nao' THEN 1 ELSE 0 END)`,
+    })
+    .from(dadosTasy)
+    .where(eq(dadosTasy.estabelecimentoId, estabelecimentoId))
+    .groupBy(dadosTasy.convenio);
+
+  // Busca total de arquivos XML por convênio
+  const arquivosPorConvenio = await db
+    .select({
+      convenioId: arquivos.convenioId,
+      totalArquivos: sql<number>`COUNT(*)`,
+      totalItens: sql<number>`SUM(COALESCE(${arquivos.totalItens}, 0))`,
+    })
+    .from(arquivos)
+    .where(eq(arquivos.estabelecimentoId, estabelecimentoId))
+    .groupBy(arquivos.convenioId);
+
+  // Busca nomes dos convênios
+  const listaConvenios = await db.select().from(convenios);
+  const conveniosMap = new Map(listaConvenios.map(c => [c.id, c.nome]));
+
+  return {
+    dadosTasy: dadosTasyPorConvenio,
+    arquivosXML: arquivosPorConvenio.map(a => ({
+      ...a,
+      convenioNome: conveniosMap.get(a.convenioId) || 'Desconhecido',
+    })),
+  };
+}
+
+/**
+ * Marca dados do Tasy como processados (vinculados a um procedimento)
+ */
+export async function marcarDadosTasyProcessados(
+  ids: number[],
+  procedimentoId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db.update(dadosTasy).set({
+    processado: 'sim',
+    procedimentoId,
+  }).where(inArray(dadosTasy.id, ids));
+
+  return { success: true };
+}
+
+
+// ============ REGRAS DE NEGÓCIO PARA DADOS DO TASY ============
+
+/**
+ * Valida dados do Tasy contra as regras de negócio configuradas
+ * Retorna alertas de inconsistências encontradas
+ */
+export async function validarDadosTasyComRegras(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenio?: string;
+    atendimento?: string;
+  }
+): Promise<{
+  totalAnalisados: number;
+  totalAlertas: number;
+  alertas: any[];
+  resumoPorTipo: Record<string, number>;
+}> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Busca dados do Tasy
+  const dados = await getDadosTasyParaConciliacao(estabelecimentoId, filtros);
+
+  // Busca regras de negócio ativas
+  const regras = await db
+    .select()
+    .from(regrasNegocio)
+    .where(
+      and(
+        eq(regrasNegocio.ativo, 'sim'),
+        or(
+          isNull(regrasNegocio.estabelecimentoId),
+          eq(regrasNegocio.estabelecimentoId, estabelecimentoId)
+        )
+      )
+    );
+
+  // Busca itens das regras
+  const regrasIds = regras.map(r => r.id);
+  const itensRegras = regrasIds.length > 0
+    ? await db
+        .select()
+        .from(itensRegraNegocio)
+        .where(inArray(itensRegraNegocio.regraId, regrasIds))
+    : [];
+
+  // Agrupa itens por regra
+  const itensPorRegra = new Map<number, any[]>();
+  for (const item of itensRegras) {
+    if (!itensPorRegra.has(item.regraId)) {
+      itensPorRegra.set(item.regraId, []);
+    }
+    itensPorRegra.get(item.regraId)!.push(item);
+  }
+
+  // Agrupa dados por atendimento
+  const dadosPorAtendimento = new Map<string, any[]>();
+  for (const item of dados) {
+    if (!dadosPorAtendimento.has(item.atendimento)) {
+      dadosPorAtendimento.set(item.atendimento, []);
+    }
+    dadosPorAtendimento.get(item.atendimento)!.push(item);
+  }
+
+  const alertas: any[] = [];
+  const resumoPorTipo: Record<string, number> = {};
+
+  // Valida cada atendimento
+  for (const [atendimento, itensAtendimento] of Array.from(dadosPorAtendimento.entries())) {
+    const codigosAtendimento = new Set(itensAtendimento.map(i => i.codigo || i.codigoConvenio));
+
+    // Verifica cada regra
+    for (const regra of regras) {
+      const itensRegra = itensPorRegra.get(regra.id) || [];
+      
+      // Verifica se o procedimento principal está no atendimento
+      if (!codigosAtendimento.has(regra.codigoProcedimentoPrincipal)) {
+        continue;
+      }
+
+      // Aplica a regra
+      for (const itemRegra of itensRegra) {
+        const itemEncontrado = itensAtendimento.find(
+          i => (i.codigo === itemRegra.codigoItem || i.codigoConvenio === itemRegra.codigoItem)
+        );
+
+        let alerta: any = null;
+
+        switch (regra.tipoVerificacao) {
+          case 'deve_conter':
+            if (!itemEncontrado && itemRegra.obrigatorio === 'sim') {
+              alerta = {
+                tipo: 'item_faltante',
+                severidade: 'alta',
+                atendimento,
+                paciente: itensAtendimento[0]?.paciente,
+                convenio: itensAtendimento[0]?.convenio,
+                regraId: regra.id,
+                regraNome: regra.nome,
+                procedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+                itemFaltante: itemRegra.codigoItem,
+                descricaoItem: itemRegra.descricaoItem,
+                mensagem: `Item obrigatório "${itemRegra.descricaoItem || itemRegra.codigoItem}" não encontrado para o procedimento "${regra.descricaoProcedimentoPrincipal || regra.codigoProcedimentoPrincipal}"`,
+                acao: regra.acaoInconsistencia,
+              };
+            }
+            break;
+
+          case 'nao_deve_conter':
+            if (itemEncontrado) {
+              alerta = {
+                tipo: 'item_nao_permitido',
+                severidade: 'media',
+                atendimento,
+                paciente: itensAtendimento[0]?.paciente,
+                convenio: itensAtendimento[0]?.convenio,
+                regraId: regra.id,
+                regraNome: regra.nome,
+                procedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+                itemProibido: itemRegra.codigoItem,
+                descricaoItem: itemRegra.descricaoItem,
+                mensagem: `Item "${itemRegra.descricaoItem || itemRegra.codigoItem}" não deveria estar presente junto com "${regra.descricaoProcedimentoPrincipal || regra.codigoProcedimentoPrincipal}"`,
+                acao: regra.acaoInconsistencia,
+              };
+            }
+            break;
+
+          case 'quantidade_minima':
+            if (itemEncontrado) {
+              const qtd = parseFloat(itemEncontrado.quantidade) || 0;
+              if (qtd < (itemRegra.quantidadeMinima || 1)) {
+                alerta = {
+                  tipo: 'quantidade_insuficiente',
+                  severidade: 'media',
+                  atendimento,
+                  paciente: itensAtendimento[0]?.paciente,
+                  convenio: itensAtendimento[0]?.convenio,
+                  regraId: regra.id,
+                  regraNome: regra.nome,
+                  procedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+                  item: itemRegra.codigoItem,
+                  descricaoItem: itemRegra.descricaoItem,
+                  quantidadeAtual: qtd,
+                  quantidadeMinima: itemRegra.quantidadeMinima,
+                  mensagem: `Quantidade de "${itemRegra.descricaoItem || itemRegra.codigoItem}" (${qtd}) está abaixo do mínimo esperado (${itemRegra.quantidadeMinima})`,
+                  acao: regra.acaoInconsistencia,
+                };
+              }
+            }
+            break;
+
+          case 'quantidade_maxima':
+            if (itemEncontrado) {
+              const qtd = parseFloat(itemEncontrado.quantidade) || 0;
+              if (itemRegra.quantidadeMaxima && qtd > itemRegra.quantidadeMaxima) {
+                alerta = {
+                  tipo: 'quantidade_excessiva',
+                  severidade: 'media',
+                  atendimento,
+                  paciente: itensAtendimento[0]?.paciente,
+                  convenio: itensAtendimento[0]?.convenio,
+                  regraId: regra.id,
+                  regraNome: regra.nome,
+                  procedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+                  item: itemRegra.codigoItem,
+                  descricaoItem: itemRegra.descricaoItem,
+                  quantidadeAtual: qtd,
+                  quantidadeMaxima: itemRegra.quantidadeMaxima,
+                  mensagem: `Quantidade de "${itemRegra.descricaoItem || itemRegra.codigoItem}" (${qtd}) excede o máximo permitido (${itemRegra.quantidadeMaxima})`,
+                  acao: regra.acaoInconsistencia,
+                };
+              }
+            }
+            break;
+
+          case 'pode_conter':
+            // Valida valor se o item existir
+            if (itemEncontrado && itemRegra.valorEsperado) {
+              const valorAtual = parseFloat(itemEncontrado.valorTotal) || 0;
+              const valorEsperado = parseFloat(itemRegra.valorEsperado as string) || 0;
+              const tolerancia = parseFloat(itemRegra.toleranciaValor as string) || 0;
+              
+              if (Math.abs(valorAtual - valorEsperado) > tolerancia) {
+                alerta = {
+                  tipo: 'valor_divergente',
+                  severidade: 'baixa',
+                  atendimento,
+                  paciente: itensAtendimento[0]?.paciente,
+                  convenio: itensAtendimento[0]?.convenio,
+                  regraId: regra.id,
+                  regraNome: regra.nome,
+                  procedimentoPrincipal: regra.codigoProcedimentoPrincipal,
+                  item: itemRegra.codigoItem,
+                  descricaoItem: itemRegra.descricaoItem,
+                  valorAtual,
+                  valorEsperado,
+                  diferenca: valorAtual - valorEsperado,
+                  mensagem: `Valor de "${itemRegra.descricaoItem || itemRegra.codigoItem}" (R$ ${valorAtual.toFixed(2)}) diverge do esperado (R$ ${valorEsperado.toFixed(2)})`,
+                  acao: regra.acaoInconsistencia,
+                };
+              }
+            }
+            break;
+        }
+
+        if (alerta) {
+          alertas.push(alerta);
+          resumoPorTipo[alerta.tipo] = (resumoPorTipo[alerta.tipo] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Adiciona validações básicas (mesmo sem regras configuradas)
+  for (const item of dados) {
+    // Verifica valores zerados
+    const valor = parseFloat(item.valorTotal as string || '0') || 0;
+    if (valor === 0) {
+      alertas.push({
+        tipo: 'valor_zerado',
+        severidade: 'alta',
+        atendimento: item.atendimento,
+        paciente: item.paciente,
+        convenio: item.convenio,
+        codigo: item.codigo,
+        descricao: item.descricao,
+        mensagem: `Item "${item.descricao || item.codigo}" com valor zerado`,
+        acao: 'alerta',
+      });
+      resumoPorTipo['valor_zerado'] = (resumoPorTipo['valor_zerado'] || 0) + 1;
+    }
+
+    // Verifica quantidades negativas
+    const qtd = parseFloat(item.quantidade as string || '0') || 0;
+    if (qtd < 0) {
+      alertas.push({
+        tipo: 'quantidade_negativa',
+        severidade: 'alta',
+        atendimento: item.atendimento,
+        paciente: item.paciente,
+        convenio: item.convenio,
+        codigo: item.codigo,
+        descricao: item.descricao,
+        quantidade: qtd,
+        mensagem: `Item "${item.descricao || item.codigo}" com quantidade negativa (${qtd})`,
+        acao: 'alerta',
+      });
+      resumoPorTipo['quantidade_negativa'] = (resumoPorTipo['quantidade_negativa'] || 0) + 1;
+    }
+
+    // Verifica honorários sem médico
+    if (item.tipo === 'HONORARIO' && !item.medico) {
+      alertas.push({
+        tipo: 'honorario_sem_medico',
+        severidade: 'media',
+        atendimento: item.atendimento,
+        paciente: item.paciente,
+        convenio: item.convenio,
+        codigo: item.codigo,
+        descricao: item.descricao,
+        mensagem: `Honorário "${item.descricao || item.codigo}" sem médico responsável`,
+        acao: 'alerta',
+      });
+      resumoPorTipo['honorario_sem_medico'] = (resumoPorTipo['honorario_sem_medico'] || 0) + 1;
+    }
+
+    // Verifica itens sem código
+    if (!item.codigo && !item.codigoConvenio) {
+      alertas.push({
+        tipo: 'item_sem_codigo',
+        severidade: 'alta',
+        atendimento: item.atendimento,
+        paciente: item.paciente,
+        convenio: item.convenio,
+        descricao: item.descricao,
+        mensagem: `Item "${item.descricao}" sem código`,
+        acao: 'alerta',
+      });
+      resumoPorTipo['item_sem_codigo'] = (resumoPorTipo['item_sem_codigo'] || 0) + 1;
+    }
+  }
+
+  return {
+    totalAnalisados: dados.length,
+    totalAlertas: alertas.length,
+    alertas,
+    resumoPorTipo,
+  };
+}
+
+/**
+ * Busca resumo de validação por convênio
+ */
+export async function getResumoValidacaoTasyPorConvenio(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Busca dados agrupados por convênio
+  const dadosPorConvenio = await getDadosTasyPorConvenio(estabelecimentoId);
+
+  // Para cada convênio, executa validação
+  const resultados = [];
+  for (const conv of dadosPorConvenio) {
+    if (!conv.convenio) continue;
+    
+    const validacao = await validarDadosTasyComRegras(estabelecimentoId, {
+      convenio: conv.convenio,
+    });
+
+    resultados.push({
+      convenio: conv.convenio,
+      totalRegistros: conv.totalRegistros,
+      valorTotal: conv.valorTotal,
+      totalAlertas: validacao.totalAlertas,
+      resumoPorTipo: validacao.resumoPorTipo,
+    });
+  }
+
+  return resultados;
 }
