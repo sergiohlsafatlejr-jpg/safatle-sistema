@@ -670,3 +670,13 @@
 - [x] Implementar ordenação nas colunas (valor, código, tipo) - clique no cabeçalho para ordenar
 - [x] Adicionar mais campos de análise nos Relatórios Tasy (procedimentos, descrição, protocolo, paciente, CRM, função médico)
 - [x] Criar nova tela de Relatórios BI estilo Power BI para dados importados via XML/Excel (RelatoriosBI.tsx)
+
+
+## Relatórios BI - Usar Banco de Dados Principal
+- [x] Modificar Relatórios BI para usar dados do banco principal (procedimentos, arquivos, conciliação)
+- [x] Incluir métricas de faturado, recebido e glosa com percentuais
+- [x] Garantir funcionamento para todos os estabelecimentos (não apenas Tasy)
+- [x] Adicionar filtros por convênio, período, tipo de item, paciente, procedimento
+- [x] Criar gráficos de análise de faturamento vs recebimento vs glosa
+- [x] Criar procedures tRPC getDadosBI e getOpcoesFiltroBi
+- [x] 18 testes automatizados para Relatórios BI

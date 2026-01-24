@@ -4219,6 +4219,32 @@ export const appRouter = router({
         return db.marcarAlertaVisualizado(input.id);
       }),
   }),
+
+  // ============ RELATÓRIOS BI ============
+  relatoriosBI: router({
+    // Buscar dados consolidados para BI
+    dados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+        convenioId: z.number().optional(),
+        tipo: z.string().optional(),
+        setor: z.string().optional(),
+        paciente: z.string().optional(),
+        procedimento: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getDadosBI(input);
+      }),
+
+    // Buscar opções de filtro
+    opcoesFiltro: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getOpcoesFiltroBi(input.estabelecimentoId);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

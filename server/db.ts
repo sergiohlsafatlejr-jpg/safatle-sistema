@@ -11996,3 +11996,429 @@ export async function listarUsuariosParaCompartilhamento(estabelecimentoId: numb
     email: p.usuario.email,
   }));
 }
+
+
+// ============ RELATÓRIOS BI - DADOS DO BANCO PRINCIPAL ============
+
+export interface DadosBIFiltros {
+  estabelecimentoId: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+  convenioId?: number;
+  tipo?: string;
+  setor?: string;
+  paciente?: string;
+  procedimento?: string;
+}
+
+export interface DadosBIResumo {
+  totalFaturado: number;
+  totalRecebido: number;
+  totalGlosado: number;
+  totalPendente: number;
+  totalItens: number;
+  totalMateriais: number;
+  totalHonorarios: number;
+  totalProcedimentos: number;
+  totalPacientes: number;
+  totalConvenios: number;
+}
+
+export interface DadosBIAgrupado {
+  chave: string;
+  valorFaturado: number;
+  valorRecebido: number;
+  valorGlosado: number;
+  valorPendente: number;
+  quantidade: number;
+  registros: number;
+}
+
+/**
+ * Busca dados consolidados para Relatórios BI
+ * Combina dados de procedimentos (XMLs enviados) com retornos (Excel recebidos)
+ */
+export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
+  resumo: DadosBIResumo;
+  porConvenio: DadosBIAgrupado[];
+  porTipo: DadosBIAgrupado[];
+  porMes: DadosBIAgrupado[];
+  porSetor: DadosBIAgrupado[];
+  porMedico: DadosBIAgrupado[];
+  porPaciente: DadosBIAgrupado[];
+  porProcedimento: DadosBIAgrupado[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento } = filtros;
+
+  // Condições base para arquivos
+  const arquivosConditions: any[] = [
+    eq(arquivos.status, "processado"),
+  ];
+  
+  if (estabelecimentoId && estabelecimentoId > 0) {
+    arquivosConditions.push(eq(arquivos.estabelecimentoId, estabelecimentoId));
+  }
+  
+  if (convenioId) {
+    arquivosConditions.push(eq(arquivos.convenioId, convenioId));
+  }
+
+  // Filtro de período
+  if (mesReferencia && anoReferencia) {
+    const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
+    const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+    arquivosConditions.push(gte(arquivos.dataReferencia, dataInicio));
+    arquivosConditions.push(lte(arquivos.dataReferencia, dataFim));
+  } else if (anoReferencia) {
+    const dataInicio = new Date(anoReferencia, 0, 1);
+    const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
+    arquivosConditions.push(gte(arquivos.dataReferencia, dataInicio));
+    arquivosConditions.push(lte(arquivos.dataReferencia, dataFim));
+  }
+
+  // Buscar arquivos enviados (faturados)
+  const arquivosEnviados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...arquivosConditions, eq(arquivos.direcao, "enviado")));
+
+  // Buscar arquivos retornados (recebidos)
+  const arquivosRetornados = await db
+    .select()
+    .from(arquivos)
+    .where(and(...arquivosConditions, eq(arquivos.direcao, "retornado")));
+
+  // Mapear convênios
+  const todosConvenios = await db.select().from(convenios);
+  const convenioMap = new Map(todosConvenios.map(c => [c.id, c.nome]));
+
+  // Buscar procedimentos dos arquivos enviados
+  const enviadosIds = arquivosEnviados.map(a => a.id);
+  let procedimentosEnviados: any[] = [];
+  if (enviadosIds.length > 0) {
+    procedimentosEnviados = await db
+      .select()
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, enviadosIds));
+  }
+
+  // Buscar procedimentos dos arquivos retornados
+  const retornadosIds = arquivosRetornados.map(a => a.id);
+  let procedimentosRetornados: any[] = [];
+  if (retornadosIds.length > 0) {
+    procedimentosRetornados = await db
+      .select()
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, retornadosIds));
+  }
+
+  // Criar mapa de arquivo para convênio
+  const arquivoConvenioMap = new Map<number, number>();
+  const arquivoDataMap = new Map<number, Date | null>();
+  for (const arq of [...arquivosEnviados, ...arquivosRetornados]) {
+    arquivoConvenioMap.set(arq.id, arq.convenioId);
+    arquivoDataMap.set(arq.id, arq.dataReferencia);
+  }
+
+  // Aplicar filtros adicionais
+  const filtrarProcedimento = (proc: any) => {
+    if (tipo && tipo !== "todos") {
+      const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+      if (tipoProcedimento !== tipo) return false;
+    }
+    if (paciente && paciente !== "todos" && proc.pacienteNome !== paciente) return false;
+    if (procedimento && procedimento !== "todos" && proc.codigo !== procedimento) return false;
+    return true;
+  };
+
+  const procedimentosEnviadosFiltrados = procedimentosEnviados.filter(filtrarProcedimento);
+  const procedimentosRetornadosFiltrados = procedimentosRetornados.filter(filtrarProcedimento);
+
+  // Calcular resumo
+  let totalFaturado = 0;
+  let totalRecebido = 0;
+  let totalGlosado = 0;
+  let totalMateriais = 0;
+  let totalHonorarios = 0;
+  let totalProcedimentos = 0;
+  const pacientesSet = new Set<string>();
+  const conveniosSet = new Set<number>();
+
+  for (const proc of procedimentosEnviadosFiltrados) {
+    totalFaturado += parseFloat(proc.valorTotal || "0");
+    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+    if (tipoProcedimento === "material" || tipoProcedimento === "medicamento") totalMateriais++;
+    else if (tipoProcedimento === "procedimento") totalHonorarios++;
+    totalProcedimentos++;
+    if (proc.pacienteNome) pacientesSet.add(proc.pacienteNome);
+    const convId = arquivoConvenioMap.get(proc.arquivoId);
+    if (convId) conveniosSet.add(convId);
+  }
+
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const valorTotal = parseFloat(proc.valorTotal || "0");
+    const valorGlosado = parseFloat(proc.valorGlosado || "0");
+    totalRecebido += valorTotal - valorGlosado;
+    totalGlosado += valorGlosado;
+  }
+
+  const totalPendente = totalFaturado - totalRecebido - totalGlosado;
+
+  // Agrupar por convênio
+  const porConvenioMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const convId = arquivoConvenioMap.get(proc.arquivoId);
+    const chave = convenioMap.get(convId || 0) || "Sem Convênio";
+    if (!porConvenioMap.has(chave)) {
+      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porConvenioMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const convId = arquivoConvenioMap.get(proc.arquivoId);
+    const chave = convenioMap.get(convId || 0) || "Sem Convênio";
+    if (porConvenioMap.has(chave)) {
+      const item = porConvenioMap.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || "0");
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+    }
+  }
+  // Calcular pendente
+  for (const item of Array.from(porConvenioMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por tipo
+  const porTipoMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+    const chave = tipoProcedimento;
+    if (!porTipoMap.has(chave)) {
+      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porTipoMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+    const chave = tipoProcedimento;
+    if (porTipoMap.has(chave)) {
+      const item = porTipoMap.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || "0");
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+    }
+  }
+  for (const item of Array.from(porTipoMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por mês
+  const porMesMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const dataRef = arquivoDataMap.get(proc.arquivoId);
+    const chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
+    if (!porMesMap.has(chave)) {
+      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porMesMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const dataRef = arquivoDataMap.get(proc.arquivoId);
+    const chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
+    if (porMesMap.has(chave)) {
+      const item = porMesMap.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || "0");
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+    }
+  }
+  for (const item of Array.from(porMesMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por médico
+  const porMedicoMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const chave = proc.nomeMedico || 'Sem Médico';
+    if (!porMedicoMap.has(chave)) {
+      porMedicoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porMedicoMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const item of Array.from(porMedicoMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por paciente
+  const porPacienteMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const chave = proc.pacienteNome || 'Sem Paciente';
+    if (!porPacienteMap.has(chave)) {
+      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porPacienteMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const item of Array.from(porPacienteMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por procedimento (código)
+  const porProcedimentoMap = new Map<string, DadosBIAgrupado & { descricao?: string }>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const chave = proc.codigo || 'Sem Código';
+    if (!porProcedimentoMap.has(chave)) {
+      porProcedimentoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, descricao: proc.descricao });
+    }
+    const item = porProcedimentoMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const item of Array.from(porProcedimentoMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Ordenar por valor faturado (decrescente)
+  const ordenarPorValor = (a: DadosBIAgrupado, b: DadosBIAgrupado) => b.valorFaturado - a.valorFaturado;
+
+  return {
+    resumo: {
+      totalFaturado,
+      totalRecebido,
+      totalGlosado,
+      totalPendente: Math.max(0, totalPendente),
+      totalItens: procedimentosEnviadosFiltrados.length,
+      totalMateriais,
+      totalHonorarios,
+      totalProcedimentos,
+      totalPacientes: pacientesSet.size,
+      totalConvenios: conveniosSet.size,
+    },
+    porConvenio: Array.from(porConvenioMap.values()).sort(ordenarPorValor),
+    porTipo: Array.from(porTipoMap.values()).sort(ordenarPorValor),
+    porMes: Array.from(porMesMap.values()).sort((a, b) => a.chave.localeCompare(b.chave)),
+    porSetor: [], // Setor não está disponível nos procedimentos XML
+    porMedico: Array.from(porMedicoMap.values()).sort(ordenarPorValor),
+    porPaciente: Array.from(porPacienteMap.values()).sort(ordenarPorValor),
+    porProcedimento: Array.from(porProcedimentoMap.values()).sort(ordenarPorValor),
+  };
+}
+
+/**
+ * Busca lista de valores únicos para filtros do BI
+ */
+export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
+  convenios: Array<{ id: number; nome: string }>;
+  tipos: string[];
+  pacientes: string[];
+  procedimentos: Array<{ codigo: string; descricao: string }>;
+  meses: Array<{ mes: number; ano: number; label: string }>;
+}> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Buscar convênios do estabelecimento
+  const conveniosResult = await db
+    .select({ id: convenios.id, nome: convenios.nome })
+    .from(convenios)
+    .where(or(
+      eq(convenios.estabelecimentoId, estabelecimentoId),
+      isNull(convenios.estabelecimentoId)
+    ))
+    .orderBy(convenios.nome);
+
+  // Buscar arquivos do estabelecimento
+  const arquivosEstab = await db
+    .select({ id: arquivos.id, dataReferencia: arquivos.dataReferencia })
+    .from(arquivos)
+    .where(and(
+      eq(arquivos.estabelecimentoId, estabelecimentoId),
+      eq(arquivos.status, "processado")
+    ));
+
+  const arquivoIds = arquivosEstab.map(a => a.id);
+
+  // Buscar procedimentos únicos
+  let procedimentosUnicos: Array<{ codigo: string; descricao: string }> = [];
+  let pacientesUnicos: string[] = [];
+  let tiposUnicos: string[] = [];
+
+  if (arquivoIds.length > 0) {
+    const procs = await db
+      .select({
+        codigo: procedimentos.codigo,
+        descricao: procedimentos.descricao,
+        pacienteNome: procedimentos.pacienteNome,
+        tipoDespesa: procedimentos.tipoDespesa,
+      })
+      .from(procedimentos)
+      .where(inArray(procedimentos.arquivoId, arquivoIds));
+
+    const codigosSet = new Map<string, string>();
+    const pacientesSet = new Set<string>();
+    const tiposSet = new Set<string>();
+
+    for (const proc of procs) {
+      if (proc.codigo && !codigosSet.has(proc.codigo)) {
+        codigosSet.set(proc.codigo, proc.descricao || '');
+      }
+      if (proc.pacienteNome) pacientesSet.add(proc.pacienteNome);
+      const tipo = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+      tiposSet.add(tipo);
+    }
+
+    procedimentosUnicos = Array.from(codigosSet.entries()).map(([codigo, descricao]) => ({ codigo, descricao }));
+    pacientesUnicos = Array.from(pacientesSet).sort();
+    tiposUnicos = Array.from(tiposSet).sort();
+  }
+
+  // Buscar meses disponíveis
+  const mesesSet = new Set<string>();
+  for (const arq of arquivosEstab) {
+    if (arq.dataReferencia) {
+      const mes = arq.dataReferencia.getMonth() + 1;
+      const ano = arq.dataReferencia.getFullYear();
+      mesesSet.add(`${ano}-${String(mes).padStart(2, '0')}`);
+    }
+  }
+
+  const meses = Array.from(mesesSet)
+    .sort()
+    .reverse()
+    .map(m => {
+      const [ano, mes] = m.split('-').map(Number);
+      const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return { mes, ano, label: `${mesesNomes[mes - 1]}/${ano}` };
+    });
+
+  return {
+    convenios: conveniosResult,
+    tipos: tiposUnicos,
+    pacientes: pacientesUnicos,
+    procedimentos: procedimentosUnicos.slice(0, 500), // Limitar a 500
+    meses,
+  };
+}
+

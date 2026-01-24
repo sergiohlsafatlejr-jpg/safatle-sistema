@@ -8,13 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -32,8 +25,6 @@ import {
   LineChart,
   RefreshCw, 
   FileSpreadsheet,
-  Columns,
-  Filter,
   Download,
   TrendingUp,
   TrendingDown,
@@ -42,19 +33,19 @@ import {
   Building2,
   User,
   Calendar,
-  ChevronDown,
-  Eye,
-  X,
   Database,
   FileText,
   Search,
-  Layers,
-  LayoutDashboard,
   Activity,
-  Target,
-  Zap
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  Wallet,
+  Receipt,
+  Ban
 } from "lucide-react";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 import {
   Chart as ChartJS,
@@ -102,31 +93,25 @@ const coresGraficos = [
 const camposAnalise = {
   dimensoes: [
     { id: 'convenio', label: 'Convênio', icon: Building2 },
-    { id: 'setor', label: 'Setor', icon: Building2 },
     { id: 'tipo', label: 'Tipo (Mat/Hon)', icon: Package },
     { id: 'medico', label: 'Médico', icon: User },
     { id: 'paciente', label: 'Paciente', icon: User },
-    { id: 'codigo', label: 'Procedimento', icon: FileText },
-    { id: 'descricao', label: 'Descrição', icon: FileText },
-    { id: 'protocolo', label: 'Protocolo', icon: FileText },
-    { id: 'statusProtocolo', label: 'Status Protocolo', icon: FileText },
-    { id: 'guia', label: 'Guia', icon: FileText },
-    { id: 'atendimento', label: 'Atendimento', icon: FileText },
-    { id: 'crm', label: 'CRM', icon: User },
-    { id: 'funcaoMedico', label: 'Função Médico', icon: User },
-    { id: 'mesAno', label: 'Mês/Ano', icon: Calendar },
-    { id: 'trimestre', label: 'Trimestre', icon: Calendar },
-    { id: 'ano', label: 'Ano', icon: Calendar },
+    { id: 'procedimento', label: 'Procedimento', icon: FileText },
+    { id: 'mes', label: 'Mês/Ano', icon: Calendar },
   ],
   metricas: [
-    { id: 'valorTotal', label: 'Valor Total (R$)', icon: DollarSign },
+    { id: 'valorFaturado', label: 'Valor Faturado (R$)', icon: DollarSign },
+    { id: 'valorRecebido', label: 'Valor Recebido (R$)', icon: CheckCircle2 },
+    { id: 'valorGlosado', label: 'Valor Glosado (R$)', icon: XCircle },
+    { id: 'valorPendente', label: 'Valor Pendente (R$)', icon: Clock },
     { id: 'quantidade', label: 'Quantidade', icon: Package },
-    { id: 'valorUnitario', label: 'Valor Unitário (R$)', icon: DollarSign },
+    { id: 'registros', label: 'Nº Registros', icon: FileText },
   ]
 };
 
 // Lista de meses
 const meses = [
+  { value: 0, label: 'Todos os Meses' },
   { value: 1, label: 'Janeiro' },
   { value: 2, label: 'Fevereiro' },
   { value: 3, label: 'Março' },
@@ -141,24 +126,36 @@ const meses = [
   { value: 12, label: 'Dezembro' },
 ];
 
+// Formatar moeda
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+};
+
+// Formatar número
+const formatNumber = (value: number) => {
+  return new Intl.NumberFormat('pt-BR').format(value);
+};
+
 export default function RelatoriosBI() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
   
   // Filtros de período
   const currentDate = new Date();
-  const [mesSelecionado, setMesSelecionado] = useState<number>(currentDate.getMonth() + 1);
+  const [mesSelecionado, setMesSelecionado] = useState<number>(0); // 0 = todos
   const [anoSelecionado, setAnoSelecionado] = useState<number>(currentDate.getFullYear());
   
   // Estados para análise
   const [dimensaoSelecionada, setDimensaoSelecionada] = useState('convenio');
-  const [metricaSelecionada, setMetricaSelecionada] = useState('valorTotal');
+  const [metricaSelecionada, setMetricaSelecionada] = useState('valorFaturado');
   const [tipoGrafico, setTipoGrafico] = useState<'bar' | 'pie' | 'line' | 'doughnut'>('bar');
   
   // Filtros adicionais
   const [filtroConvenio, setFiltroConvenio] = useState<string>('all');
   const [filtroTipo, setFiltroTipo] = useState<string>('all');
-  const [filtroSetor, setFiltroSetor] = useState<string>('all');
   const [filtroPaciente, setFiltroPaciente] = useState<string>('');
   const [filtroProcedimento, setFiltroProcedimento] = useState<string>('');
   
@@ -173,145 +170,87 @@ export default function RelatoriosBI() {
     return Array.from({ length: 6 }, (_, i) => anoAtual - i);
   }, []);
   
-  // Calcular período
-  const dataInicio = useMemo(() => {
-    return `${anoSelecionado}-${String(mesSelecionado).padStart(2, '0')}-01`;
-  }, [mesSelecionado, anoSelecionado]);
-  
-  const dataFim = useMemo(() => {
-    const ultimoDia = new Date(anoSelecionado, mesSelecionado, 0).getDate();
-    return `${anoSelecionado}-${String(mesSelecionado).padStart(2, '0')}-${ultimoDia}`;
-  }, [mesSelecionado, anoSelecionado]);
-  
-  // Buscar dados do Tasy
-  const { data: dadosTasy, isLoading, refetch } = trpc.importacaoTasy.dados.useQuery(
+  // Buscar dados do BI (banco principal)
+  const { data: dadosBI, isLoading, refetch } = trpc.relatoriosBI.dados.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
-      dataInicio,
-      dataFim,
-      limite: 50000,
+      mesReferencia: mesSelecionado > 0 ? mesSelecionado : undefined,
+      anoReferencia: anoSelecionado,
+      convenioId: filtroConvenio !== 'all' ? parseInt(filtroConvenio) : undefined,
+      tipo: filtroTipo !== 'all' ? filtroTipo : undefined,
+      paciente: filtroPaciente || undefined,
+      procedimento: filtroProcedimento || undefined,
     },
     { enabled: !!estabelecimentoAtual }
   );
   
-  // Listas únicas para filtros
-  const conveniosUnicos = useMemo(() => {
-    if (!dadosTasy) return [];
-    const set = new Set(dadosTasy.map((d: any) => d.convenio).filter(Boolean));
-    return Array.from(set).sort();
-  }, [dadosTasy]);
+  // Buscar opções de filtro
+  const { data: opcoesFiltro } = trpc.relatoriosBI.opcoesFiltro.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0 },
+    { enabled: !!estabelecimentoAtual }
+  );
   
-  const setoresUnicos = useMemo(() => {
-    if (!dadosTasy) return [];
-    const set = new Set(dadosTasy.map((d: any) => d.setor).filter(Boolean));
-    return Array.from(set).sort();
-  }, [dadosTasy]);
-  
-  // Dados filtrados
-  const dadosFiltrados = useMemo(() => {
-    if (!dadosTasy) return [];
-    
-    return dadosTasy.filter((item: any) => {
-      if (filtroConvenio !== 'all' && item.convenio !== filtroConvenio) return false;
-      if (filtroTipo !== 'all' && item.tipo !== filtroTipo) return false;
-      if (filtroSetor !== 'all' && item.setor !== filtroSetor) return false;
-      if (filtroPaciente && !item.paciente?.toLowerCase().includes(filtroPaciente.toLowerCase())) return false;
-      if (filtroProcedimento && !item.codigo?.toLowerCase().includes(filtroProcedimento.toLowerCase()) && !item.descricao?.toLowerCase().includes(filtroProcedimento.toLowerCase())) return false;
-      return true;
-    });
-  }, [dadosTasy, filtroConvenio, filtroTipo, filtroSetor, filtroPaciente, filtroProcedimento]);
-  
-  // Totais gerais
-  const totaisGerais = useMemo(() => {
-    let valor = 0;
-    let quantidade = 0;
-    let materiais = 0;
-    let honorarios = 0;
-    let pacientes = new Set();
-    let procedimentos = new Set();
-    
-    dadosFiltrados.forEach((item: any) => {
-      valor += parseFloat(item.valorTotal || '0');
-      quantidade += parseInt(item.quantidade || '1');
-      if (item.tipo === 'MATERIAL') materiais++;
-      else honorarios++;
-      if (item.paciente) pacientes.add(item.paciente);
-      if (item.codigo) procedimentos.add(item.codigo);
-    });
-    
-    return { 
-      valor, 
-      quantidade, 
-      materiais, 
-      honorarios, 
-      totalItens: dadosFiltrados.length,
-      pacientesUnicos: pacientes.size,
-      procedimentosUnicos: procedimentos.size
-    };
-  }, [dadosFiltrados]);
-  
-  // Função para obter valor da dimensão
-  const getValorDimensao = useCallback((item: any, dimensao: string) => {
-    switch (dimensao) {
-      case 'mesAno':
-        const data = new Date(item.dataFaturado || item.dataConta);
-        return `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
-      case 'trimestre':
-        const dataT = new Date(item.dataFaturado || item.dataConta);
-        const trimestre = Math.ceil((dataT.getMonth() + 1) / 3);
-        return `T${trimestre}/${dataT.getFullYear()}`;
-      case 'ano':
-        const dataA = new Date(item.dataFaturado || item.dataConta);
-        return String(dataA.getFullYear());
-      default:
-        return item[dimensao] || 'Não informado';
-    }
-  }, []);
-  
-  // Dados agrupados
+  // Dados agrupados baseado na dimensão selecionada
   const dadosAgrupados = useMemo(() => {
-    const grupos: Record<string, { valor: number; quantidade: number; valorUnitario: number; itens: any[] }> = {};
+    if (!dadosBI) return [];
     
-    dadosFiltrados.forEach((item: any) => {
-      const chave = getValorDimensao(item, dimensaoSelecionada);
-      
-      if (!grupos[chave]) {
-        grupos[chave] = { valor: 0, quantidade: 0, valorUnitario: 0, itens: [] };
-      }
-      
-      grupos[chave].valor += parseFloat(item.valorTotal || '0');
-      grupos[chave].quantidade += parseInt(item.quantidade || '1');
-      grupos[chave].valorUnitario += parseFloat(item.valorUnitario || '0');
-      grupos[chave].itens.push(item);
-    });
+    let dados: any[] = [];
+    switch (dimensaoSelecionada) {
+      case 'convenio':
+        dados = dadosBI.porConvenio;
+        break;
+      case 'tipo':
+        dados = dadosBI.porTipo;
+        break;
+      case 'medico':
+        dados = dadosBI.porMedico;
+        break;
+      case 'paciente':
+        dados = dadosBI.porPaciente;
+        break;
+      case 'procedimento':
+        dados = dadosBI.porProcedimento;
+        break;
+      case 'mes':
+        dados = dadosBI.porMes;
+        break;
+      default:
+        dados = dadosBI.porConvenio;
+    }
     
-    return Object.entries(grupos)
-      .map(([label, data]) => ({ 
-        label, 
-        ...data,
-        valorMedio: data.itens.length > 0 ? data.valor / data.itens.length : 0
-      }))
-      .sort((a, b) => b.valor - a.valor);
-  }, [dadosFiltrados, dimensaoSelecionada, getValorDimensao]);
+    return dados || [];
+  }, [dadosBI, dimensaoSelecionada]);
   
   // Dados para o gráfico principal
   const dadosGrafico = useMemo(() => {
     const top10 = dadosAgrupados.slice(0, 10);
-    const labels = top10.map(g => g.label.length > 20 ? g.label.substring(0, 20) + '...' : g.label);
+    const labels = top10.map((g: any) => {
+      const label = g.chave || 'Não informado';
+      return label.length > 25 ? label.substring(0, 25) + '...' : label;
+    });
     
     let valores: number[];
     switch (metricaSelecionada) {
-      case 'valorTotal':
-        valores = top10.map(g => g.valor);
+      case 'valorFaturado':
+        valores = top10.map((g: any) => g.valorFaturado || 0);
+        break;
+      case 'valorRecebido':
+        valores = top10.map((g: any) => g.valorRecebido || 0);
+        break;
+      case 'valorGlosado':
+        valores = top10.map((g: any) => g.valorGlosado || 0);
+        break;
+      case 'valorPendente':
+        valores = top10.map((g: any) => g.valorPendente || 0);
         break;
       case 'quantidade':
-        valores = top10.map(g => g.quantidade);
+        valores = top10.map((g: any) => g.quantidade || 0);
         break;
-      case 'valorUnitario':
-        valores = top10.map(g => g.valorMedio);
+      case 'registros':
+        valores = top10.map((g: any) => g.registros || 0);
         break;
       default:
-        valores = top10.map(g => g.valor);
+        valores = top10.map((g: any) => g.valorFaturado || 0);
     }
     
     return {
@@ -335,8 +274,8 @@ export default function RelatoriosBI() {
         const index = elements[0].index;
         const grupo = dadosAgrupados[index];
         if (grupo) {
-          setDrillDownTitulo(`Detalhes: ${grupo.label}`);
-          setDrillDownDados(grupo.itens);
+          setDrillDownTitulo(`Detalhes: ${grupo.chave}`);
+          setDrillDownDados([grupo]);
           setDrillDownAberto(true);
         }
       }
@@ -347,123 +286,121 @@ export default function RelatoriosBI() {
         callbacks: {
           label: (context: any) => {
             const value = context.raw;
-            if (metricaSelecionada === 'valorTotal' || metricaSelecionada === 'valorUnitario') {
-              return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            if (metricaSelecionada.includes('valor')) {
+              return formatCurrency(value);
             }
-            return `${value.toLocaleString('pt-BR')} itens`;
+            return formatNumber(value);
           }
         }
       }
     },
-    scales: (tipoGrafico === 'bar' || tipoGrafico === 'line') ? {
+    scales: tipoGrafico === 'bar' || tipoGrafico === 'line' ? {
       y: {
         beginAtZero: true,
         ticks: {
           callback: (value: any) => {
-            if (metricaSelecionada === 'valorTotal' || metricaSelecionada === 'valorUnitario') {
-              return `R$ ${(value / 1000).toFixed(0)}k`;
+            if (metricaSelecionada.includes('valor')) {
+              return formatCurrency(value);
             }
-            return value;
+            return formatNumber(value);
           }
         }
       }
     } : undefined
-  }), [dadosAgrupados, tipoGrafico, metricaSelecionada]);
-  
-  // Formatar moeda
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  };
+  }), [tipoGrafico, metricaSelecionada, dadosAgrupados]);
   
   // Exportar para Excel
-  const handleExportExcel = () => {
-    if (!dadosFiltrados.length) return;
-
-    const excelData = dadosFiltrados.map((item: any) => ({
-      "Atendimento": item.atendimento || '-',
-      "Guia": item.guia || '-',
-      "Convênio": item.convenio || '-',
-      "Paciente": item.paciente || '-',
-      "Código": item.codigo || '-',
-      "Descrição": item.descricao || '-',
-      "Tipo": item.tipo || '-',
-      "Quantidade": item.quantidade || 1,
-      "Valor Unitário": parseFloat(item.valorUnitario || '0'),
-      "Valor Total": parseFloat(item.valorTotal || '0'),
-      "Médico": item.medico || '-',
-      "CRM": item.crm || '-',
-      "Setor": item.setor || '-',
-      "Protocolo": item.protocolo || '-',
-      "Status": item.statusProtocolo || '-',
+  const exportarExcel = useCallback(() => {
+    if (!dadosAgrupados || dadosAgrupados.length === 0) {
+      toast.error('Nenhum dado para exportar');
+      return;
+    }
+    
+    const dadosExport = dadosAgrupados.map((item: any) => ({
+      'Dimensão': item.chave,
+      'Valor Faturado': item.valorFaturado,
+      'Valor Recebido': item.valorRecebido,
+      'Valor Glosado': item.valorGlosado,
+      'Valor Pendente': item.valorPendente,
+      'Quantidade': item.quantidade,
+      'Registros': item.registros,
     }));
-
+    
+    const ws = XLSX.utils.json_to_sheet(dadosExport);
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    XLSX.utils.book_append_sheet(wb, ws, "Dados");
-    XLSX.writeFile(wb, `relatorio_bi_${new Date().toISOString().split("T")[0]}.xlsx`);
-    toast.success("Relatório exportado com sucesso!");
-  };
+    XLSX.utils.book_append_sheet(wb, ws, 'Relatório BI');
+    XLSX.writeFile(wb, `relatorio_bi_${anoSelecionado}_${mesSelecionado || 'todos'}.xlsx`);
+    toast.success('Relatório exportado com sucesso!');
+  }, [dadosAgrupados, anoSelecionado, mesSelecionado]);
   
-  // Limpar filtros
-  const limparFiltros = () => {
-    setFiltroConvenio('all');
-    setFiltroTipo('all');
-    setFiltroSetor('all');
-    setFiltroPaciente('');
-    setFiltroProcedimento('');
-  };
+  // Calcular percentuais
+  const percentuais = useMemo(() => {
+    if (!dadosBI?.resumo) return { recebido: 0, glosado: 0, pendente: 0 };
+    const { totalFaturado, totalRecebido, totalGlosado, totalPendente } = dadosBI.resumo;
+    if (totalFaturado === 0) return { recebido: 0, glosado: 0, pendente: 0 };
+    return {
+      recebido: (totalRecebido / totalFaturado) * 100,
+      glosado: (totalGlosado / totalFaturado) * 100,
+      pendente: (totalPendente / totalFaturado) * 100,
+    };
+  }, [dadosBI]);
   
-  if (!estabelecimentoAtual) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-[50vh]">
-          <p className="text-muted-foreground">Selecione um estabelecimento para continuar</p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Cabeçalho */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <LayoutDashboard className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Relatórios BI
             </h1>
-            <p className="text-muted-foreground">
-              Análise avançada dos dados importados via XML/Excel - Estilo Power BI
+            <p className="text-muted-foreground mt-1">
+              Análise de Faturamento, Recebimento e Glosas - Dados do Sistema
             </p>
           </div>
+          
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <Button onClick={handleExportExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            <Button onClick={exportarExcel} className="bg-gradient-to-r from-green-600 to-emerald-600">
+              <Download className="h-4 w-4 mr-2" />
               Exportar Excel
             </Button>
           </div>
         </div>
-
+        
         {/* Filtros de Período */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtros
+              <Calendar className="h-5 w-5" />
+              Período e Filtros
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {/* Ano */}
+              <div>
+                <Label className="text-sm">Ano</Label>
+                <Select value={String(anoSelecionado)} onValueChange={(v) => setAnoSelecionado(parseInt(v))}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {anos.map(ano => (
+                      <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {/* Mês */}
               <div>
-                <Label className="text-xs">Mês</Label>
-                <Select value={String(mesSelecionado)} onValueChange={(v) => setMesSelecionado(Number(v))}>
-                  <SelectTrigger>
+                <Label className="text-sm">Mês</Label>
+                <Select value={String(mesSelecionado)} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
+                  <SelectTrigger className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -474,32 +411,17 @@ export default function RelatoriosBI() {
                 </Select>
               </div>
               
-              {/* Ano */}
-              <div>
-                <Label className="text-xs">Ano</Label>
-                <Select value={String(anoSelecionado)} onValueChange={(v) => setAnoSelecionado(Number(v))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {anos.map(a => (
-                      <SelectItem key={a} value={String(a)}>{a}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
               {/* Convênio */}
               <div>
-                <Label className="text-xs">Convênio</Label>
+                <Label className="text-sm">Convênio</Label>
                 <Select value={filtroConvenio} onValueChange={setFiltroConvenio}>
-                  <SelectTrigger>
+                  <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {conveniosUnicos.map((c: string) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem value="all">Todos os Convênios</SelectItem>
+                    {opcoesFiltro?.convenios?.map((c: any) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -507,30 +429,15 @@ export default function RelatoriosBI() {
               
               {/* Tipo */}
               <div>
-                <Label className="text-xs">Tipo</Label>
+                <Label className="text-sm">Tipo</Label>
                 <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-                  <SelectTrigger>
+                  <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="MATERIAL">Materiais</SelectItem>
-                    <SelectItem value="HONORARIO">Honorários</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Setor */}
-              <div>
-                <Label className="text-xs">Setor</Label>
-                <Select value={filtroSetor} onValueChange={setFiltroSetor}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {setoresUnicos.map((s: string) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem value="all">Todos os Tipos</SelectItem>
+                    {opcoesFiltro?.tipos?.map((t: string) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -538,9 +445,9 @@ export default function RelatoriosBI() {
               
               {/* Paciente */}
               <div>
-                <Label className="text-xs">Paciente</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm">Paciente</Label>
+                <div className="relative mt-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar..."
                     value={filtroPaciente}
@@ -552,11 +459,11 @@ export default function RelatoriosBI() {
               
               {/* Procedimento */}
               <div>
-                <Label className="text-xs">Procedimento</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm">Procedimento</Label>
+                <div className="relative mt-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Código/Descrição..."
+                    placeholder="Código..."
                     value={filtroProcedimento}
                     onChange={(e) => setFiltroProcedimento(e.target.value)}
                     className="pl-8"
@@ -564,115 +471,119 @@ export default function RelatoriosBI() {
                 </div>
               </div>
             </div>
-            
-            {(filtroConvenio !== 'all' || filtroTipo !== 'all' || filtroSetor !== 'all' || filtroPaciente || filtroProcedimento) && (
-              <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Filtros ativos:</span>
-                <Button variant="ghost" size="sm" onClick={limparFiltros}>
-                  <X className="h-4 w-4 mr-1" />
-                  Limpar todos
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
-
-        {/* KPIs */}
+        
+        {/* KPIs Principais */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-blue-600" />
-                <span className="text-xs text-blue-600/70">Valor Total</span>
+          {/* Faturado */}
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-blue-600 mb-2">
+                <Wallet className="h-5 w-5" />
+                <span className="text-sm font-medium">Faturado</span>
               </div>
-              <div className="text-xl font-bold text-blue-600 mt-1">
-                {formatCurrency(totaisGerais.valor)}
-              </div>
+              <p className="text-2xl font-bold text-blue-700">
+                {formatCurrency(dadosBI?.resumo?.totalFaturado || 0)}
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-green-600" />
-                <span className="text-xs text-green-600/70">Total Itens</span>
+          {/* Recebido */}
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-600/10 border-green-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-green-600 mb-2">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="text-sm font-medium">Recebido</span>
               </div>
-              <div className="text-xl font-bold text-green-600 mt-1">
-                {totaisGerais.totalItens.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold text-green-700">
+                {formatCurrency(dadosBI?.resumo?.totalRecebido || 0)}
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                {percentuais.recebido.toFixed(1)}% do faturado
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-purple-600" />
-                <span className="text-xs text-purple-600/70">Materiais</span>
+          {/* Glosado */}
+          <Card className="bg-gradient-to-br from-red-500/10 to-red-600/10 border-red-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-red-600 mb-2">
+                <Ban className="h-5 w-5" />
+                <span className="text-sm font-medium">Glosado</span>
               </div>
-              <div className="text-xl font-bold text-purple-600 mt-1">
-                {totaisGerais.materiais.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold text-red-700">
+                {formatCurrency(dadosBI?.resumo?.totalGlosado || 0)}
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                {percentuais.glosado.toFixed(1)}% do faturado
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <User className="h-5 w-5 text-amber-600" />
-                <span className="text-xs text-amber-600/70">Honorários</span>
+          {/* Pendente */}
+          <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border-amber-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-amber-600 mb-2">
+                <Clock className="h-5 w-5" />
+                <span className="text-sm font-medium">Pendente</span>
               </div>
-              <div className="text-xl font-bold text-amber-600 mt-1">
-                {totaisGerais.honorarios.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold text-amber-700">
+                {formatCurrency(dadosBI?.resumo?.totalPendente || 0)}
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                {percentuais.pendente.toFixed(1)}% do faturado
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-rose-600" />
-                <span className="text-xs text-rose-600/70">Quantidade</span>
+          {/* Total Itens */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <Receipt className="h-5 w-5" />
+                <span className="text-sm font-medium">Itens</span>
               </div>
-              <div className="text-xl font-bold text-rose-600 mt-1">
-                {totaisGerais.quantidade.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold">
+                {formatNumber(dadosBI?.resumo?.totalItens || 0)}
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <User className="h-5 w-5 text-cyan-600" />
-                <span className="text-xs text-cyan-600/70">Pacientes</span>
+          {/* Pacientes */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <User className="h-5 w-5" />
+                <span className="text-sm font-medium">Pacientes</span>
               </div>
-              <div className="text-xl font-bold text-cyan-600 mt-1">
-                {totaisGerais.pacientesUnicos.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold">
+                {formatNumber(dadosBI?.resumo?.totalPacientes || 0)}
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-indigo-600" />
-                <span className="text-xs text-indigo-600/70">Procedimentos</span>
+          {/* Convênios */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <Building2 className="h-5 w-5" />
+                <span className="text-sm font-medium">Convênios</span>
               </div>
-              <div className="text-xl font-bold text-indigo-600 mt-1">
-                {totaisGerais.procedimentosUnicos.toLocaleString()}
-              </div>
+              <p className="text-2xl font-bold">
+                {formatNumber(dadosBI?.resumo?.totalConvenios || 0)}
+              </p>
             </CardContent>
           </Card>
         </div>
-
+        
         {/* Área de Análise */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Painel de Configuração */}
-          <Card className="lg:col-span-1">
+          {/* Painel de Controle */}
+          <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Configurar Análise
-              </CardTitle>
+              <CardTitle className="text-lg">Configuração</CardTitle>
+              <CardDescription>Personalize a visualização</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Dimensão */}
@@ -757,9 +668,6 @@ export default function RelatoriosBI() {
               {/* Resumo */}
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Mostrando <span className="font-bold text-foreground">{dadosFiltrados.length}</span> registros
-                </p>
-                <p className="text-sm text-muted-foreground">
                   Agrupados em <span className="font-bold text-foreground">{dadosAgrupados.length}</span> categorias
                 </p>
               </div>
@@ -788,7 +696,8 @@ export default function RelatoriosBI() {
               ) : dadosAgrupados.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
                   <Database className="h-12 w-12 mb-4" />
-                  <p>Nenhum dado encontrado para o período selecionado</p>
+                  <p className="text-lg font-medium">Nenhum dado encontrado</p>
+                  <p className="text-sm mt-2">Importe arquivos XML ou Excel para visualizar os dados aqui</p>
                 </div>
               ) : (
                 <div className="h-[400px]">
@@ -801,125 +710,116 @@ export default function RelatoriosBI() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Tabela de Dados Agrupados */}
+        
+        {/* Tabela de Dados */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5" />
-              Dados Agrupados por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
+              <FileSpreadsheet className="h-5 w-5" />
+              Dados Detalhados
             </CardTitle>
             <CardDescription>
-              Top 20 categorias ordenadas por valor
+              Top 20 por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-md border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">#</TableHead>
-                    <TableHead>{camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}</TableHead>
-                    <TableHead className="text-right">Valor Total</TableHead>
-                    <TableHead className="text-right">Quantidade</TableHead>
-                    <TableHead className="text-right">Itens</TableHead>
-                    <TableHead className="text-right">Valor Médio</TableHead>
-                    <TableHead className="text-right">% do Total</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-bold">
+                      {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
+                    </TableHead>
+                    <TableHead className="text-right font-bold">Faturado</TableHead>
+                    <TableHead className="text-right font-bold">Recebido</TableHead>
+                    <TableHead className="text-right font-bold">Glosado</TableHead>
+                    <TableHead className="text-right font-bold">Pendente</TableHead>
+                    <TableHead className="text-right font-bold">Qtd</TableHead>
+                    <TableHead className="text-right font-bold">Registros</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dadosAgrupados.slice(0, 20).map((grupo, index) => (
-                    <TableRow key={grupo.label}>
-                      <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                      <TableCell className="font-medium">{grupo.label}</TableCell>
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatCurrency(grupo.valor)}
+                  {dadosAgrupados.slice(0, 20).map((item: any, idx: number) => (
+                    <TableRow key={idx} className="hover:bg-muted/30">
+                      <TableCell className="font-medium max-w-[250px] truncate" title={item.chave}>
+                        {item.chave || 'Não informado'}
                       </TableCell>
-                      <TableCell className="text-right">{grupo.quantidade.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{grupo.itens.length.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-blue-600 font-medium">
+                        {formatCurrency(item.valorFaturado || 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 font-medium">
+                        {formatCurrency(item.valorRecebido || 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-red-600 font-medium">
+                        {formatCurrency(item.valorGlosado || 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-amber-600 font-medium">
+                        {formatCurrency(item.valorPendente || 0)}
+                      </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(grupo.valorMedio)}
+                        {formatNumber(item.quantidade || 0)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="secondary">
-                          {((grupo.valor / totaisGerais.valor) * 100).toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setDrillDownTitulo(`Detalhes: ${grupo.label}`);
-                            setDrillDownDados(grupo.itens);
-                            setDrillDownAberto(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        {formatNumber(item.registros || 0)}
                       </TableCell>
                     </TableRow>
                   ))}
+                  {dadosAgrupados.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Nenhum dado encontrado para o período selecionado
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
+            {dadosAgrupados.length > 20 && (
+              <p className="text-sm text-muted-foreground text-center mt-4">
+                Mostrando 20 de {dadosAgrupados.length} registros. Exporte para Excel para ver todos.
+              </p>
+            )}
           </CardContent>
         </Card>
-
+        
         {/* Modal de Drill-Down */}
         <Dialog open={drillDownAberto} onOpenChange={setDrillDownAberto}>
-          <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{drillDownTitulo}</DialogTitle>
               <DialogDescription>
-                {drillDownDados.length} itens encontrados
+                Detalhes do item selecionado
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-auto">
-              <Table>
-                <TableHeader className="sticky top-0 bg-background">
-                  <TableRow>
-                    <TableHead>Atendimento</TableHead>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Qtd</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Médico</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {drillDownDados.slice(0, 100).map((item: any, index: number) => (
-                    <TableRow key={`${item.id}-${index}`}>
-                      <TableCell className="font-mono text-sm">{item.atendimento || '-'}</TableCell>
-                      <TableCell>{item.paciente || '-'}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.codigo || '-'}</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={item.descricao}>
-                        {item.descricao || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={item.tipo === 'MATERIAL' ? 'default' : 'secondary'}>
-                          {item.tipo === 'MATERIAL' ? 'Mat' : 'Hon'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantidade || 1}</TableCell>
-                      <TableCell className="text-right font-medium text-green-600">
-                        {formatCurrency(parseFloat(item.valorTotal || '0'))}
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={item.medico}>
-                        {item.medico || '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {drillDownDados.length > 100 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Mostrando os primeiros 100 de {drillDownDados.length} itens
-                </p>
-              )}
+            <div className="space-y-4">
+              {drillDownDados.map((item: any, idx: number) => (
+                <div key={idx} className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                    <p className="text-sm text-blue-600">Faturado</p>
+                    <p className="text-xl font-bold text-blue-700">{formatCurrency(item.valorFaturado || 0)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                    <p className="text-sm text-green-600">Recebido</p>
+                    <p className="text-xl font-bold text-green-700">{formatCurrency(item.valorRecebido || 0)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                    <p className="text-sm text-red-600">Glosado</p>
+                    <p className="text-xl font-bold text-red-700">{formatCurrency(item.valorGlosado || 0)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                    <p className="text-sm text-amber-600">Pendente</p>
+                    <p className="text-xl font-bold text-amber-700">{formatCurrency(item.valorPendente || 0)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-muted">
+                    <p className="text-sm text-muted-foreground">Quantidade</p>
+                    <p className="text-xl font-bold">{formatNumber(item.quantidade || 0)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-muted">
+                    <p className="text-sm text-muted-foreground">Registros</p>
+                    <p className="text-xl font-bold">{formatNumber(item.registros || 0)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDrillDownAberto(false)}>
