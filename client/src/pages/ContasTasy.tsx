@@ -7,6 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -24,10 +31,39 @@ import {
   User,
   Hash,
   Stethoscope,
-  Package
+  Package,
+  Eye,
+  X
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
+
+// Interface para item do Tasy
+interface ItemTasy {
+  id: number;
+  atendimento: string;
+  nrInternoConta: string | null;
+  guia: string | null;
+  convenio: string | null;
+  paciente: string | null;
+  dataFaturado: Date | string | null;
+  dataConta: Date | string | null;
+  codigo: string | null;
+  codigoConvenio: string | null;
+  descricao: string | null;
+  quantidade: string | null;
+  unidade: string | null;
+  valorUnitario: string | null;
+  valorTotal: string | null;
+  setor: string | null;
+  protocolo: string | null;
+  statusProtocolo: string | null;
+  tipo: 'MATERIAL' | 'HONORARIO';
+  medico: string | null;
+  funcaoMedico: string | null;
+  crm: string | null;
+  valorMedico: string | null;
+}
 
 // Interface para conta agrupada do Tasy
 interface ContaTasy {
@@ -42,7 +78,7 @@ interface ContaTasy {
   protocolo: string;
   statusProtocolo: string;
   quantidadeItens: number;
-  itens: any[];
+  itens: ItemTasy[];
 }
 
 export default function ContasTasy() {
@@ -55,6 +91,10 @@ export default function ContasTasy() {
   const [dataFim, setDataFim] = useState<string>("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  
+  // Estado para o modal de detalhes
+  const [contaSelecionada, setContaSelecionada] = useState<ContaTasy | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
 
   // Buscar dados do Tasy
   const { data: dadosTasy, isLoading, refetch } = trpc.importacaoTasy.dados.useQuery(
@@ -108,7 +148,7 @@ export default function ContasTasy() {
       }
       
       grupos[chave].valorTotal += parseFloat(item.valorTotal || '0');
-      grupos[chave].itens.push(item);
+      grupos[chave].itens.push(item as ItemTasy);
       grupos[chave].quantidadeItens++;
       
       // Usar a data mais recente
@@ -149,6 +189,18 @@ export default function ContasTasy() {
   // Totais
   const valorTotalGeral = contasFiltradas.reduce((acc, c) => acc + c.valorTotal, 0);
   const totalItens = dadosTasy?.length || 0;
+
+  // Função para abrir modal de detalhes
+  const abrirDetalhes = (conta: ContaTasy) => {
+    setContaSelecionada(conta);
+    setModalAberto(true);
+  };
+
+  // Função para fechar modal
+  const fecharModal = () => {
+    setModalAberto(false);
+    setContaSelecionada(null);
+  };
 
   const handleExportExcel = () => {
     if (!dadosTasy?.length) return;
@@ -204,9 +256,53 @@ export default function ContasTasy() {
     XLSX.writeFile(wb, `dados_tasy_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const formatDate = (date: Date | null) => {
+  // Exportar itens da conta selecionada
+  const handleExportContaExcel = () => {
+    if (!contaSelecionada?.itens?.length) return;
+
+    const excelData = contaSelecionada.itens.map((item) => ({
+      "Código": item.codigo || '-',
+      "Código Convênio": item.codigoConvenio || '-',
+      "Descrição": item.descricao || '-',
+      "Tipo": item.tipo,
+      "Quantidade": item.quantidade || 1,
+      "Unidade": item.unidade || '-',
+      "Valor Unitário": parseFloat(item.valorUnitario || '0'),
+      "Valor Total": parseFloat(item.valorTotal || '0'),
+      "Médico": item.medico || '-',
+      "CRM": item.crm || '-',
+      "Função": item.funcaoMedico || '-',
+      "Setor": item.setor || '-',
+      "Data Conta": item.dataConta ? new Date(item.dataConta).toLocaleDateString("pt-BR") : "-",
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    ws["!cols"] = [
+      { wch: 15 },  // Código
+      { wch: 15 },  // Código Convênio
+      { wch: 40 },  // Descrição
+      { wch: 12 },  // Tipo
+      { wch: 10 },  // Quantidade
+      { wch: 10 },  // Unidade
+      { wch: 12 },  // Valor Unitário
+      { wch: 12 },  // Valor Total
+      { wch: 25 },  // Médico
+      { wch: 12 },  // CRM
+      { wch: 15 },  // Função
+      { wch: 20 },  // Setor
+      { wch: 12 },  // Data Conta
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Itens da Conta");
+    XLSX.writeFile(wb, `conta_${contaSelecionada.atendimento}_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  const formatDate = (date: Date | string | null) => {
     if (!date) return "-";
-    return date.toLocaleDateString("pt-BR");
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString("pt-BR");
   };
 
   const formatCurrency = (value: number) => {
@@ -218,6 +314,28 @@ export default function ContasTasy() {
     if (!dadosPorConvenio) return [];
     return dadosPorConvenio.map((c: any) => c.convenio).filter(Boolean);
   }, [dadosPorConvenio]);
+
+  // Calcular totais dos itens da conta selecionada
+  const totaisContaSelecionada = useMemo(() => {
+    if (!contaSelecionada) return { materiais: 0, honorarios: 0, valorMateriais: 0, valorHonorarios: 0 };
+    
+    let materiais = 0;
+    let honorarios = 0;
+    let valorMateriais = 0;
+    let valorHonorarios = 0;
+    
+    for (const item of contaSelecionada.itens) {
+      if (item.tipo === 'MATERIAL') {
+        materiais++;
+        valorMateriais += parseFloat(item.valorTotal || '0');
+      } else {
+        honorarios++;
+        valorHonorarios += parseFloat(item.valorTotal || '0');
+      }
+    }
+    
+    return { materiais, honorarios, valorMateriais, valorHonorarios };
+  }, [contaSelecionada]);
 
   return (
     <DashboardLayout>
@@ -421,7 +539,7 @@ export default function ContasTasy() {
                   Contas Agrupadas por Atendimento
                 </CardTitle>
                 <CardDescription>
-                  Clique em uma conta para ver os detalhes dos itens
+                  Clique no botão de visualização para ver os detalhes dos itens de cada conta
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -439,6 +557,7 @@ export default function ContasTasy() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-[50px]">Ações</TableHead>
                             <TableHead>Atendimento</TableHead>
                             <TableHead>Nr Conta</TableHead>
                             <TableHead>Guia</TableHead>
@@ -452,7 +571,17 @@ export default function ContasTasy() {
                         </TableHeader>
                         <TableBody>
                           {contasPaginadas.map((conta, index) => (
-                            <TableRow key={`${conta.atendimento}-${index}`}>
+                            <TableRow key={`${conta.atendimento}-${index}`} className="hover:bg-muted/50">
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => abrirDetalhes(conta)}
+                                  title="Ver detalhes dos itens"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                               <TableCell className="font-mono font-medium">
                                 {conta.atendimento}
                               </TableCell>
@@ -664,6 +793,173 @@ export default function ContasTasy() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Modal de Detalhes da Conta */}
+        <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileSearch className="h-5 w-5" />
+                Detalhes da Conta - Atendimento {contaSelecionada?.atendimento}
+              </DialogTitle>
+              <DialogDescription>
+                Visualize todos os itens (materiais e honorários) desta conta
+              </DialogDescription>
+            </DialogHeader>
+            
+            {contaSelecionada && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {/* Informações da Conta */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-muted/50 rounded-lg">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paciente</p>
+                    <p className="font-medium truncate" title={contaSelecionada.paciente}>
+                      {contaSelecionada.paciente}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Convênio</p>
+                    <p className="font-medium truncate" title={contaSelecionada.convenio}>
+                      {contaSelecionada.convenio}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Guia</p>
+                    <p className="font-mono">{contaSelecionada.guia}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nr Interno Conta</p>
+                    <p className="font-mono">{contaSelecionada.nrInternoConta}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Data Faturado</p>
+                    <p>{formatDate(contaSelecionada.dataFaturado)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Setor</p>
+                    <p className="truncate" title={contaSelecionada.setor}>{contaSelecionada.setor}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Protocolo</p>
+                    <p className="font-mono">{contaSelecionada.protocolo}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <p>{contaSelecionada.statusProtocolo}</p>
+                  </div>
+                </div>
+
+                {/* Resumo de Valores */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                  <Card>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-2xl font-bold">{contaSelecionada.quantidadeItens}</div>
+                      <p className="text-xs text-muted-foreground">Total de Itens</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-2xl font-bold text-blue-600">{totaisContaSelecionada.materiais}</div>
+                      <p className="text-xs text-muted-foreground">Materiais</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-2xl font-bold text-purple-600">{totaisContaSelecionada.honorarios}</div>
+                      <p className="text-xs text-muted-foreground">Honorários</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-lg font-bold text-blue-600">{formatCurrency(totaisContaSelecionada.valorMateriais)}</div>
+                      <p className="text-xs text-muted-foreground">Valor Materiais</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-lg font-bold text-purple-600">{formatCurrency(totaisContaSelecionada.valorHonorarios)}</div>
+                      <p className="text-xs text-muted-foreground">Valor Honorários</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Valor Total */}
+                <div className="flex items-center justify-between mb-4 p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                  <span className="text-lg font-medium">Valor Total da Conta</span>
+                  <span className="text-2xl font-bold text-green-600">
+                    {formatCurrency(contaSelecionada.valorTotal)}
+                  </span>
+                </div>
+
+                {/* Botão de Exportar */}
+                <div className="flex justify-end mb-4">
+                  <Button onClick={handleExportContaExcel} variant="outline" size="sm">
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Exportar Itens para Excel
+                  </Button>
+                </div>
+
+                {/* Tabela de Itens */}
+                <div className="flex-1 overflow-auto rounded-md border">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Cód. Convênio</TableHead>
+                        <TableHead className="min-w-[250px]">Descrição</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead className="text-right">Qtd</TableHead>
+                        <TableHead>Unid.</TableHead>
+                        <TableHead className="text-right">Valor Unit.</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead>Médico</TableHead>
+                        <TableHead>CRM</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contaSelecionada.itens.map((item, index) => (
+                        <TableRow key={`${item.id}-${index}`}>
+                          <TableCell className="font-mono text-xs">
+                            {item.codigo || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {item.codigoConvenio || '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[250px]" title={item.descricao || ''}>
+                            <span className="line-clamp-2">{item.descricao || '-'}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={item.tipo === 'MATERIAL' ? 'default' : 'secondary'}>
+                              {item.tipo === 'MATERIAL' ? 'Material' : 'Honorário'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.quantidade || 1}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {item.unidade || '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(parseFloat(item.valorUnitario || '0'))}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            {formatCurrency(parseFloat(item.valorTotal || '0'))}
+                          </TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={item.medico || ''}>
+                            {item.medico || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {item.crm || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

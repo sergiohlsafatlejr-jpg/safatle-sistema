@@ -582,3 +582,11 @@
 - [x] Adicionar índices no banco de dados (atendimento, estabelecimentoId, convenio, guia, importacao)
 - [x] Reduzir tempo de importação de 5 horas para menos de 30 minutos (estimativa)
 - [ ] Testar com volume real de dados (100k+ registros) - aguardando teste do usuário
+
+
+## Modal de Detalhes dos Itens - Contas Tasy
+- [x] Criar modal para visualizar itens detalhados de cada conta
+- [x] Adicionar botão de visualização em cada linha da tabela
+- [x] Exibir todos os itens (materiais e honorários) da conta selecionada
+- [x] Mostrar totais e resumo da conta no modal
+- [x] Adicionar exportação dos itens da conta para Excel
