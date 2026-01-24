@@ -600,3 +600,14 @@
 - [x] Criar gráficos dinâmicos (barras, pizza, linhas)
 - [x] Implementar filtros dinâmicos múltiplos (mês, ano, convênio, tipo, setor)
 - [x] Permitir exportação dos relatórios personalizados (dados detalhados e resumo agrupado)
+
+
+## Comparativo, Dashboards Salvos e Drill-down
+- [x] Criar tabela no banco para salvar dashboards personalizados
+- [x] Implementar comparativo entre dois períodos (mês/ano)
+- [x] Mostrar gráficos lado a lado para comparação
+- [x] Implementar drill-down nos gráficos (clicar em barra/fatia para ver dados)
+- [x] Criar modal de detalhes ao clicar no gráfico
+- [x] Implementar funcionalidade de salvar dashboard
+- [x] Implementar funcionalidade de carregar dashboard salvo
+- [x] Listar dashboards salvos do usuário

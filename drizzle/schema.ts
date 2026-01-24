@@ -1441,3 +1441,31 @@ export const apiKeys = mysqlTable("apiKeys", {
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+
+/**
+ * Dashboards Salvos - Configurações de relatórios personalizados
+ */
+export const dashboardsSalvos = mysqlTable("dashboardsSalvos", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  // Configurações do dashboard em JSON
+  configuracao: text("configuracao").notNull(), // JSON com: tipoGrafico, agrupamento, colunasSelecionadas, filtros
+  // Configurações de comparativo
+  comparativoAtivo: mysqlEnum("comparativoAtivo", ["sim", "nao"]).default("nao").notNull(),
+  periodo1Mes: int("periodo1Mes"),
+  periodo1Ano: int("periodo1Ano"),
+  periodo2Mes: int("periodo2Mes"),
+  periodo2Ano: int("periodo2Ano"),
+  // Metadados
+  favorito: mysqlEnum("favorito", ["sim", "nao"]).default("nao").notNull(),
+  ultimoAcesso: timestamp("ultimoAcesso"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DashboardSalvo = typeof dashboardsSalvos.$inferSelect;
+export type InsertDashboardSalvo = typeof dashboardsSalvos.$inferInsert;

@@ -59,6 +59,8 @@ import {
   InsertImportacaoTasy,
   apiKeys,
   InsertApiKey,
+  dashboardsSalvos,
+  InsertDashboardSalvo,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -11356,4 +11358,298 @@ export async function getResumoValidacaoTasyPorConvenio(estabelecimentoId: numbe
   }
 
   return resultados;
+}
+
+
+// ============ DASHBOARDS SALVOS ============
+
+/**
+ * Salva um dashboard personalizado
+ */
+export async function salvarDashboard(
+  userId: number,
+  estabelecimentoId: number,
+  dados: {
+    nome: string;
+    descricao?: string;
+    configuracao: {
+      tipoGrafico: string;
+      agrupamento: string;
+      colunasSelecionadas: string[];
+      filtros: {
+        mes?: number;
+        ano?: number;
+        convenio?: string;
+        tipo?: string;
+        setor?: string;
+      };
+    };
+    comparativoAtivo?: boolean;
+    periodo1Mes?: number;
+    periodo1Ano?: number;
+    periodo2Mes?: number;
+    periodo2Ano?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db.insert(dashboardsSalvos).values({
+    userId,
+    estabelecimentoId,
+    nome: dados.nome,
+    descricao: dados.descricao || null,
+    configuracao: JSON.stringify(dados.configuracao),
+    comparativoAtivo: dados.comparativoAtivo ? 'sim' : 'nao',
+    periodo1Mes: dados.periodo1Mes || null,
+    periodo1Ano: dados.periodo1Ano || null,
+    periodo2Mes: dados.periodo2Mes || null,
+    periodo2Ano: dados.periodo2Ano || null,
+  });
+
+  return { id: result[0].insertId };
+}
+
+/**
+ * Atualiza um dashboard existente
+ */
+export async function atualizarDashboard(
+  dashboardId: number,
+  userId: number,
+  dados: {
+    nome?: string;
+    descricao?: string;
+    configuracao?: any;
+    comparativoAtivo?: boolean;
+    periodo1Mes?: number;
+    periodo1Ano?: number;
+    periodo2Mes?: number;
+    periodo2Ano?: number;
+    favorito?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const updateData: any = {};
+  
+  if (dados.nome !== undefined) updateData.nome = dados.nome;
+  if (dados.descricao !== undefined) updateData.descricao = dados.descricao;
+  if (dados.configuracao !== undefined) updateData.configuracao = JSON.stringify(dados.configuracao);
+  if (dados.comparativoAtivo !== undefined) updateData.comparativoAtivo = dados.comparativoAtivo ? 'sim' : 'nao';
+  if (dados.periodo1Mes !== undefined) updateData.periodo1Mes = dados.periodo1Mes;
+  if (dados.periodo1Ano !== undefined) updateData.periodo1Ano = dados.periodo1Ano;
+  if (dados.periodo2Mes !== undefined) updateData.periodo2Mes = dados.periodo2Mes;
+  if (dados.periodo2Ano !== undefined) updateData.periodo2Ano = dados.periodo2Ano;
+  if (dados.favorito !== undefined) updateData.favorito = dados.favorito ? 'sim' : 'nao';
+
+  await db
+    .update(dashboardsSalvos)
+    .set(updateData)
+    .where(and(
+      eq(dashboardsSalvos.id, dashboardId),
+      eq(dashboardsSalvos.userId, userId)
+    ));
+
+  return { success: true };
+}
+
+/**
+ * Lista dashboards salvos do usuário
+ */
+export async function listarDashboardsSalvos(
+  userId: number,
+  estabelecimentoId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db
+    .select()
+    .from(dashboardsSalvos)
+    .where(and(
+      eq(dashboardsSalvos.userId, userId),
+      eq(dashboardsSalvos.estabelecimentoId, estabelecimentoId)
+    ))
+    .orderBy(desc(dashboardsSalvos.favorito), desc(dashboardsSalvos.ultimoAcesso));
+
+  return result.map(d => ({
+    ...d,
+    configuracao: JSON.parse(d.configuracao || '{}'),
+    comparativoAtivo: d.comparativoAtivo === 'sim',
+    favorito: d.favorito === 'sim',
+  }));
+}
+
+/**
+ * Busca um dashboard por ID
+ */
+export async function getDashboardPorId(dashboardId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const result = await db
+    .select()
+    .from(dashboardsSalvos)
+    .where(and(
+      eq(dashboardsSalvos.id, dashboardId),
+      eq(dashboardsSalvos.userId, userId)
+    ))
+    .limit(1);
+
+  if (!result[0]) return null;
+
+  // Atualiza último acesso
+  await db
+    .update(dashboardsSalvos)
+    .set({ ultimoAcesso: new Date() })
+    .where(eq(dashboardsSalvos.id, dashboardId));
+
+  return {
+    ...result[0],
+    configuracao: JSON.parse(result[0].configuracao || '{}'),
+    comparativoAtivo: result[0].comparativoAtivo === 'sim',
+    favorito: result[0].favorito === 'sim',
+  };
+}
+
+/**
+ * Exclui um dashboard
+ */
+export async function excluirDashboard(dashboardId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  await db
+    .delete(dashboardsSalvos)
+    .where(and(
+      eq(dashboardsSalvos.id, dashboardId),
+      eq(dashboardsSalvos.userId, userId)
+    ));
+
+  return { success: true };
+}
+
+/**
+ * Busca dados do Tasy para comparativo entre dois períodos
+ */
+export async function getDadosTasyComparativo(
+  estabelecimentoId: number,
+  periodo1: { mes: number; ano: number },
+  periodo2: { mes: number; ano: number },
+  agrupamento: string = 'convenio'
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // Função auxiliar para buscar dados de um período
+  const buscarPeriodo = async (mes: number, ano: number) => {
+    const dataInicio = new Date(ano, mes - 1, 1);
+    const dataFim = new Date(ano, mes, 0); // Último dia do mês
+
+    const dados = await db
+      .select()
+      .from(dadosTasy)
+      .where(and(
+        eq(dadosTasy.estabelecimentoId, estabelecimentoId),
+        sql`${dadosTasy.dataFaturado} >= ${dataInicio}`,
+        sql`${dadosTasy.dataFaturado} <= ${dataFim}`
+      ));
+
+    // Agrupa os dados conforme solicitado
+    const agrupado = new Map<string, { quantidade: number; valorTotal: number; registros: number }>();
+    
+    for (const item of dados) {
+      let chave = '';
+      switch (agrupamento) {
+        case 'convenio':
+          chave = item.convenio || 'Sem Convênio';
+          break;
+        case 'setor':
+          chave = item.setor || 'Sem Setor';
+          break;
+        case 'medico':
+          chave = item.medico || 'Sem Médico';
+          break;
+        case 'tipo':
+          chave = item.tipo || 'Sem Tipo';
+          break;
+        default:
+          chave = item.convenio || 'Sem Convênio';
+      }
+
+      if (!agrupado.has(chave)) {
+        agrupado.set(chave, { quantidade: 0, valorTotal: 0, registros: 0 });
+      }
+      
+      const atual = agrupado.get(chave)!;
+      atual.quantidade += parseFloat(item.quantidade as string || '0') || 0;
+      atual.valorTotal += parseFloat(item.valorTotal as string || '0') || 0;
+      atual.registros += 1;
+    }
+
+    return Array.from(agrupado.entries()).map(([chave, valores]) => ({
+      chave,
+      ...valores,
+    }));
+  };
+
+  const dadosPeriodo1 = await buscarPeriodo(periodo1.mes, periodo1.ano);
+  const dadosPeriodo2 = await buscarPeriodo(periodo2.mes, periodo2.ano);
+
+  // Combina os dados para comparação
+  const todasChaves = new Set([
+    ...dadosPeriodo1.map(d => d.chave),
+    ...dadosPeriodo2.map(d => d.chave),
+  ]);
+
+  const comparativo = Array.from(todasChaves).map(chave => {
+    const p1 = dadosPeriodo1.find(d => d.chave === chave) || { quantidade: 0, valorTotal: 0, registros: 0 };
+    const p2 = dadosPeriodo2.find(d => d.chave === chave) || { quantidade: 0, valorTotal: 0, registros: 0 };
+
+    const diferencaValor = p2.valorTotal - p1.valorTotal;
+    const variacaoPercentual = p1.valorTotal > 0 
+      ? ((p2.valorTotal - p1.valorTotal) / p1.valorTotal) * 100 
+      : (p2.valorTotal > 0 ? 100 : 0);
+
+    return {
+      chave,
+      periodo1: {
+        mes: periodo1.mes,
+        ano: periodo1.ano,
+        quantidade: p1.quantidade,
+        valorTotal: p1.valorTotal,
+        registros: p1.registros,
+      },
+      periodo2: {
+        mes: periodo2.mes,
+        ano: periodo2.ano,
+        quantidade: p2.quantidade,
+        valorTotal: p2.valorTotal,
+        registros: p2.registros,
+      },
+      diferencaValor,
+      variacaoPercentual,
+    };
+  });
+
+  // Ordena por valor total do período 2 (mais recente)
+  comparativo.sort((a, b) => b.periodo2.valorTotal - a.periodo2.valorTotal);
+
+  return {
+    periodo1: { mes: periodo1.mes, ano: periodo1.ano },
+    periodo2: { mes: periodo2.mes, ano: periodo2.ano },
+    agrupamento,
+    dados: comparativo,
+    totais: {
+      periodo1: {
+        valorTotal: dadosPeriodo1.reduce((sum, d) => sum + d.valorTotal, 0),
+        registros: dadosPeriodo1.reduce((sum, d) => sum + d.registros, 0),
+      },
+      periodo2: {
+        valorTotal: dadosPeriodo2.reduce((sum, d) => sum + d.valorTotal, 0),
+        registros: dadosPeriodo2.reduce((sum, d) => sum + d.registros, 0),
+      },
+    },
+  };
 }

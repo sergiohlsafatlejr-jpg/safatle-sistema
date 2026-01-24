@@ -260,6 +260,13 @@
       "when": 1769186410875,
       "tag": "0036_majestic_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1769249306995,
+      "tag": "0037_classy_scrambler",
+      "breakpoints": true
     }
   ]
 }

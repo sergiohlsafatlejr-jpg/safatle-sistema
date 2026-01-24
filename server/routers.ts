@@ -3992,6 +3992,107 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getResumoValidacaoTasyPorConvenio(input.estabelecimentoId);
       }),
+
+    // Comparativo entre dois períodos
+    comparativo: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        periodo1Mes: z.number().min(1).max(12),
+        periodo1Ano: z.number().min(2000).max(2100),
+        periodo2Mes: z.number().min(1).max(12),
+        periodo2Ano: z.number().min(2000).max(2100),
+        agrupamento: z.enum(['convenio', 'setor', 'medico', 'tipo']).default('convenio'),
+      }))
+      .query(async ({ input }) => {
+        return db.getDadosTasyComparativo(
+          input.estabelecimentoId,
+          { mes: input.periodo1Mes, ano: input.periodo1Ano },
+          { mes: input.periodo2Mes, ano: input.periodo2Ano },
+          input.agrupamento
+        );
+      }),
+  }),
+
+  // ============ DASHBOARDS SALVOS ============
+  dashboards: router({
+    // Listar dashboards salvos do usuário
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.listarDashboardsSalvos(ctx.user.id, input.estabelecimentoId);
+      }),
+
+    // Buscar dashboard por ID
+    buscar: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getDashboardPorId(input.id, ctx.user.id);
+      }),
+
+    // Salvar novo dashboard
+    salvar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nome: z.string().min(1).max(255),
+        descricao: z.string().optional(),
+        configuracao: z.object({
+          tipoGrafico: z.string(),
+          agrupamento: z.string(),
+          colunasSelecionadas: z.array(z.string()),
+          filtros: z.object({
+            mes: z.number().optional(),
+            ano: z.number().optional(),
+            convenio: z.string().optional(),
+            tipo: z.string().optional(),
+            setor: z.string().optional(),
+          }),
+        }),
+        comparativoAtivo: z.boolean().optional(),
+        periodo1Mes: z.number().optional(),
+        periodo1Ano: z.number().optional(),
+        periodo2Mes: z.number().optional(),
+        periodo2Ano: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.salvarDashboard(ctx.user.id, input.estabelecimentoId, input);
+      }),
+
+    // Atualizar dashboard existente
+    atualizar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(1).max(255).optional(),
+        descricao: z.string().optional(),
+        configuracao: z.object({
+          tipoGrafico: z.string(),
+          agrupamento: z.string(),
+          colunasSelecionadas: z.array(z.string()),
+          filtros: z.object({
+            mes: z.number().optional(),
+            ano: z.number().optional(),
+            convenio: z.string().optional(),
+            tipo: z.string().optional(),
+            setor: z.string().optional(),
+          }),
+        }).optional(),
+        comparativoAtivo: z.boolean().optional(),
+        periodo1Mes: z.number().optional(),
+        periodo1Ano: z.number().optional(),
+        periodo2Mes: z.number().optional(),
+        periodo2Ano: z.number().optional(),
+        favorito: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...dados } = input;
+        return db.atualizarDashboard(id, ctx.user.id, dados);
+      }),
+
+    // Excluir dashboard
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.excluirDashboard(input.id, ctx.user.id);
+      }),
   }),
 });
 
