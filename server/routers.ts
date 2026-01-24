@@ -4093,6 +4093,131 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         return db.excluirDashboard(input.id, ctx.user.id);
       }),
+
+    // Compartilhar dashboard com outro usuário
+    compartilhar: protectedProcedure
+      .input(z.object({
+        dashboardId: z.number(),
+        usuarioId: z.number(),
+        permissao: z.enum(['visualizar', 'editar']).default('visualizar'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.compartilharDashboard(
+          input.dashboardId,
+          ctx.user.id,
+          input.usuarioId,
+          input.permissao
+        );
+      }),
+
+    // Listar dashboards compartilhados comigo
+    compartilhadosComigo: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        return db.listarDashboardsCompartilhadosComigo(ctx.user.id, input.estabelecimentoId);
+      }),
+
+    // Listar compartilhamentos de um dashboard
+    listarCompartilhamentos: protectedProcedure
+      .input(z.object({ dashboardId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.listarCompartilhamentosDashboard(input.dashboardId, ctx.user.id);
+      }),
+
+    // Remover compartilhamento
+    removerCompartilhamento: protectedProcedure
+      .input(z.object({ compartilhamentoId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.removerCompartilhamentoDashboard(input.compartilhamentoId, ctx.user.id);
+      }),
+
+    // Listar usuários para compartilhamento
+    usuariosParaCompartilhamento: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.listarUsuariosParaCompartilhamento(input.estabelecimentoId, ctx.user.id);
+      }),
+  }),
+
+  // Router de Alertas de Variação
+  alertasVariacao: router({
+    // Criar alerta
+    criar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nome: z.string().min(1).max(255),
+        tipoAlerta: z.enum(['queda', 'aumento', 'ambos']).default('queda'),
+        percentualLimite: z.number().min(1).max(100).default(20),
+        metrica: z.enum(['faturamento', 'quantidade', 'glosa']).default('faturamento'),
+        agrupamento: z.string().default('convenio'),
+        notificarEmail: z.enum(['sim', 'nao']).default('nao'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.criarAlertaVariacao({
+          ...input,
+          userId: ctx.user.id,
+        });
+      }),
+
+    // Listar alertas
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        return db.listarAlertasVariacao(ctx.user.id, input.estabelecimentoId);
+      }),
+
+    // Atualizar alerta
+    atualizar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(1).max(255).optional(),
+        tipoAlerta: z.enum(['queda', 'aumento', 'ambos']).optional(),
+        percentualLimite: z.number().min(1).max(100).optional(),
+        metrica: z.enum(['faturamento', 'quantidade', 'glosa']).optional(),
+        agrupamento: z.string().optional(),
+        ativo: z.enum(['sim', 'nao']).optional(),
+        notificarEmail: z.enum(['sim', 'nao']).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...dados } = input;
+        return db.atualizarAlertaVariacao(id, ctx.user.id, dados);
+      }),
+
+    // Excluir alerta
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.excluirAlertaVariacao(input.id, ctx.user.id);
+      }),
+
+    // Verificar alertas (executar manualmente)
+    verificar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.verificarAlertasVariacao(input.estabelecimentoId);
+      }),
+
+    // Listar histórico de alertas disparados
+    historico: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        limite: z.number().default(50),
+        apenasNaoVisualizados: z.boolean().default(false),
+      }))
+      .query(async ({ input }) => {
+        return db.listarHistoricoAlertasVariacao(
+          input.estabelecimentoId,
+          input.limite,
+          input.apenasNaoVisualizados
+        );
+      }),
+
+    // Marcar alerta como visualizado
+    marcarVisualizado: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.marcarAlertaVisualizado(input.id);
+      }),
   }),
 });
 

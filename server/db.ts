@@ -61,6 +61,12 @@ import {
   InsertApiKey,
   dashboardsSalvos,
   InsertDashboardSalvo,
+  alertasVariacao,
+  InsertAlertaVariacao,
+  historicoAlertasVariacao,
+  InsertHistoricoAlertaVariacao,
+  compartilhamentosDashboard,
+  InsertCompartilhamentoDashboard,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -11652,4 +11658,341 @@ export async function getDadosTasyComparativo(
       },
     },
   };
+}
+
+
+// ============ ALERTAS DE VARIAÇÃO ============
+
+/**
+ * Criar alerta de variação
+ */
+export async function criarAlertaVariacao(data: InsertAlertaVariacao) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  const result = await db.insert(alertasVariacao).values(data);
+  return result[0].insertId;
+}
+
+/**
+ * Listar alertas de variação do usuário
+ */
+export async function listarAlertasVariacao(userId: number, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  const conditions = [eq(alertasVariacao.userId, userId)];
+  if (estabelecimentoId) {
+    conditions.push(eq(alertasVariacao.estabelecimentoId, estabelecimentoId));
+  }
+  
+  return db.select().from(alertasVariacao).where(and(...conditions)).orderBy(desc(alertasVariacao.createdAt));
+}
+
+/**
+ * Atualizar alerta de variação
+ */
+export async function atualizarAlertaVariacao(id: number, userId: number, data: Partial<InsertAlertaVariacao>) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  await db.update(alertasVariacao)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(alertasVariacao.id, id), eq(alertasVariacao.userId, userId)));
+  
+  return true;
+}
+
+/**
+ * Excluir alerta de variação
+ */
+export async function excluirAlertaVariacao(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  await db.delete(alertasVariacao).where(and(eq(alertasVariacao.id, id), eq(alertasVariacao.userId, userId)));
+  return true;
+}
+
+/**
+ * Verificar alertas de variação e gerar histórico
+ */
+export async function verificarAlertasVariacao(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  // Buscar alertas ativos do estabelecimento
+  const alertas = await db.select().from(alertasVariacao)
+    .where(and(
+      eq(alertasVariacao.estabelecimentoId, estabelecimentoId),
+      eq(alertasVariacao.ativo, 'sim')
+    ));
+  
+  const alertasDisparados: any[] = [];
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth() + 1;
+  const anoAtual = hoje.getFullYear();
+  const mesAnterior = mesAtual === 1 ? 12 : mesAtual - 1;
+  const anoAnterior = mesAtual === 1 ? anoAtual - 1 : anoAtual;
+  
+  for (const alerta of alertas) {
+    // Buscar dados comparativos
+    const comparativo = await getDadosTasyComparativo(
+      estabelecimentoId,
+      { mes: mesAnterior, ano: anoAnterior },
+      { mes: mesAtual, ano: anoAtual },
+      alerta.agrupamento || 'convenio'
+    );
+    
+    // Verificar variação total
+    const valorAnterior = comparativo.totais.periodo1.valorTotal;
+    const valorAtual = comparativo.totais.periodo2.valorTotal;
+    const variacao = valorAnterior > 0 
+      ? ((valorAtual - valorAnterior) / valorAnterior) * 100 
+      : 0;
+    
+    let disparar = false;
+    if (alerta.tipoAlerta === 'queda' && variacao < -alerta.percentualLimite) {
+      disparar = true;
+    } else if (alerta.tipoAlerta === 'aumento' && variacao > alerta.percentualLimite) {
+      disparar = true;
+    } else if (alerta.tipoAlerta === 'ambos' && Math.abs(variacao) > alerta.percentualLimite) {
+      disparar = true;
+    }
+    
+    if (disparar) {
+      // Registrar no histórico
+      await db.insert(historicoAlertasVariacao).values({
+        alertaId: alerta.id,
+        estabelecimentoId,
+        periodoAnterior: `${anoAnterior}-${String(mesAnterior).padStart(2, '0')}`,
+        periodoAtual: `${anoAtual}-${String(mesAtual).padStart(2, '0')}`,
+        valorAnterior: String(valorAnterior),
+        valorAtual: String(valorAtual),
+        percentualVariacao: String(variacao.toFixed(2)),
+        detalhes: JSON.stringify({
+          agrupamento: alerta.agrupamento,
+          metrica: alerta.metrica,
+          dadosDetalhados: comparativo.dados.slice(0, 10), // Top 10
+        }),
+      });
+      
+      alertasDisparados.push({
+        alerta,
+        variacao,
+        valorAnterior,
+        valorAtual,
+      });
+    }
+    
+    // Atualizar última verificação
+    await db.update(alertasVariacao)
+      .set({ ultimaVerificacao: new Date() })
+      .where(eq(alertasVariacao.id, alerta.id));
+  }
+  
+  return alertasDisparados;
+}
+
+/**
+ * Listar histórico de alertas disparados
+ */
+export async function listarHistoricoAlertasVariacao(
+  estabelecimentoId: number,
+  limite: number = 50,
+  apenasNaoVisualizados: boolean = false
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  const conditions = [eq(historicoAlertasVariacao.estabelecimentoId, estabelecimentoId)];
+  if (apenasNaoVisualizados) {
+    conditions.push(eq(historicoAlertasVariacao.visualizado, 'nao'));
+  }
+  
+  return db.select().from(historicoAlertasVariacao)
+    .where(and(...conditions))
+    .orderBy(desc(historicoAlertasVariacao.createdAt))
+    .limit(limite);
+}
+
+/**
+ * Marcar alerta como visualizado
+ */
+export async function marcarAlertaVisualizado(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  await db.update(historicoAlertasVariacao)
+    .set({ visualizado: 'sim' })
+    .where(eq(historicoAlertasVariacao.id, id));
+  
+  return true;
+}
+
+// ============ COMPARTILHAMENTO DE DASHBOARDS ============
+
+/**
+ * Compartilhar dashboard com outro usuário
+ */
+export async function compartilharDashboard(
+  dashboardId: number,
+  compartilhadoPorId: number,
+  compartilhadoComId: number,
+  permissao: 'visualizar' | 'editar' = 'visualizar'
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  // Verificar se o dashboard pertence ao usuário
+  const dashboard = await db.select().from(dashboardsSalvos)
+    .where(and(
+      eq(dashboardsSalvos.id, dashboardId),
+      eq(dashboardsSalvos.userId, compartilhadoPorId)
+    ))
+    .limit(1);
+  
+  if (dashboard.length === 0) {
+    throw new Error('Dashboard não encontrado ou você não tem permissão');
+  }
+  
+  // Verificar se já existe compartilhamento
+  const existente = await db.select().from(compartilhamentosDashboard)
+    .where(and(
+      eq(compartilhamentosDashboard.dashboardId, dashboardId),
+      eq(compartilhamentosDashboard.compartilhadoComId, compartilhadoComId)
+    ))
+    .limit(1);
+  
+  if (existente.length > 0) {
+    // Atualizar permissão
+    await db.update(compartilhamentosDashboard)
+      .set({ permissao })
+      .where(eq(compartilhamentosDashboard.id, existente[0].id));
+    return existente[0].id;
+  }
+  
+  // Criar novo compartilhamento
+  const result = await db.insert(compartilhamentosDashboard).values({
+    dashboardId,
+    compartilhadoPorId,
+    compartilhadoComId,
+    permissao,
+  });
+  
+  return result[0].insertId;
+}
+
+/**
+ * Listar dashboards compartilhados comigo
+ */
+export async function listarDashboardsCompartilhadosComigo(userId: number, estabelecimentoId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  const compartilhamentos = await db.select({
+    compartilhamento: compartilhamentosDashboard,
+    dashboard: dashboardsSalvos,
+  })
+    .from(compartilhamentosDashboard)
+    .innerJoin(dashboardsSalvos, eq(compartilhamentosDashboard.dashboardId, dashboardsSalvos.id))
+    .where(eq(compartilhamentosDashboard.compartilhadoComId, userId));
+  
+  // Filtrar por estabelecimento se necessário
+  if (estabelecimentoId) {
+    return compartilhamentos.filter(c => c.dashboard.estabelecimentoId === estabelecimentoId);
+  }
+  
+  return compartilhamentos;
+}
+
+/**
+ * Listar usuários com quem compartilhei um dashboard
+ */
+export async function listarCompartilhamentosDashboard(dashboardId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  // Verificar se o dashboard pertence ao usuário
+  const dashboard = await db.select().from(dashboardsSalvos)
+    .where(and(
+      eq(dashboardsSalvos.id, dashboardId),
+      eq(dashboardsSalvos.userId, userId)
+    ))
+    .limit(1);
+  
+  if (dashboard.length === 0) {
+    throw new Error('Dashboard não encontrado ou você não tem permissão');
+  }
+  
+  const compartilhamentos = await db.select({
+    compartilhamento: compartilhamentosDashboard,
+    usuario: users,
+  })
+    .from(compartilhamentosDashboard)
+    .innerJoin(users, eq(compartilhamentosDashboard.compartilhadoComId, users.id))
+    .where(eq(compartilhamentosDashboard.dashboardId, dashboardId));
+  
+  return compartilhamentos.map(c => ({
+    id: c.compartilhamento.id,
+    usuarioId: c.usuario.id,
+    usuarioNome: c.usuario.name,
+    usuarioEmail: c.usuario.email,
+    permissao: c.compartilhamento.permissao,
+    createdAt: c.compartilhamento.createdAt,
+  }));
+}
+
+/**
+ * Remover compartilhamento de dashboard
+ */
+export async function removerCompartilhamentoDashboard(compartilhamentoId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  // Buscar compartilhamento
+  const compartilhamento = await db.select().from(compartilhamentosDashboard)
+    .where(eq(compartilhamentosDashboard.id, compartilhamentoId))
+    .limit(1);
+  
+  if (compartilhamento.length === 0) {
+    throw new Error('Compartilhamento não encontrado');
+  }
+  
+  // Verificar se o usuário é o dono do dashboard
+  const dashboard = await db.select().from(dashboardsSalvos)
+    .where(eq(dashboardsSalvos.id, compartilhamento[0].dashboardId))
+    .limit(1);
+  
+  if (dashboard.length === 0 || dashboard[0].userId !== userId) {
+    throw new Error('Você não tem permissão para remover este compartilhamento');
+  }
+  
+  await db.delete(compartilhamentosDashboard).where(eq(compartilhamentosDashboard.id, compartilhamentoId));
+  return true;
+}
+
+/**
+ * Listar usuários do mesmo estabelecimento para compartilhamento
+ */
+export async function listarUsuariosParaCompartilhamento(estabelecimentoId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  
+  // Buscar usuários com permissão no estabelecimento (exceto o próprio usuário)
+  const permissoes = await db.select({
+    usuario: users,
+  })
+    .from(permissoesEstabelecimento)
+    .innerJoin(users, eq(permissoesEstabelecimento.userId, users.id))
+    .where(and(
+      eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentoId),
+      sql`${users.id} != ${userId}`
+    ));
+  
+  return permissoes.map(p => ({
+    id: p.usuario.id,
+    nome: p.usuario.name,
+    email: p.usuario.email,
+  }));
 }

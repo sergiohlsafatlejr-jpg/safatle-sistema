@@ -267,6 +267,13 @@
       "when": 1769249306995,
       "tag": "0037_classy_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1769251227102,
+      "tag": "0038_foamy_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

@@ -611,3 +611,26 @@
 - [x] Implementar funcionalidade de salvar dashboard
 - [x] Implementar funcionalidade de carregar dashboard salvo
 - [x] Listar dashboards salvos do usuário
+
+
+## Alertas, Compartilhamento, Exportação e Power BI Interativo
+- [ ] Implementar alertas automáticos de variação (notificar quando variação > percentual configurável)
+- [ ] Criar tabela no banco para configuração de alertas de variação
+- [ ] Implementar compartilhamento de dashboards entre usuários do estabelecimento
+- [ ] Adicionar exportação de drill-down para Excel
+- [ ] Corrigir modal de Contas Tasy - aumentar tamanho para melhor visualização
+- [ ] Criar aba Power BI interativa com arrastar campos
+- [ ] Permitir escolher tipo de gráfico (pizza, linha, barra)
+- [ ] Adicionar opções de período (trimestre, ano, comparativo anual)
+- [ ] Permitir manipular gráficos dinamicamente
+
+
+## Alertas, Compartilhamento e Power BI Interativo
+- [x] Criar tabela no banco para alertas de variação
+- [x] Implementar alertas automáticos de variação configuráveis
+- [x] Criar tabela de compartilhamento de dashboards
+- [x] Implementar compartilhamento de dashboards entre usuários
+- [x] Adicionar exportação de drill-down para Excel
+- [x] Corrigir modal de Contas Tasy - aumentar para tela cheia (95vw x 95vh)
+- [x] Criar aba Construtor de Gráficos (Power BI) com seleção de tipo, métrica e agrupamento
+- [x] Adicionar opções de agrupamento por Mês/Ano, Trimestre e Ano

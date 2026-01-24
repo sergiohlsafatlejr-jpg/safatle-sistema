@@ -845,7 +845,7 @@ export default function ContasTasy() {
 
         {/* Modal de Detalhes da Conta */}
         <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileSearch className="h-5 w-5" />

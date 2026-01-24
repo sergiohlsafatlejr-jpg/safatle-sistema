@@ -1469,3 +1469,61 @@ export const dashboardsSalvos = mysqlTable("dashboardsSalvos", {
 
 export type DashboardSalvo = typeof dashboardsSalvos.$inferSelect;
 export type InsertDashboardSalvo = typeof dashboardsSalvos.$inferInsert;
+
+
+/**
+ * Alertas de Variação - Configuração de alertas automáticos quando variação entre períodos ultrapassar percentual
+ */
+export const alertasVariacao = mysqlTable("alertasVariacao", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  userId: int("userId").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  tipoAlerta: mysqlEnum("tipoAlerta", ["queda", "aumento", "ambos"]).default("queda").notNull(),
+  percentualLimite: int("percentualLimite").default(20).notNull(), // Ex: 20 = 20%
+  metrica: mysqlEnum("metrica", ["faturamento", "quantidade", "glosa"]).default("faturamento").notNull(),
+  agrupamento: varchar("agrupamento", { length: 50 }).default("convenio"), // convenio, setor, medico, tipo
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  notificarEmail: mysqlEnum("notificarEmail", ["sim", "nao"]).default("nao"),
+  ultimaVerificacao: timestamp("ultimaVerificacao"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlertaVariacao = typeof alertasVariacao.$inferSelect;
+export type InsertAlertaVariacao = typeof alertasVariacao.$inferInsert;
+
+/**
+ * Histórico de Alertas Disparados
+ */
+export const historicoAlertasVariacao = mysqlTable("historicoAlertasVariacao", {
+  id: int("id").autoincrement().primaryKey(),
+  alertaId: int("alertaId").notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  periodoAnterior: varchar("periodoAnterior", { length: 20 }).notNull(), // Ex: "2025-01"
+  periodoAtual: varchar("periodoAtual", { length: 20 }).notNull(), // Ex: "2025-02"
+  valorAnterior: decimal("valorAnterior", { precision: 15, scale: 2 }).notNull(),
+  valorAtual: decimal("valorAtual", { precision: 15, scale: 2 }).notNull(),
+  percentualVariacao: decimal("percentualVariacao", { precision: 10, scale: 2 }).notNull(),
+  detalhes: text("detalhes"), // JSON com detalhes do alerta
+  visualizado: mysqlEnum("visualizado", ["sim", "nao"]).default("nao"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoAlertaVariacao = typeof historicoAlertasVariacao.$inferSelect;
+export type InsertHistoricoAlertaVariacao = typeof historicoAlertasVariacao.$inferInsert;
+
+/**
+ * Compartilhamento de Dashboards
+ */
+export const compartilhamentosDashboard = mysqlTable("compartilhamentosDashboard", {
+  id: int("id").autoincrement().primaryKey(),
+  dashboardId: int("dashboardId").notNull(),
+  compartilhadoPorId: int("compartilhadoPorId").notNull(), // userId que compartilhou
+  compartilhadoComId: int("compartilhadoComId").notNull(), // userId que recebeu
+  permissao: mysqlEnum("permissao", ["visualizar", "editar"]).default("visualizar").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CompartilhamentoDashboard = typeof compartilhamentosDashboard.$inferSelect;
+export type InsertCompartilhamentoDashboard = typeof compartilhamentosDashboard.$inferInsert;

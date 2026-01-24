@@ -883,6 +883,10 @@ export default function RelatoriosTasy() {
                 Comparativo
               </TabsTrigger>
             )}
+            <TabsTrigger value="powerbi" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Construtor de Gráficos
+            </TabsTrigger>
           </TabsList>
 
           {/* Aba de Gráficos */}
@@ -1175,6 +1179,286 @@ export default function RelatoriosTasy() {
               </Card>
             </TabsContent>
           )}
+
+          {/* Aba Construtor de Gráficos (Power BI) */}
+          <TabsContent value="powerbi">
+            <Card>
+              <CardHeader>
+                <CardTitle>Construtor de Gráficos Interativo</CardTitle>
+                <CardDescription>
+                  Selecione os campos para criar gráficos personalizados - arraste e solte ou clique para configurar
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Painel de Configuração */}
+                  <div className="lg:col-span-1 space-y-4">
+                    {/* Tipo de Gráfico */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Tipo de Gráfico</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant={tipoGrafico === 'bar' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTipoGrafico('bar')}
+                          className="flex flex-col items-center py-3 h-auto"
+                        >
+                          <BarChart3 className="h-5 w-5 mb-1" />
+                          <span className="text-xs">Barras</span>
+                        </Button>
+                        <Button
+                          variant={tipoGrafico === 'pie' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTipoGrafico('pie')}
+                          className="flex flex-col items-center py-3 h-auto"
+                        >
+                          <PieChart className="h-5 w-5 mb-1" />
+                          <span className="text-xs">Pizza</span>
+                        </Button>
+                        <Button
+                          variant={tipoGrafico === 'line' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTipoGrafico('line')}
+                          className="flex flex-col items-center py-3 h-auto"
+                        >
+                          <LineChart className="h-5 w-5 mb-1" />
+                          <span className="text-xs">Linha</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Métrica */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Métrica</Label>
+                      <Select value={metricaGrafico} onValueChange={(v: 'valor' | 'quantidade') => setMetricaGrafico(v)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="valor">
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4" />
+                              Valor Total (R$)
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="quantidade">
+                            <div className="flex items-center gap-2">
+                              <Package className="h-4 w-4" />
+                              Quantidade de Itens
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Agrupar Por */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Agrupar Por</Label>
+                      <div className="space-y-1">
+                        {camposAgrupamento.map((campo) => (
+                          <Button
+                            key={campo.id}
+                            variant={agrupamento === campo.id ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setAgrupamento(campo.id)}
+                            className="w-full justify-start"
+                          >
+                            <campo.icon className="h-4 w-4 mr-2" />
+                            {campo.label}
+                          </Button>
+                        ))}
+                        <Button
+                          variant={agrupamento === 'mesAno' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setAgrupamento('mesAno')}
+                          className="w-full justify-start"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Mês/Ano
+                        </Button>
+                        <Button
+                          variant={agrupamento === 'trimestre' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setAgrupamento('trimestre')}
+                          className="w-full justify-start"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Trimestre
+                        </Button>
+                        <Button
+                          variant={agrupamento === 'ano' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setAgrupamento('ano')}
+                          className="w-full justify-start"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Ano
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Período */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Período</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select value={String(mesSelecionado)} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Mês" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {meses.map((mes) => (
+                              <SelectItem key={mes.value} value={String(mes.value)}>
+                                {mes.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={String(anoSelecionado)} onValueChange={(v) => setAnoSelecionado(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Ano" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {anos.map((ano) => (
+                              <SelectItem key={ano} value={String(ano)}>
+                                {ano}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Comparativo */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Comparar Períodos</Label>
+                        <Switch
+                          checked={comparativoAtivo}
+                          onCheckedChange={setComparativoAtivo}
+                        />
+                      </div>
+                      {comparativoAtivo && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select value={String(periodo2Mes)} onValueChange={(v) => setPeriodo2Mes(parseInt(v))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Mês" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {meses.map((mes) => (
+                                <SelectItem key={mes.value} value={String(mes.value)}>
+                                  {mes.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select value={String(periodo2Ano)} onValueChange={(v) => setPeriodo2Ano(parseInt(v))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Ano" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {anos.map((ano) => (
+                                <SelectItem key={ano} value={String(ano)}>
+                                  {ano}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setSalvarDialogAberto(true)}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Salvar Dashboard
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setCarregarDialogAberto(true)}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                        Carregar Dashboard
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Área do Gráfico */}
+                  <div className="lg:col-span-3">
+                    {isLoading ? (
+                      <div className="flex items-center justify-center h-[500px]">
+                        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : !dadosFiltrados.length ? (
+                      <div className="flex flex-col items-center justify-center h-[500px] text-muted-foreground">
+                        <BarChart3 className="h-16 w-16 mb-4 opacity-50" />
+                        <p>Nenhum dado encontrado para o período selecionado</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Resumo */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <Card>
+                            <CardContent className="pt-4">
+                              <div className="text-2xl font-bold text-green-600">
+                                {totais.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </div>
+                              <p className="text-xs text-muted-foreground">Valor Total</p>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="pt-4">
+                              <div className="text-2xl font-bold">{totais.quantidade.toLocaleString('pt-BR')}</div>
+                              <p className="text-xs text-muted-foreground">Quantidade</p>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="pt-4">
+                              <div className="text-2xl font-bold text-blue-600">{totais.materiais.toLocaleString('pt-BR')}</div>
+                              <p className="text-xs text-muted-foreground">Materiais</p>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="pt-4">
+                              <div className="text-2xl font-bold text-purple-600">{totais.honorarios.toLocaleString('pt-BR')}</div>
+                              <p className="text-xs text-muted-foreground">Honorários</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Gráfico */}
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="h-[400px]">
+                              {comparativoAtivo && dadosGraficoComparativo ? (
+                                <Bar data={dadosGraficoComparativo} options={opcoesGrafico} />
+                              ) : tipoGrafico === 'bar' ? (
+                                <Bar data={dadosGrafico} options={opcoesGrafico} />
+                              ) : tipoGrafico === 'pie' ? (
+                                <Pie data={dadosGrafico} options={opcoesGrafico} />
+                              ) : (
+                                <Line data={dadosGrafico} options={opcoesGrafico} />
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground text-center mt-2">
+                              Clique em uma barra ou fatia para ver os detalhes
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Modal de Drill-down */}
