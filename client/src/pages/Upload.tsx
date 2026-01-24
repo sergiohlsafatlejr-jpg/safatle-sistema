@@ -169,9 +169,15 @@ export default function Upload() {
           idx === fileIndex ? { ...f, status: "success" as const } : f
         ));
         
-        // Mostrar feedback se foi reimportação
+        // Mostrar feedback se foi reimportação ou processamento em background
         if (result.reimportado) {
           toast.info(`Arquivo "${fileItem.file.name}" atualizado (reimportação)`);
+        }
+        if (result.processandoEmBackground) {
+          toast.info(`Arquivo "${fileItem.file.name}" enviado! Processamento em andamento...`, {
+            duration: 5000,
+            description: "Você pode continuar navegando. O progresso será atualizado automaticamente."
+          });
         }
         successCount++;
       } catch (error) {

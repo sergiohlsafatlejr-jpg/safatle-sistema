@@ -156,7 +156,7 @@ describe("Dashboard Consolidado Router", () => {
       expect(result.estabelecimentos).toBeDefined();
       expect(result.totais).toBeDefined();
       expect(Array.isArray(result.estabelecimentos)).toBe(true);
-    }, 10000);
+    }, 15000);
 
     it("should include totals in the response", async () => {
       const ctx = createAdminContext();

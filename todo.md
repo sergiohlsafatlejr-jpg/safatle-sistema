@@ -738,3 +738,11 @@
 - [x] Aumentar paralelismo de 3 para 5 batches simultâneos
 - [x] Reduzir frequência de logs e callbacks de progresso
 - [x] 298 testes automatizados passando
+
+
+## Lentidão Persistente na Importação Excel
+- [x] Analisar arquivo Excel (25.002 linhas x 28 colunas = 3.5 MB)
+- [x] Implementar processamento assíncrono em background no servidor
+- [x] Retornar resposta imediata ao usuário (upload retorna em ~1s)
+- [x] Processamento continua em segundo plano com atualização de progresso
+- [x] Toast informativo sobre processamento em andamento

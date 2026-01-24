@@ -423,80 +423,94 @@ export const appRouter = router({
           arquivoId = result.id;
         }
         
-        // Parse file and extract procedimentos
-        try {
-          console.log('[Upload] Parsing file:', input.nome);
-          
-          // Set status to processing
-          await db.updateArquivoStatus(arquivoId, "processando");
-          
-          const parseResult = await parseFile(buffer, input.nome);
-          
-          console.log('[Upload] Parse result:', {
-            success: parseResult.success,
-            procedimentosCount: parseResult.procedimentos.length,
-            comMedico: parseResult.procedimentos.filter(p => p.nomeMedico).length
-          });
-          
-          if (parseResult.success && parseResult.procedimentos.length > 0) {
-            const procedimentosToInsert = parseResult.procedimentos.map((p) =>
-              toProcedimentoInsert(p, arquivoId)
-            );
+        // Parse file and extract procedimentos in background
+        // Return immediately to user while processing continues
+        const processInBackground = async () => {
+          try {
+            console.log('[Upload] Starting background processing:', input.nome);
+            const startTime = Date.now();
             
-            // Update total items to process
-            await db.updateArquivoProgresso(arquivoId, 0, 0, procedimentosToInsert.length);
+            // Set status to processing
+            await db.updateArquivoStatus(arquivoId, "processando");
             
-            // Log procedimentos com médico
-            const comMedico = procedimentosToInsert.filter(p => p.nomeMedico);
-            console.log('[Upload] Procedimentos com médico a inserir:', comMedico.length);
-            if (comMedico.length > 0) {
-              console.log('[Upload] Primeiro com médico:', {
-                codigo: comMedico[0].codigo,
-                nomeMedico: comMedico[0].nomeMedico,
-                crmMedico: comMedico[0].crmMedico
-              });
-            }
+            const parseResult = await parseFile(buffer, input.nome);
             
-            // Create procedimentos with progress callback
-            await db.createProcedimentos(
-              procedimentosToInsert,
-              arquivoId,
-              async (progresso, itensProcessados, totalItens) => {
-                await db.updateArquivoProgresso(arquivoId, progresso, itensProcessados, totalItens);
-              }
-            );
+            console.log('[Upload] Parse completed in', ((Date.now() - startTime) / 1000).toFixed(1), 's:', {
+              success: parseResult.success,
+              procedimentosCount: parseResult.procedimentos.length,
+              comMedico: parseResult.procedimentos.filter(p => p.nomeMedico).length
+            });
             
-            await db.updateArquivoStatus(arquivoId, "processado");
-            await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
-            
-            // Gerar insights de IA automaticamente após processamento (apenas para arquivos enviados/XML)
-            if (input.direcao === "enviado" && input.tipoArquivo === "xml") {
-              try {
-                console.log('[Upload] Gerando insights de IA para arquivo:', arquivoId);
-                const resultadoIA = await db.processarInsightsAutomaticos({
-                  arquivoId,
-                  estabelecimentoId: input.estabelecimentoId,
-                  convenioId: input.convenioId,
-                  userId: ctx.user.id!,
+            if (parseResult.success && parseResult.procedimentos.length > 0) {
+              const procedimentosToInsert = parseResult.procedimentos.map((p) =>
+                toProcedimentoInsert(p, arquivoId)
+              );
+              
+              // Update total items to process
+              await db.updateArquivoProgresso(arquivoId, 0, 0, procedimentosToInsert.length);
+              
+              // Log procedimentos com médico
+              const comMedico = procedimentosToInsert.filter(p => p.nomeMedico);
+              console.log('[Upload] Procedimentos com médico a inserir:', comMedico.length);
+              if (comMedico.length > 0) {
+                console.log('[Upload] Primeiro com médico:', {
+                  codigo: comMedico[0].codigo,
+                  nomeMedico: comMedico[0].nomeMedico,
+                  crmMedico: comMedico[0].crmMedico
                 });
-                console.log('[Upload] Insights gerados:', resultadoIA.insightsGerados, 'críticos:', resultadoIA.insightsCriticos);
-              } catch (iaError) {
-                // Não falhar o upload se a geração de insights falhar
-                console.error('[Upload] Erro ao gerar insights de IA:', iaError);
               }
+              
+              // Create procedimentos with progress callback
+              await db.createProcedimentos(
+                procedimentosToInsert,
+                arquivoId,
+                async (progresso, itensProcessados, totalItens) => {
+                  await db.updateArquivoProgresso(arquivoId, progresso, itensProcessados, totalItens);
+                }
+              );
+              
+              await db.updateArquivoStatus(arquivoId, "processado");
+              await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
+              
+              const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+              console.log(`[Upload] Background processing completed in ${totalTime}s:`, input.nome);
+              
+              // Gerar insights de IA automaticamente após processamento (apenas para arquivos enviados/XML)
+              if (input.direcao === "enviado" && input.tipoArquivo === "xml") {
+                try {
+                  console.log('[Upload] Gerando insights de IA para arquivo:', arquivoId);
+                  const resultadoIA = await db.processarInsightsAutomaticos({
+                    arquivoId,
+                    estabelecimentoId: input.estabelecimentoId,
+                    convenioId: input.convenioId,
+                    userId: ctx.user.id!,
+                  });
+                  console.log('[Upload] Insights gerados:', resultadoIA.insightsGerados, 'críticos:', resultadoIA.insightsCriticos);
+                } catch (iaError) {
+                  // Não falhar o upload se a geração de insights falhar
+                  console.error('[Upload] Erro ao gerar insights de IA:', iaError);
+                }
+              }
+            } else if (!parseResult.success) {
+              await db.updateArquivoStatus(arquivoId, "erro");
+            } else {
+              await db.updateArquivoStatus(arquivoId, "processado");
+              await db.updateArquivoProgresso(arquivoId, 100, 0, 0);
             }
-          } else if (!parseResult.success) {
+          } catch (error) {
+            console.error("[Upload] Error in background processing:", error);
             await db.updateArquivoStatus(arquivoId, "erro");
-          } else {
-            await db.updateArquivoStatus(arquivoId, "processado");
-            await db.updateArquivoProgresso(arquivoId, 100, 0, 0);
           }
-        } catch (error) {
-          console.error("Error parsing file:", error);
-          await db.updateArquivoStatus(arquivoId, "erro");
-        }
+        };
         
-        return { id: arquivoId, s3Url: url, reimportado: isReimportacao };
+        // Start background processing without awaiting
+        // This allows the response to return immediately
+        processInBackground().catch(err => {
+          console.error('[Upload] Unhandled error in background processing:', err);
+        });
+        
+        // Return immediately - user can check progress via status endpoint
+        return { id: arquivoId, s3Url: url, reimportado: isReimportacao, processandoEmBackground: true };
       }),
 
     procedimentos: protectedProcedure
