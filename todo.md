@@ -662,3 +662,11 @@
 
 ## Correções de Interface
 - [x] Corrigir modal de detalhes das Contas Tasy - campos muito pequenos e difícil visualização
+
+## Melhorias Contas Tasy e Relatórios
+- [x] Converter modal de detalhes da conta para tela separada (DetalheContaTasy.tsx)
+- [x] Corrigir materiais que não estão sendo exibidos na conta - agora mostra todos os itens separados por tipo
+- [x] Adicionar busca/filtro na tabela de itens da conta - filtro por código, descrição, tipo
+- [x] Implementar ordenação nas colunas (valor, código, tipo) - clique no cabeçalho para ordenar
+- [x] Adicionar mais campos de análise nos Relatórios Tasy (procedimentos, descrição, protocolo, paciente, CRM, função médico)
+- [x] Criar nova tela de Relatórios BI estilo Power BI para dados importados via XML/Excel (RelatoriosBI.tsx)

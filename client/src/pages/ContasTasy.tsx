@@ -36,6 +36,7 @@ import {
   X
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
 // Interface para item do Tasy
@@ -130,6 +131,7 @@ export default function ContasTasy() {
   // Estado para o modal de detalhes
   const [contaSelecionada, setContaSelecionada] = useState<ContaTasy | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const [, setLocation] = useLocation();
 
   // Buscar dados do Tasy
   const { data: dadosTasy, isLoading, refetch } = trpc.importacaoTasy.dados.useQuery(
@@ -225,10 +227,10 @@ export default function ContasTasy() {
   const valorTotalGeral = contasFiltradas.reduce((acc, c) => acc + c.valorTotal, 0);
   const totalItens = dadosTasy?.length || 0;
 
-  // Função para abrir modal de detalhes
+  // Função para abrir tela de detalhes
   const abrirDetalhes = (conta: ContaTasy) => {
-    setContaSelecionada(conta);
-    setModalAberto(true);
+    // Navegar para a tela de detalhes
+    setLocation(`/contas-tasy/${conta.atendimento}`);
   };
 
   // Função para fechar modal

@@ -120,7 +120,7 @@ const colunasDisponiveis = [
   { id: 'paciente', label: 'Paciente', tipo: 'texto' },
   { id: 'dataFaturado', label: 'Data Faturado', tipo: 'data' },
   { id: 'dataConta', label: 'Data Conta', tipo: 'data' },
-  { id: 'codigo', label: 'Código', tipo: 'texto' },
+  { id: 'codigo', label: 'Código (Procedimento)', tipo: 'texto' },
   { id: 'codigoConvenio', label: 'Código Convênio', tipo: 'texto' },
   { id: 'descricao', label: 'Descrição', tipo: 'texto' },
   { id: 'quantidade', label: 'Quantidade', tipo: 'numero' },
@@ -132,19 +132,35 @@ const colunasDisponiveis = [
   { id: 'tipo', label: 'Tipo', tipo: 'texto' },
   { id: 'medico', label: 'Médico', tipo: 'texto' },
   { id: 'crm', label: 'CRM', tipo: 'texto' },
+  { id: 'funcaoMedico', label: 'Função Médico', tipo: 'texto' },
+  { id: 'unidade', label: 'Unidade', tipo: 'texto' },
 ];
 
 // Campos disponíveis para agrupamento (drag-and-drop)
 const camposDisponiveis = [
+  // Dimensões principais
   { id: 'convenio', label: 'Convênio', icon: Building2, tipo: 'dimensao' },
   { id: 'setor', label: 'Setor', icon: Building2, tipo: 'dimensao' },
   { id: 'tipo', label: 'Tipo (Mat/Hon)', icon: Package, tipo: 'dimensao' },
   { id: 'medico', label: 'Médico', icon: User, tipo: 'dimensao' },
+  // Novos campos de análise
+  { id: 'paciente', label: 'Paciente', icon: User, tipo: 'dimensao' },
+  { id: 'codigo', label: 'Procedimento (Código)', icon: FileText, tipo: 'dimensao' },
+  { id: 'descricao', label: 'Descrição', icon: FileText, tipo: 'dimensao' },
+  { id: 'protocolo', label: 'Protocolo', icon: FileText, tipo: 'dimensao' },
+  { id: 'statusProtocolo', label: 'Status Protocolo', icon: FileText, tipo: 'dimensao' },
+  { id: 'guia', label: 'Guia', icon: FileText, tipo: 'dimensao' },
+  { id: 'atendimento', label: 'Atendimento', icon: FileText, tipo: 'dimensao' },
+  { id: 'crm', label: 'CRM', icon: User, tipo: 'dimensao' },
+  { id: 'funcaoMedico', label: 'Função Médico', icon: User, tipo: 'dimensao' },
+  // Dimensões temporais
   { id: 'mesAno', label: 'Mês/Ano', icon: Calendar, tipo: 'dimensao' },
   { id: 'trimestre', label: 'Trimestre', icon: Calendar, tipo: 'dimensao' },
   { id: 'ano', label: 'Ano', icon: Calendar, tipo: 'dimensao' },
+  // Métricas
   { id: 'valorTotal', label: 'Valor Total (R$)', icon: DollarSign, tipo: 'metrica' },
   { id: 'quantidade', label: 'Quantidade', icon: Package, tipo: 'metrica' },
+  { id: 'valorUnitario', label: 'Valor Unitário (R$)', icon: DollarSign, tipo: 'metrica' },
 ];
 
 // Templates de relatórios pré-configurados
@@ -492,6 +508,33 @@ export default function RelatoriosTasy() {
         case 'medico':
           chave = item.medico || 'Sem Médico';
           break;
+        case 'paciente':
+          chave = item.paciente || 'Sem Paciente';
+          break;
+        case 'codigo':
+          chave = item.codigo || 'Sem Código';
+          break;
+        case 'descricao':
+          chave = item.descricao || 'Sem Descrição';
+          break;
+        case 'protocolo':
+          chave = item.protocolo || 'Sem Protocolo';
+          break;
+        case 'statusProtocolo':
+          chave = item.statusProtocolo || 'Sem Status';
+          break;
+        case 'guia':
+          chave = item.guia || 'Sem Guia';
+          break;
+        case 'atendimento':
+          chave = item.atendimento || 'Sem Atendimento';
+          break;
+        case 'crm':
+          chave = item.crm || 'Sem CRM';
+          break;
+        case 'funcaoMedico':
+          chave = item.funcaoMedico || 'Sem Função';
+          break;
         case 'mesAno':
           const data = new Date(item.dataFaturado || item.dataConta);
           chave = `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
@@ -556,6 +599,15 @@ export default function RelatoriosTasy() {
         case 'setor': chave = item.setor || 'Sem Setor'; break;
         case 'tipo': chave = item.tipo || 'Sem Tipo'; break;
         case 'medico': chave = item.medico || 'Sem Médico'; break;
+        case 'paciente': chave = item.paciente || 'Sem Paciente'; break;
+        case 'codigo': chave = item.codigo || 'Sem Código'; break;
+        case 'descricao': chave = item.descricao || 'Sem Descrição'; break;
+        case 'protocolo': chave = item.protocolo || 'Sem Protocolo'; break;
+        case 'statusProtocolo': chave = item.statusProtocolo || 'Sem Status'; break;
+        case 'guia': chave = item.guia || 'Sem Guia'; break;
+        case 'atendimento': chave = item.atendimento || 'Sem Atendimento'; break;
+        case 'crm': chave = item.crm || 'Sem CRM'; break;
+        case 'funcaoMedico': chave = item.funcaoMedico || 'Sem Função'; break;
         default: chave = item[eixoX] || 'Outros';
       }
       
