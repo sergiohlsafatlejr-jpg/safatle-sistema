@@ -645,3 +645,16 @@
 - [x] IA sugere melhores tipos de gráficos baseado nos dados
 - [x] IA identifica padrões e anomalias nos dados
 - [x] Adicionar botão "Sugestões da IA" no Construtor de Gráficos
+
+
+## Modo de Apresentação para Reuniões
+- [x] Criar componente de modo apresentação em tela cheia
+- [x] Implementar rotação automática entre gráficos
+- [x] Adicionar controles de navegação (próximo, anterior, pausar)
+- [x] Configurar intervalo de rotação (5s, 10s, 30s, 1min)
+- [x] Exibir título e data/hora no modo apresentação
+- [x] Permitir sair do modo apresentação com tecla ESC
+- [x] Adicionar indicadores de slide (dots) na parte inferior
+- [x] Implementar controle por teclado (setas, espaço, P para pausar)
+- [x] Exibir totais de valor, quantidade e registros
+- [x] 24 testes automatizados do modo apresentação

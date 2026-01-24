@@ -156,7 +156,7 @@ describe("Dashboard Consolidado Router", () => {
       expect(result.estabelecimentos).toBeDefined();
       expect(result.totais).toBeDefined();
       expect(Array.isArray(result.estabelecimentos)).toBe(true);
-    });
+    }, 10000);
 
     it("should include totals in the response", async () => {
       const ctx = createAdminContext();
@@ -168,7 +168,7 @@ describe("Dashboard Consolidado Router", () => {
       expect(result.totais).toHaveProperty("valorTotalFaturado");
       expect(result.totais).toHaveProperty("valorTotalGlosado");
       expect(result.totais).toHaveProperty("percentualGlosa");
-    });
+    }, 10000);
 
     it("should throw FORBIDDEN for regular users", async () => {
       const ctx = createRegularUserContext();

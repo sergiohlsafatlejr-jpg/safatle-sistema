@@ -70,9 +70,18 @@ import {
   Wand2,
   AlertTriangle,
   CheckCircle2,
-  Layout
+  Layout,
+  Play,
+  Pause,
+  SkipForward,
+  SkipBack,
+  Maximize,
+  Minimize,
+  Monitor,
+  Clock,
+  Settings2
 } from "lucide-react";
-import { useState, useMemo, useCallback, DragEvent } from "react";
+import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
 import * as XLSX from "xlsx";
 import {
   Chart as ChartJS,
@@ -299,6 +308,24 @@ export default function RelatoriosTasy() {
   const [analisandoIA, setAnalisandoIA] = useState(false);
   const [sugestoesIA, setSugestoesIA] = useState<any[]>([]);
   
+  // Estados para modo apresentação
+  const [modoApresentacao, setModoApresentacao] = useState(false);
+  const [slideAtual, setSlideAtual] = useState(0);
+  const [rotacaoAutomatica, setRotacaoAutomatica] = useState(true);
+  const [intervaloRotacao, setIntervaloRotacao] = useState(10); // segundos
+  const [slidesApresentacao, setSlidesApresentacao] = useState<Array<{
+    titulo: string;
+    tipoGrafico: 'bar' | 'pie' | 'line';
+    agrupamento: string;
+    metrica: 'valor' | 'quantidade';
+  }>>([
+    { titulo: 'Faturamento por Convênio', tipoGrafico: 'bar', agrupamento: 'convenio', metrica: 'valor' },
+    { titulo: 'Distribuição por Tipo', tipoGrafico: 'pie', agrupamento: 'tipo', metrica: 'valor' },
+    { titulo: 'Evolução Mensal', tipoGrafico: 'line', agrupamento: 'mesAno', metrica: 'valor' },
+    { titulo: 'Produção por Setor', tipoGrafico: 'bar', agrupamento: 'setor', metrica: 'quantidade' },
+    { titulo: 'Produção por Médico', tipoGrafico: 'bar', agrupamento: 'medico', metrica: 'valor' },
+  ]);
+  
   // Lista de anos
   const anos = useMemo(() => {
     const anoAtual = new Date().getFullYear();
@@ -364,6 +391,44 @@ export default function RelatoriosTasy() {
       utils.dashboards.listar.invalidate();
     }
   });
+
+  // Effect para rotação automática no modo apresentação
+  useEffect(() => {
+    if (!modoApresentacao || !rotacaoAutomatica) return;
+    
+    const timer = setInterval(() => {
+      setSlideAtual((prev) => (prev + 1) % slidesApresentacao.length);
+    }, intervaloRotacao * 1000);
+    
+    return () => clearInterval(timer);
+  }, [modoApresentacao, rotacaoAutomatica, intervaloRotacao, slidesApresentacao.length]);
+  
+  // Effect para tecla ESC sair do modo apresentação
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!modoApresentacao) return;
+      
+      switch (e.key) {
+        case 'Escape':
+          setModoApresentacao(false);
+          break;
+        case 'ArrowRight':
+        case ' ':
+          setSlideAtual((prev) => (prev + 1) % slidesApresentacao.length);
+          break;
+        case 'ArrowLeft':
+          setSlideAtual((prev) => (prev - 1 + slidesApresentacao.length) % slidesApresentacao.length);
+          break;
+        case 'p':
+        case 'P':
+          setRotacaoAutomatica((prev) => !prev);
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modoApresentacao, slidesApresentacao.length]);
 
   // Dados filtrados
   const dadosFiltrados = useMemo(() => {
@@ -788,6 +853,99 @@ export default function RelatoriosTasy() {
     setSugestoesIAAberto(false);
   };
 
+  // Effect para rotação automática dos slides
+  useEffect(() => {
+    if (!modoApresentacao || !rotacaoAutomatica) return;
+    
+    const timer = setInterval(() => {
+      setSlideAtual((prev) => (prev + 1) % slidesApresentacao.length);
+    }, intervaloRotacao * 1000);
+    
+    return () => clearInterval(timer);
+  }, [modoApresentacao, rotacaoAutomatica, intervaloRotacao, slidesApresentacao.length]);
+
+  // Effect para controles de teclado no modo apresentação
+  useEffect(() => {
+    if (!modoApresentacao) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          setModoApresentacao(false);
+          break;
+        case 'ArrowLeft':
+          setSlideAtual((prev) => (prev - 1 + slidesApresentacao.length) % slidesApresentacao.length);
+          break;
+        case 'ArrowRight':
+        case ' ':
+          setSlideAtual((prev) => (prev + 1) % slidesApresentacao.length);
+          break;
+        case 'p':
+        case 'P':
+          setRotacaoAutomatica((prev) => !prev);
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modoApresentacao, slidesApresentacao.length]);
+
+  // Função para gerar dados do gráfico para o modo apresentação
+  const gerarDadosSlide = useCallback((slide: typeof slidesApresentacao[0]) => {
+    const grupos = new Map<string, { valor: number; quantidade: number }>();
+    
+    dadosFiltrados.forEach((item: any) => {
+      let chave = '';
+      switch (slide.agrupamento) {
+        case 'convenio':
+          chave = item.convenio || 'Sem Convênio';
+          break;
+        case 'setor':
+          chave = item.setor || 'Sem Setor';
+          break;
+        case 'tipo':
+          chave = item.tipo || 'Sem Tipo';
+          break;
+        case 'medico':
+          chave = item.medico || 'Sem Médico';
+          break;
+        case 'mesAno':
+          if (item.dataFaturado) {
+            const d = new Date(item.dataFaturado);
+            chave = `${d.getMonth() + 1}/${d.getFullYear()}`;
+          } else {
+            chave = 'Sem Data';
+          }
+          break;
+        default:
+          chave = 'Outros';
+      }
+      
+      const atual = grupos.get(chave) || { valor: 0, quantidade: 0 };
+      atual.valor += parseFloat(item.valorTotal || '0');
+      atual.quantidade += parseInt(item.quantidade || '0');
+      grupos.set(chave, atual);
+    });
+    
+    const labels = Array.from(grupos.keys()).slice(0, 10);
+    const valores = labels.map(l => {
+      const g = grupos.get(l)!;
+      return slide.metrica === 'valor' ? g.valor : g.quantidade;
+    });
+    
+    return {
+      labels,
+      datasets: [{
+        label: slide.metrica === 'valor' ? 'Valor (R$)' : 'Quantidade',
+        data: valores,
+        backgroundColor: coresGraficos,
+        borderColor: coresGraficos.map(c => c.replace('0.8', '1')),
+        borderWidth: 1,
+      }]
+    };
+  }, [dadosFiltrados]);
+
   // Exportar para Excel
   const handleExportarExcel = () => {
     const excelData = dadosFiltrados.map((item: any) => {
@@ -843,6 +1001,13 @@ export default function RelatoriosTasy() {
             <Button variant="outline" onClick={handleExportarExcel}>
               <Download className="h-4 w-4 mr-2" />
               Exportar Excel
+            </Button>
+            <Button 
+              onClick={() => setModoApresentacao(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            >
+              <Monitor className="h-4 w-4 mr-2" />
+              Modo Apresentação
             </Button>
           </div>
         </div>
@@ -1712,6 +1877,215 @@ export default function RelatoriosTasy() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Modo Apresentação em Tela Cheia */}
+        {modoApresentacao && (
+          <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            {/* Header do Modo Apresentação */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent z-10">
+              <div className="flex items-center gap-4">
+                <div className="text-white">
+                  <h2 className="text-xl font-bold">{estabelecimentoAtual?.nome}</h2>
+                  <p className="text-sm text-white/70">
+                    {meses.find(m => m.value === mesSelecionado)?.label} {anoSelecionado}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Controles */}
+              <div className="flex items-center gap-2">
+                {/* Seletor de Intervalo */}
+                <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5">
+                  <Clock className="h-4 w-4 text-white/70" />
+                  <Select
+                    value={intervaloRotacao.toString()}
+                    onValueChange={(v) => setIntervaloRotacao(parseInt(v))}
+                  >
+                    <SelectTrigger className="w-20 h-8 bg-transparent border-0 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5s</SelectItem>
+                      <SelectItem value="10">10s</SelectItem>
+                      <SelectItem value="15">15s</SelectItem>
+                      <SelectItem value="30">30s</SelectItem>
+                      <SelectItem value="60">1min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Navegação */}
+                <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white hover:bg-white/20"
+                    onClick={() => setSlideAtual((prev) => (prev - 1 + slidesApresentacao.length) % slidesApresentacao.length)}
+                  >
+                    <SkipBack className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white hover:bg-white/20"
+                    onClick={() => setRotacaoAutomatica(!rotacaoAutomatica)}
+                  >
+                    {rotacaoAutomatica ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white hover:bg-white/20"
+                    onClick={() => setSlideAtual((prev) => (prev + 1) % slidesApresentacao.length)}
+                  >
+                    <SkipForward className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Indicador de Slide */}
+                <div className="bg-white/10 rounded-lg px-3 py-1.5 text-white text-sm">
+                  {slideAtual + 1} / {slidesApresentacao.length}
+                </div>
+                
+                {/* Botão Fechar */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white hover:bg-white/20"
+                  onClick={() => setModoApresentacao(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Conteúdo do Slide */}
+            <div className="flex items-center justify-center h-full p-16">
+              <div className="w-full max-w-6xl">
+                {/* Título do Slide */}
+                <h3 className="text-3xl font-bold text-white text-center mb-8">
+                  {slidesApresentacao[slideAtual]?.titulo}
+                </h3>
+                
+                {/* Gráfico */}
+                <div className="bg-white/5 backdrop-blur rounded-2xl p-8 shadow-2xl">
+                  <div className="h-[500px]">
+                    {slidesApresentacao[slideAtual]?.tipoGrafico === 'bar' && (
+                      <Bar
+                        data={gerarDadosSlide(slidesApresentacao[slideAtual])}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: true,
+                              position: 'top',
+                              labels: { color: 'white', font: { size: 14 } }
+                            },
+                          },
+                          scales: {
+                            x: {
+                              ticks: { color: 'white', font: { size: 12 } },
+                              grid: { color: 'rgba(255,255,255,0.1)' }
+                            },
+                            y: {
+                              ticks: { color: 'white', font: { size: 12 } },
+                              grid: { color: 'rgba(255,255,255,0.1)' }
+                            }
+                          }
+                        }}
+                      />
+                    )}
+                    {slidesApresentacao[slideAtual]?.tipoGrafico === 'pie' && (
+                      <Pie
+                        data={gerarDadosSlide(slidesApresentacao[slideAtual])}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: true,
+                              position: 'right',
+                              labels: { color: 'white', font: { size: 14 } }
+                            },
+                          },
+                        }}
+                      />
+                    )}
+                    {slidesApresentacao[slideAtual]?.tipoGrafico === 'line' && (
+                      <Line
+                        data={gerarDadosSlide(slidesApresentacao[slideAtual])}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: true,
+                              position: 'top',
+                              labels: { color: 'white', font: { size: 14 } }
+                            },
+                          },
+                          scales: {
+                            x: {
+                              ticks: { color: 'white', font: { size: 12 } },
+                              grid: { color: 'rgba(255,255,255,0.1)' }
+                            },
+                            y: {
+                              ticks: { color: 'white', font: { size: 12 } },
+                              grid: { color: 'rgba(255,255,255,0.1)' }
+                            }
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Totais */}
+                <div className="flex justify-center gap-8 mt-8">
+                  <div className="bg-white/10 rounded-xl px-6 py-3 text-center">
+                    <p className="text-white/70 text-sm">Valor Total</p>
+                    <p className="text-2xl font-bold text-white">
+                      {totais.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  </div>
+                  <div className="bg-white/10 rounded-xl px-6 py-3 text-center">
+                    <p className="text-white/70 text-sm">Quantidade</p>
+                    <p className="text-2xl font-bold text-white">
+                      {totais.quantidade.toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="bg-white/10 rounded-xl px-6 py-3 text-center">
+                    <p className="text-white/70 text-sm">Registros</p>
+                    <p className="text-2xl font-bold text-white">
+                      {dadosFiltrados.length.toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Indicadores de Slide (Dots) */}
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-2">
+              {slidesApresentacao.map((_, index) => (
+                <button
+                  key={index}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    index === slideAtual 
+                      ? 'bg-white scale-125' 
+                      : 'bg-white/30 hover:bg-white/50'
+                  }`}
+                  onClick={() => setSlideAtual(index)}
+                />
+              ))}
+            </div>
+            
+            {/* Instruções de Teclado */}
+            <div className="absolute bottom-4 right-4 text-white/50 text-xs">
+              ESC para sair • ←→ navegar • P pausar • Espaço avançar
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
