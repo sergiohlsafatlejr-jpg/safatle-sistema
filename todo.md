@@ -694,3 +694,12 @@
 - [x] Exportação para Excel com resumo, contas e itens
 - [x] KPIs com Total Faturado, Pago, Glosado e Pendente com percentuais
 - [x] 298 testes automatizados passando
+
+
+## Correção Importação SQLite - Contas Pagas
+- [x] Verificar estrutura do arquivo SQLite (tabelas: faturamento_unificado, contas_pagas, itens_pagos)
+- [x] Corrigir lógica de importação para separar dados nas tabelas contasPagasTasy e itensPagosTasy
+- [x] Modificar função readSQLiteFile para ler todas as tabelas automaticamente
+- [x] Processar cada tipo de dado na tabela correta (394.737 faturamento, 147 contas pagas, 9.363 itens pagos)
+- [x] Exibir resumo detalhado durante importação com quantidade por tipo
+- [x] 298 testes automatizados passando

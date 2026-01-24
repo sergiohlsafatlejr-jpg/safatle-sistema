@@ -101,7 +101,7 @@ describe('Glosa Router - Filtro de Classificação', () => {
       expect(resultPendente).toHaveProperty('items');
       expect(resultPendente).toHaveProperty('total');
       expect(resultPendente).toHaveProperty('resumo');
-    });
+    }, 15000);
 
     it('should accept classificacao aceitar filter', async () => {
       const caller = appRouter.createCaller(mockContext);

@@ -68,7 +68,7 @@ import {
 // Tamanho do lote para envio ao servidor
 const BATCH_SIZE = 500;
 
-// Tipo para os dados do Tasy
+// Tipo para os dados do Tasy (faturamento)
 interface DadoTasy {
   atendimento: string;
   nrInternoConta?: string;
@@ -95,6 +95,44 @@ interface DadoTasy {
   valorMedico?: number;
 }
 
+// Tipo para contas pagas do Tasy
+interface ContaPagaTasy {
+  dataRetorno?: string;
+  seqRetornoGeral?: string;
+  titulo?: string;
+  guia?: string;
+  nrSeqConta?: string;
+  nrConta?: string;
+  convenio?: string;
+  nrProtocolo?: string;
+  dataRecebimento?: string;
+  pagoConta?: number;
+  glosaConta?: number;
+}
+
+// Tipo para itens pagos do Tasy
+interface ItemPagoTasy {
+  titulo?: string;
+  guia?: string;
+  nrSeqConta?: string;
+  conta?: string;
+  nrProtocolo?: string;
+  dataRecebimento?: string;
+  glosaItem?: number;
+  qndGlosaItem?: number;
+  motivoGlosa?: string;
+  procedimento?: string;
+  material?: string;
+  setor?: string;
+}
+
+// Tipo para o resultado da leitura do SQLite
+interface DadosSQLite {
+  faturamento: DadoTasy[];
+  contasPagas: ContaPagaTasy[];
+  itensPagos: ItemPagoTasy[];
+}
+
 export default function ImportacaoTasy() {
   const { estabelecimentoAtual, selecionado } = useEstabelecimento();
   const [isUploading, setIsUploading] = useState(false);
@@ -106,7 +144,7 @@ export default function ImportacaoTasy() {
   const [showDadosDialog, setShowDadosDialog] = useState(false);
   const [filtroConvenio, setFiltroConvenio] = useState<string>("");
   const [filtroTipo, setFiltroTipo] = useState<string>("");
-  const [pendingImportacao, setPendingImportacao] = useState<{ id: number; dados: DadoTasy[] } | null>(null);
+  const [pendingImportacao, setPendingImportacao] = useState<{ id: number; dados: DadosSQLite } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
@@ -138,6 +176,8 @@ export default function ImportacaoTasy() {
   // Mutations
   const uploadMutation = trpc.importacaoTasy.upload.useMutation();
   const processarMutation = trpc.importacaoTasy.processar.useMutation();
+  const processarContasPagasMutation = trpc.importacaoTasy.processarContasPagas.useMutation();
+  const processarItensPagosMutation = trpc.importacaoTasy.processarItensPagos.useMutation();
   const deleteMutation = trpc.importacaoTasy.delete.useMutation();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,8 +196,8 @@ export default function ImportacaoTasy() {
     }
   };
 
-  // Função para ler o SQLite usando sql.js
-  const readSQLiteFile = async (file: File): Promise<DadoTasy[]> => {
+  // Função para ler o SQLite usando sql.js - lê todas as tabelas
+  const readSQLiteFile = async (file: File): Promise<DadosSQLite> => {
     // Carrega sql.js dinamicamente
     const initSqlJs = (window as any).initSqlJs;
     if (!initSqlJs) {
@@ -189,69 +229,143 @@ export default function ImportacaoTasy() {
     const tableNames = tables[0].values.map((row: any[]) => row[0] as string);
     console.log("Tabelas encontradas:", tableNames);
 
-    // Tenta encontrar a tabela de dados
-    let tableName = tableNames.find((t: string) => 
+    // Função auxiliar para obter valor de coluna
+    const getColValue = (row: any[], columns: string[], names: string[]): any => {
+      for (const name of names) {
+        const idx = columns.indexOf(name.toLowerCase());
+        if (idx !== -1) return row[idx];
+      }
+      return undefined;
+    };
+
+    // ========== LÊ TABELA DE FATURAMENTO ==========
+    let faturamento: DadoTasy[] = [];
+    const faturamentoTable = tableNames.find((t: string) => 
+      t.toLowerCase().includes('faturamento') || 
       t.toLowerCase().includes('dados') || 
       t.toLowerCase().includes('tasy') ||
       t.toLowerCase().includes('material') ||
       t.toLowerCase().includes('honorario')
-    ) || tableNames[0];
+    );
 
-    // Lê todos os dados da tabela
-    const result = db.exec(`SELECT * FROM "${tableName}"`);
-    if (!result.length) {
-      throw new Error(`Tabela "${tableName}" está vazia`);
+    if (faturamentoTable) {
+      const result = db.exec(`SELECT * FROM "${faturamentoTable}"`);
+      if (result.length && result[0].values.length) {
+        const columns = result[0].columns.map((c: string) => c.toLowerCase());
+        const rows = result[0].values;
+        console.log(`Tabela ${faturamentoTable}: ${rows.length} registros`);
+
+        faturamento = rows.map((row: any[]) => {
+          const getCol = (names: string[]) => getColValue(row, columns, names);
+          const tipo = getCol(['tipo']) || 
+            (getCol(['medico', 'nm_medico', 'crm', 'nr_crm']) ? 'HONORARIO' : 'MATERIAL');
+
+          return {
+            atendimento: String(getCol(['atendimento', 'nr_atendimento']) || ''),
+            nrInternoConta: getCol(['nr_interno_conta', 'nrinternoConta', 'conta']) ? String(getCol(['nr_interno_conta', 'nrinternoConta', 'conta'])) : undefined,
+            sequencia: getCol(['sequencia', 'nr_sequencia', 'sequencia_item']) ? String(getCol(['sequencia', 'nr_sequencia', 'sequencia_item'])) : undefined,
+            dataFaturado: getCol(['data_faturado', 'dt_mesano_referencia', 'data']) || undefined,
+            guia: getCol(['guia', 'nr_doc_convenio']) ? String(getCol(['guia', 'nr_doc_convenio'])) : undefined,
+            convenio: getCol(['convenio', 'ds_convenio']) || undefined,
+            paciente: getCol(['paciente', 'nm_paciente']) || undefined,
+            dataConta: getCol(['data_conta', 'dt_conta', 'data_procedimento', 'dt_procedimento']) || undefined,
+            codigo: getCol(['codigo', 'cod_material', 'cd_material', 'cd_procedimento', 'codigo_tasy', 'cod_mat_convenio']) ? String(getCol(['codigo', 'cod_material', 'cd_material', 'cd_procedimento', 'codigo_tasy', 'cod_mat_convenio'])) : undefined,
+            codigoConvenio: getCol(['codigo_convenio', 'cd_procedimento_convenio', 'cod_mat_convenio']) ? String(getCol(['codigo_convenio', 'cd_procedimento_convenio', 'cod_mat_convenio'])) : undefined,
+            descricao: getCol(['descricao', 'ds_material', 'ds_proc_convenio']) || undefined,
+            quantidade: parseFloat(getCol(['quantidade', 'qt_material', 'qt_procedimento'])) || 1,
+            unidade: getCol(['unidade', 'cd_unidade_medida']) || undefined,
+            valorUnitario: parseFloat(getCol(['valor_unitario', 'vl_unitario', 'vl_procedimento'])) || 0,
+            valorTotal: parseFloat(getCol(['valor_total', 'vl_total', 'vl_material'])) || 0,
+            setor: getCol(['setor', 'ds_setor_atendimento']) || undefined,
+            protocolo: getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio']) ? String(getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio'])) : undefined,
+            statusProtocolo: getCol(['status_protocolo', 'ie_status_protocolo']) || undefined,
+            tipo: tipo.toUpperCase() === 'HONORARIO' ? 'HONORARIO' : 'MATERIAL',
+            medico: getCol(['medico', 'nm_medico']) || undefined,
+            funcaoMedico: getCol(['funcao_medico', 'ds_funcao', 'funcao']) || undefined,
+            crm: getCol(['crm', 'nr_crm']) ? String(getCol(['crm', 'nr_crm'])) : undefined,
+            valorMedico: parseFloat(getCol(['valor_medico', 'vl_medico'])) || undefined,
+          };
+        }).filter((d: DadoTasy) => d.atendimento);
+      }
     }
 
-    const columns = result[0].columns.map((c: string) => c.toLowerCase());
-    const rows = result[0].values;
+    // ========== LÊ TABELA DE CONTAS PAGAS ==========
+    let contasPagas: ContaPagaTasy[] = [];
+    const contasPagasTable = tableNames.find((t: string) => 
+      t.toLowerCase().includes('contas_pagas') || 
+      t.toLowerCase().includes('contaspagas') ||
+      t.toLowerCase().includes('pagamento')
+    );
 
-    console.log("Colunas encontradas:", columns);
-    console.log("Total de linhas:", rows.length);
+    if (contasPagasTable) {
+      const result = db.exec(`SELECT * FROM "${contasPagasTable}"`);
+      if (result.length && result[0].values.length) {
+        const columns = result[0].columns.map((c: string) => c.toLowerCase());
+        const rows = result[0].values;
+        console.log(`Tabela ${contasPagasTable}: ${rows.length} registros`);
 
-    // Mapeia os dados para o formato esperado
-    const dados: DadoTasy[] = rows.map((row: any[]) => {
-      const getCol = (names: string[]): any => {
-        for (const name of names) {
-          const idx = columns.indexOf(name.toLowerCase());
-          if (idx !== -1) return row[idx];
-        }
-        return undefined;
-      };
+        contasPagas = rows.map((row: any[]) => {
+          const getCol = (names: string[]) => getColValue(row, columns, names);
+          return {
+            dataRetorno: getCol(['data_retorno', 'dataretorno']) || undefined,
+            seqRetornoGeral: getCol(['seq_retorno_geral', 'seqretornogeral']) ? String(getCol(['seq_retorno_geral', 'seqretornogeral'])) : undefined,
+            titulo: getCol(['titulo']) ? String(getCol(['titulo'])) : undefined,
+            guia: getCol(['guia']) ? String(getCol(['guia'])) : undefined,
+            nrSeqConta: getCol(['nr_seq_conta', 'nrseqconta']) ? String(getCol(['nr_seq_conta', 'nrseqconta'])) : undefined,
+            nrConta: getCol(['nr_conta', 'nrconta']) ? String(getCol(['nr_conta', 'nrconta'])) : undefined,
+            convenio: getCol(['convenio']) || undefined,
+            nrProtocolo: getCol(['nr_protocolo', 'nrprotocolo']) ? String(getCol(['nr_protocolo', 'nrprotocolo'])) : undefined,
+            dataRecebimento: getCol(['data_recebimento', 'datarecebimento']) || undefined,
+            pagoConta: parseFloat(getCol(['pago_conta', 'pagoconta', 'valor_pago'])) || 0,
+            glosaConta: parseFloat(getCol(['glosa_conta', 'glosaconta', 'valor_glosa'])) || 0,
+          };
+        });
+      }
+    }
 
-      // Determina o tipo baseado nos dados
-      const tipo = getCol(['tipo']) || 
-        (getCol(['medico', 'nm_medico', 'crm', 'nr_crm']) ? 'HONORARIO' : 'MATERIAL');
+    // ========== LÊ TABELA DE ITENS PAGOS ==========
+    let itensPagos: ItemPagoTasy[] = [];
+    const itensPagosTable = tableNames.find((t: string) => 
+      t.toLowerCase().includes('itens_pagos') || 
+      t.toLowerCase().includes('itenspagos') ||
+      t.toLowerCase().includes('item_pago')
+    );
 
-      return {
-        atendimento: String(getCol(['atendimento', 'nr_atendimento']) || ''),
-        nrInternoConta: getCol(['nr_interno_conta', 'nrinternoConta', 'conta']) ? String(getCol(['nr_interno_conta', 'nrinternoConta', 'conta'])) : undefined,
-        sequencia: getCol(['sequencia', 'nr_sequencia', 'sequencia_item']) ? String(getCol(['sequencia', 'nr_sequencia', 'sequencia_item'])) : undefined,
-        dataFaturado: getCol(['data_faturado', 'dt_mesano_referencia', 'data']) || undefined,
-        guia: getCol(['guia', 'nr_doc_convenio']) ? String(getCol(['guia', 'nr_doc_convenio'])) : undefined,
-        convenio: getCol(['convenio', 'ds_convenio']) || undefined,
-        paciente: getCol(['paciente', 'nm_paciente']) || undefined,
-        dataConta: getCol(['data_conta', 'dt_conta', 'data_procedimento', 'dt_procedimento']) || undefined,
-        codigo: getCol(['codigo', 'cod_material', 'cd_material', 'cd_procedimento', 'codigo_tasy']) ? String(getCol(['codigo', 'cod_material', 'cd_material', 'cd_procedimento', 'codigo_tasy'])) : undefined,
-        codigoConvenio: getCol(['codigo_convenio', 'cd_procedimento_convenio']) ? String(getCol(['codigo_convenio', 'cd_procedimento_convenio'])) : undefined,
-        descricao: getCol(['descricao', 'ds_material', 'ds_proc_convenio']) || undefined,
-        quantidade: parseFloat(getCol(['quantidade', 'qt_material', 'qt_procedimento'])) || 1,
-        unidade: getCol(['unidade', 'cd_unidade_medida']) || undefined,
-        valorUnitario: parseFloat(getCol(['valor_unitario', 'vl_unitario', 'vl_procedimento'])) || 0,
-        valorTotal: parseFloat(getCol(['valor_total', 'vl_total', 'vl_material'])) || 0,
-        setor: getCol(['setor', 'ds_setor_atendimento']) || undefined,
-        protocolo: getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio']) ? String(getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio'])) : undefined,
-        statusProtocolo: getCol(['status_protocolo', 'ie_status_protocolo']) || undefined,
-        tipo: tipo.toUpperCase() === 'HONORARIO' ? 'HONORARIO' : 'MATERIAL',
-        medico: getCol(['medico', 'nm_medico']) || undefined,
-        funcaoMedico: getCol(['funcao_medico', 'ds_funcao', 'funcao']) || undefined,
-        crm: getCol(['crm', 'nr_crm']) ? String(getCol(['crm', 'nr_crm'])) : undefined,
-        valorMedico: parseFloat(getCol(['valor_medico', 'vl_medico'])) || undefined,
-      };
-    }).filter((d: DadoTasy) => d.atendimento); // Remove registros sem atendimento
+    if (itensPagosTable) {
+      const result = db.exec(`SELECT * FROM "${itensPagosTable}"`);
+      if (result.length && result[0].values.length) {
+        const columns = result[0].columns.map((c: string) => c.toLowerCase());
+        const rows = result[0].values;
+        console.log(`Tabela ${itensPagosTable}: ${rows.length} registros`);
+
+        itensPagos = rows.map((row: any[]) => {
+          const getCol = (names: string[]) => getColValue(row, columns, names);
+          return {
+            titulo: getCol(['titulo']) ? String(getCol(['titulo'])) : undefined,
+            guia: getCol(['guia']) ? String(getCol(['guia'])) : undefined,
+            nrSeqConta: getCol(['nr_seq_conta', 'nrseqconta']) ? String(getCol(['nr_seq_conta', 'nrseqconta'])) : undefined,
+            conta: getCol(['conta']) ? String(getCol(['conta'])) : undefined,
+            nrProtocolo: getCol(['nr_protocolo', 'nrprotocolo']) ? String(getCol(['nr_protocolo', 'nrprotocolo'])) : undefined,
+            dataRecebimento: getCol(['data_recebimento', 'datarecebimento']) || undefined,
+            glosaItem: parseFloat(getCol(['glosa_item', 'glosaitem', 'valor_glosa'])) || 0,
+            qndGlosaItem: parseFloat(getCol(['qnd_glosa_item', 'qndglosaitem', 'qtd_glosa'])) || 0,
+            motivoGlosa: getCol(['motivo_glosa', 'motivoglosa', 'cod_glosa']) || undefined,
+            procedimento: getCol(['procedimento', 'cod_procedimento']) ? String(getCol(['procedimento', 'cod_procedimento'])) : undefined,
+            material: getCol(['material', 'cod_material']) ? String(getCol(['material', 'cod_material'])) : undefined,
+            setor: getCol(['setor']) || undefined,
+          };
+        });
+      }
+    }
 
     db.close();
-    return dados;
+
+    console.log(`Resumo da importação:`);
+    console.log(`- Faturamento: ${faturamento.length} registros`);
+    console.log(`- Contas Pagas: ${contasPagas.length} registros`);
+    console.log(`- Itens Pagos: ${itensPagos.length} registros`);
+
+    return { faturamento, contasPagas, itensPagos };
   };
 
   const handleUpload = async () => {
@@ -266,14 +380,15 @@ export default function ImportacaoTasy() {
       const dados = await readSQLiteFile(selectedFile);
       setUploadProgress(50);
 
-      if (dados.length === 0) {
+      const totalRegistros = dados.faturamento.length + dados.contasPagas.length + dados.itensPagos.length;
+      if (totalRegistros === 0) {
         toast.error("Arquivo vazio", {
           description: "Nenhum dado válido encontrado no arquivo SQLite",
         });
         return;
       }
 
-      toast.info(`${dados.length.toLocaleString()} registros encontrados`);
+      toast.info(`${totalRegistros.toLocaleString()} registros encontrados (${dados.faturamento.length} faturamento, ${dados.contasPagas.length} contas pagas, ${dados.itensPagos.length} itens pagos)`);
 
       // Cria o registro de importação (sem enviar o arquivo completo)
       const result = await uploadMutation.mutateAsync({
@@ -290,7 +405,7 @@ export default function ImportacaoTasy() {
       setUploadProgress(100);
 
       toast.success("Arquivo lido com sucesso!", {
-        description: `${dados.length.toLocaleString()} registros prontos para importação. Clique em "Processar" para iniciar.`,
+        description: `${totalRegistros.toLocaleString()} registros prontos para importação. Clique em "Processar" para iniciar.`,
       });
 
       setSelectedFile(null);
@@ -314,50 +429,126 @@ export default function ImportacaoTasy() {
 
     setIsProcessing(true);
     setProcessingProgress(0);
-    setProcessingStats({ total: pendingImportacao.dados.length, processados: 0, inseridos: 0, ignorados: 0, erros: 0 });
 
     const { id, dados } = pendingImportacao;
+    const totalRegistros = dados.faturamento.length + dados.contasPagas.length + dados.itensPagos.length;
+    setProcessingStats({ total: totalRegistros, processados: 0, inseridos: 0, ignorados: 0, erros: 0 });
+
     let totalInseridos = 0;
     let totalIgnorados = 0;
     let totalErros = 0;
+    let processadosTotal = 0;
 
     try {
-      // Processa em lotes
-      const totalBatches = Math.ceil(dados.length / BATCH_SIZE);
-      
-      for (let i = 0; i < dados.length; i += BATCH_SIZE) {
-        const batch = dados.slice(i, i + BATCH_SIZE);
-        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      // ========== PROCESSA FATURAMENTO ==========
+      if (dados.faturamento.length > 0) {
+        toast.info(`Processando ${dados.faturamento.length.toLocaleString()} registros de faturamento...`);
+        
+        for (let i = 0; i < dados.faturamento.length; i += BATCH_SIZE) {
+          const batch = dados.faturamento.slice(i, i + BATCH_SIZE);
 
-        try {
-          const result = await processarMutation.mutateAsync({
-            importacaoId: id,
-            dados: batch,
-          });
+          try {
+            const result = await processarMutation.mutateAsync({
+              importacaoId: id,
+              dados: batch,
+            });
 
-          totalInseridos += result.inseridos;
-          totalIgnorados += result.ignorados;
-          totalErros += result.erros;
+            totalInseridos += result.inseridos;
+            totalIgnorados += result.ignorados;
+            totalErros += result.erros;
+          } catch (error: any) {
+            console.error(`Erro no lote de faturamento:`, error);
+            totalErros += batch.length;
+          }
 
-          const processados = Math.min(i + BATCH_SIZE, dados.length);
-          const progress = Math.round((processados / dados.length) * 100);
-          
+          processadosTotal = Math.min(i + BATCH_SIZE, dados.faturamento.length);
+          const progress = Math.round((processadosTotal / totalRegistros) * 100);
           setProcessingProgress(progress);
           setProcessingStats({
-            total: dados.length,
-            processados,
+            total: totalRegistros,
+            processados: processadosTotal,
             inseridos: totalInseridos,
             ignorados: totalIgnorados,
             erros: totalErros,
           });
 
-          // Pequena pausa entre lotes para não sobrecarregar
-          if (i + BATCH_SIZE < dados.length) {
+          if (i + BATCH_SIZE < dados.faturamento.length) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
-        } catch (error: any) {
-          console.error(`Erro no lote ${batchNum}:`, error);
-          totalErros += batch.length;
+        }
+      }
+
+      // ========== PROCESSA CONTAS PAGAS ==========
+      if (dados.contasPagas.length > 0) {
+        toast.info(`Processando ${dados.contasPagas.length.toLocaleString()} contas pagas...`);
+        
+        for (let i = 0; i < dados.contasPagas.length; i += BATCH_SIZE) {
+          const batch = dados.contasPagas.slice(i, i + BATCH_SIZE);
+
+          try {
+            const result = await processarContasPagasMutation.mutateAsync({
+              importacaoId: id,
+              dados: batch,
+            });
+
+            totalInseridos += result.inseridos;
+            totalErros += result.erros;
+          } catch (error: any) {
+            console.error(`Erro no lote de contas pagas:`, error);
+            totalErros += batch.length;
+          }
+
+          processadosTotal = dados.faturamento.length + Math.min(i + BATCH_SIZE, dados.contasPagas.length);
+          const progress = Math.round((processadosTotal / totalRegistros) * 100);
+          setProcessingProgress(progress);
+          setProcessingStats({
+            total: totalRegistros,
+            processados: processadosTotal,
+            inseridos: totalInseridos,
+            ignorados: totalIgnorados,
+            erros: totalErros,
+          });
+
+          if (i + BATCH_SIZE < dados.contasPagas.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      }
+
+      // ========== PROCESSA ITENS PAGOS ==========
+      if (dados.itensPagos.length > 0) {
+        toast.info(`Processando ${dados.itensPagos.length.toLocaleString()} itens pagos...`);
+        
+        for (let i = 0; i < dados.itensPagos.length; i += BATCH_SIZE) {
+          const batch = dados.itensPagos.slice(i, i + BATCH_SIZE);
+
+          try {
+            const result = await processarItensPagosMutation.mutateAsync({
+              importacaoId: id,
+              dados: batch,
+            });
+
+            totalInseridos += result.inseridos;
+            totalErros += result.erros;
+          } catch (error: any) {
+            console.error(`Erro no lote de itens pagos:`, error);
+            totalErros += batch.length;
+          }
+
+          processadosTotal = dados.faturamento.length + dados.contasPagas.length + Math.min(i + BATCH_SIZE, dados.itensPagos.length);
+          const progress = Math.round((processadosTotal / totalRegistros) * 100);
+          setProcessingProgress(progress);
+          setProcessingStats({
+            total: totalRegistros,
+            processados: processadosTotal,
+            inseridos: totalInseridos,
+            ignorados: totalIgnorados,
+            erros: totalErros,
+          });
+
+          if (i + BATCH_SIZE < dados.itensPagos.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
       }
 
@@ -586,10 +777,12 @@ export default function ImportacaoTasy() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-amber-800">
-                        {pendingImportacao.dados.length.toLocaleString()} registros prontos para importação
+                        {(pendingImportacao.dados.faturamento.length + pendingImportacao.dados.contasPagas.length + pendingImportacao.dados.itensPagos.length).toLocaleString()} registros prontos para importação
                       </p>
                       <p className="text-sm text-amber-700">
-                        Clique em "Processar" para iniciar a importação em lotes
+                        {pendingImportacao.dados.faturamento.length > 0 && `${pendingImportacao.dados.faturamento.length.toLocaleString()} faturamento`}
+                        {pendingImportacao.dados.contasPagas.length > 0 && ` • ${pendingImportacao.dados.contasPagas.length.toLocaleString()} contas pagas`}
+                        {pendingImportacao.dados.itensPagos.length > 0 && ` • ${pendingImportacao.dados.itensPagos.length.toLocaleString()} itens pagos`}
                       </p>
                     </div>
                     <Button
