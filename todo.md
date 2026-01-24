@@ -680,3 +680,17 @@
 - [x] Criar gráficos de análise de faturamento vs recebimento vs glosa
 - [x] Criar procedures tRPC getDadosBI e getOpcoesFiltroBi
 - [x] 18 testes automatizados para Relatórios BI
+
+
+## Conciliação Tasy - Contas Pagas e Itens Pagos
+- [x] Criar tabela contasPagasTasy no banco de dados (DATA_RETORNO, SEQ_RETORNO_GERAL, TITULO, GUIA, NR_SEQ_CONTA, NR_CONTA, CONVENIO, NR_PROTOCOLO, DATA_RECEBIMENTO, PAGO_CONTA, GLOSA_CONTA)
+- [x] Criar tabela itensPagosTasy no banco de dados (TITULO, GUIA, NR_SEQ_CONTA, CONTA, NR_PROTOCOLO, DATA_RECEBIMENTO, GLOSA_ITEM, QND_GLOSA_ITEM, MOTIVO_GLOSA, PROCEDIMENTO, MATERIAL, SETOR)
+- [x] Modificar importador SQLite para identificar e separar dados nas tabelas corretas
+- [x] Criar procedures tRPC para buscar dados de conciliação Tasy (conciliacaoCompleta, conveniosContasPagas)
+- [x] Criar tela de Conciliação Contas Pagas com visão por conta (Valor Faturado, Valor Pago, Valor Glosado)
+- [x] Criar modal de detalhes por item (Data Conta, Valor Item Faturado, Valor Item Pago, Valor Item Glosado, Motivo Glosa)
+- [x] Filtros por data, convênio, status, guia e busca geral
+- [x] Ordenação clicável nas colunas
+- [x] Exportação para Excel com resumo, contas e itens
+- [x] KPIs com Total Faturado, Pago, Glosado e Pendente com percentuais
+- [x] 298 testes automatizados passando

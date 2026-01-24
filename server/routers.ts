@@ -4011,6 +4011,187 @@ export const appRouter = router({
           input.agrupamento
         );
       }),
+
+    // ============ CONTAS PAGAS E ITENS PAGOS ============
+    
+    // Processar contas pagas do SQLite
+    processarContasPagas: protectedProcedure
+      .input(z.object({
+        importacaoId: z.number(),
+        dados: z.array(z.object({
+          dataRetorno: z.string().optional(),
+          seqRetornoGeral: z.string().optional(),
+          titulo: z.string().optional(),
+          guia: z.string().optional(),
+          nrSeqConta: z.string().optional(),
+          nrConta: z.string().optional(),
+          convenio: z.string().optional(),
+          nrProtocolo: z.string().optional(),
+          dataRecebimento: z.string().optional(),
+          pagoConta: z.number().optional(),
+          glosaConta: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const importacao = await db.getImportacaoTasyById(input.importacaoId);
+        if (!importacao) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Importação não encontrada',
+          });
+        }
+
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: importacao.estabelecimentoId,
+          importacaoId: input.importacaoId,
+          dataRetorno: d.dataRetorno ? new Date(d.dataRetorno) : null,
+          seqRetornoGeral: d.seqRetornoGeral || null,
+          titulo: d.titulo || null,
+          guia: d.guia || null,
+          nrSeqConta: d.nrSeqConta || null,
+          nrConta: d.nrConta || null,
+          convenio: d.convenio || null,
+          nrProtocolo: d.nrProtocolo || null,
+          dataRecebimento: d.dataRecebimento ? new Date(d.dataRecebimento) : null,
+          pagoConta: d.pagoConta?.toString() || null,
+          glosaConta: d.glosaConta?.toString() || null,
+        }));
+
+        const resultado = await db.insertContasPagasTasyBatch(
+          registros as any,
+          importacao.estabelecimentoId
+        );
+
+        return {
+          success: true,
+          inseridos: resultado.inseridos,
+          erros: resultado.erros,
+        };
+      }),
+
+    // Processar itens pagos do SQLite
+    processarItensPagos: protectedProcedure
+      .input(z.object({
+        importacaoId: z.number(),
+        dados: z.array(z.object({
+          titulo: z.string().optional(),
+          guia: z.string().optional(),
+          nrSeqConta: z.string().optional(),
+          conta: z.string().optional(),
+          nrProtocolo: z.string().optional(),
+          dataRecebimento: z.string().optional(),
+          glosaItem: z.number().optional(),
+          qndGlosaItem: z.number().optional(),
+          motivoGlosa: z.string().optional(),
+          procedimento: z.string().optional(),
+          material: z.string().optional(),
+          setor: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const importacao = await db.getImportacaoTasyById(input.importacaoId);
+        if (!importacao) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Importação não encontrada',
+          });
+        }
+
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: importacao.estabelecimentoId,
+          importacaoId: input.importacaoId,
+          titulo: d.titulo || null,
+          guia: d.guia || null,
+          nrSeqConta: d.nrSeqConta || null,
+          conta: d.conta || null,
+          nrProtocolo: d.nrProtocolo || null,
+          dataRecebimento: d.dataRecebimento ? new Date(d.dataRecebimento) : null,
+          glosaItem: d.glosaItem?.toString() || null,
+          qndGlosaItem: d.qndGlosaItem?.toString() || null,
+          motivoGlosa: d.motivoGlosa || null,
+          procedimento: d.procedimento || null,
+          material: d.material || null,
+          setor: d.setor || null,
+        }));
+
+        const resultado = await db.insertItensPagosTasyBatch(
+          registros as any,
+          importacao.estabelecimentoId
+        );
+
+        return {
+          success: true,
+          inseridos: resultado.inseridos,
+          erros: resultado.erros,
+        };
+      }),
+
+    // Buscar contas pagas
+    contasPagas: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        limite: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getContasPagasTasy(input.estabelecimentoId, {
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          convenio: input.convenio,
+          guia: input.guia,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Buscar itens pagos
+    itensPagos: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        guia: z.string().optional(),
+        conta: z.string().optional(),
+        limite: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getItensPagosTasy(input.estabelecimentoId, {
+          guia: input.guia,
+          conta: input.conta,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Conciliação completa Tasy (faturado x pago x glosado)
+    conciliacaoCompleta: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        atendimento: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getConciliacaoTasyCompleta(input.estabelecimentoId, {
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          convenio: input.convenio,
+          guia: input.guia,
+          atendimento: input.atendimento,
+        });
+      }),
+
+    // Buscar convênios das contas pagas
+    conveniosContasPagas: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getConveniosContasPagasTasy(input.estabelecimentoId);
+      }),
   }),
 
   // ============ DASHBOARDS SALVOS ============

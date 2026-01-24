@@ -1527,3 +1527,71 @@ export const compartilhamentosDashboard = mysqlTable("compartilhamentosDashboard
 
 export type CompartilhamentoDashboard = typeof compartilhamentosDashboard.$inferSelect;
 export type InsertCompartilhamentoDashboard = typeof compartilhamentosDashboard.$inferInsert;
+
+
+/**
+ * Contas Pagas do Tasy - Dados de retorno/pagamento de contas
+ * Armazena os dados de contas pagas/glosadas importados do Tasy
+ */
+export const contasPagasTasy = mysqlTable("contasPagasTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(),
+  
+  // Dados do retorno
+  dataRetorno: timestamp("dataRetorno"), // DATA_RETORNO
+  seqRetornoGeral: varchar("seqRetornoGeral", { length: 50 }), // SEQ_RETORNO_GERAL
+  titulo: varchar("titulo", { length: 255 }), // TITULO
+  
+  // Identificadores da conta
+  guia: varchar("guia", { length: 100 }), // GUIA
+  nrSeqConta: varchar("nrSeqConta", { length: 50 }), // NR_SEQ_CONTA
+  nrConta: varchar("nrConta", { length: 50 }), // NR_CONTA
+  
+  // Dados do convênio
+  convenio: varchar("convenio", { length: 255 }), // CONVENIO
+  nrProtocolo: varchar("nrProtocolo", { length: 100 }), // NR_PROTOCOLO
+  
+  // Dados de pagamento
+  dataRecebimento: timestamp("dataRecebimento"), // DATA_RECEBIMENTO
+  pagoConta: decimal("pagoConta", { precision: 12, scale: 4 }), // PAGO_CONTA
+  glosaConta: decimal("glosaConta", { precision: 12, scale: 4 }), // GLOSA_CONTA
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ContaPagaTasy = typeof contasPagasTasy.$inferSelect;
+export type InsertContaPagaTasy = typeof contasPagasTasy.$inferInsert;
+
+/**
+ * Itens Pagos do Tasy - Dados de itens pagos/glosados por conta
+ * Armazena os detalhes de cada item pago ou glosado
+ */
+export const itensPagosTasy = mysqlTable("itensPagosTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(),
+  
+  // Identificadores da conta
+  titulo: varchar("titulo", { length: 255 }), // TITULO
+  guia: varchar("guia", { length: 100 }), // GUIA
+  nrSeqConta: varchar("nrSeqConta", { length: 50 }), // NR_SEQ_CONTA
+  conta: varchar("conta", { length: 50 }), // CONTA
+  nrProtocolo: varchar("nrProtocolo", { length: 100 }), // NR_PROTOCOLO
+  
+  // Dados de pagamento
+  dataRecebimento: timestamp("dataRecebimento"), // DATA_RECEBIMENTO
+  glosaItem: decimal("glosaItem", { precision: 12, scale: 4 }), // GLOSA_ITEM
+  qndGlosaItem: decimal("qndGlosaItem", { precision: 10, scale: 4 }), // QND_GLOSA_ITEM
+  motivoGlosa: text("motivoGlosa"), // MOTIVO_GLOSA
+  
+  // Dados do item
+  procedimento: varchar("procedimento", { length: 255 }), // PROCEDIMENTO
+  material: varchar("material", { length: 255 }), // MATERIAL
+  setor: varchar("setor", { length: 255 }), // SETOR
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ItemPagoTasy = typeof itensPagosTasy.$inferSelect;
+export type InsertItemPagoTasy = typeof itensPagosTasy.$inferInsert;

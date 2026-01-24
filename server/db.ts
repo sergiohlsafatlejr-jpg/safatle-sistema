@@ -67,6 +67,10 @@ import {
   InsertHistoricoAlertaVariacao,
   compartilhamentosDashboard,
   InsertCompartilhamentoDashboard,
+  contasPagasTasy,
+  InsertContaPagaTasy,
+  itensPagosTasy,
+  InsertItemPagoTasy,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -12422,3 +12426,464 @@ export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
   };
 }
 
+
+// ============ CONTAS PAGAS TASY ============
+
+/**
+ * Insere um lote de contas pagas do Tasy
+ */
+export async function insertContasPagasTasyBatch(
+  registros: InsertContaPagaTasy[],
+  estabelecimentoId: number
+): Promise<{ inseridos: number; erros: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  if (registros.length === 0) {
+    return { inseridos: 0, erros: 0 };
+  }
+
+  let inseridos = 0;
+  let erros = 0;
+  const BATCH_SIZE = 500;
+
+  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+    const lote = registros.slice(i, i + BATCH_SIZE);
+    try {
+      await db.insert(contasPagasTasy).values(lote);
+      inseridos += lote.length;
+    } catch (error) {
+      console.error('[DB] Erro ao inserir contas pagas Tasy:', error);
+      erros += lote.length;
+    }
+  }
+
+  return { inseridos, erros };
+}
+
+/**
+ * Busca contas pagas do Tasy por estabelecimento
+ */
+export async function getContasPagasTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenio?: string;
+    guia?: string;
+    nrConta?: string;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(contasPagasTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.dataInicio) {
+    conditions.push(gte(contasPagasTasy.dataRecebimento, filtros.dataInicio));
+  }
+  if (filtros?.dataFim) {
+    conditions.push(lte(contasPagasTasy.dataRecebimento, filtros.dataFim));
+  }
+  if (filtros?.convenio) {
+    conditions.push(eq(contasPagasTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditions.push(eq(contasPagasTasy.guia, filtros.guia));
+  }
+  if (filtros?.nrConta) {
+    conditions.push(eq(contasPagasTasy.nrConta, filtros.nrConta));
+  }
+
+  return db
+    .select()
+    .from(contasPagasTasy)
+    .where(and(...conditions))
+    .orderBy(desc(contasPagasTasy.dataRecebimento))
+    .limit(filtros?.limite || 1000)
+    .offset(filtros?.offset || 0);
+}
+
+// ============ ITENS PAGOS TASY ============
+
+/**
+ * Insere um lote de itens pagos do Tasy
+ */
+export async function insertItensPagosTasyBatch(
+  registros: InsertItemPagoTasy[],
+  estabelecimentoId: number
+): Promise<{ inseridos: number; erros: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  if (registros.length === 0) {
+    return { inseridos: 0, erros: 0 };
+  }
+
+  let inseridos = 0;
+  let erros = 0;
+  const BATCH_SIZE = 500;
+
+  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+    const lote = registros.slice(i, i + BATCH_SIZE);
+    try {
+      await db.insert(itensPagosTasy).values(lote);
+      inseridos += lote.length;
+    } catch (error) {
+      console.error('[DB] Erro ao inserir itens pagos Tasy:', error);
+      erros += lote.length;
+    }
+  }
+
+  return { inseridos, erros };
+}
+
+/**
+ * Busca itens pagos do Tasy por estabelecimento
+ */
+export async function getItensPagosTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    guia?: string;
+    nrSeqConta?: string;
+    conta?: string;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(itensPagosTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.guia) {
+    conditions.push(eq(itensPagosTasy.guia, filtros.guia));
+  }
+  if (filtros?.nrSeqConta) {
+    conditions.push(eq(itensPagosTasy.nrSeqConta, filtros.nrSeqConta));
+  }
+  if (filtros?.conta) {
+    conditions.push(eq(itensPagosTasy.conta, filtros.conta));
+  }
+
+  return db
+    .select()
+    .from(itensPagosTasy)
+    .where(and(...conditions))
+    .orderBy(desc(itensPagosTasy.dataRecebimento))
+    .limit(filtros?.limite || 1000)
+    .offset(filtros?.offset || 0);
+}
+
+// ============ CONCILIAÇÃO TASY COMPLETA ============
+
+/**
+ * Busca dados para conciliação Tasy completa
+ * Cruza dadosTasy (faturado) com contasPagasTasy e itensPagosTasy (pago/glosado)
+ */
+export async function getConciliacaoTasyCompleta(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenio?: string;
+    guia?: string;
+    atendimento?: string;
+  }
+): Promise<{
+  contas: Array<{
+    nrConta: string;
+    guia: string;
+    convenio: string;
+    paciente: string;
+    dataConta: Date | null;
+    valorFaturado: number;
+    valorPago: number;
+    valorGlosado: number;
+    status: 'pago' | 'parcial' | 'glosado' | 'pendente';
+    itens: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      quantidade: number;
+      valorFaturado: number;
+      valorPago: number;
+      valorGlosado: number;
+      motivoGlosa: string | null;
+    }>;
+  }>;
+  resumo: {
+    totalContas: number;
+    totalFaturado: number;
+    totalPago: number;
+    totalGlosado: number;
+    totalPendente: number;
+    contasPagas: number;
+    contasParciais: number;
+    contasGlosadas: number;
+    contasPendentes: number;
+  };
+}> {
+  const db = await getDb();
+  if (!db) return { contas: [], resumo: { totalContas: 0, totalFaturado: 0, totalPago: 0, totalGlosado: 0, totalPendente: 0, contasPagas: 0, contasParciais: 0, contasGlosadas: 0, contasPendentes: 0 } };
+
+  // 1. Buscar dados faturados do Tasy
+  const conditionsFaturado = [eq(dadosTasy.estabelecimentoId, estabelecimentoId)];
+  
+  if (filtros?.dataInicio) {
+    conditionsFaturado.push(gte(dadosTasy.dataConta, filtros.dataInicio));
+  }
+  if (filtros?.dataFim) {
+    conditionsFaturado.push(lte(dadosTasy.dataConta, filtros.dataFim));
+  }
+  if (filtros?.convenio) {
+    conditionsFaturado.push(eq(dadosTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditionsFaturado.push(eq(dadosTasy.guia, filtros.guia));
+  }
+  if (filtros?.atendimento) {
+    conditionsFaturado.push(eq(dadosTasy.atendimento, filtros.atendimento));
+  }
+
+  const dadosFaturados = await db
+    .select()
+    .from(dadosTasy)
+    .where(and(...conditionsFaturado))
+    .limit(50000);
+
+  // 2. Buscar contas pagas
+  const conditionsPagas = [eq(contasPagasTasy.estabelecimentoId, estabelecimentoId)];
+  
+  if (filtros?.dataInicio) {
+    conditionsPagas.push(gte(contasPagasTasy.dataRecebimento, filtros.dataInicio));
+  }
+  if (filtros?.dataFim) {
+    conditionsPagas.push(lte(contasPagasTasy.dataRecebimento, filtros.dataFim));
+  }
+  if (filtros?.convenio) {
+    conditionsPagas.push(eq(contasPagasTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditionsPagas.push(eq(contasPagasTasy.guia, filtros.guia));
+  }
+
+  const contasPagas = await db
+    .select()
+    .from(contasPagasTasy)
+    .where(and(...conditionsPagas))
+    .limit(50000);
+
+  // 3. Buscar itens pagos
+  const itensPagos = await db
+    .select()
+    .from(itensPagosTasy)
+    .where(eq(itensPagosTasy.estabelecimentoId, estabelecimentoId))
+    .limit(100000);
+
+  // 4. Agrupar dados faturados por conta (nrInternoConta ou guia)
+  const contasFaturadas = new Map<string, {
+    nrConta: string;
+    guia: string;
+    convenio: string;
+    paciente: string;
+    dataConta: Date | null;
+    itens: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      quantidade: number;
+      valorFaturado: number;
+    }>;
+    valorFaturado: number;
+  }>();
+
+  for (const item of dadosFaturados) {
+    const chave = item.nrInternoConta || item.guia || item.atendimento;
+    if (!chave) continue;
+
+    if (!contasFaturadas.has(chave)) {
+      contasFaturadas.set(chave, {
+        nrConta: item.nrInternoConta || '',
+        guia: item.guia || '',
+        convenio: item.convenio || '',
+        paciente: item.paciente || '',
+        dataConta: item.dataConta,
+        itens: [],
+        valorFaturado: 0,
+      });
+    }
+
+    const conta = contasFaturadas.get(chave)!;
+    const valorItem = parseFloat(item.valorTotal?.toString() || '0');
+    conta.valorFaturado += valorItem;
+    conta.itens.push({
+      codigo: item.codigo || '',
+      descricao: item.descricao || '',
+      tipo: item.tipo,
+      quantidade: parseFloat(item.quantidade?.toString() || '1'),
+      valorFaturado: valorItem,
+    });
+  }
+
+  // 5. Mapear contas pagas por nrConta/guia
+  const contasPagasMap = new Map<string, { pagoConta: number; glosaConta: number }>();
+  for (const cp of contasPagas) {
+    const chave = cp.nrConta || cp.guia || '';
+    if (!chave) continue;
+    contasPagasMap.set(chave, {
+      pagoConta: parseFloat(cp.pagoConta?.toString() || '0'),
+      glosaConta: parseFloat(cp.glosaConta?.toString() || '0'),
+    });
+  }
+
+  // 6. Mapear itens pagos por conta
+  const itensPagosMap = new Map<string, Array<{
+    procedimento: string;
+    material: string;
+    glosaItem: number;
+    motivoGlosa: string | null;
+  }>>();
+  
+  for (const ip of itensPagos) {
+    const chave = ip.conta || ip.guia || '';
+    if (!chave) continue;
+    if (!itensPagosMap.has(chave)) {
+      itensPagosMap.set(chave, []);
+    }
+    itensPagosMap.get(chave)!.push({
+      procedimento: ip.procedimento || '',
+      material: ip.material || '',
+      glosaItem: parseFloat(ip.glosaItem?.toString() || '0'),
+      motivoGlosa: ip.motivoGlosa || null,
+    });
+  }
+
+  // 7. Montar resultado final
+  const contas: Array<{
+    nrConta: string;
+    guia: string;
+    convenio: string;
+    paciente: string;
+    dataConta: Date | null;
+    valorFaturado: number;
+    valorPago: number;
+    valorGlosado: number;
+    status: 'pago' | 'parcial' | 'glosado' | 'pendente';
+    itens: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      quantidade: number;
+      valorFaturado: number;
+      valorPago: number;
+      valorGlosado: number;
+      motivoGlosa: string | null;
+    }>;
+  }> = [];
+
+  let totalFaturado = 0;
+  let totalPago = 0;
+  let totalGlosado = 0;
+  let contasPagasCount = 0;
+  let contasParciaisCount = 0;
+  let contasGlosadasCount = 0;
+  let contasPendentesCount = 0;
+
+  for (const [chave, contaFat] of Array.from(contasFaturadas.entries())) {
+    const pagamento = contasPagasMap.get(chave);
+    const itensPagosConta = itensPagosMap.get(chave) || [];
+
+    const valorPago = pagamento?.pagoConta || 0;
+    const valorGlosado = pagamento?.glosaConta || 0;
+    const valorPendente = contaFat.valorFaturado - valorPago - valorGlosado;
+
+    // Determinar status
+    let status: 'pago' | 'parcial' | 'glosado' | 'pendente' = 'pendente';
+    if (valorPago > 0 && valorGlosado === 0 && valorPendente <= 0.01) {
+      status = 'pago';
+      contasPagasCount++;
+    } else if (valorPago > 0 && valorGlosado > 0) {
+      status = 'parcial';
+      contasParciaisCount++;
+    } else if (valorGlosado > 0 && valorPago === 0) {
+      status = 'glosado';
+      contasGlosadasCount++;
+    } else {
+      contasPendentesCount++;
+    }
+
+    // Mapear itens com valores pagos/glosados
+    const itensComPagamento = contaFat.itens.map((item: { codigo: string; descricao: string; tipo: string; quantidade: number; valorFaturado: number }) => {
+      // Tentar encontrar item pago correspondente
+      const itemPago = itensPagosConta.find(ip => 
+        ip.procedimento === item.codigo || ip.material === item.codigo
+      );
+
+      const glosaItem = itemPago?.glosaItem || 0;
+      const valorPagoItem = item.valorFaturado - glosaItem;
+
+      return {
+        ...item,
+        valorPago: valorPagoItem > 0 ? valorPagoItem : 0,
+        valorGlosado: glosaItem,
+        motivoGlosa: itemPago?.motivoGlosa || null,
+      };
+    });
+
+    totalFaturado += contaFat.valorFaturado;
+    totalPago += valorPago;
+    totalGlosado += valorGlosado;
+
+    contas.push({
+      nrConta: contaFat.nrConta,
+      guia: contaFat.guia,
+      convenio: contaFat.convenio,
+      paciente: contaFat.paciente,
+      dataConta: contaFat.dataConta,
+      valorFaturado: contaFat.valorFaturado,
+      valorPago,
+      valorGlosado,
+      status,
+      itens: itensComPagamento,
+    });
+  }
+
+  // Ordenar por valor faturado (maior primeiro)
+  contas.sort((a, b) => b.valorFaturado - a.valorFaturado);
+
+  return {
+    contas,
+    resumo: {
+      totalContas: contas.length,
+      totalFaturado,
+      totalPago,
+      totalGlosado,
+      totalPendente: totalFaturado - totalPago - totalGlosado,
+      contasPagas: contasPagasCount,
+      contasParciais: contasParciaisCount,
+      contasGlosadas: contasGlosadasCount,
+      contasPendentes: contasPendentesCount,
+    },
+  };
+}
+
+/**
+ * Busca convênios únicos das contas pagas Tasy
+ */
+export async function getConveniosContasPagasTasy(estabelecimentoId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .selectDistinct({ convenio: contasPagasTasy.convenio })
+    .from(contasPagasTasy)
+    .where(eq(contasPagasTasy.estabelecimentoId, estabelecimentoId));
+
+  return result
+    .map(r => r.convenio)
+    .filter((c): c is string => c !== null)
+    .sort();
+}
