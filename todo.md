@@ -590,3 +590,13 @@
 - [x] Exibir todos os itens (materiais e honorários) da conta selecionada
 - [x] Mostrar totais e resumo da conta no modal
 - [x] Adicionar exportação dos itens da conta para Excel
+
+
+## Filtro por Mês/Ano e Relatórios Dinâmicos
+- [x] Implementar filtro por mês/ano na tela Contas Tasy (substituir data início/fim)
+- [x] Criar tela de Relatórios Dinâmicos estilo Power BI
+- [x] Permitir seleção de colunas para exibição
+- [x] Permitir agrupamento por diferentes campos (convênio, setor, médico, tipo, mês/ano, status)
+- [x] Criar gráficos dinâmicos (barras, pizza, linhas)
+- [x] Implementar filtros dinâmicos múltiplos (mês, ano, convênio, tipo, setor)
+- [x] Permitir exportação dos relatórios personalizados (dados detalhados e resumo agrupado)

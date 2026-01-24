@@ -87,8 +87,43 @@ export default function ContasTasy() {
   const [convenioFiltro, setConvenioFiltro] = useState<string>("");
   const [tipoFiltro, setTipoFiltro] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [dataInicio, setDataInicio] = useState<string>("");
-  const [dataFim, setDataFim] = useState<string>("");
+  
+  // Filtro por mês/ano
+  const currentDate = new Date();
+  const [mesSelecionado, setMesSelecionado] = useState<number>(currentDate.getMonth() + 1);
+  const [anoSelecionado, setAnoSelecionado] = useState<number>(currentDate.getFullYear());
+  
+  // Calcular data início e fim baseado no mês/ano selecionado
+  const dataInicio = useMemo(() => {
+    return `${anoSelecionado}-${String(mesSelecionado).padStart(2, '0')}-01`;
+  }, [mesSelecionado, anoSelecionado]);
+  
+  const dataFim = useMemo(() => {
+    const ultimoDia = new Date(anoSelecionado, mesSelecionado, 0).getDate();
+    return `${anoSelecionado}-${String(mesSelecionado).padStart(2, '0')}-${ultimoDia}`;
+  }, [mesSelecionado, anoSelecionado]);
+  
+  // Lista de meses
+  const meses = [
+    { value: 1, label: 'Janeiro' },
+    { value: 2, label: 'Fevereiro' },
+    { value: 3, label: 'Março' },
+    { value: 4, label: 'Abril' },
+    { value: 5, label: 'Maio' },
+    { value: 6, label: 'Junho' },
+    { value: 7, label: 'Julho' },
+    { value: 8, label: 'Agosto' },
+    { value: 9, label: 'Setembro' },
+    { value: 10, label: 'Outubro' },
+    { value: 11, label: 'Novembro' },
+    { value: 12, label: 'Dezembro' },
+  ];
+  
+  // Lista de anos (últimos 5 anos)
+  const anos = useMemo(() => {
+    const anoAtual = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, i) => anoAtual - i);
+  }, []);
   const [page, setPage] = useState(1);
   const pageSize = 50;
   
@@ -374,27 +409,41 @@ export default function ContasTasy() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Data Início</label>
-                <Input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => {
-                    setDataInicio(e.target.value);
-                    setPage(1);
-                  }}
-                />
+                <label className="text-sm font-medium">Mês</label>
+                <Select value={String(mesSelecionado)} onValueChange={(value) => {
+                  setMesSelecionado(Number(value));
+                  setPage(1);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meses.map((mes) => (
+                      <SelectItem key={mes.value} value={String(mes.value)}>
+                        {mes.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Data Fim</label>
-                <Input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => {
-                    setDataFim(e.target.value);
-                    setPage(1);
-                  }}
-                />
+                <label className="text-sm font-medium">Ano</label>
+                <Select value={String(anoSelecionado)} onValueChange={(value) => {
+                  setAnoSelecionado(Number(value));
+                  setPage(1);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {anos.map((ano) => (
+                      <SelectItem key={ano} value={String(ano)}>
+                        {ano}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -455,8 +504,8 @@ export default function ContasTasy() {
                     setConvenioFiltro("");
                     setTipoFiltro("all");
                     setSearchTerm("");
-                    setDataInicio("");
-                    setDataFim("");
+                    setMesSelecionado(currentDate.getMonth() + 1);
+                    setAnoSelecionado(currentDate.getFullYear());
                     setPage(1);
                   }}
                 >

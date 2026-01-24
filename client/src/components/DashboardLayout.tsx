@@ -117,6 +117,7 @@ const menuItems: MenuItem[] = [
   { icon: Database, label: "Importação Tasy", path: "/importacao-tasy", adminOnly: true },
   { icon: ArrowLeftRight, label: "Conciliação Tasy", path: "/conciliacao-tasy", adminOnly: true },
   { icon: List, label: "Contas Tasy", path: "/contas-tasy", modulo: "arquivos" },
+  { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "arquivos" },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
