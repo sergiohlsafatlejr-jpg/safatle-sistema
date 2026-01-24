@@ -788,53 +788,63 @@ function normalizeColumnNames(row: Record<string, unknown>): Record<string, unkn
 export async function parseExcel(content: Buffer): Promise<ParseResult> {
   try {
     const startTime = Date.now();
+    console.log(`[Excel Parser] Starting parse, buffer size: ${(content.length / 1024).toFixed(1)} KB`);
     
-    // Read workbook with optimizations for large files
+    // Read workbook with maximum optimizations for large files
     const workbook = XLSX.read(content, { 
       type: "buffer",
       cellDates: true, // Parse dates automatically
       cellNF: false, // Skip number format parsing for speed
       cellStyles: false, // Skip style parsing for speed
+      cellHTML: false, // Skip HTML parsing
+      dense: false, // Use sparse array for memory efficiency
     });
     
     const procedimentos: ParsedProcedimento[] = [];
     let totalRows = 0;
     
+    console.log(`[Excel Parser] Workbook loaded in ${((Date.now() - startTime) / 1000).toFixed(1)}s, sheets: ${workbook.SheetNames.length}`);
+    
     for (const sheetName of workbook.SheetNames) {
+      const sheetStart = Date.now();
       const sheet = workbook.Sheets[sheetName];
       
-      // Use sheet_to_json with raw option for faster parsing
+      // Use sheet_to_json with optimized options
       const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         raw: false, // Convert to strings for consistent processing
         defval: '', // Default empty values
+        blankrows: false, // Skip blank rows
       });
       
-      // Log colunas encontradas para debug
-      if (rawData.length > 0) {
+      // Log colunas encontradas para debug (apenas primeira sheet)
+      if (rawData.length > 0 && totalRows === 0) {
         const colunas = Object.keys(rawData[0]);
-        console.log(`[Excel Parser] Sheet: ${sheetName}, Colunas encontradas:`, colunas);
-        console.log(`[Excel Parser] Primeira linha:`, JSON.stringify(rawData[0]).substring(0, 500));
+        console.log(`[Excel Parser] Sheet: ${sheetName}, Colunas: ${colunas.length}, Linhas: ${rawData.length}`);
+        console.log(`[Excel Parser] Primeira linha:`, JSON.stringify(rawData[0]).substring(0, 300));
       }
       
-      // Normalizar nomes das colunas removendo espaços extras
-      const data = rawData.map(row => normalizeColumnNames(row));
+      totalRows += rawData.length;
       
-      totalRows += data.length;
-      
-      // Process rows in chunks to avoid blocking
-      const CHUNK_SIZE = 5000;
-      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-        const chunk = data.slice(i, i + CHUNK_SIZE);
+      // Process rows in larger chunks for better performance
+      const CHUNK_SIZE = 10000;
+      for (let i = 0; i < rawData.length; i += CHUNK_SIZE) {
+        const chunk = rawData.slice(i, i + CHUNK_SIZE);
+        
+        // Process chunk with normalized column names
         for (const row of chunk) {
-          const proc = extractProcedimentoFromRow(row);
+          const normalizedRow = normalizeColumnNames(row);
+          const proc = extractProcedimentoFromRow(normalizedRow);
           if (proc) procedimentos.push(proc);
         }
         
-        // Log progress for large files
-        if (data.length > 10000 && i > 0 && i % 10000 === 0) {
-          console.log(`[Excel Parser] Processed ${i}/${data.length} rows from sheet ${sheetName}`);
+        // Log progress for large files (less frequently)
+        if (rawData.length > 20000 && i > 0 && i % 20000 === 0) {
+          const elapsed = (Date.now() - sheetStart) / 1000;
+          console.log(`[Excel Parser] Sheet ${sheetName}: ${i}/${rawData.length} rows (${elapsed.toFixed(1)}s)`);
         }
       }
+      
+      console.log(`[Excel Parser] Sheet ${sheetName}: ${rawData.length} rows processed in ${((Date.now() - sheetStart) / 1000).toFixed(1)}s`);
     }
     
     const elapsed = (Date.now() - startTime) / 1000;
@@ -843,13 +853,14 @@ export async function parseExcel(content: Buffer): Promise<ParseResult> {
     return {
       success: true,
       procedimentos,
-      // Don't include rawData for large files to save memory
-      rawData: totalRows > 50000 ? { totalRows, sheetsCount: workbook.SheetNames.length } : workbook.SheetNames.map(name => ({
+      // Don't include rawData for files with many rows to save memory
+      rawData: totalRows > 10000 ? { totalRows, sheetsCount: workbook.SheetNames.length } : workbook.SheetNames.map(name => ({
         name,
         data: XLSX.utils.sheet_to_json(workbook.Sheets[name]),
       })),
     };
   } catch (error) {
+    console.error(`[Excel Parser] Error:`, error);
     return {
       success: false,
       procedimentos: [],

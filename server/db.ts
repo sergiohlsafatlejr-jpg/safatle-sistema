@@ -457,11 +457,13 @@ export async function createProcedimentos(
   if (data.length === 0) return { count: 0 };
 
   // Use larger batch size for faster insertion
-  // MySQL can handle larger batches efficiently - increased to 5000 for better throughput
-  const BATCH_SIZE = 5000;
+  // MySQL can handle larger batches efficiently - increased to 10000 for better throughput
+  const BATCH_SIZE = 10000;
   let inserted = 0;
   const totalItens = data.length;
   const startTime = Date.now();
+  
+  console.log(`[DB] Starting insertion of ${totalItens} procedimentos...`);
   
   // Process batches
   const batches: InsertProcedimento[][] = [];
@@ -470,8 +472,8 @@ export async function createProcedimentos(
   }
   
   // Insert batches with optimized approach
-  // Use Promise.all for parallel insertion of smaller groups (3 at a time)
-  const PARALLEL_BATCHES = 3;
+  // Use Promise.all for parallel insertion of smaller groups (5 at a time for better throughput)
+  const PARALLEL_BATCHES = 5;
   
   for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
     const batchGroup = batches.slice(i, i + PARALLEL_BATCHES);
@@ -490,13 +492,13 @@ export async function createProcedimentos(
     const remaining = totalItens - inserted;
     const eta = rate > 0 ? remaining / rate : 0;
     
-    // Only log every 3 batch groups or at the end to reduce log spam
-    if ((i / PARALLEL_BATCHES) % 3 === 0 || i + PARALLEL_BATCHES >= batches.length) {
+    // Only log every 5 batch groups or at the end to reduce log spam
+    if ((i / PARALLEL_BATCHES) % 5 === 0 || i + PARALLEL_BATCHES >= batches.length) {
       console.log(`[DB] Progress: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec - ETA: ${Math.round(eta)}s`);
     }
     
     // Report progress if callback provided (less frequently for better performance)
-    if (onProgress && ((i / PARALLEL_BATCHES) % 2 === 0 || i + PARALLEL_BATCHES >= batches.length)) {
+    if (onProgress && ((i / PARALLEL_BATCHES) % 3 === 0 || i + PARALLEL_BATCHES >= batches.length)) {
       await onProgress(progresso, inserted, totalItens);
     }
   }

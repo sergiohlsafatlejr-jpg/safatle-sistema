@@ -729,3 +729,12 @@
 - [x] Corrigir filtros mês/ano na Conciliação Contas Pagas - funcionando com meses de Jan/2025 a Fev/2026
 - [x] Corrigir exibição de valores glosados - agora soma glosas dos itens (R$ 27.479,78 / 527 contas glosadas)
 - [x] 298 testes automatizados passando
+
+
+## Otimização de Performance - Importação de Arquivos
+- [x] Investigar lentidão na importação de arquivo Excel de 3.5 MB
+- [x] Otimizar parser Excel (blankrows: false, cellHTML: false, dense: false)
+- [x] Aumentar batch size de 5000 para 10000 itens
+- [x] Aumentar paralelismo de 3 para 5 batches simultâneos
+- [x] Reduzir frequência de logs e callbacks de progresso
+- [x] 298 testes automatizados passando
