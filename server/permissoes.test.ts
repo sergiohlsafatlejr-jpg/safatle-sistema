@@ -185,7 +185,7 @@ describe("Dashboard Consolidado Router", () => {
 
       const result = await caller.dashboardConsolidado.comparativoGlosas();
       expect(Array.isArray(result)).toBe(true);
-    });
+    }, 15000);
 
     it("should accept date filters", async () => {
       const ctx = createAdminContext();

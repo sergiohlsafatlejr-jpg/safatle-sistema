@@ -712,3 +712,13 @@
 - [x] Exibir grupo da glosa (Elegibilidade, Cobertura, etc.)
 - [x] Exibir probabilidade de sucesso na reversão (com cores: verde >60%, amarelo 40-60%, vermelho <40%)
 - [x] 298 testes automatizados passando
+
+
+## Correções Conciliação Contas Pagas e Relatórios Tasy
+- [x] Adicionar filtro por mês/ano da data faturado (dadosTasy) na Conciliação Contas Pagas (filtro principal destacado)
+- [x] Corrigir lógica de cruzamento entre dadosTasy, contasPagasTasy e itensPagosTasy (múltiplas chaves: nrConta, guia, nrSeqConta)
+- [x] Criar procedure getMesesDisponiveisTasy para listar meses disponíveis para filtro
+- [x] Integrar dados de contasPagasTasy e itensPagosTasy nos Relatórios Tasy
+- [x] Adicionar campos valorPago, valorGlosado, motivoGlosa nas colunas e métricas disponíveis
+- [x] Adicionar templates de relatórios de pagamento (Faturado vs Pago, Glosas por Convênio, Motivos de Glosa, Evolução de Pagamentos)
+- [x] 298 testes automatizados passando

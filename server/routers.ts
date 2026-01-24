@@ -4175,6 +4175,7 @@ export const appRouter = router({
         convenio: z.string().optional(),
         guia: z.string().optional(),
         atendimento: z.string().optional(),
+        mesAno: z.string().optional(), // Formato: "2024-01" para filtrar por mês/ano
       }))
       .query(async ({ input }) => {
         return db.getConciliacaoTasyCompleta(input.estabelecimentoId, {
@@ -4183,7 +4184,15 @@ export const appRouter = router({
           convenio: input.convenio,
           guia: input.guia,
           atendimento: input.atendimento,
+          mesAno: input.mesAno,
         });
+      }),
+
+    // Buscar meses/anos disponíveis para filtro (da tabela dadosTasy)
+    mesesDisponiveis: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getMesesDisponiveisTasy(input.estabelecimentoId);
       }),
 
     // Buscar convênios das contas pagas

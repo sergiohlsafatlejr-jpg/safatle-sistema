@@ -40,6 +40,7 @@ export default function ConciliacaoContasPagas() {
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
 
   // Filtros
+  const [mesAnoFiltro, setMesAnoFiltro] = useState(""); // Filtro principal por mês/ano
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
@@ -54,12 +55,19 @@ export default function ConciliacaoContasPagas() {
   // Ordenação
   const [ordenacao, setOrdenacao] = useState<{ campo: string; direcao: 'asc' | 'desc' }>({ campo: 'valorFaturado', direcao: 'desc' });
 
+  // Query de meses disponíveis
+  const { data: mesesDisponiveis } = trpc.importacaoTasy.mesesDisponiveis.useQuery(
+    { estabelecimentoId },
+    { enabled: estabelecimentoId > 0 }
+  );
+
   // Query de conciliação
   const { data: conciliacao, isLoading, refetch } = trpc.importacaoTasy.conciliacaoCompleta.useQuery(
     {
       estabelecimentoId,
-      dataInicio: dataInicio || undefined,
-      dataFim: dataFim || undefined,
+      mesAno: mesAnoFiltro || undefined,
+      dataInicio: !mesAnoFiltro && dataInicio ? dataInicio : undefined,
+      dataFim: !mesAnoFiltro && dataFim ? dataFim : undefined,
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
       guia: guiaFiltro || undefined,
     },
@@ -383,21 +391,45 @@ export default function ConciliacaoContasPagas() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+              <div className="lg:col-span-2">
+                <Label className="font-semibold text-primary">Mês/Ano Faturado</Label>
+                <Select value={mesAnoFiltro} onValueChange={(v) => {
+                  setMesAnoFiltro(v);
+                  if (v) {
+                    setDataInicio("");
+                    setDataFim("");
+                  }
+                }}>
+                  <SelectTrigger className="border-primary">
+                    <SelectValue placeholder="Selecione o mês/ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os meses</SelectItem>
+                    {mesesDisponiveis?.map((m) => (
+                      <SelectItem key={m.mesAno} value={m.mesAno}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
-                <Label>Data Início</Label>
+                <Label className="text-muted-foreground">Data Início {mesAnoFiltro && mesAnoFiltro !== "todos" && "(desativado)"}</Label>
                 <Input
                   type="date"
                   value={dataInicio}
                   onChange={(e) => setDataInicio(e.target.value)}
+                  disabled={!!mesAnoFiltro && mesAnoFiltro !== "todos"}
+                  className={mesAnoFiltro && mesAnoFiltro !== "todos" ? "opacity-50" : ""}
                 />
               </div>
               <div>
-                <Label>Data Fim</Label>
+                <Label className="text-muted-foreground">Data Fim {mesAnoFiltro && mesAnoFiltro !== "todos" && "(desativado)"}</Label>
                 <Input
                   type="date"
                   value={dataFim}
                   onChange={(e) => setDataFim(e.target.value)}
+                  disabled={!!mesAnoFiltro && mesAnoFiltro !== "todos"}
+                  className={mesAnoFiltro && mesAnoFiltro !== "todos" ? "opacity-50" : ""}
                 />
               </div>
               <div>

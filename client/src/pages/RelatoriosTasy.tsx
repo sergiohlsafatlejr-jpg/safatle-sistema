@@ -125,7 +125,10 @@ const colunasDisponiveis = [
   { id: 'descricao', label: 'Descrição', tipo: 'texto' },
   { id: 'quantidade', label: 'Quantidade', tipo: 'numero' },
   { id: 'valorUnitario', label: 'Valor Unitário', tipo: 'moeda' },
-  { id: 'valorTotal', label: 'Valor Total', tipo: 'moeda' },
+  { id: 'valorTotal', label: 'Valor Faturado', tipo: 'moeda' },
+  { id: 'valorPago', label: 'Valor Pago', tipo: 'moeda' },
+  { id: 'valorGlosado', label: 'Valor Glosado', tipo: 'moeda' },
+  { id: 'motivoGlosa', label: 'Motivo Glosa', tipo: 'texto' },
   { id: 'setor', label: 'Setor', tipo: 'texto' },
   { id: 'protocolo', label: 'Protocolo', tipo: 'texto' },
   { id: 'statusProtocolo', label: 'Status Protocolo', tipo: 'texto' },
@@ -158,9 +161,13 @@ const camposDisponiveis = [
   { id: 'trimestre', label: 'Trimestre', icon: Calendar, tipo: 'dimensao' },
   { id: 'ano', label: 'Ano', icon: Calendar, tipo: 'dimensao' },
   // Métricas
-  { id: 'valorTotal', label: 'Valor Total (R$)', icon: DollarSign, tipo: 'metrica' },
+  { id: 'valorTotal', label: 'Valor Faturado (R$)', icon: DollarSign, tipo: 'metrica' },
+  { id: 'valorPago', label: 'Valor Pago (R$)', icon: DollarSign, tipo: 'metrica' },
+  { id: 'valorGlosado', label: 'Valor Glosado (R$)', icon: DollarSign, tipo: 'metrica' },
   { id: 'quantidade', label: 'Quantidade', icon: Package, tipo: 'metrica' },
   { id: 'valorUnitario', label: 'Valor Unitário (R$)', icon: DollarSign, tipo: 'metrica' },
+  // Dimensões de pagamento
+  { id: 'motivoGlosa', label: 'Motivo Glosa', icon: AlertTriangle, tipo: 'dimensao' },
 ];
 
 // Templates de relatórios pré-configurados
@@ -241,6 +248,59 @@ const templatesRelatorios = [
       agrupamento: 'ano',
       eixoX: 'ano',
       eixoY: 'valorTotal',
+    }
+  },
+  // Templates de Pagamento
+  {
+    id: 'faturado_vs_pago',
+    nome: 'Faturado vs Pago',
+    descricao: 'Comparação entre valores faturados e pagos por convênio',
+    icon: DollarSign,
+    config: {
+      tipoGrafico: 'bar' as const,
+      metricaGrafico: 'valor' as const,
+      agrupamento: 'convenio',
+      eixoX: 'convenio',
+      eixoY: 'valorPago',
+    }
+  },
+  {
+    id: 'glosas_por_convenio',
+    nome: 'Glosas por Convênio',
+    descricao: 'Análise de valores glosados por convênio',
+    icon: AlertTriangle,
+    config: {
+      tipoGrafico: 'pie' as const,
+      metricaGrafico: 'valor' as const,
+      agrupamento: 'convenio',
+      eixoX: 'convenio',
+      eixoY: 'valorGlosado',
+    }
+  },
+  {
+    id: 'motivos_glosa',
+    nome: 'Motivos de Glosa',
+    descricao: 'Distribuição por motivo de glosa',
+    icon: AlertTriangle,
+    config: {
+      tipoGrafico: 'pie' as const,
+      metricaGrafico: 'quantidade' as const,
+      agrupamento: 'motivoGlosa',
+      eixoX: 'motivoGlosa',
+      eixoY: 'quantidade',
+    }
+  },
+  {
+    id: 'evolucao_pagamentos',
+    nome: 'Evolução de Pagamentos',
+    descricao: 'Tendência de pagamentos ao longo do tempo',
+    icon: TrendingUp,
+    config: {
+      tipoGrafico: 'line' as const,
+      metricaGrafico: 'valor' as const,
+      agrupamento: 'mesAno',
+      eixoX: 'mesAno',
+      eixoY: 'valorPago',
     }
   },
 ];
@@ -490,7 +550,7 @@ export default function RelatoriosTasy() {
 
   // Agrupar dados para gráficos
   const dadosAgrupados = useMemo(() => {
-    const grupos: Record<string, { valor: number; quantidade: number; itens: any[] }> = {};
+    const grupos: Record<string, { valor: number; valorPago: number; valorGlosado: number; quantidade: number; itens: any[] }> = {};
     
     dadosFiltrados.forEach((item: any) => {
       let chave = '';
@@ -535,6 +595,9 @@ export default function RelatoriosTasy() {
         case 'funcaoMedico':
           chave = item.funcaoMedico || 'Sem Função';
           break;
+        case 'motivoGlosa':
+          chave = item.motivoGlosa || 'Sem Glosa';
+          break;
         case 'mesAno':
           const data = new Date(item.dataFaturado || item.dataConta);
           chave = `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
@@ -553,10 +616,12 @@ export default function RelatoriosTasy() {
       }
       
       if (!grupos[chave]) {
-        grupos[chave] = { valor: 0, quantidade: 0, itens: [] };
+        grupos[chave] = { valor: 0, valorPago: 0, valorGlosado: 0, quantidade: 0, itens: [] };
       }
       
       grupos[chave].valor += parseFloat(item.valorTotal || '0');
+      grupos[chave].valorPago += parseFloat(item.valorPago || '0');
+      grupos[chave].valorGlosado += parseFloat(item.valorGlosado || '0');
       grupos[chave].quantidade += parseInt(item.quantidade || '0');
       grupos[chave].itens.push(item);
     });
@@ -569,14 +634,27 @@ export default function RelatoriosTasy() {
   // Dados para o gráfico
   const dadosGrafico = useMemo(() => {
     const labels = dadosAgrupados.slice(0, 10).map(g => g.label);
-    const valores = dadosAgrupados.slice(0, 10).map(g => 
-      eixoY === 'valorTotal' ? g.valor : g.quantidade
-    );
+    const valores = dadosAgrupados.slice(0, 10).map(g => {
+      switch (eixoY) {
+        case 'valorTotal': return g.valor;
+        case 'valorPago': return g.valorPago;
+        case 'valorGlosado': return g.valorGlosado;
+        case 'quantidade': return g.quantidade;
+        default: return g.valor;
+      }
+    });
+    
+    const labelMap: Record<string, string> = {
+      'valorTotal': 'Valor Faturado (R$)',
+      'valorPago': 'Valor Pago (R$)',
+      'valorGlosado': 'Valor Glosado (R$)',
+      'quantidade': 'Quantidade',
+    };
     
     return {
       labels,
       datasets: [{
-        label: eixoY === 'valorTotal' ? 'Valor (R$)' : 'Quantidade',
+        label: labelMap[eixoY] || 'Valor (R$)',
         data: valores,
         backgroundColor: coresGraficos,
         borderColor: coresGraficos.map(c => c.replace('0.8', '1')),

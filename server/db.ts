@@ -1,6 +1,6 @@
 import { eq, and, desc, like, sql, gte, lte, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { isNull } from "drizzle-orm";
+import { isNull, isNotNull } from "drizzle-orm";
 import {
   InsertUser,
   users,
@@ -12591,6 +12591,7 @@ export async function getConciliacaoTasyCompleta(
     convenio?: string;
     guia?: string;
     atendimento?: string;
+    mesAno?: string; // Formato: "2024-01" para filtrar por mês/ano da data faturado
   }
 ): Promise<{
   contas: Array<{
@@ -12632,11 +12633,20 @@ export async function getConciliacaoTasyCompleta(
   // 1. Buscar dados faturados do Tasy
   const conditionsFaturado = [eq(dadosTasy.estabelecimentoId, estabelecimentoId)];
   
-  if (filtros?.dataInicio) {
-    conditionsFaturado.push(gte(dadosTasy.dataConta, filtros.dataInicio));
-  }
-  if (filtros?.dataFim) {
-    conditionsFaturado.push(lte(dadosTasy.dataConta, filtros.dataFim));
+  // Filtro por mês/ano da data faturado
+  if (filtros?.mesAno) {
+    const [ano, mes] = filtros.mesAno.split('-').map(Number);
+    const inicioMes = new Date(ano, mes - 1, 1);
+    const fimMes = new Date(ano, mes, 0, 23, 59, 59);
+    conditionsFaturado.push(gte(dadosTasy.dataFaturado, inicioMes));
+    conditionsFaturado.push(lte(dadosTasy.dataFaturado, fimMes));
+  } else {
+    if (filtros?.dataInicio) {
+      conditionsFaturado.push(gte(dadosTasy.dataFaturado, filtros.dataInicio));
+    }
+    if (filtros?.dataFim) {
+      conditionsFaturado.push(lte(dadosTasy.dataFaturado, filtros.dataFim));
+    }
   }
   if (filtros?.convenio) {
     conditionsFaturado.push(eq(dadosTasy.convenio, filtros.convenio));
@@ -12728,18 +12738,27 @@ export async function getConciliacaoTasyCompleta(
     });
   }
 
-  // 5. Mapear contas pagas por nrConta/guia
+  // 5. Mapear contas pagas por múltiplas chaves (nrConta, guia, nrSeqConta)
   const contasPagasMap = new Map<string, { pagoConta: number; glosaConta: number }>();
   for (const cp of contasPagas) {
-    const chave = cp.nrConta || cp.guia || '';
-    if (!chave) continue;
-    contasPagasMap.set(chave, {
-      pagoConta: parseFloat(cp.pagoConta?.toString() || '0'),
-      glosaConta: parseFloat(cp.glosaConta?.toString() || '0'),
-    });
+    const pagoConta = parseFloat(cp.pagoConta?.toString() || '0');
+    const glosaConta = parseFloat(cp.glosaConta?.toString() || '0');
+    
+    // Mapear por nrConta
+    if (cp.nrConta) {
+      contasPagasMap.set(cp.nrConta, { pagoConta, glosaConta });
+    }
+    // Mapear por guia
+    if (cp.guia) {
+      contasPagasMap.set(cp.guia, { pagoConta, glosaConta });
+    }
+    // Mapear por nrSeqConta
+    if (cp.nrSeqConta) {
+      contasPagasMap.set(cp.nrSeqConta, { pagoConta, glosaConta });
+    }
   }
 
-  // 6. Mapear itens pagos por conta
+  // 6. Mapear itens pagos por múltiplas chaves (conta, guia, nrSeqConta)
   const itensPagosMap = new Map<string, Array<{
     procedimento: string;
     material: string;
@@ -12748,17 +12767,34 @@ export async function getConciliacaoTasyCompleta(
   }>>();
   
   for (const ip of itensPagos) {
-    const chave = ip.conta || ip.guia || '';
-    if (!chave) continue;
-    if (!itensPagosMap.has(chave)) {
-      itensPagosMap.set(chave, []);
-    }
-    itensPagosMap.get(chave)!.push({
+    const itemPago = {
       procedimento: ip.procedimento || '',
       material: ip.material || '',
       glosaItem: parseFloat(ip.glosaItem?.toString() || '0'),
       motivoGlosa: ip.motivoGlosa || null,
-    });
+    };
+    
+    // Mapear por conta
+    if (ip.conta) {
+      if (!itensPagosMap.has(ip.conta)) {
+        itensPagosMap.set(ip.conta, []);
+      }
+      itensPagosMap.get(ip.conta)!.push(itemPago);
+    }
+    // Mapear por guia
+    if (ip.guia) {
+      if (!itensPagosMap.has(ip.guia)) {
+        itensPagosMap.set(ip.guia, []);
+      }
+      itensPagosMap.get(ip.guia)!.push(itemPago);
+    }
+    // Mapear por nrSeqConta
+    if (ip.nrSeqConta) {
+      if (!itensPagosMap.has(ip.nrSeqConta)) {
+        itensPagosMap.set(ip.nrSeqConta, []);
+      }
+      itensPagosMap.get(ip.nrSeqConta)!.push(itemPago);
+    }
   }
 
   // 7. Montar resultado final
@@ -12793,8 +12829,16 @@ export async function getConciliacaoTasyCompleta(
   let contasPendentesCount = 0;
 
   for (const [chave, contaFat] of Array.from(contasFaturadas.entries())) {
-    const pagamento = contasPagasMap.get(chave);
-    const itensPagosConta = itensPagosMap.get(chave) || [];
+    // Tentar encontrar pagamento por múltiplas chaves
+    const pagamento = contasPagasMap.get(chave) || 
+                      contasPagasMap.get(contaFat.nrConta) || 
+                      contasPagasMap.get(contaFat.guia);
+    
+    // Tentar encontrar itens pagos por múltiplas chaves
+    const itensPagosConta = itensPagosMap.get(chave) || 
+                            itensPagosMap.get(contaFat.nrConta) || 
+                            itensPagosMap.get(contaFat.guia) || 
+                            [];
 
     const valorPago = pagamento?.pagoConta || 0;
     const valorGlosado = pagamento?.glosaConta || 0;
@@ -12886,4 +12930,45 @@ export async function getConveniosContasPagasTasy(estabelecimentoId: number): Pr
     .map(r => r.convenio)
     .filter((c): c is string => c !== null)
     .sort();
+}
+
+
+/**
+ * Busca meses/anos disponíveis para filtro da tabela dadosTasy
+ */
+export async function getMesesDisponiveisTasy(estabelecimentoId: number): Promise<Array<{ mesAno: string; label: string }>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .selectDistinct({ dataFaturado: dadosTasy.dataFaturado })
+    .from(dadosTasy)
+    .where(and(
+      eq(dadosTasy.estabelecimentoId, estabelecimentoId),
+      isNotNull(dadosTasy.dataFaturado)
+    ))
+    .limit(1000);
+
+  // Extrair meses únicos e ordenar
+  const mesesSet = new Set<string>();
+  for (const r of result) {
+    if (r.dataFaturado) {
+      const data = new Date(r.dataFaturado);
+      const mesAno = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+      mesesSet.add(mesAno);
+    }
+  }
+
+  const meses = Array.from(mesesSet)
+    .sort((a, b) => b.localeCompare(a)) // Ordenar do mais recente para o mais antigo
+    .map(mesAno => {
+      const [ano, mes] = mesAno.split('-');
+      const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return {
+        mesAno,
+        label: `${meses[parseInt(mes) - 1]}/${ano}`
+      };
+    });
+
+  return meses;
 }
