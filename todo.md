@@ -703,3 +703,12 @@
 - [x] Processar cada tipo de dado na tabela correta (394.737 faturamento, 147 contas pagas, 9.363 itens pagos)
 - [x] Exibir resumo detalhado durante importação com quantidade por tipo
 - [x] 298 testes automatizados passando
+
+
+## Integração Dicionário de Glosas TISS na Conciliação
+- [x] Integrar dicionário de glosas TISS na tela de Conciliação Contas Pagas
+- [x] Exibir descrição legível dos códigos de motivo de glosa nos itens pagos
+- [x] Adicionar coluna separada com descrição completa da glosa
+- [x] Exibir grupo da glosa (Elegibilidade, Cobertura, etc.)
+- [x] Exibir probabilidade de sucesso na reversão (com cores: verde >60%, amarelo 40-60%, vermelho <40%)
+- [x] 298 testes automatizados passando

@@ -32,6 +32,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { GLOSAS_TISS, traduzirMotivoGlosa } from "../../../shared/glossaryGlosas";
 
 export default function ConciliacaoContasPagas() {
   const { user } = useAuth();
@@ -685,7 +686,8 @@ export default function ConciliacaoContasPagas() {
                             <th className="text-right p-2 font-medium">Faturado</th>
                             <th className="text-right p-2 font-medium">Pago</th>
                             <th className="text-right p-2 font-medium">Glosado</th>
-                            <th className="text-left p-2 font-medium min-w-[200px]">Motivo Glosa</th>
+                            <th className="text-left p-2 font-medium min-w-[150px]">Cód. Glosa</th>
+                            <th className="text-left p-2 font-medium min-w-[300px]">Descrição da Glosa</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -702,7 +704,37 @@ export default function ConciliacaoContasPagas() {
                               <td className="p-2 text-right text-blue-600">{formatarMoeda(item.valorFaturado)}</td>
                               <td className="p-2 text-right text-green-600">{formatarMoeda(item.valorPago)}</td>
                               <td className="p-2 text-right text-red-600">{formatarMoeda(item.valorGlosado)}</td>
-                              <td className="p-2 text-sm text-red-600">{item.motivoGlosa || '-'}</td>
+                              <td className="p-2 text-sm text-red-600 font-mono">{item.motivoGlosa || '-'}</td>
+                              <td className="p-2 text-sm text-red-600">
+                                {item.motivoGlosa ? (
+                                  <div className="space-y-1">
+                                    {(() => {
+                                      const descricao = traduzirMotivoGlosa(item.motivoGlosa);
+                                      // Extrair código para buscar info completa
+                                      const codigoMatch = item.motivoGlosa.match(/\b(\d{4})\b/);
+                                      const glosaInfo = codigoMatch ? GLOSAS_TISS[codigoMatch[1]] : null;
+                                      return (
+                                        <>
+                                          <p className="font-medium">{descricao !== item.motivoGlosa ? descricao : 'Código não encontrado no dicionário'}</p>
+                                          {glosaInfo && (
+                                            <div className="text-xs space-y-1 mt-1">
+                                              <p className="text-muted-foreground"><span className="font-medium">Grupo:</span> {glosaInfo.grupo}</p>
+                                              {glosaInfo.probabilidadeSucesso && (
+                                                <p className="text-muted-foreground">
+                                                  <span className="font-medium">Chance de reverter:</span>{' '}
+                                                  <span className={glosaInfo.probabilidadeSucesso >= 60 ? 'text-green-600' : glosaInfo.probabilidadeSucesso >= 40 ? 'text-yellow-600' : 'text-red-600'}>
+                                                    {glosaInfo.probabilidadeSucesso}%
+                                                  </span>
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : '-'}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
