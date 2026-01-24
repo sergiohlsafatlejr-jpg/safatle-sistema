@@ -12841,7 +12841,15 @@ export async function getConciliacaoTasyCompleta(
                             [];
 
     const valorPago = pagamento?.pagoConta || 0;
-    const valorGlosado = pagamento?.glosaConta || 0;
+    
+    // Calcular glosa: primeiro da conta, se não tiver, somar dos itens
+    let valorGlosado = pagamento?.glosaConta || 0;
+    
+    // Se não tiver glosa na conta, somar glosas dos itens
+    if (valorGlosado === 0 && itensPagosConta.length > 0) {
+      valorGlosado = itensPagosConta.reduce((sum, ip) => sum + (ip.glosaItem || 0), 0);
+    }
+    
     const valorPendente = contaFat.valorFaturado - valorPago - valorGlosado;
 
     // Determinar status

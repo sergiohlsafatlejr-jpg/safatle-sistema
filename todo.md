@@ -722,3 +722,10 @@
 - [x] Adicionar campos valorPago, valorGlosado, motivoGlosa nas colunas e métricas disponíveis
 - [x] Adicionar templates de relatórios de pagamento (Faturado vs Pago, Glosas por Convênio, Motivos de Glosa, Evolução de Pagamentos)
 - [x] 298 testes automatizados passando
+
+
+## Correções Urgentes - Relatórios Tasy e Conciliação
+- [x] Corrigir Relatórios Tasy - dados estão no estabelecimento Maternidade Ela (ID 60011), não no PSI
+- [x] Corrigir filtros mês/ano na Conciliação Contas Pagas - funcionando com meses de Jan/2025 a Fev/2026
+- [x] Corrigir exibição de valores glosados - agora soma glosas dos itens (R$ 27.479,78 / 527 contas glosadas)
+- [x] 298 testes automatizados passando
