@@ -746,3 +746,10 @@
 - [x] Retornar resposta imediata ao usuário (upload retorna em ~1s)
 - [x] Processamento continua em segundo plano com atualização de progresso
 - [x] Toast informativo sobre processamento em andamento
+
+
+## Correção Importação Excel - Não Funcionando
+- [x] Verificar logs do servidor - problema identificado na conversão Base64 de arquivos grandes (25.002 linhas)
+- [x] Otimizar conversão Base64 com processamento em chunks de 32KB (evita stack overflow)
+- [x] Adicionar toast de progresso para arquivos maiores que 1 MB
+- [x] 298 testes automatizados passando

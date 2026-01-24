@@ -147,11 +147,27 @@ export default function Upload() {
       ));
 
       try {
-        // Convert file to base64
+        // Show progress for large files
+        const fileSizeMB = fileItem.file.size / (1024 * 1024);
+        if (fileSizeMB > 1) {
+          toast.info(`Processando ${fileItem.file.name} (${fileSizeMB.toFixed(1)} MB)...`, {
+            id: `processing-${fileIndex}`,
+            duration: 60000,
+          });
+        }
+        
+        // Convert file to base64 with optimized chunked processing
         const buffer = await fileItem.file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
+        const bytes = new Uint8Array(buffer);
+        
+        // Use chunked base64 encoding for large files to avoid stack overflow
+        const CHUNK_SIZE = 32768; // 32KB chunks
+        let base64 = '';
+        for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+          const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
+          base64 += String.fromCharCode.apply(null, Array.from(chunk));
+        }
+        base64 = btoa(base64);
 
         const result = await uploadMutation.mutateAsync({
           nome: fileItem.file.name,
@@ -164,6 +180,9 @@ export default function Upload() {
           dataPagamento: dataPagamento || undefined,
         });
 
+        // Dismiss processing toast
+        toast.dismiss(`processing-${fileIndex}`);
+        
         // Update status to success
         setSelectedFiles(prev => prev.map((f, idx) => 
           idx === fileIndex ? { ...f, status: "success" as const } : f
