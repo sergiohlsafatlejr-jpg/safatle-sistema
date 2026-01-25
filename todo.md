@@ -757,3 +757,6 @@
 - [x] Corrigir arquivos travados em status "processando" - implementado timeout de 5 minutos e tratamento de erro robusto
 - [x] Adicionar endpoint para corrigir arquivos travados automaticamente (arquivos.corrigirTravados)
 - [x] Adicionar endpoint para verificar status de processamento de arquivos (arquivos.status, arquivos.processando)
+
+- [x] Aumentar timeout de processamento de 5 para 15 minutos para arquivos grandes (25k+ linhas)
+- [x] Corrigir processamento do arquivo demonstrativo-0282645 (1).xlsx da Maternidade Ela (25.001 procedimentos)

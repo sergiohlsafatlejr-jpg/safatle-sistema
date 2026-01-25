@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, nome, status, s3Url FROM arquivos WHERE nome LIKE '%demonstrativo%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, status, s3Url FROM arquivos WHERE nome LIKE '%demonstrativo%'",
+  "rows": [
+    {
+      "id": "220",
+      "nome": "demonstrativo-0282629.xlsx",
+      "status": "processado",
+      "s3Url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/HZ0aTVZkEOwtNFaixFL8F-demonstrativo-0282629.xlsx.xlsx"
+    },
+    {
+      "id": "120001",
+      "nome": "demonstrativo-0282645 (1).xlsx",
+      "status": "erro",
+      "s3Url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/pYmoWC2XTnp0vX5T_e8RI-demonstrativo-0282645_1.xlsx.xlsx"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tstatus\ts3Url\n220\tdemonstrativo-0282629.xlsx\tprocessado\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/HZ0aTVZkEOwtNFaixFL8F-demonstrativo-0282629.xlsx.xlsx\n120001\tdemonstrativo-0282645 (1).xlsx\terro\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/arquivos/1/pYmoWC2XTnp0vX5T_e8RI-demonstrativo-0282645_1.xlsx.xlsx\n",
+  "stderr": "",
+  "execution_time_ms": 354
+}

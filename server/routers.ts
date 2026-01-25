@@ -425,7 +425,7 @@ export const appRouter = router({
         
         // Parse file and extract procedimentos in background
         // Return immediately to user while processing continues
-        const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos de timeout
+        const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutos de timeout para arquivos grandes
         
         const processInBackground = async () => {
           const startTime = Date.now();

@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, nome, cnpj FROM estabelecimentos ORDER BY nome",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, cnpj FROM estabelecimentos ORDER BY nome",
+  "rows": [
+    {
+      "id": "60011",
+      "nome": "Maternidade Ela ",
+      "cnpj": "24.790.438/0001-89"
+    },
+    {
+      "id": "1",
+      "nome": "Pronto Socorro Infantil",
+      "cnpj": "01.545.649/0001-50"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tcnpj\n60011\tMaternidade Ela \t24.790.438/0001-89\n1\tPronto Socorro Infantil\t01.545.649/0001-50\n",
+  "stderr": "",
+  "execution_time_ms": 344
+}
