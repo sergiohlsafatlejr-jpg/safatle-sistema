@@ -4272,6 +4272,269 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getConveniosContasPagasTasy(input.estabelecimentoId);
       }),
+
+    // ============ NOVAS ROTAS PARA TABELAS SEPARADAS ============
+
+    // Processar procedimentos do Tasy (tabela separada)
+    processarProcedimentos: protectedProcedure
+      .input(z.object({
+        importacaoId: z.number(),
+        dados: z.array(z.object({
+          atendimento: z.string(),
+          nrInternoConta: z.string().optional(),
+          guia: z.string().optional(),
+          sequencia: z.string().optional(),
+          dataFaturado: z.string().optional(),
+          convenio: z.string().optional(),
+          paciente: z.string().optional(),
+          dataConta: z.string().optional(),
+          codigo: z.string().optional(),
+          codigoConvenio: z.string().optional(),
+          descricao: z.string().optional(),
+          quantidade: z.number().optional(),
+          unidade: z.string().optional(),
+          valorUnitario: z.number().optional(),
+          valorTotal: z.number().optional(),
+          setor: z.string().optional(),
+          protocolo: z.string().optional(),
+          statusProtocolo: z.string().optional(),
+          medico: z.string().optional(),
+          funcaoMedico: z.string().optional(),
+          crm: z.string().optional(),
+          valorMedico: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const importacao = await db.getImportacaoTasyById(input.importacaoId);
+        if (!importacao) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Importação não encontrada',
+          });
+        }
+
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: importacao.estabelecimentoId,
+          importacaoId: input.importacaoId,
+          atendimento: d.atendimento,
+          nrInternoConta: d.nrInternoConta || null,
+          guia: d.guia || null,
+          sequencia: d.sequencia || null,
+          dataFaturado: d.dataFaturado ? new Date(d.dataFaturado) : null,
+          convenio: d.convenio || null,
+          paciente: d.paciente || null,
+          dataConta: d.dataConta ? new Date(d.dataConta) : null,
+          codigo: d.codigo || null,
+          codigoConvenio: d.codigoConvenio || null,
+          descricao: d.descricao || null,
+          quantidade: d.quantidade?.toString() || null,
+          unidade: d.unidade || null,
+          valorUnitario: d.valorUnitario?.toString() || null,
+          valorTotal: d.valorTotal?.toString() || null,
+          setor: d.setor || null,
+          protocolo: d.protocolo || null,
+          statusProtocolo: d.statusProtocolo || null,
+          medico: d.medico || null,
+          funcaoMedico: d.funcaoMedico || null,
+          crm: d.crm || null,
+          valorMedico: d.valorMedico?.toString() || null,
+        }));
+
+        const resultado = await db.insertProcedimentosTasyBatch(
+          registros as any,
+          importacao.estabelecimentoId
+        );
+
+        return {
+          success: true,
+          inseridos: resultado.inseridos,
+          erros: resultado.erros,
+        };
+      }),
+
+    // Processar materiais/medicamentos do Tasy (tabela separada)
+    processarMatMed: protectedProcedure
+      .input(z.object({
+        importacaoId: z.number(),
+        dados: z.array(z.object({
+          atendimento: z.string(),
+          nrInternoConta: z.string().optional(),
+          guia: z.string().optional(),
+          sequencia: z.string().optional(),
+          dataFaturado: z.string().optional(),
+          convenio: z.string().optional(),
+          paciente: z.string().optional(),
+          dataConta: z.string().optional(),
+          codigo: z.string().optional(),
+          codigoConvenio: z.string().optional(),
+          descricao: z.string().optional(),
+          quantidade: z.number().optional(),
+          unidade: z.string().optional(),
+          valorUnitario: z.number().optional(),
+          valorTotal: z.number().optional(),
+          setor: z.string().optional(),
+          protocolo: z.string().optional(),
+          statusProtocolo: z.string().optional(),
+          tipoItem: z.enum(['material', 'medicamento']).optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const importacao = await db.getImportacaoTasyById(input.importacaoId);
+        if (!importacao) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Importação não encontrada',
+          });
+        }
+
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: importacao.estabelecimentoId,
+          importacaoId: input.importacaoId,
+          atendimento: d.atendimento,
+          nrInternoConta: d.nrInternoConta || null,
+          guia: d.guia || null,
+          sequencia: d.sequencia || null,
+          dataFaturado: d.dataFaturado ? new Date(d.dataFaturado) : null,
+          convenio: d.convenio || null,
+          paciente: d.paciente || null,
+          dataConta: d.dataConta ? new Date(d.dataConta) : null,
+          codigo: d.codigo || null,
+          codigoConvenio: d.codigoConvenio || null,
+          descricao: d.descricao || null,
+          quantidade: d.quantidade?.toString() || null,
+          unidade: d.unidade || null,
+          valorUnitario: d.valorUnitario?.toString() || null,
+          valorTotal: d.valorTotal?.toString() || null,
+          setor: d.setor || null,
+          protocolo: d.protocolo || null,
+          statusProtocolo: d.statusProtocolo || null,
+          tipoItem: d.tipoItem || 'material',
+        }));
+
+        const resultado = await db.insertMatMedTasyBatch(
+          registros as any,
+          importacao.estabelecimentoId
+        );
+
+        return {
+          success: true,
+          inseridos: resultado.inseridos,
+          erros: resultado.erros,
+        };
+      }),
+
+    // Gerar tabela contas_tasy unificada (junção de procedimentos + mat_med)
+    gerarContasUnificadas: protectedProcedure
+      .input(z.object({
+        importacaoId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const importacao = await db.getImportacaoTasyById(input.importacaoId);
+        if (!importacao) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Importação não encontrada',
+          });
+        }
+
+        const resultado = await db.gerarContasTasyUnificadas(
+          importacao.estabelecimentoId,
+          input.importacaoId
+        );
+
+        return {
+          success: true,
+          contasCriadas: resultado.contasCriadas,
+          itensCriados: resultado.itensCriados,
+        };
+      }),
+
+    // Buscar contas unificadas
+    contasUnificadas: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        nrInternoConta: z.string().optional(),
+        status: z.string().optional(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        limite: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getContasTasy(input.estabelecimentoId, {
+          convenio: input.convenio,
+          guia: input.guia,
+          nrInternoConta: input.nrInternoConta,
+          status: input.status,
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Buscar itens de uma conta unificada
+    itensContaUnificada: protectedProcedure
+      .input(z.object({ contaTasyId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getItensContaTasy(input.contaTasyId);
+      }),
+
+    // Buscar procedimentos separados
+    procedimentosSeparados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        importacaoId: z.number().optional(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        atendimento: z.string().optional(),
+        limite: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getProcedimentosTasy(input.estabelecimentoId, {
+          importacaoId: input.importacaoId,
+          convenio: input.convenio,
+          guia: input.guia,
+          atendimento: input.atendimento,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Buscar mat/med separados
+    matMedSeparados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        importacaoId: z.number().optional(),
+        convenio: z.string().optional(),
+        guia: z.string().optional(),
+        atendimento: z.string().optional(),
+        tipoItem: z.enum(['material', 'medicamento']).optional(),
+        limite: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getMatMedTasy(input.estabelecimentoId, {
+          importacaoId: input.importacaoId,
+          convenio: input.convenio,
+          guia: input.guia,
+          atendimento: input.atendimento,
+          tipoItem: input.tipoItem,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Limpar dados de uma importação (para reimportação)
+    limparImportacao: protectedProcedure
+      .input(z.object({ importacaoId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.limparDadosImportacaoTasy(input.importacaoId);
+        return { success: true };
+      }),
   }),
 
   // ============ DASHBOARDS SALVOS ============

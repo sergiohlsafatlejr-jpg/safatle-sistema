@@ -1,0 +1,20 @@
+{
+  "query": "SELECT e.id, e.nome, (SELECT COUNT(*) FROM dadosTasy WHERE estabelecimentoId = e.id) as dados_tasy FROM estabelecimentos e;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT e.id, e.nome, (SELECT COUNT(*) FROM dadosTasy WHERE estabelecimentoId = e.id) as dados_tasy FROM estabelecimentos e;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "Pronto Socorro Infantil",
+      "dados_tasy": "0"
+    },
+    {
+      "id": "60011",
+      "nome": "Maternidade Ela ",
+      "dados_tasy": "383734"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tdados_tasy\n1\tPronto Socorro Infantil\t0\n60011\tMaternidade Ela \t383734\n",
+  "stderr": "",
+  "execution_time_ms": 424
+}

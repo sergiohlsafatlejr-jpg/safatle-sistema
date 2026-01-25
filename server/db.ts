@@ -71,6 +71,14 @@ import {
   InsertContaPagaTasy,
   itensPagosTasy,
   InsertItemPagoTasy,
+  procedimentosTasy,
+  InsertProcedimentoTasy,
+  matMedTasy,
+  InsertMatMedTasy,
+  contasTasy,
+  InsertContaTasy,
+  itensContaTasy,
+  InsertItemContaTasy,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -13057,4 +13065,445 @@ export async function getArquivosProcessando(estabelecimentoId?: number): Promis
     itensProcessados: r.itensProcessados ?? 0,
     updatedAt: r.updatedAt ?? new Date(),
   }));
+}
+
+
+// ============ NOVAS TABELAS TASY (PROCEDIMENTOS, MAT_MED, CONTAS) ============
+
+/**
+ * Insere um lote de procedimentos do Tasy
+ */
+export async function insertProcedimentosTasyBatch(
+  registros: InsertProcedimentoTasy[],
+  estabelecimentoId: number
+): Promise<{ inseridos: number; ignorados: number; erros: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  if (registros.length === 0) {
+    return { inseridos: 0, ignorados: 0, erros: 0 };
+  }
+
+  let inseridos = 0;
+  let erros = 0;
+
+  // Inserir em lotes de 1000
+  const BATCH_SIZE = 1000;
+  
+  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+    const batch = registros.slice(i, i + BATCH_SIZE);
+    
+    try {
+      await db.insert(procedimentosTasy).values(batch);
+      inseridos += batch.length;
+    } catch (error: any) {
+      console.error('Erro no bulk insert procedimentosTasy:', error.message);
+      // Tenta inserir um por um
+      for (const registro of batch) {
+        try {
+          await db.insert(procedimentosTasy).values(registro);
+          inseridos++;
+        } catch (err: any) {
+          console.error('Erro ao inserir procedimento:', err.message);
+          erros++;
+        }
+      }
+    }
+  }
+
+  return { inseridos, ignorados: 0, erros };
+}
+
+/**
+ * Insere um lote de materiais/medicamentos do Tasy
+ */
+export async function insertMatMedTasyBatch(
+  registros: InsertMatMedTasy[],
+  estabelecimentoId: number
+): Promise<{ inseridos: number; ignorados: number; erros: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  if (registros.length === 0) {
+    return { inseridos: 0, ignorados: 0, erros: 0 };
+  }
+
+  let inseridos = 0;
+  let erros = 0;
+
+  // Inserir em lotes de 1000
+  const BATCH_SIZE = 1000;
+  
+  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+    const batch = registros.slice(i, i + BATCH_SIZE);
+    
+    try {
+      await db.insert(matMedTasy).values(batch);
+      inseridos += batch.length;
+    } catch (error: any) {
+      console.error('Erro no bulk insert matMedTasy:', error.message);
+      // Tenta inserir um por um
+      for (const registro of batch) {
+        try {
+          await db.insert(matMedTasy).values(registro);
+          inseridos++;
+        } catch (err: any) {
+          console.error('Erro ao inserir mat/med:', err.message);
+          erros++;
+        }
+      }
+    }
+  }
+
+  return { inseridos, ignorados: 0, erros };
+}
+
+/**
+ * Cria a tabela contas_tasy a partir da junção de procedimentos e mat_med
+ * Agrupa por nrInternoConta e Guia
+ */
+export async function gerarContasTasyUnificadas(
+  estabelecimentoId: number,
+  importacaoId: number
+): Promise<{ contasCriadas: number; itensCriados: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  // 1. Buscar todos os procedimentos da importação
+  const procedimentos = await db
+    .select()
+    .from(procedimentosTasy)
+    .where(and(
+      eq(procedimentosTasy.estabelecimentoId, estabelecimentoId),
+      eq(procedimentosTasy.importacaoId, importacaoId)
+    ));
+
+  // 2. Buscar todos os mat/med da importação
+  const matMed = await db
+    .select()
+    .from(matMedTasy)
+    .where(and(
+      eq(matMedTasy.estabelecimentoId, estabelecimentoId),
+      eq(matMedTasy.importacaoId, importacaoId)
+    ));
+
+  // 3. Agrupar por nrInternoConta + Guia
+  const contasMap = new Map<string, {
+    nrInternoConta: string;
+    guia: string | null;
+    atendimento: string | null;
+    dataFaturado: Date | null;
+    convenio: string | null;
+    paciente: string | null;
+    dataConta: Date | null;
+    setor: string | null;
+    protocolo: string | null;
+    statusProtocolo: string | null;
+    procedimentos: typeof procedimentos;
+    matMed: typeof matMed;
+  }>();
+
+  // Processar procedimentos
+  for (const proc of procedimentos) {
+    const chave = `${proc.nrInternoConta || ''}|${proc.guia || ''}`;
+    
+    if (!contasMap.has(chave)) {
+      contasMap.set(chave, {
+        nrInternoConta: proc.nrInternoConta || '',
+        guia: proc.guia,
+        atendimento: proc.atendimento,
+        dataFaturado: proc.dataFaturado,
+        convenio: proc.convenio,
+        paciente: proc.paciente,
+        dataConta: proc.dataConta,
+        setor: proc.setor,
+        protocolo: proc.protocolo,
+        statusProtocolo: proc.statusProtocolo,
+        procedimentos: [],
+        matMed: [],
+      });
+    }
+    
+    contasMap.get(chave)!.procedimentos.push(proc);
+  }
+
+  // Processar mat/med
+  for (const item of matMed) {
+    const chave = `${item.nrInternoConta || ''}|${item.guia || ''}`;
+    
+    if (!contasMap.has(chave)) {
+      contasMap.set(chave, {
+        nrInternoConta: item.nrInternoConta || '',
+        guia: item.guia,
+        atendimento: item.atendimento,
+        dataFaturado: item.dataFaturado,
+        convenio: item.convenio,
+        paciente: item.paciente,
+        dataConta: item.dataConta,
+        setor: item.setor,
+        protocolo: item.protocolo,
+        statusProtocolo: item.statusProtocolo,
+        procedimentos: [],
+        matMed: [],
+      });
+    }
+    
+    contasMap.get(chave)!.matMed.push(item);
+  }
+
+  // 4. Criar registros na tabela contas_tasy
+  let contasCriadas = 0;
+  let itensCriados = 0;
+
+  for (const conta of Array.from(contasMap.values())) {
+    // Calcular totais
+    const totalProcedimentos = conta.procedimentos.length;
+    const valorTotalProcedimentos = conta.procedimentos.reduce(
+      (sum: number, p: any) => sum + parseFloat(p.valorTotal?.toString() || '0'), 0
+    );
+    const totalMatMed = conta.matMed.length;
+    const valorTotalMatMed = conta.matMed.reduce(
+      (sum: number, m: any) => sum + parseFloat(m.valorTotal?.toString() || '0'), 0
+    );
+    const valorTotalConta = valorTotalProcedimentos + valorTotalMatMed;
+
+    // Inserir conta
+    const resultConta = await db.insert(contasTasy).values({
+      estabelecimentoId,
+      importacaoId,
+      nrInternoConta: conta.nrInternoConta,
+      guia: conta.guia,
+      atendimento: conta.atendimento,
+      dataFaturado: conta.dataFaturado,
+      convenio: conta.convenio,
+      paciente: conta.paciente,
+      dataConta: conta.dataConta,
+      setor: conta.setor,
+      protocolo: conta.protocolo,
+      statusProtocolo: conta.statusProtocolo,
+      totalProcedimentos,
+      valorTotalProcedimentos: valorTotalProcedimentos.toFixed(4),
+      totalMatMed,
+      valorTotalMatMed: valorTotalMatMed.toFixed(4),
+      valorTotalConta: valorTotalConta.toFixed(4),
+      status: 'faturada',
+    });
+
+    const contaId = Number((resultConta as any)[0].insertId);
+    contasCriadas++;
+
+    // Inserir itens da conta (procedimentos)
+    for (const proc of conta.procedimentos) {
+      await db.insert(itensContaTasy).values({
+        contaTasyId: contaId,
+        tipoItem: 'procedimento',
+        itemOriginalId: proc.id,
+        codigo: proc.codigo,
+        descricao: proc.descricao,
+        quantidade: proc.quantidade,
+        valorUnitario: proc.valorUnitario,
+        valorTotal: proc.valorTotal,
+        medico: proc.medico,
+        crm: proc.crm,
+        statusPagamento: 'pendente',
+      });
+      itensCriados++;
+    }
+
+    // Inserir itens da conta (mat/med)
+    for (const item of conta.matMed) {
+      await db.insert(itensContaTasy).values({
+        contaTasyId: contaId,
+        tipoItem: item.tipoItem || 'material',
+        itemOriginalId: item.id,
+        codigo: item.codigo,
+        descricao: item.descricao,
+        quantidade: item.quantidade,
+        valorUnitario: item.valorUnitario,
+        valorTotal: item.valorTotal,
+        statusPagamento: 'pendente',
+      });
+      itensCriados++;
+    }
+  }
+
+  return { contasCriadas, itensCriados };
+}
+
+/**
+ * Busca contas unificadas do Tasy
+ */
+export async function getContasTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    convenio?: string;
+    guia?: string;
+    nrInternoConta?: string;
+    status?: string;
+    dataInicio?: Date;
+    dataFim?: Date;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(contasTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.convenio) {
+    conditions.push(eq(contasTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditions.push(eq(contasTasy.guia, filtros.guia));
+  }
+  if (filtros?.nrInternoConta) {
+    conditions.push(eq(contasTasy.nrInternoConta, filtros.nrInternoConta));
+  }
+  if (filtros?.status) {
+    conditions.push(eq(contasTasy.status, filtros.status as any));
+  }
+  if (filtros?.dataInicio) {
+    conditions.push(sql`${contasTasy.dataFaturado} >= ${filtros.dataInicio}`);
+  }
+  if (filtros?.dataFim) {
+    conditions.push(sql`${contasTasy.dataFaturado} <= ${filtros.dataFim}`);
+  }
+
+  return db
+    .select()
+    .from(contasTasy)
+    .where(and(...conditions))
+    .orderBy(desc(contasTasy.dataFaturado))
+    .limit(filtros?.limite || 100)
+    .offset(filtros?.offset || 0);
+}
+
+/**
+ * Busca itens de uma conta Tasy
+ */
+export async function getItensContaTasy(contaTasyId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(itensContaTasy)
+    .where(eq(itensContaTasy.contaTasyId, contaTasyId))
+    .orderBy(itensContaTasy.tipoItem, itensContaTasy.codigo);
+}
+
+/**
+ * Busca procedimentos do Tasy
+ */
+export async function getProcedimentosTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    importacaoId?: number;
+    convenio?: string;
+    guia?: string;
+    atendimento?: string;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(procedimentosTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.importacaoId) {
+    conditions.push(eq(procedimentosTasy.importacaoId, filtros.importacaoId));
+  }
+  if (filtros?.convenio) {
+    conditions.push(eq(procedimentosTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditions.push(eq(procedimentosTasy.guia, filtros.guia));
+  }
+  if (filtros?.atendimento) {
+    conditions.push(eq(procedimentosTasy.atendimento, filtros.atendimento));
+  }
+
+  return db
+    .select()
+    .from(procedimentosTasy)
+    .where(and(...conditions))
+    .orderBy(desc(procedimentosTasy.dataFaturado))
+    .limit(filtros?.limite || 100)
+    .offset(filtros?.offset || 0);
+}
+
+/**
+ * Busca materiais/medicamentos do Tasy
+ */
+export async function getMatMedTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    importacaoId?: number;
+    convenio?: string;
+    guia?: string;
+    atendimento?: string;
+    tipoItem?: 'material' | 'medicamento';
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(matMedTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.importacaoId) {
+    conditions.push(eq(matMedTasy.importacaoId, filtros.importacaoId));
+  }
+  if (filtros?.convenio) {
+    conditions.push(eq(matMedTasy.convenio, filtros.convenio));
+  }
+  if (filtros?.guia) {
+    conditions.push(eq(matMedTasy.guia, filtros.guia));
+  }
+  if (filtros?.atendimento) {
+    conditions.push(eq(matMedTasy.atendimento, filtros.atendimento));
+  }
+  if (filtros?.tipoItem) {
+    conditions.push(eq(matMedTasy.tipoItem, filtros.tipoItem));
+  }
+
+  return db
+    .select()
+    .from(matMedTasy)
+    .where(and(...conditions))
+    .orderBy(desc(matMedTasy.dataFaturado))
+    .limit(filtros?.limite || 100)
+    .offset(filtros?.offset || 0);
+}
+
+/**
+ * Limpa dados de uma importação específica das novas tabelas
+ */
+export async function limparDadosImportacaoTasy(importacaoId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  // Buscar contas da importação para deletar itens
+  const contas = await db
+    .select({ id: contasTasy.id })
+    .from(contasTasy)
+    .where(eq(contasTasy.importacaoId, importacaoId));
+
+  // Deletar itens das contas
+  if (contas.length > 0) {
+    const contaIds = contas.map(c => c.id);
+    await db.delete(itensContaTasy).where(inArray(itensContaTasy.contaTasyId, contaIds));
+  }
+
+  // Deletar contas
+  await db.delete(contasTasy).where(eq(contasTasy.importacaoId, importacaoId));
+
+  // Deletar procedimentos
+  await db.delete(procedimentosTasy).where(eq(procedimentosTasy.importacaoId, importacaoId));
+
+  // Deletar mat/med
+  await db.delete(matMedTasy).where(eq(matMedTasy.importacaoId, importacaoId));
 }

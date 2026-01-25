@@ -760,3 +760,17 @@
 
 - [x] Aumentar timeout de processamento de 5 para 15 minutos para arquivos grandes (25k+ linhas)
 - [x] Corrigir processamento do arquivo demonstrativo-0282645 (1).xlsx da Maternidade Ela (25.001 procedimentos)
+
+- [x] Criar tabela demonstrativo_itens no banco de dados para salvar dados do demonstrativo
+- [x] Criar tabela conciliacao_tasy no banco de dados para salvar resultados da conciliação
+- [ ] Corrigir processo de conciliação Tasy para trazer e salvar dados corretamente
+- [x] Melhorar gráficos dos Relatórios Tasy - permitir múltiplos valores no eixo Y
+- [x] Melhorar gráficos dos Relatórios BI - permitir múltiplos valores no eixo Y
+
+- [x] Criar tabela procedimentos_tasy no schema
+- [x] Criar tabela mat_med_tasy no schema
+- [x] Criar tabela contas_tasy (junção) no schema
+- [x] Atualizar rotas de importação para processar 4 tabelas do SQLite
+- [x] Criar lógica de junção automática para contas_tasy
+- [x] Atualizar frontend de importação Tasy
+- [ ] Testar importação com arquivo SQLite real

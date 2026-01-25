@@ -358,7 +358,7 @@ export default function RelatoriosTasy() {
   
   // Estados para drag-and-drop
   const [eixoX, setEixoX] = useState<string>('convenio');
-  const [eixoY, setEixoY] = useState<string>('valorTotal');
+  const [eixoY, setEixoY] = useState<string[]>(['valorTotal']); // Agora suporta múltiplos valores
   const [draggedField, setDraggedField] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   
@@ -631,37 +631,79 @@ export default function RelatoriosTasy() {
       .sort((a, b) => b.valor - a.valor);
   }, [dadosFiltrados, eixoX]);
 
-  // Dados para o gráfico
+  // Dados para o gráfico - agora suporta múltiplos valores no eixo Y
   const dadosGrafico = useMemo(() => {
     const labels = dadosAgrupados.slice(0, 10).map(g => g.label);
-    const valores = dadosAgrupados.slice(0, 10).map(g => {
-      switch (eixoY) {
-        case 'valorTotal': return g.valor;
-        case 'valorPago': return g.valorPago;
-        case 'valorGlosado': return g.valorGlosado;
-        case 'quantidade': return g.quantidade;
-        default: return g.valor;
-      }
-    });
     
     const labelMap: Record<string, string> = {
       'valorTotal': 'Valor Faturado (R$)',
       'valorPago': 'Valor Pago (R$)',
       'valorGlosado': 'Valor Glosado (R$)',
       'quantidade': 'Quantidade',
+      'valorUnitario': 'Valor Unitário (R$)',
     };
+    
+    const coresPorMetrica: Record<string, string> = {
+      'valorTotal': 'rgba(59, 130, 246, 0.8)',
+      'valorPago': 'rgba(16, 185, 129, 0.8)',
+      'valorGlosado': 'rgba(239, 68, 68, 0.8)',
+      'quantidade': 'rgba(245, 158, 11, 0.8)',
+      'valorUnitario': 'rgba(139, 92, 246, 0.8)',
+    };
+    
+    // Se for gráfico de pizza, usar apenas o primeiro valor do eixoY
+    if (tipoGrafico === 'pie') {
+      const metrica = eixoY[0] || 'valorTotal';
+      const valores = dadosAgrupados.slice(0, 10).map(g => {
+        switch (metrica) {
+          case 'valorTotal': return g.valor;
+          case 'valorPago': return g.valorPago;
+          case 'valorGlosado': return g.valorGlosado;
+          case 'quantidade': return g.quantidade;
+          default: return g.valor;
+        }
+      });
+      
+      return {
+        labels,
+        datasets: [{
+          label: labelMap[metrica] || 'Valor (R$)',
+          data: valores,
+          backgroundColor: coresGraficos,
+          borderColor: coresGraficos.map(c => c.replace('0.8', '1')),
+          borderWidth: 1,
+        }]
+      };
+    }
+    
+    // Para gráficos de barra e linha, criar um dataset para cada métrica selecionada
+    const datasets = eixoY.map((metrica, index) => {
+      const valores = dadosAgrupados.slice(0, 10).map(g => {
+        switch (metrica) {
+          case 'valorTotal': return g.valor;
+          case 'valorPago': return g.valorPago;
+          case 'valorGlosado': return g.valorGlosado;
+          case 'quantidade': return g.quantidade;
+          default: return g.valor;
+        }
+      });
+      
+      const cor = coresPorMetrica[metrica] || coresGraficos[index % coresGraficos.length];
+      
+      return {
+        label: labelMap[metrica] || metrica,
+        data: valores,
+        backgroundColor: cor,
+        borderColor: cor.replace('0.8', '1'),
+        borderWidth: 1,
+      };
+    });
     
     return {
       labels,
-      datasets: [{
-        label: labelMap[eixoY] || 'Valor (R$)',
-        data: valores,
-        backgroundColor: coresGraficos,
-        borderColor: coresGraficos.map(c => c.replace('0.8', '1')),
-        borderWidth: 1,
-      }]
+      datasets,
     };
-  }, [dadosAgrupados, eixoY]);
+  }, [dadosAgrupados, eixoY, tipoGrafico]);
 
   // Dados para gráfico comparativo
   const dadosGraficoComparativo = useMemo(() => {
@@ -690,14 +732,16 @@ export default function RelatoriosTasy() {
       }
       
       if (!grupos2[chave]) grupos2[chave] = 0;
-      grupos2[chave] += eixoY === 'valorTotal' 
+      const metricaPrincipal = eixoY[0] || 'valorTotal';
+      grupos2[chave] += metricaPrincipal === 'valorTotal' 
         ? parseFloat(item.valorTotal || '0')
         : parseInt(item.quantidade || '0');
     });
     
     const labels = dadosAgrupados.slice(0, 10).map(g => g.label);
+    const metricaPrincipal = eixoY[0] || 'valorTotal';
     const valores1 = dadosAgrupados.slice(0, 10).map(g => 
-      eixoY === 'valorTotal' ? g.valor : g.quantidade
+      metricaPrincipal === 'valorTotal' ? g.valor : g.quantidade
     );
     const valores2 = labels.map(label => grupos2[label] || 0);
     
@@ -738,15 +782,17 @@ export default function RelatoriosTasy() {
       }
     },
     plugins: {
-      legend: { display: tipoGrafico === 'pie' },
+      legend: { display: tipoGrafico === 'pie' || eixoY.length > 1 },
       tooltip: {
         callbacks: {
           label: (context: any) => {
             const value = context.raw;
-            if (eixoY === 'valorTotal') {
-              return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            const datasetLabel = context.dataset.label || '';
+            // Verificar se é uma métrica de valor monetário
+            if (datasetLabel.includes('R$') || datasetLabel.includes('Valor')) {
+              return `${datasetLabel}: R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
             }
-            return `${value.toLocaleString('pt-BR')} itens`;
+            return `${datasetLabel}: ${value.toLocaleString('pt-BR')} itens`;
           }
         }
       }
@@ -756,7 +802,9 @@ export default function RelatoriosTasy() {
         beginAtZero: true,
         ticks: {
           callback: (value: any) => {
-            if (eixoY === 'valorTotal') {
+            // Verificar se alguma métrica selecionada é monetária
+            const temMetricaMonetaria = eixoY.some(m => ['valorTotal', 'valorPago', 'valorGlosado', 'valorUnitario'].includes(m));
+            if (temMetricaMonetaria) {
               return `R$ ${(value / 1000).toFixed(0)}k`;
             }
             return value;
@@ -791,7 +839,13 @@ export default function RelatoriosTasy() {
           setEixoX(draggedField);
           setAgrupamento(draggedField);
         } else if (target === 'eixoY' && campo.tipo === 'metrica') {
-          setEixoY(draggedField);
+          // Adicionar ao array se não existir, ou substituir se já existir
+          setEixoY(prev => {
+            if (prev.includes(draggedField)) {
+              return prev; // Já existe, não adicionar novamente
+            }
+            return [...prev, draggedField]; // Adicionar ao array
+          });
           setMetricaGrafico(draggedField === 'valorTotal' ? 'valor' : 'quantidade');
         }
       }
@@ -811,7 +865,7 @@ export default function RelatoriosTasy() {
     setMetricaGrafico(template.config.metricaGrafico);
     setAgrupamento(template.config.agrupamento);
     setEixoX(template.config.eixoX);
-    setEixoY(template.config.eixoY);
+    setEixoY([template.config.eixoY]); // Converter para array
     toast.success(`Template "${template.nome}" aplicado!`);
   };
 
@@ -854,7 +908,7 @@ export default function RelatoriosTasy() {
       setMetricaGrafico(config.metricaGrafico || 'valor');
       setAgrupamento(config.agrupamento || 'convenio');
       setEixoX(config.eixoX || 'convenio');
-      setEixoY(config.eixoY || 'valorTotal');
+      setEixoY(Array.isArray(config.eixoY) ? config.eixoY : [config.eixoY || 'valorTotal']);
       if (config.colunasVisiveis) setColunasVisiveis(config.colunasVisiveis);
       if (config.mesSelecionado) setMesSelecionado(config.mesSelecionado);
       if (config.anoSelecionado) setAnoSelecionado(config.anoSelecionado);
@@ -972,7 +1026,7 @@ export default function RelatoriosTasy() {
         setAgrupamento(sugestao.config.eixoX);
       }
       if (sugestao.config.eixoY) {
-        setEixoY(sugestao.config.eixoY);
+        setEixoY([sugestao.config.eixoY]);
         setMetricaGrafico(sugestao.config.eixoY === 'valorTotal' ? 'valor' : 'quantidade');
       }
       if (sugestao.config.comparativoAtivo !== undefined) {
@@ -1215,12 +1269,12 @@ export default function RelatoriosTasy() {
                           onDragEnd={handleDragEnd}
                           className={`flex items-center gap-2 p-2 rounded-md border cursor-grab active:cursor-grabbing transition-colors ${
                             draggedField === campo.id ? 'opacity-50 border-primary' : 'hover:bg-accent'
-                          } ${eixoY === campo.id ? 'bg-green-50 border-green-300 dark:bg-green-950' : ''}`}
+                          } ${eixoY.includes(campo.id) ? 'bg-green-50 border-green-300 dark:bg-green-950' : ''}`}
                         >
                           <GripVertical className="h-3 w-3 text-muted-foreground" />
                           <campo.icon className="h-4 w-4 text-green-500" />
                           <span className="text-sm">{campo.label}</span>
-                          {eixoY === campo.id && (
+                          {eixoY.includes(campo.id) && (
                             <Badge variant="secondary" className="ml-auto text-xs">Y</Badge>
                           )}
                         </div>
@@ -1352,12 +1406,27 @@ export default function RelatoriosTasy() {
                         : 'border-muted-foreground/25'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                       <TrendingUp className="h-4 w-4" />
                       <span>Eixo Y (Valores):</span>
-                      <Badge variant="outline" className="ml-auto">
-                        {camposDisponiveis.find(c => c.id === eixoY)?.label || eixoY}
-                      </Badge>
+                      <div className="flex gap-1 flex-wrap ml-auto">
+                        {eixoY.map(metrica => (
+                          <Badge 
+                            key={metrica} 
+                            variant="outline" 
+                            className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => {
+                              if (eixoY.length > 1) {
+                                setEixoY(prev => prev.filter(m => m !== metrica));
+                              }
+                            }}
+                            title={eixoY.length > 1 ? "Clique para remover" : ""}
+                          >
+                            {camposDisponiveis.find(c => c.id === metrica)?.label || metrica}
+                            {eixoY.length > 1 && <X className="h-3 w-3 ml-1" />}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

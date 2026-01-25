@@ -150,7 +150,7 @@ export default function RelatoriosBI() {
   
   // Estados para análise
   const [dimensaoSelecionada, setDimensaoSelecionada] = useState('convenio');
-  const [metricaSelecionada, setMetricaSelecionada] = useState('valorFaturado');
+  const [metricasSelecionadas, setMetricasSelecionadas] = useState<string[]>(['valorFaturado']); // Agora suporta múltiplos valores
   const [tipoGrafico, setTipoGrafico] = useState<'bar' | 'pie' | 'line' | 'doughnut'>('bar');
   
   // Filtros adicionais
@@ -221,7 +221,7 @@ export default function RelatoriosBI() {
     return dados || [];
   }, [dadosBI, dimensaoSelecionada]);
   
-  // Dados para o gráfico principal
+  // Dados para o gráfico principal - agora suporta múltiplas métricas
   const dadosGrafico = useMemo(() => {
     const top10 = dadosAgrupados.slice(0, 10);
     const labels = top10.map((g: any) => {
@@ -229,41 +229,66 @@ export default function RelatoriosBI() {
       return label.length > 25 ? label.substring(0, 25) + '...' : label;
     });
     
-    let valores: number[];
-    switch (metricaSelecionada) {
-      case 'valorFaturado':
-        valores = top10.map((g: any) => g.valorFaturado || 0);
-        break;
-      case 'valorRecebido':
-        valores = top10.map((g: any) => g.valorRecebido || 0);
-        break;
-      case 'valorGlosado':
-        valores = top10.map((g: any) => g.valorGlosado || 0);
-        break;
-      case 'valorPendente':
-        valores = top10.map((g: any) => g.valorPendente || 0);
-        break;
-      case 'quantidade':
-        valores = top10.map((g: any) => g.quantidade || 0);
-        break;
-      case 'registros':
-        valores = top10.map((g: any) => g.registros || 0);
-        break;
-      default:
-        valores = top10.map((g: any) => g.valorFaturado || 0);
+    const coresPorMetrica: Record<string, string> = {
+      'valorFaturado': 'rgba(59, 130, 246, 0.8)',
+      'valorRecebido': 'rgba(16, 185, 129, 0.8)',
+      'valorGlosado': 'rgba(239, 68, 68, 0.8)',
+      'valorPendente': 'rgba(245, 158, 11, 0.8)',
+      'quantidade': 'rgba(139, 92, 246, 0.8)',
+      'registros': 'rgba(236, 72, 153, 0.8)',
+    };
+    
+    const getValores = (metrica: string) => {
+      switch (metrica) {
+        case 'valorFaturado':
+          return top10.map((g: any) => g.valorFaturado || 0);
+        case 'valorRecebido':
+          return top10.map((g: any) => g.valorRecebido || 0);
+        case 'valorGlosado':
+          return top10.map((g: any) => g.valorGlosado || 0);
+        case 'valorPendente':
+          return top10.map((g: any) => g.valorPendente || 0);
+        case 'quantidade':
+          return top10.map((g: any) => g.quantidade || 0);
+        case 'registros':
+          return top10.map((g: any) => g.registros || 0);
+        default:
+          return top10.map((g: any) => g.valorFaturado || 0);
+      }
+    };
+    
+    // Se for gráfico de pizza/doughnut, usar apenas a primeira métrica
+    if (tipoGrafico === 'pie' || tipoGrafico === 'doughnut') {
+      const metrica = metricasSelecionadas[0] || 'valorFaturado';
+      return {
+        labels,
+        datasets: [{
+          label: camposAnalise.metricas.find(m => m.id === metrica)?.label || 'Valor',
+          data: getValores(metrica),
+          backgroundColor: coresGraficos,
+          borderColor: coresGraficos.map(c => c.replace('0.8', '1')),
+          borderWidth: 1,
+        }]
+      };
     }
+    
+    // Para gráficos de barra e linha, criar um dataset para cada métrica
+    const datasets = metricasSelecionadas.map((metrica, index) => {
+      const cor = coresPorMetrica[metrica] || coresGraficos[index % coresGraficos.length];
+      return {
+        label: camposAnalise.metricas.find(m => m.id === metrica)?.label || metrica,
+        data: getValores(metrica),
+        backgroundColor: cor,
+        borderColor: cor.replace('0.8', '1'),
+        borderWidth: 1,
+      };
+    });
     
     return {
       labels,
-      datasets: [{
-        label: camposAnalise.metricas.find(m => m.id === metricaSelecionada)?.label || 'Valor',
-        data: valores,
-        backgroundColor: coresGraficos,
-        borderColor: coresGraficos.map(c => c.replace('0.8', '1')),
-        borderWidth: 1,
-      }]
+      datasets,
     };
-  }, [dadosAgrupados, metricaSelecionada]);
+  }, [dadosAgrupados, metricasSelecionadas, tipoGrafico]);
   
   // Opções do gráfico
   const opcoesGrafico = useMemo(() => ({
@@ -281,15 +306,17 @@ export default function RelatoriosBI() {
       }
     },
     plugins: {
-      legend: { display: tipoGrafico === 'pie' || tipoGrafico === 'doughnut' },
+      legend: { display: tipoGrafico === 'pie' || tipoGrafico === 'doughnut' || metricasSelecionadas.length > 1 },
       tooltip: {
         callbacks: {
           label: (context: any) => {
             const value = context.raw;
-            if (metricaSelecionada.includes('valor')) {
-              return formatCurrency(value);
+            const datasetLabel = context.dataset.label || '';
+            // Verificar se é uma métrica de valor monetário
+            if (datasetLabel.includes('Valor') || datasetLabel.includes('R$')) {
+              return `${datasetLabel}: ${formatCurrency(value)}`;
             }
-            return formatNumber(value);
+            return `${datasetLabel}: ${formatNumber(value)}`;
           }
         }
       }
@@ -299,7 +326,9 @@ export default function RelatoriosBI() {
         beginAtZero: true,
         ticks: {
           callback: (value: any) => {
-            if (metricaSelecionada.includes('valor')) {
+            // Verificar se alguma métrica selecionada é monetária
+            const temMetricaMonetaria = metricasSelecionadas.some(m => m.includes('valor'));
+            if (temMetricaMonetaria) {
               return formatCurrency(value);
             }
             return formatNumber(value);
@@ -307,7 +336,7 @@ export default function RelatoriosBI() {
         }
       }
     } : undefined
-  }), [tipoGrafico, metricaSelecionada, dadosAgrupados]);
+  }), [tipoGrafico, metricasSelecionadas, dadosAgrupados]);
   
   // Exportar para Excel
   const exportarExcel = useCallback(() => {
@@ -606,24 +635,40 @@ export default function RelatoriosBI() {
                 </Select>
               </div>
               
-              {/* Métrica */}
+              {/* Métricas - agora suporta múltiplas seleções */}
               <div>
-                <Label className="text-sm font-medium">Métrica</Label>
-                <Select value={metricaSelecionada} onValueChange={setMetricaSelecionada}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {camposAnalise.metricas.map(m => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <m.icon className="h-4 w-4" />
-                          {m.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm font-medium">Métricas (clique para adicionar/remover)</Label>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {camposAnalise.metricas.map(m => {
+                    const isSelected = metricasSelecionadas.includes(m.id);
+                    return (
+                      <Badge
+                        key={m.id}
+                        variant={isSelected ? "default" : "outline"}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'bg-primary' : 'hover:bg-accent'
+                        }`}
+                        onClick={() => {
+                          if (isSelected) {
+                            // Remover se já estiver selecionado (mas manter pelo menos 1)
+                            if (metricasSelecionadas.length > 1) {
+                              setMetricasSelecionadas(prev => prev.filter(id => id !== m.id));
+                            }
+                          } else {
+                            // Adicionar se não estiver selecionado
+                            setMetricasSelecionadas(prev => [...prev, m.id]);
+                          }
+                        }}
+                      >
+                        <m.icon className="h-3 w-3 mr-1" />
+                        {m.label.replace(' (R$)', '').replace(' (R$)', '')}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {metricasSelecionadas.length} métrica(s) selecionada(s)
+                </p>
               </div>
               
               {/* Tipo de Gráfico */}
@@ -682,7 +727,9 @@ export default function RelatoriosBI() {
                 {tipoGrafico === 'line' && <LineChart className="h-5 w-5" />}
                 {tipoGrafico === 'pie' && <PieChart className="h-5 w-5" />}
                 {tipoGrafico === 'doughnut' && <Activity className="h-5 w-5" />}
-                {camposAnalise.metricas.find(m => m.id === metricaSelecionada)?.label} por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
+                {metricasSelecionadas.length === 1 
+                  ? camposAnalise.metricas.find(m => m.id === metricasSelecionadas[0])?.label 
+                  : `${metricasSelecionadas.length} métricas`} por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
               </CardTitle>
               <CardDescription>
                 Clique em uma barra/fatia para ver os detalhes

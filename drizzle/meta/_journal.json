@@ -281,6 +281,20 @@
       "when": 1769265385697,
       "tag": "0039_lying_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1769349911913,
+      "tag": "0040_sudden_wendell_vaughn",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1769351227225,
+      "tag": "0041_furry_captain_flint",
+      "breakpoints": true
     }
   ]
 }

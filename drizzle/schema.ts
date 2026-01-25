@@ -1595,3 +1595,361 @@ export const itensPagosTasy = mysqlTable("itensPagosTasy", {
 
 export type ItemPagoTasy = typeof itensPagosTasy.$inferSelect;
 export type InsertItemPagoTasy = typeof itensPagosTasy.$inferInsert;
+
+
+/**
+ * Itens do Demonstrativo de Retorno
+ * Armazena os itens extraídos dos arquivos de demonstrativo de pagamento dos convênios
+ */
+export const demonstrativoItens = mysqlTable("demonstrativoItens", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  arquivoId: int("arquivoId").notNull(), // Referência ao arquivo de demonstrativo
+  convenioId: int("convenioId").notNull(),
+  
+  // Dados do item
+  codigo: varchar("codigo", { length: 50 }),
+  descricao: text("descricao"),
+  quantidade: decimal("quantidade", { precision: 10, scale: 4 }).default("1"),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }),
+  
+  // Dados de pagamento
+  valorPago: decimal("valorPago", { precision: 12, scale: 4 }),
+  valorGlosado: decimal("valorGlosado", { precision: 12, scale: 4 }),
+  motivoGlosa: text("motivoGlosa"),
+  codigoGlosa: varchar("codigoGlosa", { length: 20 }),
+  
+  // Status do item
+  status: mysqlEnum("status", ["pago", "glosado", "pago_parcial"]).default("pago").notNull(),
+  
+  // Dados da guia/atendimento
+  guiaNumero: varchar("guiaNumero", { length: 100 }),
+  dataExecucao: timestamp("dataExecucao"),
+  dataReferencia: timestamp("dataReferencia"), // Mês/ano de referência
+  
+  // Dados do paciente
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),
+  
+  // Dados do profissional
+  nomeMedico: varchar("nomeMedico", { length: 255 }),
+  crmMedico: varchar("crmMedico", { length: 50 }),
+  
+  // Tipo do item
+  tipoDespesa: mysqlEnum("tipoDespesa", [
+    "gas",
+    "medicamento",
+    "material",
+    "diaria",
+    "taxa",
+    "procedimento",
+    "outros"
+  ]).default("procedimento"),
+  
+  // Dados extras em JSON
+  dadosExtras: json("dadosExtras"),
+  
+  // Referência ao procedimento original (se houver match)
+  procedimentoOrigemId: int("procedimentoOrigemId"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DemonstrativoItem = typeof demonstrativoItens.$inferSelect;
+export type InsertDemonstrativoItem = typeof demonstrativoItens.$inferInsert;
+
+
+/**
+ * Conciliação Tasy - Resultado da conciliação entre dados do Tasy e demonstrativos
+ * Armazena o resultado da comparação entre o que foi faturado (Tasy) e o que foi pago (demonstrativo)
+ */
+export const conciliacaoTasy = mysqlTable("conciliacaoTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Período da conciliação
+  mesReferencia: int("mesReferencia").notNull(), // 1-12
+  anoReferencia: int("anoReferencia").notNull(), // Ex: 2025
+  convenioId: int("convenioId"),
+  
+  // Referências aos dados originais
+  dadoTasyId: int("dadoTasyId"), // Referência ao registro do Tasy (se houver)
+  demonstrativoItemId: int("demonstrativoItemId"), // Referência ao item do demonstrativo (se houver)
+  
+  // Dados do item faturado (Tasy)
+  guiaTasy: varchar("guiaTasy", { length: 100 }),
+  atendimentoTasy: varchar("atendimentoTasy", { length: 50 }),
+  codigoTasy: varchar("codigoTasy", { length: 50 }),
+  descricaoTasy: text("descricaoTasy"),
+  quantidadeTasy: decimal("quantidadeTasy", { precision: 10, scale: 4 }),
+  valorTasy: decimal("valorTasy", { precision: 12, scale: 4 }),
+  dataTasy: timestamp("dataTasy"),
+  pacienteTasy: varchar("pacienteTasy", { length: 255 }),
+  
+  // Dados do item pago (Demonstrativo)
+  guiaDemo: varchar("guiaDemo", { length: 100 }),
+  codigoDemo: varchar("codigoDemo", { length: 50 }),
+  descricaoDemo: text("descricaoDemo"),
+  quantidadeDemo: decimal("quantidadeDemo", { precision: 10, scale: 4 }),
+  valorPagoDemo: decimal("valorPagoDemo", { precision: 12, scale: 4 }),
+  valorGlosadoDemo: decimal("valorGlosadoDemo", { precision: 12, scale: 4 }),
+  motivoGlosaDemo: text("motivoGlosaDemo"),
+  dataDemo: timestamp("dataDemo"),
+  pacienteDemo: varchar("pacienteDemo", { length: 255 }),
+  
+  // Resultado da conciliação
+  statusConciliacao: mysqlEnum("statusConciliacao", [
+    "conciliado",           // Item encontrado e valores batem
+    "divergencia_valor",    // Item encontrado mas valores diferentes
+    "divergencia_quantidade", // Item encontrado mas quantidade diferente
+    "nao_encontrado_demo",  // Item faturado mas não encontrado no demonstrativo
+    "nao_encontrado_tasy",  // Item no demonstrativo mas não encontrado no Tasy
+    "glosado",              // Item glosado pelo convênio
+    "pago_parcial"          // Item pago parcialmente
+  ]).default("conciliado").notNull(),
+  
+  // Valores calculados
+  diferencaValor: decimal("diferencaValor", { precision: 12, scale: 4 }),
+  diferencaQuantidade: decimal("diferencaQuantidade", { precision: 10, scale: 4 }),
+  
+  // Observações
+  observacao: text("observacao"),
+  
+  // Controle
+  processadoPor: int("processadoPor"), // userId que executou a conciliação
+  dataProcessamento: timestamp("dataProcessamento"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConciliacaoTasyRecord = typeof conciliacaoTasy.$inferSelect;
+export type InsertConciliacaoTasy = typeof conciliacaoTasy.$inferInsert;
+
+
+/**
+ * Resumo da Conciliação Tasy - Totais por período/convênio
+ * Armazena os totais consolidados da conciliação para relatórios
+ */
+export const resumoConciliacaoTasy = mysqlTable("resumoConciliacaoTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Período
+  mesReferencia: int("mesReferencia").notNull(),
+  anoReferencia: int("anoReferencia").notNull(),
+  convenioId: int("convenioId"),
+  
+  // Totais do Tasy (faturado)
+  totalItensTasy: int("totalItensTasy").default(0),
+  valorTotalTasy: decimal("valorTotalTasy", { precision: 15, scale: 2 }),
+  
+  // Totais do Demonstrativo (pago)
+  totalItensDemo: int("totalItensDemo").default(0),
+  valorTotalPago: decimal("valorTotalPago", { precision: 15, scale: 2 }),
+  valorTotalGlosado: decimal("valorTotalGlosado", { precision: 15, scale: 2 }),
+  
+  // Resultado da conciliação
+  itensConciliados: int("itensConciliados").default(0),
+  itensDivergentes: int("itensDivergentes").default(0),
+  itensNaoEncontradosDemo: int("itensNaoEncontradosDemo").default(0),
+  itensNaoEncontradosTasy: int("itensNaoEncontradosTasy").default(0),
+  itensGlosados: int("itensGlosados").default(0),
+  
+  // Valores
+  valorDiferenca: decimal("valorDiferenca", { precision: 15, scale: 2 }),
+  percentualRecebido: decimal("percentualRecebido", { precision: 5, scale: 2 }), // % do faturado que foi recebido
+  percentualGlosado: decimal("percentualGlosado", { precision: 5, scale: 2 }), // % de glosa
+  
+  // Controle
+  dataProcessamento: timestamp("dataProcessamento"),
+  processadoPor: int("processadoPor"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ResumoConciliacaoTasy = typeof resumoConciliacaoTasy.$inferSelect;
+export type InsertResumoConciliacaoTasy = typeof resumoConciliacaoTasy.$inferInsert;
+
+
+/**
+ * Procedimentos do Tasy - Honorários médicos e procedimentos
+ * Armazena os procedimentos/honorários exportados do Tasy
+ */
+export const procedimentosTasy = mysqlTable("procedimentosTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(),
+  
+  // Identificadores únicos do Tasy (chaves para junção)
+  atendimento: varchar("atendimento", { length: 50 }).notNull(),
+  nrInternoConta: varchar("nrInternoConta", { length: 50 }),
+  guia: varchar("guia", { length: 100 }),
+  sequencia: varchar("sequencia", { length: 50 }),
+  
+  // Dados do faturamento
+  dataFaturado: timestamp("dataFaturado"),
+  convenio: varchar("convenio", { length: 255 }),
+  
+  // Dados do paciente
+  paciente: varchar("paciente", { length: 255 }),
+  dataConta: timestamp("dataConta"),
+  
+  // Dados do procedimento
+  codigo: varchar("codigo", { length: 50 }),
+  codigoConvenio: varchar("codigoConvenio", { length: 50 }),
+  descricao: text("descricao"),
+  quantidade: decimal("quantidade", { precision: 10, scale: 4 }),
+  unidade: varchar("unidade", { length: 20 }),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }),
+  
+  // Dados adicionais
+  setor: varchar("setor", { length: 255 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  statusProtocolo: varchar("statusProtocolo", { length: 50 }),
+  
+  // Dados do médico
+  medico: varchar("medico", { length: 255 }),
+  funcaoMedico: varchar("funcaoMedico", { length: 100 }),
+  crm: varchar("crm", { length: 50 }),
+  valorMedico: decimal("valorMedico", { precision: 12, scale: 4 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProcedimentoTasy = typeof procedimentosTasy.$inferSelect;
+export type InsertProcedimentoTasy = typeof procedimentosTasy.$inferInsert;
+
+/**
+ * Materiais e Medicamentos do Tasy
+ * Armazena os materiais e medicamentos exportados do Tasy
+ */
+export const matMedTasy = mysqlTable("matMedTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(),
+  
+  // Identificadores únicos do Tasy (chaves para junção)
+  atendimento: varchar("atendimento", { length: 50 }).notNull(),
+  nrInternoConta: varchar("nrInternoConta", { length: 50 }),
+  guia: varchar("guia", { length: 100 }),
+  sequencia: varchar("sequencia", { length: 50 }),
+  
+  // Dados do faturamento
+  dataFaturado: timestamp("dataFaturado"),
+  convenio: varchar("convenio", { length: 255 }),
+  
+  // Dados do paciente
+  paciente: varchar("paciente", { length: 255 }),
+  dataConta: timestamp("dataConta"),
+  
+  // Dados do material/medicamento
+  codigo: varchar("codigo", { length: 50 }),
+  codigoConvenio: varchar("codigoConvenio", { length: 50 }),
+  descricao: text("descricao"),
+  quantidade: decimal("quantidade", { precision: 10, scale: 4 }),
+  unidade: varchar("unidade", { length: 20 }),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }),
+  
+  // Dados adicionais
+  setor: varchar("setor", { length: 255 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  statusProtocolo: varchar("statusProtocolo", { length: 50 }),
+  
+  // Tipo específico (material ou medicamento)
+  tipoItem: mysqlEnum("tipoItem", ["material", "medicamento"]).default("material"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MatMedTasy = typeof matMedTasy.$inferSelect;
+export type InsertMatMedTasy = typeof matMedTasy.$inferInsert;
+
+/**
+ * Contas Tasy - Tabela unificada (junção de procedimentos + mat_med)
+ * Agrupa todos os itens de uma conta usando nrInternoConta e Guia como chaves
+ */
+export const contasTasy = mysqlTable("contasTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(),
+  
+  // Chaves de identificação da conta
+  nrInternoConta: varchar("nrInternoConta", { length: 50 }).notNull(),
+  guia: varchar("guia", { length: 100 }),
+  atendimento: varchar("atendimento", { length: 50 }),
+  
+  // Dados do faturamento
+  dataFaturado: timestamp("dataFaturado"),
+  convenio: varchar("convenio", { length: 255 }),
+  
+  // Dados do paciente
+  paciente: varchar("paciente", { length: 255 }),
+  dataConta: timestamp("dataConta"),
+  
+  // Dados adicionais
+  setor: varchar("setor", { length: 255 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  statusProtocolo: varchar("statusProtocolo", { length: 50 }),
+  
+  // Totais da conta
+  totalProcedimentos: int("totalProcedimentos").default(0),
+  valorTotalProcedimentos: decimal("valorTotalProcedimentos", { precision: 15, scale: 4 }),
+  totalMatMed: int("totalMatMed").default(0),
+  valorTotalMatMed: decimal("valorTotalMatMed", { precision: 15, scale: 4 }),
+  valorTotalConta: decimal("valorTotalConta", { precision: 15, scale: 4 }),
+  
+  // Status da conta
+  status: mysqlEnum("status", ["aberta", "faturada", "paga", "glosada", "parcial"]).default("faturada"),
+  
+  // Dados de pagamento (preenchidos após conciliação)
+  valorPago: decimal("valorPago", { precision: 15, scale: 4 }),
+  valorGlosado: decimal("valorGlosado", { precision: 15, scale: 4 }),
+  dataPagamento: timestamp("dataPagamento"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ContaTasy = typeof contasTasy.$inferSelect;
+export type InsertContaTasy = typeof contasTasy.$inferInsert;
+
+/**
+ * Itens da Conta Tasy - Detalhes de cada item na conta unificada
+ * Referencia os itens originais de procedimentos e mat_med
+ */
+export const itensContaTasy = mysqlTable("itensContaTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  contaTasyId: int("contaTasyId").notNull(), // Referência à conta unificada
+  
+  // Tipo e referência ao item original
+  tipoItem: mysqlEnum("tipoItem", ["procedimento", "material", "medicamento"]).notNull(),
+  itemOriginalId: int("itemOriginalId").notNull(), // ID na tabela procedimentosTasy ou matMedTasy
+  
+  // Dados do item (desnormalizados para facilitar consultas)
+  codigo: varchar("codigo", { length: 50 }),
+  descricao: text("descricao"),
+  quantidade: decimal("quantidade", { precision: 10, scale: 4 }),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }),
+  
+  // Dados do médico (apenas para procedimentos)
+  medico: varchar("medico", { length: 255 }),
+  crm: varchar("crm", { length: 50 }),
+  
+  // Status de pagamento (preenchido após conciliação)
+  statusPagamento: mysqlEnum("statusPagamento", ["pendente", "pago", "glosado", "parcial"]).default("pendente"),
+  valorPago: decimal("valorPago", { precision: 12, scale: 4 }),
+  valorGlosado: decimal("valorGlosado", { precision: 12, scale: 4 }),
+  motivoGlosa: text("motivoGlosa"),
+  codigoGlosa: varchar("codigoGlosa", { length: 50 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ItemContaTasy = typeof itensContaTasy.$inferSelect;
+export type InsertItemContaTasy = typeof itensContaTasy.$inferInsert;

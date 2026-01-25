@@ -126,11 +126,67 @@ interface ItemPagoTasy {
   setor?: string;
 }
 
+// Tipo para procedimentos separados (Procedimentos_Tasy)
+interface ProcedimentoTasy {
+  atendimento: string;
+  nrInternoConta?: string;
+  guia?: string;
+  sequencia?: string;
+  dataFaturado?: string;
+  convenio?: string;
+  paciente?: string;
+  dataConta?: string;
+  codigo?: string;
+  codigoConvenio?: string;
+  descricao?: string;
+  quantidade?: number;
+  unidade?: string;
+  valorUnitario?: number;
+  valorTotal?: number;
+  setor?: string;
+  protocolo?: string;
+  statusProtocolo?: string;
+  medico?: string;
+  funcaoMedico?: string;
+  crm?: string;
+  valorMedico?: number;
+}
+
+// Tipo para materiais/medicamentos separados (Mat_Med_Tasy)
+interface MatMedTasy {
+  atendimento: string;
+  nrInternoConta?: string;
+  guia?: string;
+  sequencia?: string;
+  dataFaturado?: string;
+  convenio?: string;
+  paciente?: string;
+  dataConta?: string;
+  codigo?: string;
+  codigoConvenio?: string;
+  descricao?: string;
+  quantidade?: number;
+  unidade?: string;
+  valorUnitario?: number;
+  valorTotal?: number;
+  setor?: string;
+  protocolo?: string;
+  statusProtocolo?: string;
+  tipoItem?: 'material' | 'medicamento';
+}
+
 // Tipo para o resultado da leitura do SQLite
 interface DadosSQLite {
+  // Formato antigo (tabela única)
   faturamento: DadoTasy[];
+  // Formato novo (tabelas separadas)
+  procedimentos: ProcedimentoTasy[];
+  matMed: MatMedTasy[];
+  // Comum aos dois formatos
   contasPagas: ContaPagaTasy[];
   itensPagos: ItemPagoTasy[];
+  // Flag para indicar qual formato foi detectado
+  formatoNovo: boolean;
 }
 
 export default function ImportacaoTasy() {
@@ -238,15 +294,109 @@ export default function ImportacaoTasy() {
       return undefined;
     };
 
-    // ========== LÊ TABELA DE FATURAMENTO ==========
+    // ========== DETECTA FORMATO DO ARQUIVO ==========
+    // Verifica se é o novo formato (tabelas separadas: Procedimentos_Tasy, Mat_Med_Tasy)
+    const procedimentosTable = tableNames.find((t: string) => 
+      t.toLowerCase() === 'procedimentos_tasy' || 
+      t.toLowerCase() === 'procedimentos' ||
+      t.toLowerCase().includes('procedimento_tasy')
+    );
+    const matMedTable = tableNames.find((t: string) => 
+      t.toLowerCase() === 'mat_med_tasy' || 
+      t.toLowerCase() === 'matmed_tasy' ||
+      t.toLowerCase() === 'mat_med' ||
+      t.toLowerCase().includes('mat_med_tasy')
+    );
+    
+    const formatoNovo = !!(procedimentosTable || matMedTable);
+    console.log(`Formato detectado: ${formatoNovo ? 'NOVO (tabelas separadas)' : 'ANTIGO (tabela única)'}`);
+
+    // ========== FORMATO NOVO: LÊ TABELA DE PROCEDIMENTOS ==========
+    let procedimentos: ProcedimentoTasy[] = [];
+    if (procedimentosTable) {
+      const result = db.exec(`SELECT * FROM "${procedimentosTable}"`);
+      if (result.length && result[0].values.length) {
+        const columns = result[0].columns.map((c: string) => c.toLowerCase());
+        const rows = result[0].values;
+        console.log(`Tabela ${procedimentosTable}: ${rows.length} registros`);
+
+        procedimentos = rows.map((row: any[]) => {
+          const getCol = (names: string[]) => getColValue(row, columns, names);
+          return {
+            atendimento: String(getCol(['atendimento', 'nr_atendimento']) || ''),
+            nrInternoConta: getCol(['nr_interno_conta', 'nrinternoConta', 'nrinternaconta', 'conta']) ? String(getCol(['nr_interno_conta', 'nrinternoConta', 'nrinternaconta', 'conta'])) : undefined,
+            guia: getCol(['guia', 'nr_doc_convenio']) ? String(getCol(['guia', 'nr_doc_convenio'])) : undefined,
+            sequencia: getCol(['sequencia', 'nr_sequencia', 'sequencia_item']) ? String(getCol(['sequencia', 'nr_sequencia', 'sequencia_item'])) : undefined,
+            dataFaturado: getCol(['data_faturado', 'dt_mesano_referencia', 'data', 'datafaturado']) || undefined,
+            convenio: getCol(['convenio', 'ds_convenio']) || undefined,
+            paciente: getCol(['paciente', 'nm_paciente']) || undefined,
+            dataConta: getCol(['data_conta', 'dt_conta', 'data_procedimento', 'dt_procedimento', 'dataconta']) || undefined,
+            codigo: getCol(['codigo', 'cd_procedimento', 'codigo_tasy']) ? String(getCol(['codigo', 'cd_procedimento', 'codigo_tasy'])) : undefined,
+            codigoConvenio: getCol(['codigo_convenio', 'cd_procedimento_convenio', 'codigoconvenio']) ? String(getCol(['codigo_convenio', 'cd_procedimento_convenio', 'codigoconvenio'])) : undefined,
+            descricao: getCol(['descricao', 'ds_proc_convenio', 'ds_procedimento']) || undefined,
+            quantidade: parseFloat(getCol(['quantidade', 'qt_procedimento'])) || 1,
+            unidade: getCol(['unidade', 'cd_unidade_medida']) || undefined,
+            valorUnitario: parseFloat(getCol(['valor_unitario', 'vl_unitario', 'vl_procedimento', 'valorunitario'])) || 0,
+            valorTotal: parseFloat(getCol(['valor_total', 'vl_total', 'valortotal'])) || 0,
+            setor: getCol(['setor', 'ds_setor_atendimento']) || undefined,
+            protocolo: getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio']) ? String(getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio'])) : undefined,
+            statusProtocolo: getCol(['status_protocolo', 'ie_status_protocolo', 'statusprotocolo']) || undefined,
+            medico: getCol(['medico', 'nm_medico']) || undefined,
+            funcaoMedico: getCol(['funcao_medico', 'ds_funcao', 'funcao', 'funcaomedico']) || undefined,
+            crm: getCol(['crm', 'nr_crm']) ? String(getCol(['crm', 'nr_crm'])) : undefined,
+            valorMedico: parseFloat(getCol(['valor_medico', 'vl_medico', 'valormedico'])) || undefined,
+          };
+        }).filter((d: ProcedimentoTasy) => d.atendimento);
+      }
+    }
+
+    // ========== FORMATO NOVO: LÊ TABELA DE MAT/MED ==========
+    let matMed: MatMedTasy[] = [];
+    if (matMedTable) {
+      const result = db.exec(`SELECT * FROM "${matMedTable}"`);
+      if (result.length && result[0].values.length) {
+        const columns = result[0].columns.map((c: string) => c.toLowerCase());
+        const rows = result[0].values;
+        console.log(`Tabela ${matMedTable}: ${rows.length} registros`);
+
+        matMed = rows.map((row: any[]) => {
+          const getCol = (names: string[]) => getColValue(row, columns, names);
+          const tipoItem = getCol(['tipo_item', 'tipoitem', 'tipo']) || 'material';
+          return {
+            atendimento: String(getCol(['atendimento', 'nr_atendimento']) || ''),
+            nrInternoConta: getCol(['nr_interno_conta', 'nrinternoConta', 'nrinternaconta', 'conta']) ? String(getCol(['nr_interno_conta', 'nrinternoConta', 'nrinternaconta', 'conta'])) : undefined,
+            guia: getCol(['guia', 'nr_doc_convenio']) ? String(getCol(['guia', 'nr_doc_convenio'])) : undefined,
+            sequencia: getCol(['sequencia', 'nr_sequencia', 'sequencia_item']) ? String(getCol(['sequencia', 'nr_sequencia', 'sequencia_item'])) : undefined,
+            dataFaturado: getCol(['data_faturado', 'dt_mesano_referencia', 'data', 'datafaturado']) || undefined,
+            convenio: getCol(['convenio', 'ds_convenio']) || undefined,
+            paciente: getCol(['paciente', 'nm_paciente']) || undefined,
+            dataConta: getCol(['data_conta', 'dt_conta', 'dataconta']) || undefined,
+            codigo: getCol(['codigo', 'cod_material', 'cd_material', 'codigo_tasy', 'cod_mat_convenio']) ? String(getCol(['codigo', 'cod_material', 'cd_material', 'codigo_tasy', 'cod_mat_convenio'])) : undefined,
+            codigoConvenio: getCol(['codigo_convenio', 'cod_mat_convenio', 'codigoconvenio']) ? String(getCol(['codigo_convenio', 'cod_mat_convenio', 'codigoconvenio'])) : undefined,
+            descricao: getCol(['descricao', 'ds_material']) || undefined,
+            quantidade: parseFloat(getCol(['quantidade', 'qt_material'])) || 1,
+            unidade: getCol(['unidade', 'cd_unidade_medida']) || undefined,
+            valorUnitario: parseFloat(getCol(['valor_unitario', 'vl_unitario', 'valorunitario'])) || 0,
+            valorTotal: parseFloat(getCol(['valor_total', 'vl_total', 'vl_material', 'valortotal'])) || 0,
+            setor: getCol(['setor', 'ds_setor_atendimento']) || undefined,
+            protocolo: getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio']) ? String(getCol(['protocolo', 'nr_protocolo', 'protocolo_convenio'])) : undefined,
+            statusProtocolo: getCol(['status_protocolo', 'ie_status_protocolo', 'statusprotocolo']) || undefined,
+            tipoItem: tipoItem.toLowerCase().includes('med') ? 'medicamento' : 'material',
+          };
+        }).filter((d: MatMedTasy) => d.atendimento);
+      }
+    }
+
+    // ========== FORMATO ANTIGO: LÊ TABELA DE FATURAMENTO ==========
     let faturamento: DadoTasy[] = [];
-    const faturamentoTable = tableNames.find((t: string) => 
+    // Só lê tabela de faturamento se não for o formato novo
+    const faturamentoTable = !formatoNovo ? tableNames.find((t: string) => 
       t.toLowerCase().includes('faturamento') || 
       t.toLowerCase().includes('dados') || 
       t.toLowerCase().includes('tasy') ||
       t.toLowerCase().includes('material') ||
       t.toLowerCase().includes('honorario')
-    );
+    ) : null;
 
     if (faturamentoTable) {
       const result = db.exec(`SELECT * FROM "${faturamentoTable}"`);
@@ -361,11 +511,17 @@ export default function ImportacaoTasy() {
     db.close();
 
     console.log(`Resumo da importação:`);
-    console.log(`- Faturamento: ${faturamento.length} registros`);
+    console.log(`- Formato: ${formatoNovo ? 'NOVO (tabelas separadas)' : 'ANTIGO (tabela única)'}`);
+    if (formatoNovo) {
+      console.log(`- Procedimentos: ${procedimentos.length} registros`);
+      console.log(`- Mat/Med: ${matMed.length} registros`);
+    } else {
+      console.log(`- Faturamento: ${faturamento.length} registros`);
+    }
     console.log(`- Contas Pagas: ${contasPagas.length} registros`);
     console.log(`- Itens Pagos: ${itensPagos.length} registros`);
 
-    return { faturamento, contasPagas, itensPagos };
+    return { faturamento, procedimentos, matMed, contasPagas, itensPagos, formatoNovo };
   };
 
   const handleUpload = async () => {
@@ -380,7 +536,12 @@ export default function ImportacaoTasy() {
       const dados = await readSQLiteFile(selectedFile);
       setUploadProgress(50);
 
-      const totalRegistros = dados.faturamento.length + dados.contasPagas.length + dados.itensPagos.length;
+      // Calcula total de registros baseado no formato
+      const totalDados = dados.formatoNovo 
+        ? dados.procedimentos.length + dados.matMed.length 
+        : dados.faturamento.length;
+      const totalRegistros = totalDados + dados.contasPagas.length + dados.itensPagos.length;
+      
       if (totalRegistros === 0) {
         toast.error("Arquivo vazio", {
           description: "Nenhum dado válido encontrado no arquivo SQLite",
@@ -388,7 +549,10 @@ export default function ImportacaoTasy() {
         return;
       }
 
-      toast.info(`${totalRegistros.toLocaleString()} registros encontrados (${dados.faturamento.length} faturamento, ${dados.contasPagas.length} contas pagas, ${dados.itensPagos.length} itens pagos)`);
+      const descricao = dados.formatoNovo
+        ? `${dados.procedimentos.length} procedimentos, ${dados.matMed.length} mat/med, ${dados.contasPagas.length} contas pagas, ${dados.itensPagos.length} itens pagos`
+        : `${dados.faturamento.length} faturamento, ${dados.contasPagas.length} contas pagas, ${dados.itensPagos.length} itens pagos`;
+      toast.info(`${totalRegistros.toLocaleString()} registros encontrados (${descricao})`);
 
       // Cria o registro de importação (sem enviar o arquivo completo)
       const result = await uploadMutation.mutateAsync({
@@ -424,6 +588,11 @@ export default function ImportacaoTasy() {
     }
   };
 
+  // Mutations para as novas tabelas separadas
+  const processarProcedimentosMutation = trpc.importacaoTasy.processarProcedimentos.useMutation();
+  const processarMatMedMutation = trpc.importacaoTasy.processarMatMed.useMutation();
+  const gerarContasUnificadasMutation = trpc.importacaoTasy.gerarContasUnificadas.useMutation();
+
   const handleProcessar = async () => {
     if (!pendingImportacao) return;
 
@@ -431,17 +600,100 @@ export default function ImportacaoTasy() {
     setProcessingProgress(0);
 
     const { id, dados } = pendingImportacao;
-    const totalRegistros = dados.faturamento.length + dados.contasPagas.length + dados.itensPagos.length;
+    
+    // Calcula total de registros baseado no formato
+    const totalDados = dados.formatoNovo 
+      ? dados.procedimentos.length + dados.matMed.length 
+      : dados.faturamento.length;
+    const totalRegistros = totalDados + dados.contasPagas.length + dados.itensPagos.length;
+    
     setProcessingStats({ total: totalRegistros, processados: 0, inseridos: 0, ignorados: 0, erros: 0 });
 
     let totalInseridos = 0;
     let totalIgnorados = 0;
     let totalErros = 0;
     let processadosTotal = 0;
+    let offsetDados = 0; // Offset para calcular progresso
 
     try {
-      // ========== PROCESSA FATURAMENTO ==========
-      if (dados.faturamento.length > 0) {
+      // ========== FORMATO NOVO: PROCESSA PROCEDIMENTOS ==========
+      if (dados.formatoNovo && dados.procedimentos.length > 0) {
+        toast.info(`Processando ${dados.procedimentos.length.toLocaleString()} procedimentos...`);
+        
+        for (let i = 0; i < dados.procedimentos.length; i += BATCH_SIZE) {
+          const batch = dados.procedimentos.slice(i, i + BATCH_SIZE);
+
+          try {
+            const result = await processarProcedimentosMutation.mutateAsync({
+              importacaoId: id,
+              dados: batch,
+            });
+
+            totalInseridos += result.inseridos;
+            totalErros += result.erros;
+          } catch (error: any) {
+            console.error(`Erro no lote de procedimentos:`, error);
+            totalErros += batch.length;
+          }
+
+          processadosTotal = Math.min(i + BATCH_SIZE, dados.procedimentos.length);
+          const progress = Math.round((processadosTotal / totalRegistros) * 100);
+          setProcessingProgress(progress);
+          setProcessingStats({
+            total: totalRegistros,
+            processados: processadosTotal,
+            inseridos: totalInseridos,
+            ignorados: totalIgnorados,
+            erros: totalErros,
+          });
+
+          if (i + BATCH_SIZE < dados.procedimentos.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        offsetDados = dados.procedimentos.length;
+      }
+
+      // ========== FORMATO NOVO: PROCESSA MAT/MED ==========
+      if (dados.formatoNovo && dados.matMed.length > 0) {
+        toast.info(`Processando ${dados.matMed.length.toLocaleString()} materiais/medicamentos...`);
+        
+        for (let i = 0; i < dados.matMed.length; i += BATCH_SIZE) {
+          const batch = dados.matMed.slice(i, i + BATCH_SIZE);
+
+          try {
+            const result = await processarMatMedMutation.mutateAsync({
+              importacaoId: id,
+              dados: batch,
+            });
+
+            totalInseridos += result.inseridos;
+            totalErros += result.erros;
+          } catch (error: any) {
+            console.error(`Erro no lote de mat/med:`, error);
+            totalErros += batch.length;
+          }
+
+          processadosTotal = offsetDados + Math.min(i + BATCH_SIZE, dados.matMed.length);
+          const progress = Math.round((processadosTotal / totalRegistros) * 100);
+          setProcessingProgress(progress);
+          setProcessingStats({
+            total: totalRegistros,
+            processados: processadosTotal,
+            inseridos: totalInseridos,
+            ignorados: totalIgnorados,
+            erros: totalErros,
+          });
+
+          if (i + BATCH_SIZE < dados.matMed.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        offsetDados += dados.matMed.length;
+      }
+
+      // ========== FORMATO ANTIGO: PROCESSA FATURAMENTO ==========
+      if (!dados.formatoNovo && dados.faturamento.length > 0) {
         toast.info(`Processando ${dados.faturamento.length.toLocaleString()} registros de faturamento...`);
         
         for (let i = 0; i < dados.faturamento.length; i += BATCH_SIZE) {
@@ -476,6 +728,7 @@ export default function ImportacaoTasy() {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         }
+        offsetDados = dados.faturamento.length;
       }
 
       // ========== PROCESSA CONTAS PAGAS ==========
@@ -498,7 +751,7 @@ export default function ImportacaoTasy() {
             totalErros += batch.length;
           }
 
-          processadosTotal = dados.faturamento.length + Math.min(i + BATCH_SIZE, dados.contasPagas.length);
+          processadosTotal = offsetDados + Math.min(i + BATCH_SIZE, dados.contasPagas.length);
           const progress = Math.round((processadosTotal / totalRegistros) * 100);
           setProcessingProgress(progress);
           setProcessingStats({
@@ -514,6 +767,7 @@ export default function ImportacaoTasy() {
           }
         }
       }
+      const offsetContasPagas = offsetDados + dados.contasPagas.length;
 
       // ========== PROCESSA ITENS PAGOS ==========
       if (dados.itensPagos.length > 0) {
@@ -535,7 +789,7 @@ export default function ImportacaoTasy() {
             totalErros += batch.length;
           }
 
-          processadosTotal = dados.faturamento.length + dados.contasPagas.length + Math.min(i + BATCH_SIZE, dados.itensPagos.length);
+          processadosTotal = offsetContasPagas + Math.min(i + BATCH_SIZE, dados.itensPagos.length);
           const progress = Math.round((processadosTotal / totalRegistros) * 100);
           setProcessingProgress(progress);
           setProcessingStats({
@@ -549,6 +803,22 @@ export default function ImportacaoTasy() {
           if (i + BATCH_SIZE < dados.itensPagos.length) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
+        }
+      }
+
+      // ========== FORMATO NOVO: GERA TABELA CONTAS_TASY UNIFICADA ==========
+      if (dados.formatoNovo && (dados.procedimentos.length > 0 || dados.matMed.length > 0)) {
+        toast.info("Gerando tabela de contas unificadas...");
+        try {
+          const resultUnificado = await gerarContasUnificadasMutation.mutateAsync({
+            importacaoId: id,
+          });
+          toast.success(`Contas unificadas: ${resultUnificado.contasCriadas} contas, ${resultUnificado.itensCriados} itens`);
+        } catch (error: any) {
+          console.error("Erro ao gerar contas unificadas:", error);
+          toast.error("Erro ao gerar contas unificadas", {
+            description: error.message || "Não foi possível criar a tabela unificada",
+          });
         }
       }
 
@@ -777,10 +1047,24 @@ export default function ImportacaoTasy() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-amber-800">
-                        {(pendingImportacao.dados.faturamento.length + pendingImportacao.dados.contasPagas.length + pendingImportacao.dados.itensPagos.length).toLocaleString()} registros prontos para importação
+                        {(() => {
+                          const d = pendingImportacao.dados;
+                          const totalDados = d.formatoNovo 
+                            ? d.procedimentos.length + d.matMed.length 
+                            : d.faturamento.length;
+                          return (totalDados + d.contasPagas.length + d.itensPagos.length).toLocaleString();
+                        })()} registros prontos para importação
+                        {pendingImportacao.dados.formatoNovo && <Badge className="ml-2 bg-blue-100 text-blue-700">Formato Novo</Badge>}
                       </p>
                       <p className="text-sm text-amber-700">
-                        {pendingImportacao.dados.faturamento.length > 0 && `${pendingImportacao.dados.faturamento.length.toLocaleString()} faturamento`}
+                        {pendingImportacao.dados.formatoNovo ? (
+                          <>
+                            {pendingImportacao.dados.procedimentos.length > 0 && `${pendingImportacao.dados.procedimentos.length.toLocaleString()} procedimentos`}
+                            {pendingImportacao.dados.matMed.length > 0 && ` • ${pendingImportacao.dados.matMed.length.toLocaleString()} mat/med`}
+                          </>
+                        ) : (
+                          <>{pendingImportacao.dados.faturamento.length > 0 && `${pendingImportacao.dados.faturamento.length.toLocaleString()} faturamento`}</>
+                        )}
                         {pendingImportacao.dados.contasPagas.length > 0 && ` • ${pendingImportacao.dados.contasPagas.length.toLocaleString()} contas pagas`}
                         {pendingImportacao.dados.itensPagos.length > 0 && ` • ${pendingImportacao.dados.itensPagos.length.toLocaleString()} itens pagos`}
                       </p>
