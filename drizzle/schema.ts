@@ -102,6 +102,8 @@ export const procedimentos = mysqlTable("procedimentos", {
   senha: varchar("senha", { length: 100 }), // Senha da autorização
   nomeMedico: varchar("nomeMedico", { length: 255 }),
   crmMedico: varchar("crmMedico", { length: 50 }),
+  // Código do prestador executante (CNPJ ou código na operadora)
+  codigoPrestadorExecutante: varchar("codigoPrestadorExecutante", { length: 50 }),
   // Código de despesa ANS (define o tipo do item)
   codigoDespesa: varchar("codigoDespesa", { length: 10 }),
   // Tipo de despesa derivado do codigoDespesa (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa, outros=procedimento)

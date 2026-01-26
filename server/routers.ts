@@ -1076,6 +1076,7 @@ export const appRouter = router({
             search: z.string().optional(),
             nomeMedico: z.string().optional(),
             crmMedico: z.string().optional(),
+            codigoPrestadorExecutante: z.string().optional(),
             statusGlosa: z.enum(["todos", "pago", "glosado", "parcial"]).optional(),
             apenasRetornados: z.boolean().optional(),
             mesReferencia: z.number().min(1).max(12).optional(),
@@ -1093,12 +1094,26 @@ export const appRouter = router({
           search: input?.search,
           nomeMedico: input?.nomeMedico,
           crmMedico: input?.crmMedico,
+          codigoPrestadorExecutante: input?.codigoPrestadorExecutante,
           statusGlosa: input?.statusGlosa,
           apenasRetornados: input?.apenasRetornados,
           mesReferencia: input?.mesReferencia,
           anoReferencia: input?.anoReferencia,
           page: input?.page || 1,
           pageSize: input?.pageSize || 20,
+        });
+      }),
+
+    // Listar prestadores executantes únicos para filtro
+    listarPrestadoresExecutantes: protectedProcedure
+      .input(z.object({ 
+        estabelecimentoId: z.number().optional(),
+        convenioId: z.number().optional()
+      }).optional())
+      .query(async ({ input }) => {
+        return db.listarPrestadoresExecutantes({
+          estabelecimentoId: input?.estabelecimentoId,
+          convenioId: input?.convenioId
         });
       }),
   }),

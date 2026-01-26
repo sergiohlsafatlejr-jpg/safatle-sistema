@@ -636,6 +636,7 @@ export async function getProcedimentosPaginated(filters?: {
   search?: string;
   nomeMedico?: string;
   crmMedico?: string;
+  codigoPrestadorExecutante?: string;
   statusGlosa?: string;
   page?: number;
   pageSize?: number;
@@ -676,6 +677,11 @@ export async function getProcedimentosPaginated(filters?: {
 
   if (filters?.crmMedico) {
     conditions.push(like(procedimentos.crmMedico, `%${filters.crmMedico}%`));
+  }
+
+  // Add codigoPrestadorExecutante filter
+  if (filters?.codigoPrestadorExecutante) {
+    conditions.push(eq(procedimentos.codigoPrestadorExecutante, filters.codigoPrestadorExecutante));
   }
 
   // Add convenioId filter
@@ -14237,4 +14243,48 @@ export async function getEvolucaoConciliacoes(
     .limit(meses);
 
   return resultados;
+}
+
+
+/**
+ * Lista prestadores executantes únicos para filtro
+ */
+export async function listarPrestadoresExecutantes(filters?: {
+  estabelecimentoId?: number;
+  convenioId?: number;
+}): Promise<{ codigo: string; quantidade: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [];
+
+  // Filtrar apenas procedimentos com codigoPrestadorExecutante preenchido
+  conditions.push(isNotNull(procedimentos.codigoPrestadorExecutante));
+  conditions.push(sql`${procedimentos.codigoPrestadorExecutante} != ''`);
+
+  // Filtrar por estabelecimento se informado
+  if (filters?.estabelecimentoId) {
+    conditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+  }
+
+  // Filtrar por convênio se informado
+  if (filters?.convenioId) {
+    conditions.push(eq(arquivos.convenioId, filters.convenioId));
+  }
+
+  const result = await db
+    .select({
+      codigo: procedimentos.codigoPrestadorExecutante,
+      quantidade: sql<number>`COUNT(*)`,
+    })
+    .from(procedimentos)
+    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .where(and(...conditions))
+    .groupBy(procedimentos.codigoPrestadorExecutante)
+    .orderBy(desc(sql`COUNT(*)`));
+
+  return result.map(r => ({
+    codigo: r.codigo || '',
+    quantidade: Number(r.quantidade) || 0
+  }));
 }

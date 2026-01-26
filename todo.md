@@ -860,3 +860,8 @@
 - [ ] Testar recálculo automático do valor recebido total
 
 - [x] Corrigir recálculo automático do valor total recebido do lote após edição inline de itens de recurso de glosa
+
+- [x] Implementar separação de prestadores executantes na importação de XML usando campo codigoPrestadorNaOperadora
+- [x] Adicionar campo codigoPrestadorExecutante no schema de procedimentos
+- [x] Atualizar parser XML para extrair codigoPrestadorNaOperadora de cada guia
+- [x] Criar filtro por prestador executante nas telas de visualização

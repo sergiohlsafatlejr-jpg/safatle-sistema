@@ -55,12 +55,22 @@ export default function Contas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [mesReferencia, setMesReferencia] = useState<string>("");
   const [anoReferencia, setAnoReferencia] = useState<string>("");
+  const [prestadorExecutante, setPrestadorExecutante] = useState<string>("");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
   const pageSize = 50;
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
+
+  // Buscar prestadores executantes únicos para o filtro
+  const { data: prestadoresExecutantes } = trpc.procedimentos.listarPrestadoresExecutantes.useQuery(
+    { 
+      estabelecimentoId: estabelecimentoAtual?.id,
+      convenioId: convenioId ? parseInt(convenioId) : undefined
+    },
+    { enabled: !!estabelecimentoAtual }
+  );
 
   // Buscar arquivos do convênio selecionado
   const { data: arquivos } = trpc.arquivos.list.useQuery(
@@ -77,6 +87,7 @@ export default function Contas() {
       search: searchTerm || undefined,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
+      codigoPrestadorExecutante: prestadorExecutante || undefined,
       page: 1,
       pageSize: 10000, // Buscar todos para agrupar
     },
@@ -286,10 +297,10 @@ export default function Contas() {
               <Filter className="h-5 w-5" />
               Filtros
             </CardTitle>
-            <CardDescription>Filtre as contas por convênio, arquivo ou busca</CardDescription>
+            <CardDescription>Filtre as contas por convênio, arquivo, prestador executante ou busca</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Mês Referência</label>
                 <Select value={mesReferencia} onValueChange={(value) => {
@@ -371,6 +382,26 @@ export default function Contas() {
                     {arquivos?.map((a: any) => (
                       <SelectItem key={a.id} value={String(a.id)}>
                         {a.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prestador Executante</label>
+                <Select value={prestadorExecutante} onValueChange={(value) => {
+                  setPrestadorExecutante(value === "all" ? "" : value);
+                  setPage(1);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os prestadores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os prestadores</SelectItem>
+                    {prestadoresExecutantes?.map((p) => (
+                      <SelectItem key={p.codigo} value={p.codigo}>
+                        {p.codigo} ({p.quantidade} itens)
                       </SelectItem>
                     ))}
                   </SelectContent>

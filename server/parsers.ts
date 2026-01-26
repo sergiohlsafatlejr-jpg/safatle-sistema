@@ -17,6 +17,7 @@ export interface ParsedProcedimento {
   senha?: string; // Senha da autorização
   nomeMedico?: string;
   crmMedico?: string;
+  codigoPrestadorExecutante?: string; // Código do prestador executante (CNPJ ou código na operadora)
   motivoGlosa?: string;
   valorGlosado?: number;
   codigoDespesa?: string; // Código de despesa ANS (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa)
@@ -156,6 +157,7 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
         for (const { guia, sequencialTransacao } of guiasComSequencial) {
           const guiaNumero = extractGuiaNumero(guia);
           const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+          const codigoPrestadorExecutante = extractCodigoPrestadorExecutante(guia);
           
           if (sequencialTransacao) {
             console.log(`[Parser] Guia ${guiaNumero} - Sequencial: ${sequencialTransacao}`);
@@ -168,6 +170,7 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
               ...proc,
               guiaNumero: proc.guiaNumero || guiaNumero,
               pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+              codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
               numeroLote,
               sequencialTransacao,
             });
@@ -180,6 +183,7 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
               ...proc,
               guiaNumero: proc.guiaNumero || guiaNumero,
               pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+              codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
               numeroLote,
               sequencialTransacao,
             });
@@ -569,6 +573,42 @@ function extractPacienteCarteirinha(guia: unknown): string | undefined {
   
   if (beneficiario) {
     return getTextValue(beneficiario["numeroCarteira"]);
+  }
+  
+  return undefined;
+}
+
+/**
+ * Extract código do prestador executante from guia
+ * Path: dadosExecutante -> contratadoExecutante -> codigoPrestadorNaOperadora
+ */
+function extractCodigoPrestadorExecutante(guia: unknown): string | undefined {
+  if (!guia || typeof guia !== "object") return undefined;
+  
+  const record = guia as Record<string, unknown>;
+  
+  // Try dadosExecutante -> contratadoExecutante -> codigoPrestadorNaOperadora
+  const dadosExecutante = record["dadosExecutante"] as Record<string, unknown> | undefined;
+  if (dadosExecutante) {
+    const contratadoExecutante = dadosExecutante["contratadoExecutante"] as Record<string, unknown> | undefined;
+    if (contratadoExecutante) {
+      const codigo = getTextValue(contratadoExecutante["codigoPrestadorNaOperadora"]);
+      if (codigo) return codigo;
+    }
+  }
+  
+  // Try contratadoExecutante directly (some XML structures)
+  const contratadoExecutanteDirect = record["contratadoExecutante"] as Record<string, unknown> | undefined;
+  if (contratadoExecutanteDirect) {
+    const codigo = getTextValue(contratadoExecutanteDirect["codigoPrestadorNaOperadora"]);
+    if (codigo) return codigo;
+  }
+  
+  // Try identificacaoEquipe -> codigoPrestadorNaOperadora (for some formats)
+  const identificacaoEquipe = record["identificacaoEquipe"] as Record<string, unknown> | undefined;
+  if (identificacaoEquipe) {
+    const codigo = getTextValue(identificacaoEquipe["codigoPrestadorNaOperadora"]);
+    if (codigo) return codigo;
   }
   
   return undefined;
@@ -1335,6 +1375,7 @@ export function toProcedimentoInsert(
     senha: parsed.senha,
     nomeMedico: parsed.nomeMedico,
     crmMedico: parsed.crmMedico,
+    codigoPrestadorExecutante: parsed.codigoPrestadorExecutante,
     codigoDespesa: parsed.codigoDespesa,
     tipoDespesa: parsed.tipoDespesa,
     dadosExtras: parsed.dadosExtras,
