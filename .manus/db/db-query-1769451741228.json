@@ -1,0 +1,45 @@
+{
+  "query": "SELECT \n  id,\n  tipoDespesa,\n  JSON_EXTRACT(dadosExtras, '$.tipoLancamento') as tipoLancamento,\n  JSON_EXTRACT(dadosExtras, '$.\"Tipo Lançamento\"') as tipoLancamento2,\n  SUBSTRING(dadosExtras, 1, 500) as dadosExtras_preview\nFROM procedimentos \nWHERE dadosExtras IS NOT NULL AND dadosExtras != ''\nLIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  id,\n  tipoDespesa,\n  JSON_EXTRACT(dadosExtras, '$.tipoLancamento') as tipoLancamento,\n  JSON_EXTRACT(dadosExtras, '$.\"Tipo Lançamento\"') as tipoLancamento2,\n  SUBSTRING(dadosExtras, 1, 500) as dadosExtras_preview\nFROM procedimentos \nWHERE dadosExtras IS NOT NULL AND dadosExtras != ''\nLIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "tipoDespesa": "procedimento",
+      "tipoLancamento": "NULL",
+      "tipoLancamento2": "NULL",
+      "dadosExtras_preview": "{\"dataExecucao\": \"2025-11-11\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\""
+    },
+    {
+      "id": "2",
+      "tipoDespesa": "taxa",
+      "tipoLancamento": "NULL",
+      "tipoLancamento2": "NULL",
+      "dadosExtras_preview": "{\"codigoProcedimento\": \"60036761\", \"codigoTabela\": \"18\", \"dataExecucao\": \"2025-11-11\", \"descricaoProcedimento\": \"TAXA DE ATENDIMENTO SEMI-GLOBAL EM PRONTO SOCORRO\", \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"quantidadeExecutada\": \"1.00\", \"reducaoAcrescimo\": \"1.00\", \"unidadeMedida\": \"036\", \"valorTotal\": \"37.00\", \"valorUnitario\": \"37.00\"}"
+    },
+    {
+      "id": "3",
+      "tipoDespesa": "procedimento",
+      "tipoLancamento": "NULL",
+      "tipoLancamento2": "NULL",
+      "dadosExtras_preview": "{\"dataExecucao\": \"2025-11-26\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"18:37:00\", \"horaInicial\": \"18:22:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\""
+    },
+    {
+      "id": "4",
+      "tipoDespesa": "taxa",
+      "tipoLancamento": "NULL",
+      "tipoLancamento2": "NULL",
+      "dadosExtras_preview": "{\"codigoProcedimento\": \"60036761\", \"codigoTabela\": \"18\", \"dataExecucao\": \"2025-11-26\", \"descricaoProcedimento\": \"TAXA DE ATENDIMENTO SEMI-GLOBAL EM PRONTO SOCORRO\", \"horaFinal\": \"18:37:00\", \"horaInicial\": \"18:22:00\", \"quantidadeExecutada\": \"1.00\", \"reducaoAcrescimo\": \"1.00\", \"unidadeMedida\": \"036\", \"valorTotal\": \"37.00\", \"valorUnitario\": \"37.00\"}"
+    },
+    {
+      "id": "5",
+      "tipoDespesa": "procedimento",
+      "tipoLancamento": "NULL",
+      "tipoLancamento2": "NULL",
+      "dadosExtras_preview": "{\"dataExecucao\": \"2025-11-25\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"13:48:00\", \"horaInicial\": \"13:33:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"Em pronto socorro\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\", \"valorT"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttipoDespesa\ttipoLancamento\ttipoLancamento2\tdadosExtras_preview\n1\tprocedimento\tNULL\tNULL\t{\"dataExecucao\": \"2025-11-11\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\"\n2\ttaxa\tNULL\tNULL\t{\"codigoProcedimento\": \"60036761\", \"codigoTabela\": \"18\", \"dataExecucao\": \"2025-11-11\", \"descricaoProcedimento\": \"TAXA DE ATENDIMENTO SEMI-GLOBAL EM PRONTO SOCORRO\", \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"quantidadeExecutada\": \"1.00\", \"reducaoAcrescimo\": \"1.00\", \"unidadeMedida\": \"036\", \"valorTotal\": \"37.00\", \"valorUnitario\": \"37.00\"}\n3\tprocedimento\tNULL\tNULL\t{\"dataExecucao\": \"2025-11-26\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"18:37:00\", \"horaInicial\": \"18:22:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\"\n4\ttaxa\tNULL\tNULL\t{\"codigoProcedimento\": \"60036761\", \"codigoTabela\": \"18\", \"dataExecucao\": \"2025-11-26\", \"descricaoProcedimento\": \"TAXA DE ATENDIMENTO SEMI-GLOBAL EM PRONTO SOCORRO\", \"horaFinal\": \"18:37:00\", \"horaInicial\": \"18:22:00\", \"quantidadeExecutada\": \"1.00\", \"reducaoAcrescimo\": \"1.00\", \"unidadeMedida\": \"036\", \"valorTotal\": \"37.00\", \"valorUnitario\": \"37.00\"}\n5\tprocedimento\tNULL\tNULL\t{\"dataExecucao\": \"2025-11-25\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"13:48:00\", \"horaInicial\": \"13:33:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"Em pronto socorro\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\", \"valorT\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

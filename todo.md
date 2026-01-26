@@ -892,3 +892,10 @@
 - [x] Remover filtro de prestador que impede visualização de múltiplos convênios
 - [x] Corrigir tipos no Demonstrativo Unimed usando coluna "tipo lançamento" do arquivo
 - [x] Levar classificação de tipo lançamento para os Relatórios BI
+
+
+## Atualização de Tipos e Relatório Comparativo
+- [x] Criar script para atualizar tipoDespesa dos registros existentes no banco baseado no tipoLancamento do dadosExtras
+- [x] Executar atualização em lote dos registros de procedimentos (demonstrativo e recursos de glosa)
+- [x] Criar relatório comparativo por tipo de lançamento (Medicamento, Material, Diária, Taxa, Gás, Procedimento)
+- [x] Exibir valores faturados, recebidos e glosados agrupados por tipo
