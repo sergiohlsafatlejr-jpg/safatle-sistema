@@ -12306,6 +12306,16 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
 
   const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento, codigoPrestadorExecutante } = filtros;
 
+  // Buscar prestadores vinculados ao estabelecimento para filtrar automaticamente
+  let prestadoresVinculados: string[] = [];
+  if (estabelecimentoId && estabelecimentoId > 0) {
+    const prestadoresCadastrados = await db
+      .select({ codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador })
+      .from(convenioEstabelecimentoPrestador)
+      .where(eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentoId));
+    prestadoresVinculados = prestadoresCadastrados.map(p => p.codigoPrestador);
+  }
+
   // Condições base para arquivos
   const arquivosConditions: any[] = [
     eq(arquivos.status, "processado"),
@@ -12378,6 +12388,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
 
   // Aplicar filtros adicionais
   const filtrarProcedimento = (proc: any) => {
+    // Filtrar automaticamente por prestadores vinculados ao estabelecimento
+    if (prestadoresVinculados.length > 0 && proc.codigoPrestadorExecutante) {
+      if (!prestadoresVinculados.includes(proc.codigoPrestadorExecutante)) return false;
+    }
+    
     if (tipo && tipo !== "todos") {
       const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
       if (tipoProcedimento !== tipo) return false;

@@ -899,3 +899,10 @@
 - [x] Executar atualização em lote dos registros de procedimentos (demonstrativo e recursos de glosa)
 - [x] Criar relatório comparativo por tipo de lançamento (Medicamento, Material, Diária, Taxa, Gás, Procedimento)
 - [x] Exibir valores faturados, recebidos e glosados agrupados por tipo
+
+
+## Correções Relatório BI - Filtro Prestador e Descrição Itens
+- [x] Implementar filtro automático por prestador vinculado ao estabelecimento selecionado
+- [x] Trazer apenas dados do convênio + estabelecimento + prestador cadastrado
+- [x] Adicionar descrição dos itens pagos e glosados vindos do demonstrativo
+- [x] Corrigir valores faturados para refletir apenas o prestador correto
