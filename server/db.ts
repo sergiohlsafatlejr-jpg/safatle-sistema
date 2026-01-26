@@ -14250,11 +14250,12 @@ export async function getEvolucaoConciliacoes(
 
 /**
  * Lista prestadores executantes únicos para filtro
+ * Inclui informações do estabelecimento vinculado quando disponível
  */
 export async function listarPrestadoresExecutantes(filters?: {
   estabelecimentoId?: number;
   convenioId?: number;
-}): Promise<{ codigo: string; quantidade: number }[]> {
+}): Promise<{ codigo: string; quantidade: number; estabelecimentoVinculado?: string; estabelecimentoVinculadoId?: number }[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -14285,10 +14286,20 @@ export async function listarPrestadoresExecutantes(filters?: {
     .groupBy(procedimentos.codigoPrestadorExecutante)
     .orderBy(desc(sql`COUNT(*)`));
 
-  return result.map(r => ({
-    codigo: r.codigo || '',
-    quantidade: Number(r.quantidade) || 0
-  }));
+  // Buscar informações de estabelecimento vinculado para cada prestador
+  const prestadoresComInfo = await Promise.all(
+    result.map(async (r) => {
+      const prestadorCadastrado = await getPrestadorPorCodigo(r.codigo || '', filters?.convenioId);
+      return {
+        codigo: r.codigo || '',
+        quantidade: Number(r.quantidade) || 0,
+        estabelecimentoVinculado: prestadorCadastrado?.estabelecimentoNome,
+        estabelecimentoVinculadoId: prestadorCadastrado?.estabelecimentoId,
+      };
+    })
+  );
+
+  return prestadoresComInfo;
 }
 
 

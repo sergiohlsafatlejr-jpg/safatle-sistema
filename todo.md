@@ -876,3 +876,8 @@
 - [x] Buscar estabelecimento automaticamente pelo código do prestador cadastrado
 - [x] Atualizar interface de upload para sugerir estabelecimento baseado no prestador do XML
 - [x] Alertar quando código do prestador não estiver cadastrado no sistema
+
+- [x] Implementar separação automática de itens por prestador na importação de XML
+- [x] Associar cada grupo de procedimentos ao estabelecimento correto baseado no código do prestador
+- [x] Filtrar dados na tela de Contas para exibir apenas itens do prestador vinculado ao estabelecimento
+- [x] Exibir indicador visual quando um arquivo contém múltiplos prestadores

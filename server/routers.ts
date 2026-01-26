@@ -563,6 +563,62 @@ export const appRouter = router({
             });
             
             if (parseResult.success && parseResult.procedimentos.length > 0) {
+              // Agrupar procedimentos por código de prestador executante
+              const procedimentosPorPrestador: Record<string, typeof parseResult.procedimentos> = {};
+              
+              for (const proc of parseResult.procedimentos) {
+                const codigoPrestador = proc.codigoPrestadorExecutante || 'SEM_PRESTADOR';
+                if (!procedimentosPorPrestador[codigoPrestador]) {
+                  procedimentosPorPrestador[codigoPrestador] = [];
+                }
+                procedimentosPorPrestador[codigoPrestador].push(proc);
+              }
+              
+              const prestadoresKeys = Object.keys(procedimentosPorPrestador);
+              console.log('[Upload] Prestadores encontrados:', prestadoresKeys);
+              console.log('[Upload] Distribuição por prestador:', 
+                prestadoresKeys.map(k => `${k}: ${procedimentosPorPrestador[k].length} itens`)
+              );
+              
+              // Verificar se há múltiplos prestadores e buscar estabelecimentos associados
+              const prestadoresComEstabelecimento: Array<{
+                codigoPrestador: string;
+                estabelecimentoId: number;
+                procedimentos: typeof parseResult.procedimentos;
+              }> = [];
+              
+              for (const codigoPrestador of prestadoresKeys) {
+                const procs = procedimentosPorPrestador[codigoPrestador];
+                if (codigoPrestador === 'SEM_PRESTADOR') {
+                  // Procedimentos sem prestador vão para o estabelecimento do arquivo
+                  prestadoresComEstabelecimento.push({
+                    codigoPrestador,
+                    estabelecimentoId: input.estabelecimentoId,
+                    procedimentos: procs,
+                  });
+                } else {
+                  // Buscar estabelecimento associado ao prestador
+                  const prestadorCadastrado = await db.getPrestadorPorCodigo(codigoPrestador, input.convenioId);
+                  if (prestadorCadastrado) {
+                    prestadoresComEstabelecimento.push({
+                      codigoPrestador,
+                      estabelecimentoId: prestadorCadastrado.estabelecimentoId,
+                      procedimentos: procs,
+                    });
+                    console.log(`[Upload] Prestador ${codigoPrestador} associado ao estabelecimento ${prestadorCadastrado.estabelecimentoNome}`);
+                  } else {
+                    // Prestador não cadastrado - usar estabelecimento do arquivo
+                    prestadoresComEstabelecimento.push({
+                      codigoPrestador,
+                      estabelecimentoId: input.estabelecimentoId,
+                      procedimentos: procs,
+                    });
+                    console.log(`[Upload] Prestador ${codigoPrestador} não cadastrado - usando estabelecimento do arquivo`);
+                  }
+                }
+              }
+              
+              // Converter todos os procedimentos para inserção
               const procedimentosToInsert = parseResult.procedimentos.map((p) =>
                 toProcedimentoInsert(p, arquivoId)
               );
@@ -589,6 +645,12 @@ export const appRouter = router({
                   await db.updateArquivoProgresso(arquivoId, progresso, itensProcessados, totalItens);
                 }
               );
+              
+              // Salvar informações sobre prestadores encontrados no arquivo
+              // Isso permite filtrar na tela de Contas
+              if (prestadoresComEstabelecimento.length > 1) {
+                console.log(`[Upload] Arquivo contém ${prestadoresComEstabelecimento.length} prestadores diferentes`);
+              }
               
               await db.updateArquivoStatus(arquivoId, "processado");
               await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);

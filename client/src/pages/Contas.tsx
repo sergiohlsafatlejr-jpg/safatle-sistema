@@ -72,6 +72,19 @@ export default function Contas() {
     { enabled: !!estabelecimentoAtual }
   );
 
+  // Buscar prestador vinculado ao estabelecimento atual (para filtro automático)
+  const { data: prestadorVinculado } = trpc.convenios.getPrestador.useQuery(
+    { 
+      convenioId: convenioId ? parseInt(convenioId) : 0,
+      estabelecimentoId: estabelecimentoAtual?.id || 0
+    },
+    { enabled: !!estabelecimentoAtual && !!convenioId }
+  );
+
+  // Determinar o código do prestador a ser usado no filtro
+  // Se o usuário selecionou manualmente, usar esse; senão, usar o vinculado ao estabelecimento
+  const codigoPrestadorFiltro = prestadorExecutante || prestadorVinculado?.codigoPrestador || undefined;
+
   // Buscar arquivos do convênio selecionado
   const { data: arquivos } = trpc.arquivos.list.useQuery(
     { convenioId: convenioId ? parseInt(convenioId) : undefined },
@@ -87,7 +100,7 @@ export default function Contas() {
       search: searchTerm || undefined,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
-      codigoPrestadorExecutante: prestadorExecutante || undefined,
+      codigoPrestadorExecutante: codigoPrestadorFiltro,
       page: 1,
       pageSize: 10000, // Buscar todos para agrupar
     },
