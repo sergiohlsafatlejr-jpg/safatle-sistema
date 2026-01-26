@@ -1139,7 +1139,8 @@ export async function getFaturamentoPorConvenio(
   userId?: number, 
   estabelecimentoId?: number,
   mesReferencia?: number,
-  anoReferencia?: number
+  anoReferencia?: number,
+  codigoPrestadorExecutante?: string
 ): Promise<FaturamentoConvenio[]> {
   const db = await getDb();
   if (!db) return [];
@@ -1221,13 +1222,17 @@ export async function getFaturamentoPorConvenio(
     let quantidadeProcedimentosEnviados = 0;
 
     for (const arq of arquivosEnviados) {
+      const procConditions: any[] = [eq(procedimentos.arquivoId, arq.id)];
+      if (codigoPrestadorExecutante) {
+        procConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+      }
       const procs = await db
         .select({
           valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
           count: sql<number>`count(*)`
         })
         .from(procedimentos)
-        .where(eq(procedimentos.arquivoId, arq.id));
+        .where(and(...procConditions));
 
       totalEnviado += parseFloat(String(procs[0]?.valorTotal || 0));
       quantidadeProcedimentosEnviados += parseInt(String(procs[0]?.count || 0));
@@ -1239,6 +1244,10 @@ export async function getFaturamentoPorConvenio(
     let quantidadeProcedimentosRetornados = 0;
 
     for (const arq of arquivosRetornados) {
+      const procConditionsRet: any[] = [eq(procedimentos.arquivoId, arq.id)];
+      if (codigoPrestadorExecutante) {
+        procConditionsRet.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+      }
       const procs = await db
         .select({
           valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
@@ -1246,7 +1255,7 @@ export async function getFaturamentoPorConvenio(
           count: sql<number>`count(*)`
         })
         .from(procedimentos)
-        .where(eq(procedimentos.arquivoId, arq.id));
+        .where(and(...procConditionsRet));
 
       totalRetornado += parseFloat(String(procs[0]?.valorTotal || 0));
       totalGlosado += parseFloat(String(procs[0]?.valorGlosado || 0));
@@ -1282,7 +1291,8 @@ export async function getFaturamentoPorMes(
   convenioId?: number,
   meses: number = 12,
   estabelecimentoId?: number,
-  anoReferencia?: number
+  anoReferencia?: number,
+  codigoPrestadorExecutante?: string
 ): Promise<FaturamentoPorMes[]> {
   const db = await getDb();
   if (!db) return [];
@@ -1323,10 +1333,14 @@ export async function getFaturamentoPorMes(
 
     let totalEnviado = 0;
     for (const arq of arquivosMes) {
+      const procConditions: any[] = [eq(procedimentos.arquivoId, arq.id)];
+      if (codigoPrestadorExecutante) {
+        procConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+      }
       const procs = await db
         .select()
         .from(procedimentos)
-        .where(eq(procedimentos.arquivoId, arq.id));
+        .where(and(...procConditions));
 
       for (const proc of procs) {
         totalEnviado += parseFloat(proc.valorTotal || "0");
@@ -1380,7 +1394,8 @@ export async function getResumoGeral(
   userId?: number, 
   estabelecimentoId?: number,
   mesReferencia?: number,
-  anoReferencia?: number
+  anoReferencia?: number,
+  codigoPrestadorExecutante?: string
 ) {
   const db = await getDb();
   if (!db) return null;
@@ -1435,13 +1450,17 @@ export async function getResumoGeral(
 
   if (arquivosEnviados.length > 0) {
     const enviadosIds = arquivosEnviados.map(a => a.id);
+    const procEnviadosConditions: any[] = [inArray(procedimentos.arquivoId, enviadosIds)];
+    if (codigoPrestadorExecutante) {
+      procEnviadosConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+    }
     const procEnviadosStats = await db
       .select({ 
         count: sql<number>`count(*)`,
         valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
       })
       .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, enviadosIds));
+      .where(and(...procEnviadosConditions));
     
     valorTotalEnviado = Number(procEnviadosStats[0]?.valorTotal) || 0;
     totalProcedimentosEnviados = Number(procEnviadosStats[0]?.count) || 0;
@@ -1467,13 +1486,17 @@ export async function getResumoGeral(
 
   if (arquivosRetornados.length > 0) {
     const retornadosIds = arquivosRetornados.map(a => a.id);
+    const procRetornadosConditions: any[] = [inArray(procedimentos.arquivoId, retornadosIds)];
+    if (codigoPrestadorExecutante) {
+      procRetornadosConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+    }
     const procRetornadosStats = await db
       .select({ 
         count: sql<number>`count(*)`,
         valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
       })
       .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, retornadosIds));
+      .where(and(...procRetornadosConditions));
     
     valorTotalRetornado = Number(procRetornadosStats[0]?.valorTotal) || 0;
     totalProcedimentosRetornados = Number(procRetornadosStats[0]?.count) || 0;
@@ -12233,6 +12256,7 @@ export interface DadosBIFiltros {
   setor?: string;
   paciente?: string;
   procedimento?: string;
+  codigoPrestadorExecutante?: string;
 }
 
 export interface DadosBIResumo {
@@ -12280,7 +12304,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
 
-  const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento } = filtros;
+  const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento, codigoPrestadorExecutante } = filtros;
 
   // Condições base para arquivos
   const arquivosConditions: any[] = [
@@ -12360,6 +12384,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
     if (paciente && paciente !== "todos" && proc.pacienteNome !== paciente) return false;
     if (procedimento && procedimento !== "todos" && proc.codigo !== procedimento) return false;
+    if (codigoPrestadorExecutante && proc.codigoPrestadorExecutante !== codigoPrestadorExecutante) return false;
     return true;
   };
 

@@ -1339,13 +1339,15 @@ export const appRouter = router({
         estabelecimentoId: z.number().optional(),
         mesReferencia: z.number().optional(),
         anoReferencia: z.number().optional(),
+        codigoPrestadorExecutante: z.string().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
         return db.getFaturamentoPorConvenio(
           ctx.user.id, 
           input?.estabelecimentoId,
           input?.mesReferencia,
-          input?.anoReferencia
+          input?.anoReferencia,
+          input?.codigoPrestadorExecutante
         );
       }),
 
@@ -1356,6 +1358,7 @@ export const appRouter = router({
           meses: z.number().default(12),
           estabelecimentoId: z.number().optional(),
           anoReferencia: z.number().optional(),
+          codigoPrestadorExecutante: z.string().optional(),
         }).optional()
       )
       .query(async ({ input, ctx }) => {
@@ -1364,7 +1367,8 @@ export const appRouter = router({
           input?.convenioId,
           input?.meses || 12,
           input?.estabelecimentoId,
-          input?.anoReferencia
+          input?.anoReferencia,
+          input?.codigoPrestadorExecutante
         );
       }),
 
@@ -1373,13 +1377,15 @@ export const appRouter = router({
         estabelecimentoId: z.number().optional(),
         mesReferencia: z.number().optional(),
         anoReferencia: z.number().optional(),
+        codigoPrestadorExecutante: z.string().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
         return db.getResumoGeral(
           ctx.user.id, 
           input?.estabelecimentoId,
           input?.mesReferencia,
-          input?.anoReferencia
+          input?.anoReferencia,
+          input?.codigoPrestadorExecutante
         );
       }),
   }),
@@ -5128,6 +5134,7 @@ export const appRouter = router({
         setor: z.string().optional(),
         paciente: z.string().optional(),
         procedimento: z.string().optional(),
+        codigoPrestadorExecutante: z.string().optional(),
       }))
       .query(async ({ input }) => {
         return db.getDadosBI(input);

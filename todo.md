@@ -881,3 +881,7 @@
 - [x] Associar cada grupo de procedimentos ao estabelecimento correto baseado no código do prestador
 - [x] Filtrar dados na tela de Contas para exibir apenas itens do prestador vinculado ao estabelecimento
 - [x] Exibir indicador visual quando um arquivo contém múltiplos prestadores
+
+- [x] Adicionar filtro de prestador executante na tela de Faturamento
+- [x] Adicionar filtro de prestador executante na tela de Relatórios BI
+- [x] Permitir seleção de prestador para visualizar dados específicos
