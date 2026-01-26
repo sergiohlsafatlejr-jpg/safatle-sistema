@@ -906,3 +906,8 @@
 - [x] Trazer apenas dados do convênio + estabelecimento + prestador cadastrado
 - [x] Adicionar descrição dos itens pagos e glosados vindos do demonstrativo
 - [x] Corrigir valores faturados para refletir apenas o prestador correto
+
+
+## Correção Relatório BI - Valores em Branco
+- [x] Corrigir valores pagos e recursados que aparecem em branco na dimensão Descrição do Item
+- [x] Garantir que os dados do demonstrativo sejam corretamente agrupados por descrição

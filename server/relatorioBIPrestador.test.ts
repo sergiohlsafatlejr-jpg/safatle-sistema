@@ -66,12 +66,11 @@ describe('Filtro de Prestador Vinculado ao Estabelecimento', () => {
 });
 
 describe('Agrupamento por Descrição do Item', () => {
-  // Simula a lógica de agrupamento por descrição
-  const agruparPorDescricao = (procedimentos: Array<{
-    descricao?: string;
-    valorTotal?: string;
-    valorGlosado?: string;
-  }>) => {
+  // Simula a lógica de agrupamento por descrição (combina enviados e retornados)
+  const agruparPorDescricao = (
+    procedimentosEnviados: Array<{ descricao?: string; valorTotal?: string; }>,
+    procedimentosRetornados: Array<{ descricao?: string; valorTotal?: string; valorGlosado?: string; }>
+  ) => {
     const mapa = new Map<string, {
       chave: string;
       valorFaturado: number;
@@ -80,7 +79,8 @@ describe('Agrupamento por Descrição do Item', () => {
       registros: number;
     }>();
 
-    for (const proc of procedimentos) {
+    // Primeiro, adicionar dados dos enviados (faturados)
+    for (const proc of procedimentosEnviados) {
       const chave = proc.descricao || 'Sem Descrição';
       if (!mapa.has(chave)) {
         mapa.set(chave, {
@@ -93,51 +93,98 @@ describe('Agrupamento por Descrição do Item', () => {
       }
       const item = mapa.get(chave)!;
       item.valorFaturado += parseFloat(proc.valorTotal || '0');
-      item.valorGlosado += parseFloat(proc.valorGlosado || '0');
-      item.valorRecebido += parseFloat(proc.valorTotal || '0') - parseFloat(proc.valorGlosado || '0');
       item.registros++;
+    }
+
+    // Depois, adicionar dados dos retornados (demonstrativo)
+    for (const proc of procedimentosRetornados) {
+      const chave = proc.descricao || 'Sem Descrição';
+      if (!mapa.has(chave)) {
+        // Criar novo item para descrições que só existem no demonstrativo
+        mapa.set(chave, {
+          chave,
+          valorFaturado: 0,
+          valorRecebido: 0,
+          valorGlosado: 0,
+          registros: 0,
+        });
+      }
+      const item = mapa.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || '0');
+      const valorGlosado = parseFloat(proc.valorGlosado || '0');
+      // Se não tem valor faturado, usar o valor total do demonstrativo
+      if (item.valorFaturado === 0) {
+        item.valorFaturado = valorTotal;
+      }
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+      if (item.registros === 0) {
+        item.registros++;
+      }
     }
 
     return Array.from(mapa.values());
   };
 
-  it('deve agrupar procedimentos por descrição corretamente', () => {
-    const procedimentos = [
-      { descricao: 'Medicamento A', valorTotal: '100.00', valorGlosado: '10.00' },
-      { descricao: 'Medicamento A', valorTotal: '50.00', valorGlosado: '5.00' },
-      { descricao: 'Material B', valorTotal: '200.00', valorGlosado: '0.00' },
+  it('deve agrupar procedimentos por descrição corretamente quando há dados enviados e retornados', () => {
+    const enviados = [
+      { descricao: 'Medicamento A', valorTotal: '100.00' },
+      { descricao: 'Medicamento A', valorTotal: '50.00' },
+    ];
+    const retornados = [
+      { descricao: 'Medicamento A', valorTotal: '150.00', valorGlosado: '15.00' },
     ];
 
-    const agrupados = agruparPorDescricao(procedimentos);
+    const agrupados = agruparPorDescricao(enviados, retornados);
     
-    expect(agrupados.length).toBe(2);
+    expect(agrupados.length).toBe(1);
     
     const medA = agrupados.find(a => a.chave === 'Medicamento A');
     expect(medA).toBeDefined();
-    expect(medA?.valorFaturado).toBe(150);
+    expect(medA?.valorFaturado).toBe(150); // Soma dos enviados
     expect(medA?.valorGlosado).toBe(15);
-    expect(medA?.valorRecebido).toBe(135);
+    expect(medA?.valorRecebido).toBe(135); // 150 - 15
     expect(medA?.registros).toBe(2);
+  });
+
+  it('deve criar itens para descrições que só existem no demonstrativo', () => {
+    const enviados: Array<{ descricao?: string; valorTotal?: string; }> = [];
+    const retornados = [
+      { descricao: 'Material B', valorTotal: '200.00', valorGlosado: '20.00' },
+      { descricao: 'Material C', valorTotal: '100.00', valorGlosado: '0.00' },
+    ];
+
+    const agrupados = agruparPorDescricao(enviados, retornados);
+    
+    expect(agrupados.length).toBe(2);
     
     const matB = agrupados.find(a => a.chave === 'Material B');
     expect(matB).toBeDefined();
-    expect(matB?.valorFaturado).toBe(200);
-    expect(matB?.valorGlosado).toBe(0);
-    expect(matB?.valorRecebido).toBe(200);
-    expect(matB?.registros).toBe(1);
+    expect(matB?.valorFaturado).toBe(200); // Usa valor do demonstrativo como referência
+    expect(matB?.valorGlosado).toBe(20);
+    expect(matB?.valorRecebido).toBe(180);
+    
+    const matC = agrupados.find(a => a.chave === 'Material C');
+    expect(matC).toBeDefined();
+    expect(matC?.valorFaturado).toBe(100);
+    expect(matC?.valorGlosado).toBe(0);
+    expect(matC?.valorRecebido).toBe(100);
   });
 
   it('deve tratar procedimentos sem descrição', () => {
-    const procedimentos = [
-      { descricao: undefined, valorTotal: '100.00', valorGlosado: '0.00' },
-      { descricao: '', valorTotal: '50.00', valorGlosado: '0.00' },
+    const enviados = [
+      { descricao: undefined, valorTotal: '100.00' },
+    ];
+    const retornados = [
+      { descricao: '', valorTotal: '100.00', valorGlosado: '0.00' },
     ];
 
-    const agrupados = agruparPorDescricao(procedimentos);
+    const agrupados = agruparPorDescricao(enviados, retornados);
     
     // Ambos devem ir para "Sem Descrição"
     expect(agrupados.length).toBe(1);
     expect(agrupados[0].chave).toBe('Sem Descrição');
-    expect(agrupados[0].valorFaturado).toBe(150);
+    expect(agrupados[0].valorFaturado).toBe(100);
+    expect(agrupados[0].valorRecebido).toBe(100);
   });
 });

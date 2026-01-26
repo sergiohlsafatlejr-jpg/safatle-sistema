@@ -12569,8 +12569,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
   }
 
-  // Agrupar por descrição do item
+  // Agrupar por descrição do item - combina dados de enviados E retornados
   const porDescricaoMap = new Map<string, DadosBIAgrupado>();
+  
+  // Primeiro, adicionar dados dos arquivos enviados (faturados)
   for (const proc of procedimentosEnviadosFiltrados) {
     const chave = proc.descricao || 'Sem Descrição';
     if (!porDescricaoMap.has(chave)) {
@@ -12581,18 +12583,32 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     item.quantidade += parseFloat(String(proc.quantidade || "1"));
     item.registros++;
   }
+  
+  // Depois, adicionar dados dos arquivos retornados (demonstrativo) - criar novos itens se não existirem
   for (const proc of procedimentosRetornadosFiltrados) {
     const chave = proc.descricao || 'Sem Descrição';
-    if (porDescricaoMap.has(chave)) {
-      const item = porDescricaoMap.get(chave)!;
-      const valorTotal = parseFloat(proc.valorTotal || "0");
-      const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      item.valorRecebido += valorTotal - valorGlosado;
-      item.valorGlosado += valorGlosado;
+    if (!porDescricaoMap.has(chave)) {
+      // Criar novo item para descrições que só existem no demonstrativo
+      porDescricaoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porDescricaoMap.get(chave)!;
+    const valorTotal = parseFloat(proc.valorTotal || "0");
+    const valorGlosado = parseFloat(proc.valorGlosado || "0");
+    // Se não tem valor faturado, usar o valor total do demonstrativo como referência
+    if (item.valorFaturado === 0) {
+      item.valorFaturado = valorTotal;
+    }
+    item.valorRecebido += valorTotal - valorGlosado;
+    item.valorGlosado += valorGlosado;
+    // Incrementar registros se este item veio apenas do demonstrativo
+    if (item.registros === 0) {
+      item.quantidade += parseFloat(String(proc.quantidade || "1"));
+      item.registros++;
     }
   }
+  
   for (const item of Array.from(porDescricaoMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+    item.valorPendente = Math.max(0, item.valorFaturado - item.valorRecebido - item.valorGlosado);
   }
 
   // Agrupar por guia
