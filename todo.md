@@ -923,3 +923,5 @@
 
 - [x] Limpar estabelecimentos de teste do banco de dados (manter apenas Pronto Socorro Infantil, Maternidade Ela, Ox Uti)
 - [x] Limpar usuários de teste (manter apenas Sergio e Lorena)
+
+- [x] Recuperar dados do Ox Uti após limpeza (migrar arquivos de IDs antigos 60011 e 390001 para ID 3)
