@@ -865,3 +865,8 @@
 - [x] Adicionar campo codigoPrestadorExecutante no schema de procedimentos
 - [x] Atualizar parser XML para extrair codigoPrestadorNaOperadora de cada guia
 - [x] Criar filtro por prestador executante nas telas de visualização
+
+- [x] Criar tabela de relacionamento convênio-estabelecimento-prestador no banco de dados
+- [x] Adicionar rotas CRUD para cadastro de prestadores por convênio/estabelecimento
+- [x] Criar interface de cadastro de prestadores na tela de Configurações
+- [x] Permitir associar código de prestador único para cada combinação convênio+estabelecimento

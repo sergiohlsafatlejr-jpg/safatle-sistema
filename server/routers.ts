@@ -183,6 +183,53 @@ export const appRouter = router({
         await db.updateConvenio(id, data);
         return { success: true };
       }),
+
+    // Rotas de prestadores por convênio/estabelecimento
+    listarPrestadores: protectedProcedure
+      .input(z.object({ convenioId: z.number() }))
+      .query(async ({ input }) => {
+        return db.listarPrestadoresPorConvenio(input.convenioId);
+      }),
+
+    getPrestador: protectedProcedure
+      .input(z.object({ 
+        convenioId: z.number(),
+        estabelecimentoId: z.number()
+      }))
+      .query(async ({ input }) => {
+        return db.getPrestadorPorConvenioEstabelecimento(input.convenioId, input.estabelecimentoId);
+      }),
+
+    getPrestadorPorCodigo: protectedProcedure
+      .input(z.object({ 
+        codigoPrestador: z.string(),
+        convenioId: z.number().optional()
+      }))
+      .query(async ({ input }) => {
+        return db.getPrestadorPorCodigo(input.codigoPrestador, input.convenioId);
+      }),
+
+    upsertPrestador: protectedProcedure
+      .input(z.object({
+        convenioId: z.number(),
+        estabelecimentoId: z.number(),
+        codigoPrestador: z.string().min(1),
+        nomePrestador: z.string().optional()
+      }))
+      .mutation(async ({ input }) => {
+        return db.upsertPrestadorConvenioEstabelecimento(input);
+      }),
+
+    excluirPrestador: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.excluirPrestadorConvenioEstabelecimento(input.id);
+      }),
+
+    listarTodosPrestadores: protectedProcedure
+      .query(async () => {
+        return db.listarTodosPrestadores();
+      }),
   }),
 
   // ============ ESTABELECIMENTOS ============

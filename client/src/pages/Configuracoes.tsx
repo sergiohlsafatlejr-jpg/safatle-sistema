@@ -59,14 +59,23 @@ export default function Configuracoes() {
   const [novoCampoOrigem, setNovoCampoOrigem] = useState("");
   const [novoCampoTolerancia, setNovoCampoTolerancia] = useState("");
 
+  // Prestadores state
+  const [novoPrestadorConvenioId, setNovoPrestadorConvenioId] = useState("");
+  const [novoPrestadorEstabelecimentoId, setNovoPrestadorEstabelecimentoId] = useState("");
+  const [novoPrestadorCodigo, setNovoPrestadorCodigo] = useState("");
+
   // Queries
   const { data: convenios, refetch: refetchConvenios } = trpc.convenios.list.useQuery({});
   const { data: codigos, refetch: refetchCodigos } = trpc.codigosProcedimentos.list.useQuery({});
   const { data: campos, refetch: refetchCampos } = trpc.camposComparacao.list.useQuery({});
+  const { data: estabelecimentosList } = trpc.estabelecimentos.list.useQuery({});
+  const { data: prestadoresList, refetch: refetchPrestadores } = trpc.convenios.listarTodosPrestadores.useQuery();
 
   // Mutations
   const criarConvenioMutation = trpc.convenios.create.useMutation();
   const updateConvenioMutation = trpc.convenios.update.useMutation();
+  const upsertPrestadorMutation = trpc.convenios.upsertPrestador.useMutation();
+  const excluirPrestadorMutation = trpc.convenios.excluirPrestador.useMutation();
   const criarCodigoMutation = trpc.codigosProcedimentos.create.useMutation();
   const updateCodigoMutation = trpc.codigosProcedimentos.update.useMutation();
   const deleteCodigoMutation = trpc.codigosProcedimentos.delete.useMutation();
@@ -74,6 +83,38 @@ export default function Configuracoes() {
   const updateCampoMutation = trpc.camposComparacao.update.useMutation();
 
   // Handlers
+  const handleCriarPrestador = async () => {
+    if (!novoPrestadorConvenioId || !novoPrestadorEstabelecimentoId || !novoPrestadorCodigo.trim()) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    try {
+      const result = await upsertPrestadorMutation.mutateAsync({
+        convenioId: parseInt(novoPrestadorConvenioId),
+        estabelecimentoId: parseInt(novoPrestadorEstabelecimentoId),
+        codigoPrestador: novoPrestadorCodigo.trim(),
+      });
+      toast.success(result.created ? "Prestador cadastrado com sucesso" : "Prestador atualizado com sucesso");
+      setNovoPrestadorConvenioId("");
+      setNovoPrestadorEstabelecimentoId("");
+      setNovoPrestadorCodigo("");
+      refetchPrestadores();
+    } catch (error) {
+      toast.error("Erro ao cadastrar prestador");
+    }
+  };
+
+  const handleExcluirPrestador = async (id: number) => {
+    if (!confirm("Deseja realmente excluir este prestador?")) return;
+    try {
+      await excluirPrestadorMutation.mutateAsync({ id });
+      toast.success("Prestador excluído com sucesso");
+      refetchPrestadores();
+    } catch (error) {
+      toast.error("Erro ao excluir prestador");
+    }
+  };
+
   const handleCriarConvenio = async () => {
     if (!novoConvenioNome.trim()) {
       toast.error("Informe o nome do convênio");
@@ -223,6 +264,10 @@ export default function Configuracoes() {
             <TabsTrigger value="tabelas-preco" className="gap-2">
               <Settings2 className="h-4 w-4" />
               Tabelas de Preço
+            </TabsTrigger>
+            <TabsTrigger value="prestadores" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Prestadores
             </TabsTrigger>
             <TabsTrigger value="codigos" className="gap-2">
               <Code className="h-4 w-4" />
@@ -574,6 +619,120 @@ export default function Configuracoes() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">Acesse a página de <Link href="/tabelas-preco" className="text-primary underline">Tabelas de Preço</Link> para gerenciar.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Prestadores Tab */}
+          <TabsContent value="prestadores" className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle>Cadastro de Prestadores por Convênio</CardTitle>
+                <CardDescription>
+                  Associe códigos de prestador para cada combinação de convênio e estabelecimento.
+                  Cada convênio pode ter um código de prestador diferente para cada estabelecimento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Formulário de cadastro */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-lg">
+                  <div className="space-y-2">
+                    <Label>Convênio</Label>
+                    <select
+                      className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                      value={novoPrestadorConvenioId}
+                      onChange={(e) => setNovoPrestadorConvenioId(e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+                      {convenios?.map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Estabelecimento</Label>
+                    <select
+                      className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                      value={novoPrestadorEstabelecimentoId}
+                      onChange={(e) => setNovoPrestadorEstabelecimentoId(e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+                      {estabelecimentosList?.map((e: any) => (
+                        <option key={e.id} value={e.id}>{e.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Código do Prestador</Label>
+                    <Input
+                      value={novoPrestadorCodigo}
+                      onChange={(e) => setNovoPrestadorCodigo(e.target.value)}
+                      placeholder="Ex: 1100242 ou CNPJ"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button 
+                      onClick={handleCriarPrestador} 
+                      disabled={upsertPrestadorMutation.isPending}
+                      className="w-full"
+                    >
+                      {upsertPrestadorMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      <span className="ml-2">Adicionar</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Tabela de prestadores */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Convênio</TableHead>
+                        <TableHead>Estabelecimento</TableHead>
+                        <TableHead>Código do Prestador</TableHead>
+                        <TableHead>Nome (opcional)</TableHead>
+                        <TableHead className="w-[100px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {prestadoresList?.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            Nenhum prestador cadastrado. Adicione um prestador acima.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {prestadoresList?.map((p: any) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">{p.convenioNome}</TableCell>
+                          <TableCell>{p.estabelecimentoNome}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono">
+                              {p.codigoPrestador}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {p.nomePrestador || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleExcluirPrestador(p.id)}
+                              disabled={excluirPrestadorMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -23,6 +23,8 @@ import {
   historicoContestacoes,
   argumentosConvenio,
   estabelecimentos,
+  convenioEstabelecimentoPrestador,
+  InsertConvenioEstabelecimentoPrestador,
   regrasConciliacao,
   InsertRegraConciliacao,
   decisoesGlosa,
@@ -14287,4 +14289,198 @@ export async function listarPrestadoresExecutantes(filters?: {
     codigo: r.codigo || '',
     quantidade: Number(r.quantidade) || 0
   }));
+}
+
+
+// ============ CONVÊNIO-ESTABELECIMENTO-PRESTADOR FUNCTIONS ============
+
+/**
+ * Lista todos os prestadores de um convênio
+ */
+export async function listarPrestadoresPorConvenio(convenioId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      id: convenioEstabelecimentoPrestador.id,
+      convenioId: convenioEstabelecimentoPrestador.convenioId,
+      estabelecimentoId: convenioEstabelecimentoPrestador.estabelecimentoId,
+      codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador,
+      nomePrestador: convenioEstabelecimentoPrestador.nomePrestador,
+      ativo: convenioEstabelecimentoPrestador.ativo,
+      estabelecimentoNome: estabelecimentos.nome,
+    })
+    .from(convenioEstabelecimentoPrestador)
+    .innerJoin(estabelecimentos, eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentos.id))
+    .where(eq(convenioEstabelecimentoPrestador.convenioId, convenioId))
+    .orderBy(estabelecimentos.nome);
+
+  return result;
+}
+
+/**
+ * Lista todos os prestadores de um estabelecimento
+ */
+export async function listarPrestadoresPorEstabelecimento(estabelecimentoId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      id: convenioEstabelecimentoPrestador.id,
+      convenioId: convenioEstabelecimentoPrestador.convenioId,
+      estabelecimentoId: convenioEstabelecimentoPrestador.estabelecimentoId,
+      codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador,
+      nomePrestador: convenioEstabelecimentoPrestador.nomePrestador,
+      ativo: convenioEstabelecimentoPrestador.ativo,
+      convenioNome: convenios.nome,
+    })
+    .from(convenioEstabelecimentoPrestador)
+    .innerJoin(convenios, eq(convenioEstabelecimentoPrestador.convenioId, convenios.id))
+    .where(eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentoId))
+    .orderBy(convenios.nome);
+
+  return result;
+}
+
+/**
+ * Busca um prestador por convênio e estabelecimento
+ */
+export async function getPrestadorPorConvenioEstabelecimento(
+  convenioId: number, 
+  estabelecimentoId: number
+): Promise<any | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(convenioEstabelecimentoPrestador)
+    .where(
+      and(
+        eq(convenioEstabelecimentoPrestador.convenioId, convenioId),
+        eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentoId)
+      )
+    )
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Busca um prestador pelo código
+ */
+export async function getPrestadorPorCodigo(
+  codigoPrestador: string,
+  convenioId?: number
+): Promise<any | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions = [eq(convenioEstabelecimentoPrestador.codigoPrestador, codigoPrestador)];
+  
+  if (convenioId) {
+    conditions.push(eq(convenioEstabelecimentoPrestador.convenioId, convenioId));
+  }
+
+  const result = await db
+    .select({
+      id: convenioEstabelecimentoPrestador.id,
+      convenioId: convenioEstabelecimentoPrestador.convenioId,
+      estabelecimentoId: convenioEstabelecimentoPrestador.estabelecimentoId,
+      codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador,
+      nomePrestador: convenioEstabelecimentoPrestador.nomePrestador,
+      ativo: convenioEstabelecimentoPrestador.ativo,
+      convenioNome: convenios.nome,
+      estabelecimentoNome: estabelecimentos.nome,
+    })
+    .from(convenioEstabelecimentoPrestador)
+    .innerJoin(convenios, eq(convenioEstabelecimentoPrestador.convenioId, convenios.id))
+    .innerJoin(estabelecimentos, eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentos.id))
+    .where(and(...conditions))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Cria ou atualiza um prestador para convênio/estabelecimento
+ */
+export async function upsertPrestadorConvenioEstabelecimento(data: {
+  convenioId: number;
+  estabelecimentoId: number;
+  codigoPrestador: string;
+  nomePrestador?: string;
+}): Promise<{ id: number; created: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Verificar se já existe
+  const existente = await getPrestadorPorConvenioEstabelecimento(data.convenioId, data.estabelecimentoId);
+
+  if (existente) {
+    // Atualizar
+    await db
+      .update(convenioEstabelecimentoPrestador)
+      .set({
+        codigoPrestador: data.codigoPrestador,
+        nomePrestador: data.nomePrestador,
+      })
+      .where(eq(convenioEstabelecimentoPrestador.id, existente.id));
+
+    return { id: existente.id, created: false };
+  } else {
+    // Criar
+    const result = await db
+      .insert(convenioEstabelecimentoPrestador)
+      .values({
+        convenioId: data.convenioId,
+        estabelecimentoId: data.estabelecimentoId,
+        codigoPrestador: data.codigoPrestador,
+        nomePrestador: data.nomePrestador,
+      });
+
+    return { id: Number(result[0].insertId), created: true };
+  }
+}
+
+/**
+ * Exclui um prestador
+ */
+export async function excluirPrestadorConvenioEstabelecimento(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  await db
+    .delete(convenioEstabelecimentoPrestador)
+    .where(eq(convenioEstabelecimentoPrestador.id, id));
+
+  return true;
+}
+
+/**
+ * Lista todos os prestadores (para administração)
+ */
+export async function listarTodosPrestadores(): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      id: convenioEstabelecimentoPrestador.id,
+      convenioId: convenioEstabelecimentoPrestador.convenioId,
+      estabelecimentoId: convenioEstabelecimentoPrestador.estabelecimentoId,
+      codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador,
+      nomePrestador: convenioEstabelecimentoPrestador.nomePrestador,
+      ativo: convenioEstabelecimentoPrestador.ativo,
+      convenioNome: convenios.nome,
+      estabelecimentoNome: estabelecimentos.nome,
+    })
+    .from(convenioEstabelecimentoPrestador)
+    .innerJoin(convenios, eq(convenioEstabelecimentoPrestador.convenioId, convenios.id))
+    .innerJoin(estabelecimentos, eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentos.id))
+    .orderBy(convenios.nome, estabelecimentos.nome);
+
+  return result;
 }

@@ -53,6 +53,24 @@ export type Convenio = typeof convenios.$inferSelect;
 export type InsertConvenio = typeof convenios.$inferInsert;
 
 /**
+ * Relação Convênio-Estabelecimento-Prestador
+ * Permite associar códigos de prestador específicos para cada combinação de convênio e estabelecimento
+ */
+export const convenioEstabelecimentoPrestador = mysqlTable("convenioEstabelecimentoPrestador", {
+  id: int("id").autoincrement().primaryKey(),
+  convenioId: int("convenioId").notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  codigoPrestador: varchar("codigoPrestador", { length: 50 }).notNull(), // Código do prestador na operadora (CNPJ ou código interno)
+  nomePrestador: varchar("nomePrestador", { length: 255 }), // Nome amigável do prestador (opcional)
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConvenioEstabelecimentoPrestador = typeof convenioEstabelecimentoPrestador.$inferSelect;
+export type InsertConvenioEstabelecimentoPrestador = typeof convenioEstabelecimentoPrestador.$inferInsert;
+
+/**
  * Arquivos enviados e recebidos
  */
 export const arquivos = mysqlTable("arquivos", {
