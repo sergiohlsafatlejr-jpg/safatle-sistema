@@ -1,0 +1,80 @@
+{
+  "query": "SELECT a.id, a.nome, a.estabelecimentoId, e.nome as estabelecimento_nome, a.direcao \nFROM arquivos a \nLEFT JOIN estabelecimentos e ON a.estabelecimentoId = e.id \nWHERE a.status = 'processado' \nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.estabelecimentoId, e.nome as estabelecimento_nome, a.direcao \nFROM arquivos a \nLEFT JOIN estabelecimentos e ON a.estabelecimentoId = e.id \nWHERE a.status = 'processado' \nLIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "00000000000120087617_7241f0faefdd312ead9055654b2e6675.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "2",
+      "nome": "00000000000120087620_df9f91940709030e95c54cf130a27f5a.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "3",
+      "nome": "00000000000120087622_fd9b393e9b851ceea4dda878dc459366.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "4",
+      "nome": "00000000000120087623_f5d411c4c1d3132816e9f1b6d33f21d3.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "5",
+      "nome": "00000000000120087624_c7af5a6d904930591b86884e97ff2ca7.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "6",
+      "nome": "00000000000130086880_28e827847fdf6e67a135e989ab1c88bd.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "7",
+      "nome": "00000000000130086881_bfbfec5d3998fb9f09bc59619fcdf9c6.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "8",
+      "nome": "00000000000130086885_46c8e94548af2d7cc6314086fbc6732c.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "9",
+      "nome": "00000000000120086891_f026f9cc4da1093323feb7b48abf2c6a.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    },
+    {
+      "id": "10",
+      "nome": "00000000000120086895_48eea17c94815534cdd1b773e0901867.xml",
+      "estabelecimentoId": "1",
+      "estabelecimento_nome": "Pronto Socorro Infantil",
+      "direcao": "enviado"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\testabelecimentoId\testabelecimento_nome\tdirecao\n1\t00000000000120087617_7241f0faefdd312ead9055654b2e6675.xml\t1\tPronto Socorro Infantil\tenviado\n2\t00000000000120087620_df9f91940709030e95c54cf130a27f5a.xml\t1\tPronto Socorro Infantil\tenviado\n3\t00000000000120087622_fd9b393e9b851ceea4dda878dc459366.xml\t1\tPronto Socorro Infantil\tenviado\n4\t00000000000120087623_f5d411c4c1d3132816e9f1b6d33f21d3.xml\t1\tPronto Socorro Infantil\tenviado\n5\t00000000000120087624_c7af5a6d904930591b86884e97ff2ca7.xml\t1\tPronto Socorro Infantil\tenviado\n6\t00000000000130086880_28e827847fdf6e67a135e989ab1c88bd.xml\t1\tPronto Socorro Infantil\tenviado\n7\t00000000000130086881_bfbfec5d3998fb9f09bc59619fcdf9c6.xml\t1\tPronto Socorro Infantil\tenviado\n8\t00000000000130086885_46c8e94548af2d7cc6314086fbc6732c.xml\t1\tPronto Socorro Infantil\tenviado\n9\t00000000000120086891_f026f9cc4da1093323feb7b48abf2c6a.xml\t1\tPronto Socorro Infantil\tenviado\n10\t00000000000120086895_48eea17c94815534cdd1b773e0901867.xml\t1\tPronto Socorro Infantil\tenviado\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

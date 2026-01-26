@@ -1,0 +1,42 @@
+{
+  "query": "SELECT * FROM procedimentos LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT * FROM procedimentos LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "arquivoId": "1",
+      "codigo": "10101039",
+      "descricao": "CONSULTA EM PRONTO SOCORRO",
+      "quantidade": "1",
+      "valorUnitario": "84.00",
+      "valorTotal": "84.00",
+      "dataExecucao": "2025-11-11 00:00:00",
+      "pacienteNome": "NULL",
+      "pacienteCarteirinha": "09942737507777301",
+      "guiaNumero": "67243294",
+      "dadosExtras": "{\"dataExecucao\": \"2025-11-11\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\", \"valorTotal\": \"84.00\", \"valorUnitario\": \"84.00\"}",
+      "createdAt": "2026-01-22 10:48:29",
+      "nomeMedico": "GUSTAVO RASSI NADER",
+      "crmMedico": "11382",
+      "valorGlosado": "NULL",
+      "motivoGlosa": "NULL",
+      "recursoStatus": "sem_recurso",
+      "recursoId": "NULL",
+      "classificacaoGlosa": "pendente",
+      "classificacaoConfianca": "NULL",
+      "classificacaoMotivo": "NULL",
+      "motivoAceite": "NULL",
+      "dataAceite": "NULL",
+      "codigoDespesa": "NULL",
+      "tipoDespesa": "procedimento",
+      "senha": "NULL",
+      "numeroLote": "120087617",
+      "sequencialTransacao": "NULL",
+      "codigoPrestadorExecutante": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tarquivoId\tcodigo\tdescricao\tquantidade\tvalorUnitario\tvalorTotal\tdataExecucao\tpacienteNome\tpacienteCarteirinha\tguiaNumero\tdadosExtras\tcreatedAt\tnomeMedico\tcrmMedico\tvalorGlosado\tmotivoGlosa\trecursoStatus\trecursoId\tclassificacaoGlosa\tclassificacaoConfianca\tclassificacaoMotivo\tmotivoAceite\tdataAceite\tcodigoDespesa\ttipoDespesa\tsenha\tnumeroLote\tsequencialTransacao\tcodigoPrestadorExecutante\n1\t1\t10101039\tCONSULTA EM PRONTO SOCORRO\t1\t84.00\t84.00\t2025-11-11 00:00:00\tNULL\t09942737507777301\t67243294\t{\"dataExecucao\": \"2025-11-11\", \"equipeSadt\": {\"CBOS\": \"225124\", \"UF\": \"52\", \"codProfissional\": {\"cpfContratado\": \"81377100197\"}, \"conselho\": \"06\", \"grauPart\": \"12\", \"nomeProf\": \"GUSTAVO RASSI NADER\", \"numeroConselhoProfissional\": \"11382\"}, \"horaFinal\": \"06:34:00\", \"horaInicial\": \"06:19:00\", \"procedimento\": {\"codigoProcedimento\": \"10101039\", \"codigoTabela\": \"22\", \"descricaoProcedimento\": \"CONSULTA EM PRONTO SOCORRO\"}, \"quantidadeExecutada\": \"001\", \"reducaoAcrescimo\": \"1.00\", \"sequencialItem\": \"1\", \"valorTotal\": \"84.00\", \"valorUnitario\": \"84.00\"}\t2026-01-22 10:48:29\tGUSTAVO RASSI NADER\t11382\tNULL\tNULL\tsem_recurso\tNULL\tpendente\tNULL\tNULL\tNULL\tNULL\tNULL\tprocedimento\tNULL\t120087617\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}

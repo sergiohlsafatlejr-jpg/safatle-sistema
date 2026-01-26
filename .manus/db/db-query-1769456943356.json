@@ -1,0 +1,35 @@
+{
+  "query": "SELECT estabelecimentoId, COUNT(*) as total, direcao FROM arquivos WHERE status = 'processado' GROUP BY estabelecimentoId, direcao ORDER BY estabelecimentoId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT estabelecimentoId, COUNT(*) as total, direcao FROM arquivos WHERE status = 'processado' GROUP BY estabelecimentoId, direcao ORDER BY estabelecimentoId;",
+  "rows": [
+    {
+      "estabelecimentoId": "1",
+      "total": "219",
+      "direcao": "enviado"
+    },
+    {
+      "estabelecimentoId": "1",
+      "total": "1",
+      "direcao": "retornado"
+    },
+    {
+      "estabelecimentoId": "60011",
+      "total": "1",
+      "direcao": "retornado"
+    },
+    {
+      "estabelecimentoId": "390001",
+      "total": "1",
+      "direcao": "retornado"
+    },
+    {
+      "estabelecimentoId": "390001",
+      "total": "49",
+      "direcao": "enviado"
+    }
+  ],
+  "messages": [],
+  "stdout": "estabelecimentoId\ttotal\tdirecao\n1\t219\tenviado\n1\t1\tretornado\n60011\t1\tretornado\n390001\t1\tretornado\n390001\t49\tenviado\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

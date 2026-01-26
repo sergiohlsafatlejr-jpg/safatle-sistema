@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, nome, direcao, dataReferencia FROM arquivos WHERE status = 'processado' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, direcao, dataReferencia FROM arquivos WHERE status = 'processado' LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "00000000000120087617_7241f0faefdd312ead9055654b2e6675.xml",
+      "direcao": "enviado",
+      "dataReferencia": "2025-12-01 00:00:00"
+    },
+    {
+      "id": "2",
+      "nome": "00000000000120087620_df9f91940709030e95c54cf130a27f5a.xml",
+      "direcao": "enviado",
+      "dataReferencia": "2025-12-01 00:00:00"
+    },
+    {
+      "id": "3",
+      "nome": "00000000000120087622_fd9b393e9b851ceea4dda878dc459366.xml",
+      "direcao": "enviado",
+      "dataReferencia": "2025-12-01 00:00:00"
+    },
+    {
+      "id": "4",
+      "nome": "00000000000120087623_f5d411c4c1d3132816e9f1b6d33f21d3.xml",
+      "direcao": "enviado",
+      "dataReferencia": "2025-12-01 00:00:00"
+    },
+    {
+      "id": "5",
+      "nome": "00000000000120087624_c7af5a6d904930591b86884e97ff2ca7.xml",
+      "direcao": "enviado",
+      "dataReferencia": "2025-12-01 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tdirecao\tdataReferencia\n1\t00000000000120087617_7241f0faefdd312ead9055654b2e6675.xml\tenviado\t2025-12-01 00:00:00\n2\t00000000000120087620_df9f91940709030e95c54cf130a27f5a.xml\tenviado\t2025-12-01 00:00:00\n3\t00000000000120087622_fd9b393e9b851ceea4dda878dc459366.xml\tenviado\t2025-12-01 00:00:00\n4\t00000000000120087623_f5d411c4c1d3132816e9f1b6d33f21d3.xml\tenviado\t2025-12-01 00:00:00\n5\t00000000000120087624_c7af5a6d904930591b86884e97ff2ca7.xml\tenviado\t2025-12-01 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

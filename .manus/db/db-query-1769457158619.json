@@ -1,0 +1,22 @@
+{
+  "query": "SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') as data, COUNT(*) as total FROM arquivos WHERE status = 'processado' GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d') ORDER BY data DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') as data, COUNT(*) as total FROM arquivos WHERE status = 'processado' GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d') ORDER BY data DESC LIMIT 10;",
+  "rows": [
+    {
+      "data": "2026-01-26",
+      "total": "50"
+    },
+    {
+      "data": "2026-01-24",
+      "total": "1"
+    },
+    {
+      "data": "2026-01-22",
+      "total": "220"
+    }
+  ],
+  "messages": [],
+  "stdout": "data\ttotal\n2026-01-26\t50\n2026-01-24\t1\n2026-01-22\t220\n",
+  "stderr": "",
+  "execution_time_ms": 49
+}

@@ -12329,30 +12329,68 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     arquivosConditions.push(eq(arquivos.convenioId, convenioId));
   }
 
-  // Filtro de período
+  // Filtro de período - usar dataReferencia OU createdAt como fallback
   if (mesReferencia && anoReferencia) {
     const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
     const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
-    arquivosConditions.push(gte(arquivos.dataReferencia, dataInicio));
-    arquivosConditions.push(lte(arquivos.dataReferencia, dataFim));
+    // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
+    arquivosConditions.push(
+      or(
+        and(gte(arquivos.dataReferencia, dataInicio), lte(arquivos.dataReferencia, dataFim)),
+        and(isNull(arquivos.dataReferencia), gte(arquivos.createdAt, dataInicio), lte(arquivos.createdAt, dataFim))
+      )
+    );
   } else if (anoReferencia) {
     const dataInicio = new Date(anoReferencia, 0, 1);
     const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
-    arquivosConditions.push(gte(arquivos.dataReferencia, dataInicio));
-    arquivosConditions.push(lte(arquivos.dataReferencia, dataFim));
+    console.log('[getDadosBI] Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
+    // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
+    arquivosConditions.push(
+      or(
+        and(gte(arquivos.dataReferencia, dataInicio), lte(arquivos.dataReferencia, dataFim)),
+        and(isNull(arquivos.dataReferencia), gte(arquivos.createdAt, dataInicio), lte(arquivos.createdAt, dataFim))
+      )
+    );
   }
 
   // Buscar arquivos enviados (faturados)
+  console.log('[getDadosBI] Filtros recebidos:', JSON.stringify(filtros));
+  console.log('[getDadosBI] Condições de arquivos:', arquivosConditions.length);
+  console.log('[getDadosBI] Ano:', anoReferencia, 'Mês:', mesReferencia);
+  console.log('[getDadosBI] Estabelecimento:', estabelecimentoId);
+  
   const arquivosEnviados = await db
     .select()
     .from(arquivos)
-    .where(and(...arquivosConditions, eq(arquivos.direcao, "enviado")));
+    .where(and(
+      ...arquivosConditions,
+      eq(arquivos.direcao, "enviado")
+    ));
+  
+  console.log('[getDadosBI] Arquivos enviados encontrados:', arquivosEnviados.length);
+  if (arquivosEnviados.length === 0) {
+    // Buscar sem filtro de data para debug
+    const arquivosSemFiltroData = await db
+      .select()
+      .from(arquivos)
+      .where(and(
+        eq(arquivos.status, "processado"),
+        eq(arquivos.estabelecimentoId, estabelecimentoId || 0),
+        eq(arquivos.direcao, "enviado")
+      ));
+    console.log('[getDadosBI] Arquivos enviados sem filtro de data:', arquivosSemFiltroData.length);
+    if (arquivosSemFiltroData.length > 0) {
+      console.log('[getDadosBI] Primeiro arquivo:', JSON.stringify({ id: arquivosSemFiltroData[0].id, createdAt: arquivosSemFiltroData[0].createdAt, dataReferencia: arquivosSemFiltroData[0].dataReferencia }));
+    }
+  }
 
   // Buscar arquivos retornados (recebidos)
   const arquivosRetornados = await db
     .select()
     .from(arquivos)
     .where(and(...arquivosConditions, eq(arquivos.direcao, "retornado")));
+  
+  console.log('[getDadosBI] Arquivos retornados encontrados:', arquivosRetornados.length);
 
   // Mapear convênios
   const todosConvenios = await db.select().from(convenios);
@@ -12570,15 +12608,25 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
 
   // Agrupar por descrição do item - combina dados de enviados E retornados
+  // Usa normalização case-insensitive para combinar descrições com capitalização diferente
   const porDescricaoMap = new Map<string, DadosBIAgrupado>();
+  const descricaoNormalizada = new Map<string, string>(); // Mapeia chave normalizada -> descrição original
+  
+  // Função para normalizar descrição (remove espaços extras, converte para uppercase)
+  const normalizeDescricao = (desc: string): string => {
+    return desc.toUpperCase().replace(/\s+/g, ' ').trim();
+  };
   
   // Primeiro, adicionar dados dos arquivos enviados (faturados)
   for (const proc of procedimentosEnviadosFiltrados) {
-    const chave = proc.descricao || 'Sem Descrição';
-    if (!porDescricaoMap.has(chave)) {
-      porDescricaoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    const descOriginal = proc.descricao || 'Sem Descrição';
+    const chaveNorm = normalizeDescricao(descOriginal);
+    
+    if (!porDescricaoMap.has(chaveNorm)) {
+      porDescricaoMap.set(chaveNorm, { chave: descOriginal, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      descricaoNormalizada.set(chaveNorm, descOriginal);
     }
-    const item = porDescricaoMap.get(chave)!;
+    const item = porDescricaoMap.get(chaveNorm)!;
     item.valorFaturado += parseFloat(proc.valorTotal || "0");
     item.quantidade += parseFloat(String(proc.quantidade || "1"));
     item.registros++;
@@ -12586,12 +12634,15 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   
   // Depois, adicionar dados dos arquivos retornados (demonstrativo) - criar novos itens se não existirem
   for (const proc of procedimentosRetornadosFiltrados) {
-    const chave = proc.descricao || 'Sem Descrição';
-    if (!porDescricaoMap.has(chave)) {
+    const descOriginal = proc.descricao || 'Sem Descrição';
+    const chaveNorm = normalizeDescricao(descOriginal);
+    
+    if (!porDescricaoMap.has(chaveNorm)) {
       // Criar novo item para descrições que só existem no demonstrativo
-      porDescricaoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porDescricaoMap.set(chaveNorm, { chave: descOriginal, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      descricaoNormalizada.set(chaveNorm, descOriginal);
     }
-    const item = porDescricaoMap.get(chave)!;
+    const item = porDescricaoMap.get(chaveNorm)!;
     const valorTotal = parseFloat(proc.valorTotal || "0");
     const valorGlosado = parseFloat(proc.valorGlosado || "0");
     // Se não tem valor faturado, usar o valor total do demonstrativo como referência

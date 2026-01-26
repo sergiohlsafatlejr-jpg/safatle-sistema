@@ -911,3 +911,12 @@
 ## Correção Relatório BI - Valores em Branco
 - [x] Corrigir valores pagos e recursados que aparecem em branco na dimensão Descrição do Item
 - [x] Garantir que os dados do demonstrativo sejam corretamente agrupados por descrição
+
+
+## Investigação Relatório BI - Valores não aparecem
+- [ ] Investigar por que os valores não estão aparecendo na dimensão Descrição do Item
+- [ ] Verificar se os dados do demonstrativo estão sendo carregados corretamente
+
+- [x] Corrigir Relatório BI - valores de recebido e glosado não aparecem no agrupamento por Descrição do Item
+- [x] Implementar normalização case-insensitive para combinar descrições de arquivos enviados e retornados
+- [x] Atualizar valorGlosado para itens com situação GLOSADO no demonstrativo

@@ -1,0 +1,22 @@
+{
+  "query": "SELECT \n  YEAR(createdAt) as ano,\n  MONTH(createdAt) as mes,\n  COUNT(*) as total,\n  direcao\nFROM arquivos\nWHERE status = 'processado'\nGROUP BY YEAR(createdAt), MONTH(createdAt), direcao\nORDER BY ano DESC, mes DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  YEAR(createdAt) as ano,\n  MONTH(createdAt) as mes,\n  COUNT(*) as total,\n  direcao\nFROM arquivos\nWHERE status = 'processado'\nGROUP BY YEAR(createdAt), MONTH(createdAt), direcao\nORDER BY ano DESC, mes DESC;",
+  "rows": [
+    {
+      "ano": "2026",
+      "mes": "1",
+      "total": "3",
+      "direcao": "retornado"
+    },
+    {
+      "ano": "2026",
+      "mes": "1",
+      "total": "268",
+      "direcao": "enviado"
+    }
+  ],
+  "messages": [],
+  "stdout": "ano\tmes\ttotal\tdirecao\n2026\t1\t3\tretornado\n2026\t1\t268\tenviado\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

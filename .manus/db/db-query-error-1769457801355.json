@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  a.direcao,\n  COUNT(*) as total,\n  COUNT(DISTINCT p.descricao) as descricoes_unicas\nFROM procedimentos p\nJOIN arquivos a ON p.arquivo_id = a.id\nWHERE a.estabelecimento_id = 1\nGROUP BY a.direcao;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  a.direcao,\n  COUNT(*) as total,\n  COUNT(DISTINCT p.descricao) as descricoes_unicas\nFROM procedimentos p\nJOIN arquivos a ON p.arquivo_id = a.id\nWHERE a.estabelecimento_id = 1\nGROUP BY a.direcao;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'p.arquivo_id' in 'on clause'"
+  ]
+}

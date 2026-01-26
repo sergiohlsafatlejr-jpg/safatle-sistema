@@ -1,0 +1,100 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'procedimentos' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'procedimentos' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "arquivoId"
+    },
+    {
+      "COLUMN_NAME": "codigo"
+    },
+    {
+      "COLUMN_NAME": "descricao"
+    },
+    {
+      "COLUMN_NAME": "quantidade"
+    },
+    {
+      "COLUMN_NAME": "valorUnitario"
+    },
+    {
+      "COLUMN_NAME": "valorTotal"
+    },
+    {
+      "COLUMN_NAME": "dataExecucao"
+    },
+    {
+      "COLUMN_NAME": "pacienteNome"
+    },
+    {
+      "COLUMN_NAME": "pacienteCarteirinha"
+    },
+    {
+      "COLUMN_NAME": "guiaNumero"
+    },
+    {
+      "COLUMN_NAME": "dadosExtras"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "nomeMedico"
+    },
+    {
+      "COLUMN_NAME": "crmMedico"
+    },
+    {
+      "COLUMN_NAME": "valorGlosado"
+    },
+    {
+      "COLUMN_NAME": "motivoGlosa"
+    },
+    {
+      "COLUMN_NAME": "recursoStatus"
+    },
+    {
+      "COLUMN_NAME": "recursoId"
+    },
+    {
+      "COLUMN_NAME": "classificacaoGlosa"
+    },
+    {
+      "COLUMN_NAME": "classificacaoConfianca"
+    },
+    {
+      "COLUMN_NAME": "classificacaoMotivo"
+    },
+    {
+      "COLUMN_NAME": "motivoAceite"
+    },
+    {
+      "COLUMN_NAME": "dataAceite"
+    },
+    {
+      "COLUMN_NAME": "codigoDespesa"
+    },
+    {
+      "COLUMN_NAME": "tipoDespesa"
+    },
+    {
+      "COLUMN_NAME": "senha"
+    },
+    {
+      "COLUMN_NAME": "numeroLote"
+    },
+    {
+      "COLUMN_NAME": "sequencialTransacao"
+    },
+    {
+      "COLUMN_NAME": "codigoPrestadorExecutante"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\narquivoId\ncodigo\ndescricao\nquantidade\nvalorUnitario\nvalorTotal\ndataExecucao\npacienteNome\npacienteCarteirinha\nguiaNumero\ndadosExtras\ncreatedAt\nnomeMedico\ncrmMedico\nvalorGlosado\nmotivoGlosa\nrecursoStatus\nrecursoId\nclassificacaoGlosa\nclassificacaoConfianca\nclassificacaoMotivo\nmotivoAceite\ndataAceite\ncodigoDespesa\ntipoDespesa\nsenha\nnumeroLote\nsequencialTransacao\ncodigoPrestadorExecutante\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

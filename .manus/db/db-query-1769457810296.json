@@ -1,0 +1,20 @@
+{
+  "query": "SELECT \n  a.direcao,\n  COUNT(*) as total,\n  COUNT(DISTINCT p.descricao) as descricoes_unicas\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE a.estabelecimentoId = 1\nGROUP BY a.direcao;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  a.direcao,\n  COUNT(*) as total,\n  COUNT(DISTINCT p.descricao) as descricoes_unicas\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE a.estabelecimentoId = 1\nGROUP BY a.direcao;",
+  "rows": [
+    {
+      "direcao": "enviado",
+      "total": "12016",
+      "descricoes_unicas": "167"
+    },
+    {
+      "direcao": "retornado",
+      "total": "26614",
+      "descricoes_unicas": "300"
+    }
+  ],
+  "messages": [],
+  "stdout": "direcao\ttotal\tdescricoes_unicas\nenviado\t12016\t167\nretornado\t26614\t300\n",
+  "stderr": "",
+  "execution_time_ms": 125
+}

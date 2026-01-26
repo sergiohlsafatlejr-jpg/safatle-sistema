@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, nome, direcao, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') as criado, estabelecimentoId FROM arquivos WHERE status = 'processado' ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, direcao, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') as criado, estabelecimentoId FROM arquivos WHERE status = 'processado' ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "210021",
+      "nome": "00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml",
+      "direcao": "enviado",
+      "criado": "2026-01-26 17:40:55",
+      "estabelecimentoId": "390001"
+    },
+    {
+      "id": "210020",
+      "nome": "00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml",
+      "direcao": "enviado",
+      "criado": "2026-01-26 17:40:50",
+      "estabelecimentoId": "390001"
+    },
+    {
+      "id": "210019",
+      "nome": "00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml",
+      "direcao": "enviado",
+      "criado": "2026-01-26 17:40:43",
+      "estabelecimentoId": "390001"
+    },
+    {
+      "id": "210018",
+      "nome": "00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml",
+      "direcao": "enviado",
+      "criado": "2026-01-26 17:40:41",
+      "estabelecimentoId": "390001"
+    },
+    {
+      "id": "210017",
+      "nome": "00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml",
+      "direcao": "enviado",
+      "criado": "2026-01-26 17:40:35",
+      "estabelecimentoId": "390001"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tdirecao\tcriado\testabelecimentoId\n210021\t00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml\tenviado\t2026-01-26 17:40:55\t390001\n210020\t00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml\tenviado\t2026-01-26 17:40:50\t390001\n210019\t00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml\tenviado\t2026-01-26 17:40:43\t390001\n210018\t00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml\tenviado\t2026-01-26 17:40:41\t390001\n210017\t00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml\tenviado\t2026-01-26 17:40:35\t390001\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}
