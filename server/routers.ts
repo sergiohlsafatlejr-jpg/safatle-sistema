@@ -1532,6 +1532,38 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Atualizar valor recebido e data de pagamento de um item de recurso
+    atualizarPagamentoItem: protectedProcedure
+      .input(
+        z.object({
+          recursoId: z.number(),
+          valorRecebido: z.string().optional(),
+          dataPagamento: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const updateData: any = {};
+        
+        if (input.valorRecebido !== undefined) {
+          updateData.valorRecebido = input.valorRecebido;
+        }
+        
+        if (input.dataPagamento !== undefined && input.dataPagamento !== "") {
+          updateData.dataPagamento = new Date(input.dataPagamento);
+        } else if (input.dataPagamento === "") {
+          updateData.dataPagamento = null;
+        }
+        
+        await db.updateRecursoGlosa(
+          input.recursoId,
+          ctx.user.id,
+          updateData,
+          "Atualização de pagamento do recurso"
+        );
+        
+        return { success: true };
+      }),
+
     // Sugerir argumento com IA baseado no histórico
     sugerirArgumentoIA: protectedProcedure
       .input(

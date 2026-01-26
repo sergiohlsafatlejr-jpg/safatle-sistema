@@ -77,6 +77,12 @@ export default function AcompanhamentoRecursos() {
   const [loteParaAnexarPdf, setLoteParaAnexarPdf] = useState<number | null>(null);
   const [arquivoPdf, setArquivoPdf] = useState<File | null>(null);
   const [uploadandoPdf, setUploadandoPdf] = useState(false);
+  
+  // Estados para edição inline
+  const [editandoItem, setEditandoItem] = useState<number | null>(null);
+  const [valorRecebidoEdit, setValorRecebidoEdit] = useState<string>("");
+  const [dataPagamentoEdit, setDataPagamentoEdit] = useState<string>("");
+  const [salvandoItem, setSalvandoItem] = useState(false);
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
@@ -104,6 +110,61 @@ export default function AcompanhamentoRecursos() {
 
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
   const [loteIdParaDetalhes, setLoteIdParaDetalhes] = useState<number | null>(null);
+  
+  // Mutation para atualizar pagamento do item
+  const atualizarPagamentoMutation = trpc.recursos.atualizarPagamentoItem.useMutation({
+    onSuccess: () => {
+      toast.success("Pagamento atualizado com sucesso!");
+      setEditandoItem(null);
+      setSalvandoItem(false);
+      // Atualizar o item no estado local
+      if (loteDetalhes && loteDetalhes.itens) {
+        const itensAtualizados = loteDetalhes.itens.map((item: any) => {
+          if (item.id === editandoItem) {
+            return {
+              ...item,
+              valorRecebido: valorRecebidoEdit || "0",
+              dataPagamento: dataPagamentoEdit || null,
+            };
+          }
+          return item;
+        });
+        setLoteDetalhes({ ...loteDetalhes, itens: itensAtualizados });
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setSalvandoItem(false);
+    },
+  });
+
+  const handleEditarItem = (item: any) => {
+    setEditandoItem(item.id);
+    setValorRecebidoEdit(item.valorRecebido?.toString() || "0");
+    // Converter data para formato YYYY-MM-DD para o input date
+    if (item.dataPagamento) {
+      const d = new Date(item.dataPagamento);
+      setDataPagamentoEdit(d.toISOString().split('T')[0]);
+    } else {
+      setDataPagamentoEdit("");
+    }
+  };
+
+  const handleSalvarPagamento = () => {
+    if (!editandoItem) return;
+    setSalvandoItem(true);
+    atualizarPagamentoMutation.mutate({
+      recursoId: editandoItem,
+      valorRecebido: valorRecebidoEdit,
+      dataPagamento: dataPagamentoEdit,
+    });
+  };
+
+  const handleCancelarEdicao = () => {
+    setEditandoItem(null);
+    setValorRecebidoEdit("");
+    setDataPagamentoEdit("");
+  };
 
   const { data: detalhesLoteData, isLoading: isLoadingDetalhes } = trpc.recursos.detalhesLote.useQuery(
     { loteId: loteIdParaDetalhes! },
@@ -802,6 +863,7 @@ export default function AcompanhamentoRecursos() {
                           <TableHead className="text-right">Vl. Recebido</TableHead>
                           <TableHead>Data Pgto</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead className="text-center">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -816,11 +878,33 @@ export default function AcompanhamentoRecursos() {
                             <TableCell className="text-right text-red-600">
                               {formatCurrency(item.valorGlosado)}
                             </TableCell>
-                            <TableCell className="text-right text-green-600">
-                              {formatCurrency(item.valorRecebido || 0)}
+                            <TableCell className="text-right">
+                              {editandoItem === item.id ? (
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={valorRecebidoEdit}
+                                  onChange={(e) => setValorRecebidoEdit(e.target.value)}
+                                  className="w-28 text-right text-green-600"
+                                />
+                              ) : (
+                                <span className="text-green-600">
+                                  {formatCurrency(item.valorRecebido || 0)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell>
-                              {item.dataPagamento ? formatDate(item.dataPagamento) : "-"}
+                              {editandoItem === item.id ? (
+                                <Input
+                                  type="date"
+                                  value={dataPagamentoEdit}
+                                  onChange={(e) => setDataPagamentoEdit(e.target.value)}
+                                  className="w-36"
+                                />
+                              ) : (
+                                item.dataPagamento ? formatDate(item.dataPagamento) : "-"
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline">
@@ -828,6 +912,44 @@ export default function AcompanhamentoRecursos() {
                                  item.status === "indeferido" ? "Indeferido" : 
                                  item.status === "enviado" ? "Enviado" : "Pendente"}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {editandoItem === item.id ? (
+                                <div className="flex gap-1 justify-center">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={handleSalvarPagamento}
+                                    disabled={salvandoItem}
+                                    className="h-7 px-2 text-green-600 hover:text-green-700"
+                                  >
+                                    {salvandoItem ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={handleCancelarEdicao}
+                                    disabled={salvandoItem}
+                                    className="h-7 px-2 text-red-600 hover:text-red-700"
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditarItem(item)}
+                                  className="h-7 px-2"
+                                  title="Editar pagamento"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}

@@ -844,3 +844,11 @@
 - [x] Adicionar tabela de itens no modal de detalhes do lote
 - [x] Incluir colunas: Paciente, Guia, Código, Descrição, Valor Glosado, Valor Recebido, Data de Pagamento, Status
 - [x] Testar visualização dos itens no modal
+
+
+## Edição Inline de Valores no Modal de Detalhes do Lote
+- [x] Criar rota backend para atualizar Valor Recebido e Data de Pagamento por item
+- [x] Implementar edição inline na tabela de itens (campos editáveis)
+- [x] Adicionar botão de salvar alterações
+- [x] Atualizar totais do lote ao salvar alterações nos itens
+- [x] Testar edição inline e persistência dos dados
