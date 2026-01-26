@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { trpc } from "@/lib/trpc";
@@ -22,489 +21,431 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  FileSpreadsheet,
   Database,
   ArrowLeftRight,
   TrendingDown,
-  TrendingUp,
   DollarSign,
   FileText,
   Search,
   ChevronDown,
   ChevronUp,
-  Eye,
   User,
-  Stethoscope,
-  Building2,
   Hash,
   Calendar
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
-// Interface para item de conciliação
-interface ItemConciliacao {
+// Interface para item do demonstrativo
+interface ItemDemonstrativo {
   guia: string;
-  atendimento: string;
-  paciente: string;
-  medico: string;
-  setor: string;
   codigo: string;
   descricao: string;
-  valorTasy: number;
-  valorXmlInformado: number;
-  valorXmlLiberado: number;
-  diferenca: number;
-  motivoGlosa: string;
-  codigoGlosa: string;
-  descricaoGlosa: string;
-  status: 'ok' | 'glosa' | 'divergencia' | 'nao_encontrado';
   quantidade: number;
-  dataExecucao?: string;
-  tipo: string;
+  valorInformado: number;
+  valorPago: number;
+  valorGlosado: number;
+  codigoGlosa: string;
+  motivoGlosa: string;
+  status: string;
 }
 
-// Interface para guia agrupada
-interface GuiaAgrupada {
+// Interface para resultado da conciliação
+interface ResultadoConciliacao {
+  id: number;
+  nrInternoConta: string;
   guia: string;
-  atendimento: string;
   paciente: string;
-  medico: string;
-  setor: string;
-  itens: ItemConciliacao[];
+  convenio: string;
+  dataFaturado: string;
+  totalProcedimentos: number;
+  totalMatMed: number;
   valorTotalTasy: number;
-  valorTotalXmlInformado: number;
-  valorTotalXmlLiberado: number;
-  valorTotalDiferenca: number;
-  totalGlosas: number;
-  totalDivergencias: number;
-  totalOk: number;
-  totalNaoEncontrados: number;
+  valorTotalPago: number;
+  valorTotalGlosado: number;
+  diferenca: number;
   status: 'ok' | 'glosa' | 'divergencia' | 'nao_encontrado';
+  itensDemonstrativo: ItemDemonstrativo[];
+}
+
+// Função para formatar data de forma segura
+function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '-';
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('pt-BR');
+  } catch {
+    return '-';
+  }
 }
 
 export default function ConciliacaoTasy() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
-  const [arquivoId, setArquivoId] = useState<string>("");
+  const [mes, setMes] = useState<string>("");
+  const [ano, setAno] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const [expandedGuias, setExpandedGuias] = useState<Set<string>>(new Set());
-  const [selectedGuia, setSelectedGuia] = useState<GuiaAgrupada | null>(null);
+  const [expandedContas, setExpandedContas] = useState<Set<string>>(new Set());
   const pageSize = 20;
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
 
-  // Buscar arquivos do convênio selecionado (apenas XMLs de retorno)
-  const { data: arquivos } = trpc.arquivos.list.useQuery(
-    { 
-      convenioId: convenioId ? parseInt(convenioId) : undefined,
-      direcao: 'retornado'
-    },
-    { enabled: true }
-  );
-
-  // Buscar dados do Tasy para conciliação
-  const { data: dadosTasy, isLoading: loadingTasy } = trpc.importacaoTasy.dados.useQuery(
+  // Buscar contas unificadas do Tasy
+  const { data: contasTasy, isLoading: loadingTasy, refetch: refetchContas } = trpc.importacaoTasy.contasUnificadas.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
+      convenio: convenioId && convenioId !== 'all' ? convenioId : undefined,
       limite: 10000,
     },
     { enabled: !!estabelecimentoAtual }
   );
 
-  // Buscar procedimentos do arquivo XML selecionado
-  const { data: procedimentosXML, isLoading: loadingXML } = trpc.procedimentos.list.useQuery(
+  // Buscar procedimentos do demonstrativo (arquivos de retorno)
+  const { data: procedimentosDemonstrativo, isLoading: loadingDemonstrativo } = trpc.procedimentos.list.useQuery(
     {
-      arquivoId: arquivoId ? parseInt(arquivoId) : undefined,
+      convenioId: convenioId && convenioId !== 'all' ? parseInt(convenioId) : undefined,
       estabelecimentoId: estabelecimentoAtual?.id,
       page: 1,
-      pageSize: 10000,
+      pageSize: 50000,
     },
-    { enabled: !!arquivoId && !!estabelecimentoAtual }
+    { enabled: !!estabelecimentoAtual }
   );
 
-  // Realizar conciliação entre Tasy e XML
-  const itensConciliacao = useMemo(() => {
-    if (!dadosTasy || !procedimentosXML?.items) return [];
+  // Realizar conciliação entre Tasy e Demonstrativo
+  const resultadosConciliacao = useMemo(() => {
+    if (!contasTasy || contasTasy.length === 0) return [];
 
-    const itens: ItemConciliacao[] = [];
-    const tasyPorGuia = new Map<string, any[]>();
-
-    // Agrupar dados do Tasy por guia
-    for (const item of dadosTasy) {
-      const guia = item.guia || '';
-      if (!tasyPorGuia.has(guia)) {
-        tasyPorGuia.set(guia, []);
+    const resultados: ResultadoConciliacao[] = [];
+    
+    // Criar mapa de itens do demonstrativo por guia
+    const demonstrativoPorGuia = new Map<string, ItemDemonstrativo[]>();
+    
+    if (procedimentosDemonstrativo?.items) {
+      for (const proc of procedimentosDemonstrativo.items) {
+        const guia = proc.guiaNumero || '';
+        if (!guia) continue;
+        
+        if (!demonstrativoPorGuia.has(guia)) {
+          demonstrativoPorGuia.set(guia, []);
+        }
+        
+        const dadosExtras = proc.dadosExtras as Record<string, unknown> | undefined;
+        demonstrativoPorGuia.get(guia)!.push({
+          guia,
+          codigo: proc.codigo || '',
+          descricao: proc.descricao || '',
+          quantidade: proc.quantidade || 1,
+          valorInformado: parseFloat(String(dadosExtras?.valorInformado || proc.valorTotal || '0')),
+          valorPago: parseFloat(String(dadosExtras?.valorLiberado || proc.valorTotal || '0')),
+          valorGlosado: parseFloat(proc.valorGlosado || '0'),
+          codigoGlosa: String(dadosExtras?.codigoGlosa || proc.motivoGlosa || ''),
+          motivoGlosa: String(dadosExtras?.descricaoGlosa || ''),
+          status: parseFloat(proc.valorGlosado || '0') > 0 ? 'glosa' : 'ok',
+        });
       }
-      tasyPorGuia.get(guia)!.push(item);
     }
 
-    // Processar cada item do XML
-    for (const procXML of procedimentosXML.items) {
-      const guia = procXML.guiaNumero || '';
-      const itensTasy = tasyPorGuia.get(guia) || [];
+    // Processar cada conta do Tasy
+    for (const conta of contasTasy) {
+      const guia = String(conta.guia || '');
+      const itensDemonstrativo = demonstrativoPorGuia.get(guia) || [];
       
-      // Buscar item correspondente no Tasy pelo código
-      const itemTasy = itensTasy.find(t => 
-        t.codigo === procXML.codigo || 
-        t.codigoConvenio === procXML.codigo
-      );
-
-      const valorTasy = itemTasy ? parseFloat(itemTasy.valorTotal || '0') : 0;
-      const dadosExtras = procXML.dadosExtras as Record<string, unknown> | undefined;
-      const valorXmlInformado = parseFloat(String(dadosExtras?.valorInformado || procXML.valorTotal || '0'));
-      const valorXmlLiberado = parseFloat(String(dadosExtras?.valorLiberado || procXML.valorTotal || '0'));
-      const diferenca = valorTasy - valorXmlLiberado;
-      const valorGlosado = parseFloat(procXML.valorGlosado || '0');
-      const motivoGlosa = procXML.motivoGlosa || '';
-      const codigoGlosa = String(dadosExtras?.codigoGlosa || '');
-      const descricaoGlosa = String(dadosExtras?.descricaoGlosa || '');
-
-      // Determinar status
-      let status: ItemConciliacao['status'] = 'ok';
-      if (!itemTasy) {
+      // Calcular totais do demonstrativo para esta guia
+      const valorTotalPago = itensDemonstrativo.reduce((acc, i) => acc + i.valorPago, 0);
+      const valorTotalGlosado = itensDemonstrativo.reduce((acc, i) => acc + i.valorGlosado, 0);
+      const valorContaTasy = parseFloat(String(conta.valorTotalConta || '0'));
+      const diferenca = valorContaTasy - valorTotalPago;
+      
+      // Contar itens por status
+      const totalItensGlosa = itensDemonstrativo.filter(i => i.status === 'glosa').length;
+      
+      // Determinar status da conciliação
+      let status: ResultadoConciliacao['status'] = 'ok';
+      if (itensDemonstrativo.length === 0) {
         status = 'nao_encontrado';
-      } else if (valorGlosado > 0 || motivoGlosa) {
+      } else if (totalItensGlosa > 0) {
         status = 'glosa';
       } else if (Math.abs(diferenca) > 0.01) {
         status = 'divergencia';
       }
 
-      itens.push({
-        guia,
-        atendimento: itemTasy?.atendimento || String(dadosExtras?.atendimento || '-'),
-        paciente: itemTasy?.paciente || procXML.pacienteNome || '-',
-        medico: itemTasy?.medico || procXML.nomeMedico || '-',
-        setor: itemTasy?.setor || '-',
-        codigo: procXML.codigo || '-',
-        descricao: procXML.descricao || itemTasy?.descricao || '-',
-        valorTasy,
-        valorXmlInformado,
-        valorXmlLiberado,
+      resultados.push({
+        id: conta.id,
+        nrInternoConta: String(conta.nrInternoConta || ''),
+        guia: guia,
+        paciente: String(conta.paciente || ''),
+        convenio: String(conta.convenio || ''),
+        dataFaturado: formatDate(conta.dataFaturado),
+        totalProcedimentos: Number(conta.totalProcedimentos || 0),
+        totalMatMed: Number(conta.totalMatMed || 0),
+        valorTotalTasy: valorContaTasy,
+        valorTotalPago,
+        valorTotalGlosado,
         diferenca,
-        motivoGlosa,
-        codigoGlosa,
-        descricaoGlosa,
         status,
-        quantidade: procXML.quantidade || 1,
-        dataExecucao: procXML.dataExecucao ? new Date(procXML.dataExecucao).toLocaleDateString('pt-BR') : undefined,
-        tipo: itemTasy?.tipo || 'PROCEDIMENTO',
+        itensDemonstrativo,
       });
     }
 
-    return itens;
-  }, [dadosTasy, procedimentosXML]);
+    return resultados;
+  }, [contasTasy, procedimentosDemonstrativo]);
 
-  // Agrupar itens por guia
-  const guiasAgrupadas = useMemo(() => {
-    const guiasMap = new Map<string, GuiaAgrupada>();
-
-    for (const item of itensConciliacao) {
-      if (!guiasMap.has(item.guia)) {
-        guiasMap.set(item.guia, {
-          guia: item.guia,
-          atendimento: item.atendimento,
-          paciente: item.paciente,
-          medico: item.medico,
-          setor: item.setor,
-          itens: [],
-          valorTotalTasy: 0,
-          valorTotalXmlInformado: 0,
-          valorTotalXmlLiberado: 0,
-          valorTotalDiferenca: 0,
-          totalGlosas: 0,
-          totalDivergencias: 0,
-          totalOk: 0,
-          totalNaoEncontrados: 0,
-          status: 'ok',
-        });
-      }
-
-      const guia = guiasMap.get(item.guia)!;
-      guia.itens.push(item);
-      guia.valorTotalTasy += item.valorTasy;
-      guia.valorTotalXmlInformado += item.valorXmlInformado;
-      guia.valorTotalXmlLiberado += item.valorXmlLiberado;
-      guia.valorTotalDiferenca += item.diferenca;
-
-      if (item.status === 'glosa') guia.totalGlosas++;
-      else if (item.status === 'divergencia') guia.totalDivergencias++;
-      else if (item.status === 'nao_encontrado') guia.totalNaoEncontrados++;
-      else guia.totalOk++;
-
-      // Atualizar paciente/medico/setor se ainda não definido
-      if (guia.paciente === '-' && item.paciente !== '-') guia.paciente = item.paciente;
-      if (guia.medico === '-' && item.medico !== '-') guia.medico = item.medico;
-      if (guia.setor === '-' && item.setor !== '-') guia.setor = item.setor;
-    }
-
-    // Determinar status da guia
-    guiasMap.forEach((guia) => {
-      if (guia.totalGlosas > 0) guia.status = 'glosa';
-      else if (guia.totalDivergencias > 0) guia.status = 'divergencia';
-      else if (guia.totalNaoEncontrados > 0) guia.status = 'nao_encontrado';
-      else guia.status = 'ok';
-    });
-
-    const guiasArray: GuiaAgrupada[] = [];
-    guiasMap.forEach(guia => guiasArray.push(guia));
-    return guiasArray;
-  }, [itensConciliacao]);
-
-  // Filtrar guias
-  const guiasFiltradas = useMemo(() => {
-    let filtradas = [...guiasAgrupadas];
+  // Filtrar resultados
+  const resultadosFiltrados = useMemo(() => {
+    let filtrados = [...resultadosConciliacao];
 
     // Filtrar por status
     if (statusFiltro !== 'all') {
-      filtradas = filtradas.filter(g => g.status === statusFiltro);
+      filtrados = filtrados.filter(r => r.status === statusFiltro);
     }
 
     // Filtrar por busca
     if (searchTerm) {
       const termo = searchTerm.toLowerCase();
-      filtradas = filtradas.filter(g => 
-        g.guia.toLowerCase().includes(termo) ||
-        g.paciente.toLowerCase().includes(termo) ||
-        g.atendimento.toLowerCase().includes(termo) ||
-        g.itens.some((i: ItemConciliacao) => i.codigo.toLowerCase().includes(termo) || i.descricao.toLowerCase().includes(termo))
+      filtrados = filtrados.filter(r => 
+        r.guia?.toLowerCase().includes(termo) ||
+        r.paciente?.toLowerCase().includes(termo) ||
+        r.nrInternoConta?.toLowerCase().includes(termo)
       );
     }
 
-    return filtradas;
-  }, [guiasAgrupadas, statusFiltro, searchTerm]);
+    return filtrados;
+  }, [resultadosConciliacao, statusFiltro, searchTerm]);
 
   // Paginação
-  const totalGuias = guiasFiltradas.length;
-  const totalPages = Math.ceil(totalGuias / pageSize);
-  const guiasPaginadas = guiasFiltradas.slice((page - 1) * pageSize, page * pageSize);
+  const totalResultados = resultadosFiltrados.length;
+  const totalPages = Math.ceil(totalResultados / pageSize);
+  const resultadosPaginados = resultadosFiltrados.slice((page - 1) * pageSize, page * pageSize);
 
   // Estatísticas
   const estatisticas = useMemo(() => {
-    const total = itensConciliacao.length;
-    const ok = itensConciliacao.filter(i => i.status === 'ok').length;
-    const glosas = itensConciliacao.filter(i => i.status === 'glosa').length;
-    const divergencias = itensConciliacao.filter(i => i.status === 'divergencia').length;
-    const naoEncontrados = itensConciliacao.filter(i => i.status === 'nao_encontrado').length;
+    const total = resultadosConciliacao.length;
+    const ok = resultadosConciliacao.filter(r => r.status === 'ok').length;
+    const glosas = resultadosConciliacao.filter(r => r.status === 'glosa').length;
+    const divergencias = resultadosConciliacao.filter(r => r.status === 'divergencia').length;
+    const naoEncontrados = resultadosConciliacao.filter(r => r.status === 'nao_encontrado').length;
     
-    const valorTotalTasy = itensConciliacao.reduce((acc, i) => acc + i.valorTasy, 0);
-    const valorTotalXmlInformado = itensConciliacao.reduce((acc, i) => acc + i.valorXmlInformado, 0);
-    const valorTotalXmlLiberado = itensConciliacao.reduce((acc, i) => acc + i.valorXmlLiberado, 0);
-    const valorTotalGlosado = valorTotalXmlInformado - valorTotalXmlLiberado;
-    const valorTotalDiferenca = valorTotalTasy - valorTotalXmlLiberado;
+    const valorTotalTasy = resultadosConciliacao.reduce((acc, r) => acc + r.valorTotalTasy, 0);
+    const valorTotalPago = resultadosConciliacao.reduce((acc, r) => acc + r.valorTotalPago, 0);
+    const valorTotalGlosado = resultadosConciliacao.reduce((acc, r) => acc + r.valorTotalGlosado, 0);
+    const valorTotalDiferenca = resultadosConciliacao.reduce((acc, r) => acc + r.diferenca, 0);
+    const percentualGlosa = valorTotalTasy > 0 ? (valorTotalGlosado / valorTotalTasy) * 100 : 0;
 
     return {
       total,
-      totalGuias: guiasAgrupadas.length,
       ok,
       glosas,
       divergencias,
       naoEncontrados,
       valorTotalTasy,
-      valorTotalXmlInformado,
-      valorTotalXmlLiberado,
+      valorTotalPago,
       valorTotalGlosado,
       valorTotalDiferenca,
-      percentualGlosa: valorTotalXmlInformado > 0 ? (valorTotalGlosado / valorTotalXmlInformado) * 100 : 0,
+      percentualGlosa,
     };
-  }, [itensConciliacao, guiasAgrupadas]);
+  }, [resultadosConciliacao]);
 
-  const toggleGuiaExpanded = (guia: string) => {
-    const newExpanded = new Set(expandedGuias);
-    if (newExpanded.has(guia)) {
-      newExpanded.delete(guia);
-    } else {
-      newExpanded.add(guia);
-    }
-    setExpandedGuias(newExpanded);
-  };
-
-  const handleExportExcel = () => {
-    if (!itensConciliacao.length) return;
-
-    const excelData = itensConciliacao.map((item) => ({
-      "Guia": item.guia,
-      "Atendimento": item.atendimento,
-      "Paciente": item.paciente,
-      "Médico": item.medico,
-      "Setor": item.setor,
-      "Código": item.codigo,
-      "Descrição": item.descricao,
-      "Quantidade": item.quantidade,
-      "Tipo": item.tipo,
-      "Data Execução": item.dataExecucao || '-',
-      "Valor Tasy": item.valorTasy,
-      "Valor XML Informado": item.valorXmlInformado,
-      "Valor XML Liberado": item.valorXmlLiberado,
-      "Diferença": item.diferenca,
-      "Código Glosa": item.codigoGlosa,
-      "Motivo Glosa": item.motivoGlosa,
-      "Status": item.status === 'ok' ? 'OK' : 
-                item.status === 'glosa' ? 'GLOSA' : 
-                item.status === 'divergencia' ? 'DIVERGÊNCIA' : 'NÃO ENCONTRADO',
-    }));
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-
-    ws["!cols"] = [
-      { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 25 }, { wch: 20 },
-      { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 15 },
-      { wch: 40 }, { wch: 15 },
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, "Conciliação");
-    XLSX.writeFile(wb, `conciliacao_tasy_xml_${new Date().toISOString().split("T")[0]}.xlsx`);
-  };
-
+  // Funções auxiliares
   const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const getStatusBadge = (status: ItemConciliacao['status']) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ok':
-        return <Badge className="bg-green-100 text-green-700"><CheckCircle2 className="h-3 w-3 mr-1" />OK</Badge>;
+        return <Badge className="bg-green-500">OK</Badge>;
       case 'glosa':
-        return <Badge className="bg-red-100 text-red-700"><XCircle className="h-3 w-3 mr-1" />Glosa</Badge>;
+        return <Badge className="bg-red-500">Glosa</Badge>;
       case 'divergencia':
-        return <Badge className="bg-yellow-100 text-yellow-700"><AlertTriangle className="h-3 w-3 mr-1" />Divergência</Badge>;
+        return <Badge className="bg-yellow-500">Divergência</Badge>;
       case 'nao_encontrado':
-        return <Badge className="bg-gray-100 text-gray-700"><Search className="h-3 w-3 mr-1" />Não Encontrado</Badge>;
+        return <Badge className="bg-gray-500">Não Encontrado</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
     }
   };
 
-  const isLoading = loadingTasy || loadingXML;
+  const toggleContaExpanded = (contaId: string) => {
+    const newExpanded = new Set(expandedContas);
+    if (newExpanded.has(contaId)) {
+      newExpanded.delete(contaId);
+    } else {
+      newExpanded.add(contaId);
+    }
+    setExpandedContas(newExpanded);
+  };
+
+  const exportarExcel = () => {
+    const dados = resultadosFiltrados.map(r => ({
+      'Nr Conta': r.nrInternoConta,
+      'Guia': r.guia,
+      'Paciente': r.paciente,
+      'Convênio': r.convenio,
+      'Data Faturado': r.dataFaturado,
+      'Procedimentos': r.totalProcedimentos,
+      'Mat/Med': r.totalMatMed,
+      'Valor Tasy': r.valorTotalTasy,
+      'Valor Pago': r.valorTotalPago,
+      'Valor Glosado': r.valorTotalGlosado,
+      'Diferença': r.diferenca,
+      'Status': r.status,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Conciliação Tasy');
+    XLSX.writeFile(wb, `conciliacao_tasy_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Arquivo Excel exportado com sucesso!');
+  };
+
+  const isLoading = loadingTasy || loadingDemonstrativo;
+
+  // Anos disponíveis para filtro
+  const anosDisponiveis = [2024, 2025, 2026];
+  const mesesDisponiveis = [
+    { value: '1', label: 'Janeiro' },
+    { value: '2', label: 'Fevereiro' },
+    { value: '3', label: 'Março' },
+    { value: '4', label: 'Abril' },
+    { value: '5', label: 'Maio' },
+    { value: '6', label: 'Junho' },
+    { value: '7', label: 'Julho' },
+    { value: '8', label: 'Agosto' },
+    { value: '9', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' },
+  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <ArrowLeftRight className="h-8 w-8" />
-              Conciliação Tasy x XML
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">Conciliação Tasy</h1>
             <p className="text-muted-foreground">
               Compare os dados faturados no Tasy com os retornos dos convênios
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => window.location.reload()}>
+            <Button variant="outline" onClick={() => refetchContas()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <Button onClick={handleExportExcel} disabled={!itensConciliacao.length}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={exportarExcel} disabled={resultadosFiltrados.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
               Exportar Excel
             </Button>
           </div>
         </div>
 
-        {/* Seleção de Arquivo */}
+        {/* Filtros */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
-              Selecione o Arquivo de Retorno
+              Filtros
             </CardTitle>
-            <CardDescription>
-              Escolha o convênio e o arquivo XML de retorno para conciliar com os dados do Tasy
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId} onValueChange={(value) => {
-                  setConvenioId(value === "all" ? "" : value);
-                  setArquivoId("");
-                  setPage(1);
-                }}>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Convênio</label>
+                <Select value={convenioId} onValueChange={setConvenioId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o convênio" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os convênios</SelectItem>
-                    {convenios?.map((c: any) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.nome}
+                    {convenios?.map((conv) => (
+                      <SelectItem key={conv.id} value={String(conv.id)}>
+                        {conv.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Arquivo de Retorno</label>
-                <Select value={arquivoId} onValueChange={(value) => {
-                  setArquivoId(value === "all" ? "" : value);
-                  setPage(1);
-                }}>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Mês</label>
+                <Select value={mes} onValueChange={setMes}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o arquivo" />
+                    <SelectValue placeholder="Selecione o mês" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Selecione um arquivo</SelectItem>
-                    {arquivos?.map((a: any) => (
-                      <SelectItem key={a.id} value={String(a.id)}>
-                        {a.nome}
+                    <SelectItem value="all">Todos</SelectItem>
+                    {mesesDisponiveis.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Filtrar por Status</label>
-                <Select value={statusFiltro} onValueChange={(value) => {
-                  setStatusFiltro(value);
-                  setPage(1);
-                }}>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Ano</label>
+                <Select value={ano} onValueChange={setAno}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {anosDisponiveis.map((a) => (
+                      <SelectItem key={a} value={String(a)}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Status</label>
+                <Select value={statusFiltro} onValueChange={setStatusFiltro}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os status</SelectItem>
                     <SelectItem value="ok">OK</SelectItem>
-                    <SelectItem value="glosa">Glosas</SelectItem>
-                    <SelectItem value="divergencia">Divergências</SelectItem>
-                    <SelectItem value="nao_encontrado">Não Encontrados</SelectItem>
+                    <SelectItem value="glosa">Glosa</SelectItem>
+                    <SelectItem value="divergencia">Divergência</SelectItem>
+                    <SelectItem value="nao_encontrado">Não Encontrado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Buscar</label>
-                <Input
-                  placeholder="Guia, paciente, código..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setPage(1);
-                  }}
-                />
+              <div>
+                <label className="text-sm font-medium mb-1 block">Buscar</label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Guia, paciente, conta..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Estatísticas */}
-        {arquivoId && (
+        {resultadosConciliacao.length > 0 && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <div className="text-2xl font-bold">{estatisticas.total}</div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Total de Itens ({estatisticas.totalGuias} guias)</p>
+                  <p className="text-xs text-muted-foreground">Total de Contas</p>
                 </CardContent>
               </Card>
               <Card>
@@ -513,7 +454,7 @@ export default function ConciliacaoTasy() {
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <div className="text-2xl font-bold text-green-600">{estatisticas.ok}</div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Itens OK</p>
+                  <p className="text-xs text-muted-foreground">Contas OK</p>
                 </CardContent>
               </Card>
               <Card>
@@ -522,7 +463,7 @@ export default function ConciliacaoTasy() {
                     <XCircle className="h-4 w-4 text-red-500" />
                     <div className="text-2xl font-bold text-red-600">{estatisticas.glosas}</div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Glosas</p>
+                  <p className="text-xs text-muted-foreground">Com Glosa</p>
                 </CardContent>
               </Card>
               <Card>
@@ -559,19 +500,10 @@ export default function ConciliacaoTasy() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                    <div className="text-xl font-bold">{formatCurrency(estatisticas.valorTotalXmlInformado)}</div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Valor Informado (XML)</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />
-                    <div className="text-xl font-bold text-green-600">{formatCurrency(estatisticas.valorTotalXmlLiberado)}</div>
+                    <div className="text-xl font-bold text-green-600">{formatCurrency(estatisticas.valorTotalPago)}</div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Valor Liberado (XML)</p>
+                  <p className="text-xs text-muted-foreground">Valor Total Pago</p>
                 </CardContent>
               </Card>
               <Card className={estatisticas.valorTotalGlosado > 0 ? "border-red-200 bg-red-50" : ""}>
@@ -585,346 +517,171 @@ export default function ConciliacaoTasy() {
                   </p>
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Alerta de Divergência */}
-            {estatisticas.valorTotalDiferenca !== 0 && (
-              <Alert variant={estatisticas.valorTotalDiferenca > 0 ? "default" : "destructive"}>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Divergência Detectada</AlertTitle>
-                <AlertDescription>
-                  {estatisticas.valorTotalDiferenca > 0 
-                    ? `O valor faturado no Tasy é ${formatCurrency(estatisticas.valorTotalDiferenca)} maior que o valor liberado pelo convênio.`
-                    : `O valor liberado pelo convênio é ${formatCurrency(Math.abs(estatisticas.valorTotalDiferenca))} maior que o valor faturado no Tasy.`
-                  }
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Tabela de Conciliação por Guia */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileSearch className="h-5 w-5" />
-                  Resultado da Conciliação por Guia
-                </CardTitle>
-                <CardDescription>
-                  Clique em uma guia para expandir e ver todos os itens detalhados. Itens com diferença maior que zero estão destacados em vermelho.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : guiasPaginadas.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    {arquivoId ? "Nenhuma guia encontrada para conciliação" : "Selecione um arquivo de retorno para iniciar a conciliação"}
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      {guiasPaginadas.map((guia) => (
-                        <Collapsible
-                          key={guia.guia}
-                          open={expandedGuias.has(guia.guia)}
-                          onOpenChange={() => toggleGuiaExpanded(guia.guia)}
-                        >
-                          <div className={`rounded-lg border ${guia.status === 'glosa' ? 'border-red-200 bg-red-50/50' : guia.status === 'divergencia' ? 'border-yellow-200 bg-yellow-50/50' : ''}`}>
-                            <CollapsibleTrigger asChild>
-                              <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                                <div className="flex items-center gap-4">
-                                  <div className="flex items-center gap-2">
-                                    {expandedGuias.has(guia.guia) ? (
-                                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                    )}
-                                    <div className="font-mono font-bold text-lg">{guia.guia}</div>
-                                  </div>
-                                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {guia.paciente}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Hash className="h-3 w-3" />
-                                      {guia.atendimento}
-                                    </span>
-                                    <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                                      {guia.itens.length} itens
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <div className="text-right">
-                                    <div className="text-sm font-medium">Tasy: {formatCurrency(guia.valorTotalTasy)}</div>
-                                    <div className="text-sm text-green-600">Liberado: {formatCurrency(guia.valorTotalXmlLiberado)}</div>
-                                  </div>
-                                  <div className={`text-right font-bold ${guia.valorTotalDiferenca > 0.01 ? 'text-red-600' : guia.valorTotalDiferenca < -0.01 ? 'text-yellow-600' : 'text-green-600'}`}>
-                                    {formatCurrency(guia.valorTotalDiferenca)}
-                                  </div>
-                                  {getStatusBadge(guia.status)}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedGuia(guia);
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <div className="border-t px-4 pb-4">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Código</TableHead>
-                                      <TableHead>Descrição</TableHead>
-                                      <TableHead>Qtd</TableHead>
-                                      <TableHead>Tipo</TableHead>
-                                      <TableHead className="text-right">Valor Tasy</TableHead>
-                                      <TableHead className="text-right">Informado</TableHead>
-                                      <TableHead className="text-right">Liberado</TableHead>
-                                      <TableHead className="text-right">Diferença</TableHead>
-                                      <TableHead>Glosa</TableHead>
-                                      <TableHead>Status</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {guia.itens.map((item, index) => (
-                                      <TableRow 
-                                        key={`${item.codigo}-${index}`}
-                                        className={item.diferenca > 0.01 ? "bg-red-50" : ""}
-                                      >
-                                        <TableCell className="font-mono">{item.codigo}</TableCell>
-                                        <TableCell className="max-w-[200px] truncate" title={item.descricao}>
-                                          {item.descricao}
-                                        </TableCell>
-                                        <TableCell>{item.quantidade}</TableCell>
-                                        <TableCell>
-                                          <Badge variant="outline" className="text-xs">
-                                            {item.tipo}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">
-                                          {formatCurrency(item.valorTasy)}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                          {formatCurrency(item.valorXmlInformado)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-green-600">
-                                          {formatCurrency(item.valorXmlLiberado)}
-                                        </TableCell>
-                                        <TableCell className={`text-right font-bold ${item.diferenca > 0.01 ? 'text-red-600' : item.diferenca < -0.01 ? 'text-yellow-600' : ''}`}>
-                                          {formatCurrency(item.diferenca)}
-                                        </TableCell>
-                                        <TableCell className="max-w-[120px] truncate text-xs text-red-600" title={item.motivoGlosa}>
-                                          {item.codigoGlosa && <span className="font-mono">[{item.codigoGlosa}]</span>} {item.motivoGlosa || '-'}
-                                        </TableCell>
-                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </CollapsibleContent>
-                          </div>
-                        </Collapsible>
-                      ))}
+              <Card className={estatisticas.valorTotalDiferenca !== 0 ? "border-yellow-200 bg-yellow-50" : ""}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <ArrowLeftRight className="h-4 w-4 text-yellow-500" />
+                    <div className={`text-xl font-bold ${estatisticas.valorTotalDiferenca > 0 ? 'text-red-600' : estatisticas.valorTotalDiferenca < 0 ? 'text-green-600' : ''}`}>
+                      {formatCurrency(estatisticas.valorTotalDiferenca)}
                     </div>
-
-                    {/* Paginação */}
-                    {totalPages > 1 && (
-                      <div className="flex items-center justify-between mt-4">
-                        <p className="text-sm text-muted-foreground">
-                          Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalGuias)} de {totalGuias} guias
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <span className="text-sm">
-                            Página {page} de {totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            disabled={page === totalPages}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Diferença Total</p>
+                </CardContent>
+              </Card>
+            </div>
           </>
         )}
 
-        {/* Mensagem quando não há arquivo selecionado */}
-        {!arquivoId && (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center text-muted-foreground">
-                <ArrowLeftRight className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">Selecione um arquivo de retorno</h3>
-                <p className="text-sm">
-                  Escolha um convênio e um arquivo XML de retorno para iniciar a conciliação com os dados do Tasy.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Modal de Detalhes da Guia */}
-      <Dialog open={!!selectedGuia} onOpenChange={() => setSelectedGuia(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        {/* Tabela de Conciliação */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <FileSearch className="h-5 w-5" />
-              Detalhes da Guia {selectedGuia?.guia}
-            </DialogTitle>
-            <DialogDescription>
-              Informações completas da guia e todos os itens conciliados
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedGuia && (
-            <div className="space-y-6">
-              {/* Informações da Guia */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Hash className="h-3 w-3" /> Atendimento
-                  </p>
-                  <p className="font-mono font-medium">{selectedGuia.atendimento}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <User className="h-3 w-3" /> Paciente
-                  </p>
-                  <p className="font-medium">{selectedGuia.paciente}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Stethoscope className="h-3 w-3" /> Médico
-                  </p>
-                  <p className="font-medium">{selectedGuia.medico}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Building2 className="h-3 w-3" /> Setor
-                  </p>
-                  <p className="font-medium">{selectedGuia.setor}</p>
-                </div>
+              Resultado da Conciliação
+            </CardTitle>
+            <CardDescription>
+              Compare os valores faturados no Tasy com os valores pagos pelos convênios. Clique em uma conta para ver os detalhes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-
-              {/* Resumo de Valores */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground">Valor Tasy</p>
-                    <p className="text-lg font-bold">{formatCurrency(selectedGuia.valorTotalTasy)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground">Valor Informado</p>
-                    <p className="text-lg font-bold">{formatCurrency(selectedGuia.valorTotalXmlInformado)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground">Valor Liberado</p>
-                    <p className="text-lg font-bold text-green-600">{formatCurrency(selectedGuia.valorTotalXmlLiberado)}</p>
-                  </CardContent>
-                </Card>
-                <Card className={selectedGuia.valorTotalDiferenca > 0 ? "border-red-200 bg-red-50" : ""}>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground">Diferença</p>
-                    <p className={`text-lg font-bold ${selectedGuia.valorTotalDiferenca > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(selectedGuia.valorTotalDiferenca)}
-                    </p>
-                  </CardContent>
-                </Card>
+            ) : resultadosPaginados.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {contasTasy && contasTasy.length > 0 
+                  ? "Nenhuma conta encontrada com os filtros aplicados" 
+                  : "Nenhuma conta do Tasy encontrada. Importe os dados do Tasy primeiro."}
               </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {resultadosPaginados.map((resultado) => (
+                    <Collapsible
+                      key={resultado.id}
+                      open={expandedContas.has(String(resultado.id))}
+                      onOpenChange={() => toggleContaExpanded(String(resultado.id))}
+                    >
+                      <div className={`rounded-lg border ${resultado.status === 'glosa' ? 'border-red-200 bg-red-50/50' : resultado.status === 'divergencia' ? 'border-yellow-200 bg-yellow-50/50' : resultado.status === 'nao_encontrado' ? 'border-gray-200 bg-gray-50/50' : ''}`}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                {expandedContas.has(String(resultado.id)) ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <div className="font-mono font-bold">{resultado.nrInternoConta}</div>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Hash className="h-3 w-3" />
+                                  {resultado.guia || '-'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {resultado.paciente || '-'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {resultado.dataFaturado}
+                                </span>
+                                <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                  {resultado.totalProcedimentos} proc + {resultado.totalMatMed} mat/med
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <div className="text-sm font-medium">Tasy: {formatCurrency(resultado.valorTotalTasy)}</div>
+                                <div className="text-sm text-green-600">Pago: {formatCurrency(resultado.valorTotalPago)}</div>
+                              </div>
+                              <div className={`text-right font-bold ${resultado.diferenca > 0.01 ? 'text-red-600' : resultado.diferenca < -0.01 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                {formatCurrency(resultado.diferenca)}
+                              </div>
+                              {getStatusBadge(resultado.status)}
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="border-t px-4 pb-4">
+                            {resultado.itensDemonstrativo.length > 0 ? (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Código</TableHead>
+                                    <TableHead>Descrição</TableHead>
+                                    <TableHead className="text-right">Qtd</TableHead>
+                                    <TableHead className="text-right">Valor Informado</TableHead>
+                                    <TableHead className="text-right">Valor Pago</TableHead>
+                                    <TableHead className="text-right">Valor Glosado</TableHead>
+                                    <TableHead>Código Glosa</TableHead>
+                                    <TableHead>Status</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {resultado.itensDemonstrativo.map((item, index) => (
+                                    <TableRow key={index} className={item.status === 'glosa' ? 'bg-red-50' : ''}>
+                                      <TableCell className="font-mono">{item.codigo}</TableCell>
+                                      <TableCell className="max-w-[200px] truncate">{item.descricao}</TableCell>
+                                      <TableCell className="text-right">{item.quantidade}</TableCell>
+                                      <TableCell className="text-right">{formatCurrency(item.valorInformado)}</TableCell>
+                                      <TableCell className="text-right text-green-600">{formatCurrency(item.valorPago)}</TableCell>
+                                      <TableCell className="text-right text-red-600">{formatCurrency(item.valorGlosado)}</TableCell>
+                                      <TableCell>{item.codigoGlosa || '-'}</TableCell>
+                                      <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            ) : (
+                              <div className="text-center py-4 text-muted-foreground">
+                                Nenhum item do demonstrativo encontrado para esta guia
+                              </div>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  ))}
+                </div>
 
-              {/* Resumo de Status */}
-              <div className="flex gap-4">
-                <Badge className="bg-green-100 text-green-700">{selectedGuia.totalOk} OK</Badge>
-                <Badge className="bg-red-100 text-red-700">{selectedGuia.totalGlosas} Glosas</Badge>
-                <Badge className="bg-yellow-100 text-yellow-700">{selectedGuia.totalDivergencias} Divergências</Badge>
-                <Badge className="bg-gray-100 text-gray-700">{selectedGuia.totalNaoEncontrados} Não Encontrados</Badge>
-              </div>
-
-              {/* Tabela de Itens */}
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Qtd</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead className="text-right">Valor Tasy</TableHead>
-                      <TableHead className="text-right">Informado</TableHead>
-                      <TableHead className="text-right">Liberado</TableHead>
-                      <TableHead className="text-right">Diferença</TableHead>
-                      <TableHead>Código Glosa</TableHead>
-                      <TableHead>Motivo Glosa</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedGuia.itens.map((item, index) => (
-                      <TableRow 
-                        key={`${item.codigo}-${index}`}
-                        className={item.diferenca > 0.01 ? "bg-red-50" : ""}
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalResultados)} de {totalResultados} contas
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
                       >
-                        <TableCell className="font-mono">{item.codigo}</TableCell>
-                        <TableCell className="max-w-[150px]" title={item.descricao}>
-                          <div className="truncate">{item.descricao}</div>
-                        </TableCell>
-                        <TableCell>{item.quantidade}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">{item.tipo}</Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{item.dataExecucao || '-'}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(item.valorTasy)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.valorXmlInformado)}</TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(item.valorXmlLiberado)}</TableCell>
-                        <TableCell className={`text-right font-bold ${item.diferenca > 0.01 ? 'text-red-600' : ''}`}>
-                          {formatCurrency(item.diferenca)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{item.codigoGlosa || '-'}</TableCell>
-                        <TableCell className="max-w-[150px] text-xs text-red-600" title={item.motivoGlosa || item.descricaoGlosa}>
-                          <div className="truncate">{item.motivoGlosa || item.descricaoGlosa || '-'}</div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(item.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm">
+                        Página {page} de {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 }

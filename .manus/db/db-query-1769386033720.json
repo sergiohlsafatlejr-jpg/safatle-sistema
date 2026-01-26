@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, estabelecimentoId, nrInternoConta, guia FROM contasTasy LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, estabelecimentoId, nrInternoConta, guia FROM contasTasy LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "estabelecimentoId": "60011",
+      "nrInternoConta": "132",
+      "guia": "59135880"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\testabelecimentoId\tnrInternoConta\tguia\n1\t60011\t132\t59135880\n",
+  "stderr": "",
+  "execution_time_ms": 366
+}

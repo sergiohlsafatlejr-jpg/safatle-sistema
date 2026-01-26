@@ -1,0 +1,28 @@
+{
+  "query": "SELECT * FROM estabelecimentos;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT * FROM estabelecimentos;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "Pronto Socorro Infantil",
+      "cnpj": "01.545.649/0001-50",
+      "endereco": "Avenida Tocantins ",
+      "ativo": "sim",
+      "createdAt": "2026-01-22 10:25:49",
+      "updatedAt": "2026-01-22 10:25:49"
+    },
+    {
+      "id": "60011",
+      "nome": "Maternidade Ela ",
+      "cnpj": "24.790.438/0001-89",
+      "endereco": "Rua 6A ",
+      "ativo": "sim",
+      "createdAt": "2026-01-23 16:57:35",
+      "updatedAt": "2026-01-23 16:57:35"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tcnpj\tendereco\tativo\tcreatedAt\tupdatedAt\n1\tPronto Socorro Infantil\t01.545.649/0001-50\tAvenida Tocantins \tsim\t2026-01-22 10:25:49\t2026-01-22 10:25:49\n60011\tMaternidade Ela \t24.790.438/0001-89\tRua 6A \tsim\t2026-01-23 16:57:35\t2026-01-23 16:57:35\n",
+  "stderr": "",
+  "execution_time_ms": 363
+}

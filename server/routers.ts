@@ -4463,7 +4463,8 @@ export const appRouter = router({
         offset: z.number().optional().default(0),
       }))
       .query(async ({ input }) => {
-        return db.getContasTasy(input.estabelecimentoId, {
+        console.log('[contasUnificadas] Input:', JSON.stringify(input));
+        const result = await db.getContasTasy(input.estabelecimentoId, {
           convenio: input.convenio,
           guia: input.guia,
           nrInternoConta: input.nrInternoConta,
@@ -4473,6 +4474,8 @@ export const appRouter = router({
           limite: input.limite,
           offset: input.offset,
         });
+        console.log('[contasUnificadas] Result count:', result?.length || 0);
+        return result;
       }),
 
     // Buscar itens de uma conta unificada

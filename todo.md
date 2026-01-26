@@ -778,3 +778,7 @@
 - [x] Corrigir importação SQLite que está travando no sistema - 414.418 registros importados com sucesso
 
 - [x] Gerar tabela unificada contas_tasy com junção de procedimentos e mat_med - 21.856 contas, 395.428 itens, R$ 43.017.279,87
+
+- [x] Atualizar aba Contas Tasy para exibir dados da tabela unificada contas_tasy - 10.000 contas, 188.543 itens, R$ 27.269.529,98
+- [x] Integrar contas_tasy na Conciliação Tasy para comparar com retornos
+- [ ] Aplicar regras de negócio nas contas Tasy para validar completude
