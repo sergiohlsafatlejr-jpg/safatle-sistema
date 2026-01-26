@@ -930,3 +930,4 @@
 - [x] Migrar recursos de glosa (9 itens) e lote de recurso do ID 390001 para Ox Uti (ID 3)
 - [x] Mover demonstrativo-0282645 para Maternidade Ela (ID 2)
 - [x] Migrar regras de IA (4 itens) do ID 390001 para Ox Uti (ID 3)
+- [x] Corrigir Relatório BI para usar código do procedimento em vez de descrição para match entre enviados e retornados (aplicado a todos os estabelecimentos)

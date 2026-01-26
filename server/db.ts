@@ -12608,25 +12608,30 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
 
   // Agrupar por descrição do item - combina dados de enviados E retornados
-  // Usa normalização case-insensitive para combinar descrições com capitalização diferente
-  const porDescricaoMap = new Map<string, DadosBIAgrupado>();
-  const descricaoNormalizada = new Map<string, string>(); // Mapeia chave normalizada -> descrição original
-  
-  // Função para normalizar descrição (remove espaços extras, converte para uppercase)
-  const normalizeDescricao = (desc: string): string => {
-    return desc.toUpperCase().replace(/\s+/g, ' ').trim();
-  };
+  // Usa CÓDIGO DO PROCEDIMENTO como chave de agrupamento para garantir match correto
+  // mesmo quando as descrições têm variações de capitalização ou formatação
+  const porDescricaoMap = new Map<string, DadosBIAgrupado & { codigo?: string }>();
+  const codigoDescricaoMap = new Map<string, string>(); // Mapeia código -> melhor descrição
   
   // Primeiro, adicionar dados dos arquivos enviados (faturados)
   for (const proc of procedimentosEnviadosFiltrados) {
+    const codigo = proc.codigo || 'SEM_CODIGO';
     const descOriginal = proc.descricao || 'Sem Descrição';
-    const chaveNorm = normalizeDescricao(descOriginal);
     
-    if (!porDescricaoMap.has(chaveNorm)) {
-      porDescricaoMap.set(chaveNorm, { chave: descOriginal, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
-      descricaoNormalizada.set(chaveNorm, descOriginal);
+    if (!porDescricaoMap.has(codigo)) {
+      porDescricaoMap.set(codigo, { 
+        chave: descOriginal, 
+        codigo: codigo,
+        valorFaturado: 0, 
+        valorRecebido: 0, 
+        valorGlosado: 0, 
+        valorPendente: 0, 
+        quantidade: 0, 
+        registros: 0 
+      });
+      codigoDescricaoMap.set(codigo, descOriginal);
     }
-    const item = porDescricaoMap.get(chaveNorm)!;
+    const item = porDescricaoMap.get(codigo)!;
     item.valorFaturado += parseFloat(proc.valorTotal || "0");
     item.quantidade += parseFloat(String(proc.quantidade || "1"));
     item.registros++;
@@ -12634,15 +12639,24 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   
   // Depois, adicionar dados dos arquivos retornados (demonstrativo) - criar novos itens se não existirem
   for (const proc of procedimentosRetornadosFiltrados) {
+    const codigo = proc.codigo || 'SEM_CODIGO';
     const descOriginal = proc.descricao || 'Sem Descrição';
-    const chaveNorm = normalizeDescricao(descOriginal);
     
-    if (!porDescricaoMap.has(chaveNorm)) {
-      // Criar novo item para descrições que só existem no demonstrativo
-      porDescricaoMap.set(chaveNorm, { chave: descOriginal, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
-      descricaoNormalizada.set(chaveNorm, descOriginal);
+    if (!porDescricaoMap.has(codigo)) {
+      // Criar novo item para códigos que só existem no demonstrativo
+      porDescricaoMap.set(codigo, { 
+        chave: descOriginal, 
+        codigo: codigo,
+        valorFaturado: 0, 
+        valorRecebido: 0, 
+        valorGlosado: 0, 
+        valorPendente: 0, 
+        quantidade: 0, 
+        registros: 0 
+      });
+      codigoDescricaoMap.set(codigo, descOriginal);
     }
-    const item = porDescricaoMap.get(chaveNorm)!;
+    const item = porDescricaoMap.get(codigo)!;
     const valorTotal = parseFloat(proc.valorTotal || "0");
     const valorGlosado = parseFloat(proc.valorGlosado || "0");
     // Se não tem valor faturado, usar o valor total do demonstrativo como referência
@@ -12658,7 +12672,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
   }
   
+  // Atualizar chave para mostrar código + descrição para melhor identificação
   for (const item of Array.from(porDescricaoMap.values())) {
+    if (item.codigo && item.codigo !== 'SEM_CODIGO') {
+      item.chave = `${item.chave} (${item.codigo})`;
+    }
     item.valorPendente = Math.max(0, item.valorFaturado - item.valorRecebido - item.valorGlosado);
   }
 

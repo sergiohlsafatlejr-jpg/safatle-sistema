@@ -1,0 +1,8 @@
+{
+  "query": "SELECT p.codigo, p.codigoTabela, p.descricao FROM procedimentos p JOIN arquivos a ON p.arquivoId = a.id WHERE a.direcao = 'enviado' AND a.estabelecimentoId = 1 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT p.codigo, p.codigoTabela, p.descricao FROM procedimentos p JOIN arquivos a ON p.arquivoId = a.id WHERE a.direcao = 'enviado' AND a.estabelecimentoId = 1 LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'p.codigotabela' in 'field list'"
+  ]
+}
