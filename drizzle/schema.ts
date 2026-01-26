@@ -348,6 +348,11 @@ export const recursosGlosa = mysqlTable("recursosGlosa", {
   protocoloRecurso: varchar("protocoloRecurso", { length: 100 }),
   respostaConvenio: text("respostaConvenio"),
   
+  // Campos de pagamento do recurso
+  valorRecebido: decimal("valorRecebido", { precision: 10, scale: 2 }),
+  dataPagamento: timestamp("dataPagamento"),
+  observacoesPagamento: text("observacoesPagamento"),
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -830,3 +830,11 @@
 - [x] Adicionar campos da Análise de Glosa (Glosa Aceita, Glosa Recursada)
 - [x] Adicionar dados do Recurso de Glosa
 - [x] Testar agrupamentos com os novos campos
+
+
+## Melhorias no Acompanhamento de Recursos e Exportadores
+- [x] Adicionar campo de valores recebidos no detalhe do recurso
+- [x] Adicionar campo de data de pagamento do recurso
+- [x] Criar exportador padrão Unimed (Excel) com campos: Protocolo, Nº Guia, Seq., Nome Beneficiário, Cód. Beneficiário, Data Atendimento, Período, Código Serviço, Descrição, Participação, Qtde, Valor Recursado, Local Atendimento, Motivo Glosa, Justificativa, Anexo, Qtde Acatado, Valor Acatado, Pago pelo código, Observações, Valor Recebido, Data Pagamento
+- [x] Criar exportador padrão XML ANS (TISS) para envio às operadoras
+- [x] Testar exportação nos dois formatos

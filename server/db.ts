@@ -9310,6 +9310,9 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     descricaoProcedimento: recurso.descricaoProcedimento || "N/A",
     status: recurso.status,
     valorRecuperado: recurso.valorRecuperado ? parseFloat(recurso.valorRecuperado) : 0,
+    // Campos de pagamento
+    valorRecebido: (recurso as any).valorRecebido ? parseFloat((recurso as any).valorRecebido) : 0,
+    dataPagamento: (recurso as any).dataPagamento ? new Date((recurso as any).dataPagamento).toLocaleDateString("pt-BR") : "",
     // Campos adicionais para padrão Unimed
     sequencial: index + 1,
     protocoloDP: lote.protocoloEnvio || "",
@@ -9324,10 +9327,10 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     localAtendimento: "",
     justificativaPagamento: recurso.justificativaRecurso || "",
     anexo: "",
-    qtdeAcatado: 0,
-    valorAcatado: 0,
+    qtdeAcatado: recurso.status === "deferido" ? 1 : 0,
+    valorAcatado: recurso.status === "deferido" ? (recurso.valorRecuperado ? parseFloat(recurso.valorRecuperado) : 0) : 0,
     pagoPeloCodigo: "",
-    observacoes: "",
+    observacoes: (recurso as any).observacoesPagamento || "",
   }));
 
   // Calcular totais
@@ -9336,6 +9339,7 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     totalValorGlosado: dadosExportacao.reduce((sum, r) => sum + r.valorGlosado, 0),
     totalValorRecursado: dadosExportacao.reduce((sum, r) => sum + r.valorRecursado, 0),
     totalValorRecuperado: dadosExportacao.reduce((sum, r) => sum + r.valorRecuperado, 0),
+    totalValorRecebido: dadosExportacao.reduce((sum, r) => sum + r.valorRecebido, 0),
   };
 
   return {
@@ -9350,6 +9354,143 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
     recursos: dadosExportacao,
     totais,
   };
+}
+
+/**
+ * Gera XML no padrão ANS/TISS para recurso de glosa
+ */
+export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Buscar lote
+  const [lote] = await db
+    .select()
+    .from(lotesRecurso)
+    .where(eq(lotesRecurso.id, loteId))
+    .limit(1);
+
+  if (!lote) return null;
+
+  // Buscar recursos do lote
+  const recursosDoLote = await db
+    .select()
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.loteId, loteId))
+    .orderBy(recursosGlosa.pacienteNome, recursosGlosa.guiaNumero);
+
+  // Buscar convênio
+  const [convenio] = lote.convenioId
+    ? await db.select().from(convenios).where(eq(convenios.id, lote.convenioId)).limit(1)
+    : [null];
+
+  // Buscar estabelecimento
+  const [estabelecimento] = lote.estabelecimentoId
+    ? await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1)
+    : [null];
+
+  // Gerar XML no padrão ANS/TISS
+  const dataAtual = new Date().toISOString().split('T')[0];
+  const registroANS = (convenio as any)?.registroAns || convenio?.codigo || "000000";
+  const codigoPrestador = (estabelecimento as any)?.codigoPrestador || estabelecimento?.cnpj || "0000";
+  const nomeOperadora = convenio?.nome || "OPERADORA";
+  
+  // Agrupar recursos por guia
+  const recursosPorGuia = recursosDoLote.reduce((acc, recurso) => {
+    const guia = recurso.guiaNumero || "SEM_GUIA";
+    if (!acc[guia]) {
+      acc[guia] = [];
+    }
+    acc[guia].push(recurso);
+    return acc;
+  }, {} as Record<string, typeof recursosDoLote>);
+
+  // Gerar itens XML para cada guia
+  const guiasXml = Object.entries(recursosPorGuia).map(([guiaNumero, recursos], guiaIndex) => {
+    const itensXml = recursos.map((recurso, index) => {
+      const dataExecucao = recurso.dataGlosa 
+        ? new Date(recurso.dataGlosa).toISOString().split('T')[0] 
+        : dataAtual;
+      
+      return `
+                            <ans:itensGuia>
+                                <ans:sequencialItem>${index + 1}</ans:sequencialItem>
+                                <ans:dataInicio>${dataExecucao}</ans:dataInicio>
+                                <ans:procRecurso>
+                                    <ans:codigoTabela>22</ans:codigoTabela>
+                                    <ans:codigoProcedimento>${recurso.codigoProcedimento || ""}</ans:codigoProcedimento>
+                                    <ans:descricaoProcedimento>${escapeXml(recurso.descricaoProcedimento || "")}</ans:descricaoProcedimento>
+                                </ans:procRecurso>
+                                <ans:codGlosaItem>${recurso.motivoGlosaConvenio || ""}</ans:codGlosaItem>
+                                <ans:valorRecursado>${recurso.valorGlosado || "0.00"}</ans:valorRecursado>
+                                <ans:justificativaItem>${escapeXml(recurso.justificativaRecurso || "")}</ans:justificativaItem>
+                            </ans:itensGuia>`;
+    }).join("");
+
+    const primeiroRecurso = recursos[0];
+    const senha = primeiroRecurso?.protocoloRecurso || "";
+    const guiaOperadora = `${new Date().getFullYear()}${String(guiaIndex + 1).padStart(20, '0')}`;
+
+    return `
+                    <ans:recursoGuia>
+                        <ans:numeroGuiaOrigem>${guiaNumero}</ans:numeroGuiaOrigem>
+                        <ans:numeroGuiaOperadora>${guiaOperadora}</ans:numeroGuiaOperadora>
+                        <ans:senha>${senha}</ans:senha>
+                        <ans:opcaoRecursoGuia>${itensXml}
+                        </ans:opcaoRecursoGuia>
+                    </ans:recursoGuia>`;
+  }).join("");
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <ans:cabecalho>
+        <ans:identificacaoTransacao>
+            <ans:tipoTransacao>RECURSO_GLOSA</ans:tipoTransacao>
+            <ans:sequencialTransacao>${lote.numeroLote}</ans:sequencialTransacao>
+            <ans:dataRegistroTransacao>${dataAtual}</ans:dataRegistroTransacao>
+            <ans:horaRegistroTransacao>${new Date().toTimeString().split(' ')[0]}</ans:horaRegistroTransacao>
+        </ans:identificacaoTransacao>
+        <ans:origem>
+            <ans:identificacaoPrestador>
+                <ans:codigoPrestadorNaOperadora>${codigoPrestador}</ans:codigoPrestadorNaOperadora>
+            </ans:identificacaoPrestador>
+        </ans:origem>
+        <ans:destino>
+            <ans:registroANS>${registroANS}</ans:registroANS>
+        </ans:destino>
+        <ans:Padrao>4.01.00</ans:Padrao>
+    </ans:cabecalho>
+    <ans:prestadorParaOperadora>
+        <ans:recursoGlosa>
+            <ans:guiaRecursoGlosa>
+                <ans:registroANS>${registroANS}</ans:registroANS>
+                <ans:numeroGuiaRecGlosaPrestador>${lote.numeroLote}</ans:numeroGuiaRecGlosaPrestador>
+                <ans:nomeOperadora>${escapeXml(nomeOperadora)}</ans:nomeOperadora>
+                <ans:objetoRecurso>2</ans:objetoRecurso>
+                <ans:numeroGuiaRecGlosaOperadora>${lote.protocoloEnvio || ""}</ans:numeroGuiaRecGlosaOperadora>
+                <ans:dadosContratado>
+                    <ans:codigoPrestadorNaOperadora>${codigoPrestador}</ans:codigoPrestadorNaOperadora>
+                </ans:dadosContratado>
+                <ans:numeroLote>${lote.numeroLote}</ans:numeroLote>
+                <ans:numeroProtocolo>${lote.protocoloEnvio || ""}</ans:numeroProtocolo>
+                <ans:opcaoRecurso>${guiasXml}
+                </ans:opcaoRecurso>
+            </ans:guiaRecursoGlosa>
+        </ans:recursoGlosa>
+    </ans:prestadorParaOperadora>
+</ans:mensagemTISS>`;
+
+  return xml;
+}
+
+// Função auxiliar para escapar caracteres especiais em XML
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 /**

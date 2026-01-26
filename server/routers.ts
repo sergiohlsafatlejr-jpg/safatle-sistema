@@ -2001,6 +2001,21 @@ export const appRouter = router({
         }
         return { sucesso: true };
       }),
+
+    // Exportar XML ANS/TISS para recurso de glosa
+    exportarXml: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const xml = await db.gerarXmlRecursoGlosa(input.loteId);
+        if (!xml) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Lote não encontrado ou sem recursos" });
+        }
+        return { xml };
+      }),
   }),
 
   // ============ CONCILIAÇÃO AUTOMÁTICA ============

@@ -69,6 +69,7 @@ export default function AcompanhamentoRecursos() {
   const [protocoloEnvio, setProtocoloEnvio] = useState("");
   const [exportando, setExportando] = useState(false);
   const [exportandoLote, setExportandoLote] = useState<number | null>(null);
+  const [exportandoXml, setExportandoXml] = useState<number | null>(null);
   const [dialogExportarPeriodo, setDialogExportarPeriodo] = useState(false);
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
@@ -200,6 +201,8 @@ export default function AcompanhamentoRecursos() {
         "Qtde Acatado": r.qtdeAcatado,
         "Valor Acatado": r.valorAcatado,
         "Pago pelo código": r.pagoPeloCodigo,
+        "Valor Recebido": r.valorRecebido,
+        "Data Pagamento": r.dataPagamento,
         "Observações": r.observacoes,
       }));
       
@@ -213,6 +216,7 @@ export default function AcompanhamentoRecursos() {
         "Total Valor Glosado": data.totais.totalValorGlosado,
         "Total Valor Recursado": data.totais.totalValorRecursado,
         "Total Valor Recuperado": data.totais.totalValorRecuperado,
+        "Total Valor Recebido": data.totais.totalValorRecebido || 0,
       }]);
       XLSX.utils.book_append_sheet(wb, totaisSheet, "Totais");
       
@@ -229,6 +233,34 @@ export default function AcompanhamentoRecursos() {
     e.stopPropagation();
     setExportandoLote(loteId);
     exportarLoteMutation.mutate({ loteId });
+  };
+
+  // Mutation para exportar XML ANS/TISS
+  const exportarXmlMutation = trpc.recursos.exportarXml.useMutation({
+    onSuccess: (data, variables) => {
+      setExportandoXml(null);
+      // Criar blob e download do XML
+      const blob = new Blob([data.xml], { type: "application/xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `recurso_glosa_lote_${variables.loteId}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("XML ANS/TISS exportado com sucesso!");
+    },
+    onError: (error) => {
+      setExportandoXml(null);
+      toast.error("Erro ao exportar XML: " + error.message);
+    },
+  });
+
+  const handleExportarXml = (loteId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExportandoXml(loteId);
+    exportarXmlMutation.mutate({ loteId });
   };
 
   // Mutation para anexar PDF de protocolo
@@ -576,13 +608,30 @@ export default function AcompanhamentoRecursos() {
                           variant="outline"
                           onClick={(e) => handleExportarLote(lote.id, e)}
                           disabled={exportandoLote === lote.id}
+                          title="Exportar Excel (Padrão Unimed)"
                         >
                           {exportandoLote === lote.id ? (
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                           ) : (
                             <FileSpreadsheet className="h-4 w-4 mr-1" />
                           )}
-                          Exportar
+                          Excel
+                        </Button>
+                        
+                        {/* Botão Exportar XML ANS/TISS */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => handleExportarXml(lote.id, e)}
+                          disabled={exportandoXml === lote.id}
+                          title="Exportar XML (Padrão ANS/TISS)"
+                        >
+                          {exportandoXml === lote.id ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4 mr-1" />
+                          )}
+                          XML
                         </Button>
                         
                         {/* Botão Anexar PDF de Protocolo */}
@@ -661,7 +710,7 @@ export default function AcompanhamentoRecursos() {
               </div>
 
               {/* Valores */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="pt-4">
                     <p className="text-sm text-muted-foreground">Valor Glosado</p>
@@ -686,6 +735,19 @@ export default function AcompanhamentoRecursos() {
                     </p>
                   </CardContent>
                 </Card>
+                <Card className="border-2 border-green-200 bg-green-50">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-muted-foreground">Valor Recebido</p>
+                    <p className="text-xl font-bold text-green-700">
+                      {formatCurrency(loteDetalhes.valorTotalRecebido || 0)}
+                    </p>
+                    {loteDetalhes.dataPagamento && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pago em: {formatDate(loteDetalhes.dataPagamento)}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Tabela de Itens */}
@@ -701,6 +763,8 @@ export default function AcompanhamentoRecursos() {
                           <TableHead>Descrição</TableHead>
                           <TableHead>Paciente</TableHead>
                           <TableHead className="text-right">Vl. Glosado</TableHead>
+                          <TableHead className="text-right">Vl. Recebido</TableHead>
+                          <TableHead>Data Pgto</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -715,6 +779,12 @@ export default function AcompanhamentoRecursos() {
                             <TableCell>{item.pacienteNome || "-"}</TableCell>
                             <TableCell className="text-right text-red-600">
                               {formatCurrency(item.valorGlosado)}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {formatCurrency(item.valorRecebido || 0)}
+                            </TableCell>
+                            <TableCell>
+                              {item.dataPagamento ? formatDate(item.dataPagamento) : "-"}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline">
