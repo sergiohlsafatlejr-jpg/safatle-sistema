@@ -2593,9 +2593,9 @@ export const appRouter = router({
 
     // Contar itens por tipo
     contarPorTipo: protectedProcedure
-      .input(z.object({ convenioId: z.number() }))
+      .input(z.object({ convenioId: z.number(), estabelecimentoId: z.number().optional() }))
       .query(async ({ input }) => {
-        return db.contarItensTabelaPreco(input.convenioId);
+        return db.contarItensTabelaPreco(input.convenioId, input.estabelecimentoId);
       }),
 
     // Buscar histórico de alterações de um item

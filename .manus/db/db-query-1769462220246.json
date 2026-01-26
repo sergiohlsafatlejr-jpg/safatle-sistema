@@ -1,0 +1,24 @@
+{
+  "query": "SELECT c.id, c.nome, c.estabelecimentoId, e.nome as estabelecimentoNome, \n       (SELECT COUNT(*) FROM tabelasPreco tp WHERE tp.convenioId = c.id) as qtdTabelas\nFROM convenios c\nLEFT JOIN estabelecimentos e ON c.estabelecimentoId = e.id\nORDER BY c.estabelecimentoId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT c.id, c.nome, c.estabelecimentoId, e.nome as estabelecimentoNome, \n       (SELECT COUNT(*) FROM tabelasPreco tp WHERE tp.convenioId = c.id) as qtdTabelas\nFROM convenios c\nLEFT JOIN estabelecimentos e ON c.estabelecimentoId = e.id\nORDER BY c.estabelecimentoId;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "Unimed",
+      "estabelecimentoId": "NULL",
+      "estabelecimentoNome": "NULL",
+      "qtdTabelas": "7570"
+    },
+    {
+      "id": "30001",
+      "nome": "Ipasgo ",
+      "estabelecimentoId": "NULL",
+      "estabelecimentoNome": "NULL",
+      "qtdTabelas": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\testabelecimentoId\testabelecimentoNome\tqtdTabelas\n1\tUnimed\tNULL\tNULL\t7570\n30001\tIpasgo \tNULL\tNULL\t0\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

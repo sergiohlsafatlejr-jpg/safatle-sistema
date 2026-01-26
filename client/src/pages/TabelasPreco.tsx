@@ -70,6 +70,7 @@ export default function TabelasPreco() {
   const { data: tabelasData, isLoading, refetch } = trpc.tabelasPreco.list.useQuery(
     {
       convenioId,
+      estabelecimentoId: estabelecimentoAtual?.id, // Filtrar por estabelecimento selecionado
       tipo: tipoSelecionado,
       codigo: searchTerm || undefined,
       nome: searchTerm || undefined,
@@ -77,11 +78,11 @@ export default function TabelasPreco() {
       page,
       limit: 50,
     },
-    { enabled: !!convenioId }
+    { enabled: !!convenioId && !!estabelecimentoAtual?.id }
   );
   const { data: contagem } = trpc.tabelasPreco.contarPorTipo.useQuery(
-    { convenioId: convenioId! },
-    { enabled: !!convenioId }
+    { convenioId: convenioId!, estabelecimentoId: estabelecimentoAtual?.id },
+    { enabled: !!convenioId && !!estabelecimentoAtual?.id }
   );
   const { data: historicoImportacoes } = trpc.tabelasPreco.historicoImportacoes.useQuery(
     { convenioId },

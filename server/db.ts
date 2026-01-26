@@ -5252,20 +5252,27 @@ export async function getImportacoesTabela(convenioId?: number) {
 /**
  * Conta itens por tipo de tabela e convênio
  */
-export async function contarItensTabelaPreco(convenioId: number) {
+export async function contarItensTabelaPreco(convenioId: number, estabelecimentoId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return { diarias: 0, mat_med: 0, taxas: 0, procedimentos: 0 };
 
   try {
+    const conditions = [
+      eq(tabelasPreco.convenioId, convenioId),
+      eq(tabelasPreco.ativo, "sim")
+    ];
+    
+    // Filtrar por estabelecimento se especificado
+    if (estabelecimentoId) {
+      conditions.push(eq(tabelasPreco.estabelecimentoId, estabelecimentoId));
+    }
+    
     const result = await dbConn.select({
       tipo: tabelasPreco.tipo,
       count: sql<number>`count(*)`
     })
       .from(tabelasPreco)
-      .where(and(
-        eq(tabelasPreco.convenioId, convenioId),
-        eq(tabelasPreco.ativo, "sim")
-      ))
+      .where(and(...conditions))
       .groupBy(tabelasPreco.tipo);
 
     const counts = { diarias: 0, mat_med: 0, taxas: 0, procedimentos: 0 };
@@ -12270,6 +12277,15 @@ export interface DadosBIResumo {
   totalProcedimentos: number;
   totalPacientes: number;
   totalConvenios: number;
+  // Novas métricas
+  ticketMedio: number; // Valor médio por guia/atendimento
+  taxaGlosa: number; // Percentual de glosa sobre faturado
+  taxaRecuperacao: number; // Percentual de valores recuperados via recursos
+  valorMedioPorItem: number; // Média de valor por item
+  totalGuias: number; // Total de guias/atendimentos únicos
+  valorMedioPorConvenio: number; // Média de faturamento por convênio
+  totalRecursado: number; // Total de valores recursados
+  totalRecuperado: number; // Total de valores recuperados via recursos
 }
 
 export interface DadosBIAgrupado {
@@ -12453,6 +12469,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   let totalProcedimentos = 0;
   const pacientesSet = new Set<string>();
   const conveniosSet = new Set<number>();
+  const guiasSet = new Set<string>(); // Para contar guias únicas
 
   for (const proc of procedimentosEnviadosFiltrados) {
     totalFaturado += parseFloat(proc.valorTotal || "0");
@@ -12461,6 +12478,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     else if (tipoProcedimento === "procedimento") totalHonorarios++;
     totalProcedimentos++;
     if (proc.pacienteNome) pacientesSet.add(proc.pacienteNome);
+    if (proc.guiaNumero) guiasSet.add(proc.guiaNumero);
     const convId = arquivoConvenioMap.get(proc.arquivoId);
     if (convId) conveniosSet.add(convId);
   }
@@ -12473,6 +12491,13 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
 
   const totalPendente = totalFaturado - totalRecebido - totalGlosado;
+  
+  // Calcular novas métricas
+  const totalGuias = guiasSet.size;
+  const ticketMedio = totalGuias > 0 ? totalFaturado / totalGuias : 0;
+  const taxaGlosa = totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0;
+  const valorMedioPorItem = totalProcedimentos > 0 ? totalFaturado / totalProcedimentos : 0;
+  const valorMedioPorConvenio = conveniosSet.size > 0 ? totalFaturado / conveniosSet.size : 0;
 
   // Agrupar por convênio
   const porConvenioMap = new Map<string, DadosBIAgrupado>();
@@ -12756,6 +12781,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       : sql`1=1`
   );
 
+  // Calcular totais de recursos
+  let totalRecursado = 0;
+  let totalRecuperado = 0;
+  
   // Agrupar por status do recurso
   const porRecursoGlosaMap = new Map<string, DadosBIAgrupado>();
   for (const recurso of recursosGlosaData) {
@@ -12770,10 +12799,19 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       porRecursoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
     const item = porRecursoGlosaMap.get(chave)!;
-    item.valorGlosado += parseFloat(String(recurso.valorGlosado || "0"));
-    item.valorRecebido += parseFloat(String(recurso.valorRecuperado || "0"));
+    const valorGlosadoRecurso = parseFloat(String(recurso.valorGlosado || "0"));
+    const valorRecuperadoRecurso = parseFloat(String(recurso.valorRecuperado || "0"));
+    item.valorGlosado += valorGlosadoRecurso;
+    item.valorRecebido += valorRecuperadoRecurso;
     item.registros++;
+    
+    // Acumular totais de recursos
+    totalRecursado += valorGlosadoRecurso;
+    totalRecuperado += valorRecuperadoRecurso;
   }
+  
+  // Calcular taxa de recuperação
+  const taxaRecuperacao = totalRecursado > 0 ? (totalRecuperado / totalRecursado) * 100 : 0;
 
   // Ordenar por valor faturado (decrescente)
   const ordenarPorValor = (a: DadosBIAgrupado, b: DadosBIAgrupado) => b.valorFaturado - a.valorFaturado;
@@ -12791,6 +12829,15 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       totalProcedimentos,
       totalPacientes: pacientesSet.size,
       totalConvenios: conveniosSet.size,
+      // Novas métricas
+      ticketMedio,
+      taxaGlosa,
+      taxaRecuperacao,
+      valorMedioPorItem,
+      totalGuias,
+      valorMedioPorConvenio,
+      totalRecursado,
+      totalRecuperado,
     },
     porConvenio: Array.from(porConvenioMap.values()).sort(ordenarPorValor),
     porTipo: Array.from(porTipoMap.values()).sort(ordenarPorValor),

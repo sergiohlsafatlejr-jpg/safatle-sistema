@@ -631,6 +631,105 @@ export default function RelatoriosBI() {
           </Card>
         </div>
         
+        {/* KPIs Avançados - Métricas de Desempenho */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {/* Ticket Médio */}
+          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-purple-600 mb-2">
+                <TrendingUp className="h-5 w-5" />
+                <span className="text-sm font-medium">Ticket Médio</span>
+              </div>
+              <p className="text-xl font-bold text-purple-700">
+                {formatCurrency(dadosBI?.resumo?.ticketMedio || 0)}
+              </p>
+              <p className="text-xs text-purple-600 mt-1">
+                por guia/atendimento
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Taxa de Glosa */}
+          <Card className="bg-gradient-to-br from-rose-500/10 to-rose-600/10 border-rose-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-rose-600 mb-2">
+                <TrendingDown className="h-5 w-5" />
+                <span className="text-sm font-medium">Taxa de Glosa</span>
+              </div>
+              <p className="text-xl font-bold text-rose-700">
+                {(dadosBI?.resumo?.taxaGlosa || 0).toFixed(2)}%
+              </p>
+              <p className="text-xs text-rose-600 mt-1">
+                do valor faturado
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Total de Guias */}
+          <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 border-cyan-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-cyan-600 mb-2">
+                <FileText className="h-5 w-5" />
+                <span className="text-sm font-medium">Total Guias</span>
+              </div>
+              <p className="text-xl font-bold text-cyan-700">
+                {formatNumber(dadosBI?.resumo?.totalGuias || 0)}
+              </p>
+              <p className="text-xs text-cyan-600 mt-1">
+                atendimentos únicos
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Valor Médio por Item */}
+          <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-600/10 border-indigo-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                <Activity className="h-5 w-5" />
+                <span className="text-sm font-medium">Média/Item</span>
+              </div>
+              <p className="text-xl font-bold text-indigo-700">
+                {formatCurrency(dadosBI?.resumo?.valorMedioPorItem || 0)}
+              </p>
+              <p className="text-xs text-indigo-600 mt-1">
+                valor médio por procedimento
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Total Recursado */}
+          <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-orange-600 mb-2">
+                <Wallet className="h-5 w-5" />
+                <span className="text-sm font-medium">Recursado</span>
+              </div>
+              <p className="text-xl font-bold text-orange-700">
+                {formatCurrency(dadosBI?.resumo?.totalRecursado || 0)}
+              </p>
+              <p className="text-xs text-orange-600 mt-1">
+                valor em recursos de glosa
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Taxa de Recuperação */}
+          <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border-emerald-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="text-sm font-medium">Recuperação</span>
+              </div>
+              <p className="text-xl font-bold text-emerald-700">
+                {(dadosBI?.resumo?.taxaRecuperacao || 0).toFixed(2)}%
+              </p>
+              <p className="text-xs text-emerald-600 mt-1">
+                {formatCurrency(dadosBI?.resumo?.totalRecuperado || 0)} recuperados
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        
         {/* Área de Análise */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Painel de Controle */}
