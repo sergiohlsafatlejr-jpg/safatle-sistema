@@ -67,7 +67,7 @@ export default function Faturamento() {
   const [periodoMeses, setPeriodoMeses] = useState<string>("12");
   const [mesReferencia, setMesReferencia] = useState<string>("");
   const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
-  const [prestadorFiltro, setPrestadorFiltro] = useState<string>("todos");
+  
 
   // Buscar dados com filtros de período
   const mesReferenciaNum = mesReferencia && mesReferencia !== "todos" ? parseInt(mesReferencia) : undefined;
@@ -78,7 +78,6 @@ export default function Faturamento() {
       estabelecimentoId,
       mesReferencia: mesReferenciaNum,
       anoReferencia: anoReferenciaNum,
-      codigoPrestadorExecutante: prestadorFiltro !== "todos" ? prestadorFiltro : undefined,
     });
   
   const { data: faturamentoMes, isLoading: loadingMes, refetch: refetchMes } = 
@@ -87,7 +86,6 @@ export default function Faturamento() {
       meses: parseInt(periodoMeses),
       estabelecimentoId,
       anoReferencia: anoReferenciaNum,
-      codigoPrestadorExecutante: prestadorFiltro !== "todos" ? prestadorFiltro : undefined,
     });
 
   const { data: resumoGeral, isLoading: loadingResumo } = 
@@ -95,16 +93,11 @@ export default function Faturamento() {
       estabelecimentoId,
       mesReferencia: mesReferenciaNum,
       anoReferencia: anoReferenciaNum,
-      codigoPrestadorExecutante: prestadorFiltro !== "todos" ? prestadorFiltro : undefined,
     });
 
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
 
-  // Buscar prestadores executantes
-  const { data: prestadoresExecutantes } = trpc.procedimentos.listarPrestadoresExecutantes.useQuery({
-    convenioId: convenioFiltro !== "todos" ? parseInt(convenioFiltro) : undefined,
-    estabelecimentoId,
-  });
+
 
   const formatCurrency = (value: number) => {
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -246,29 +239,12 @@ export default function Faturamento() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-64">
-                <label className="text-sm font-medium mb-2 block">Prestador Executante</label>
-                <Select value={prestadorFiltro} onValueChange={setPrestadorFiltro}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os prestadores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os prestadores</SelectItem>
-                    {prestadoresExecutantes?.map((prest) => (
-                      <SelectItem key={prest.codigo} value={prest.codigo}>
-                        {prest.codigo} ({prest.quantidade} itens)
-                        {prest.estabelecimentoVinculado && ` - ${prest.estabelecimentoVinculado}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {((mesReferencia && mesReferencia !== "todos") || prestadorFiltro !== "todos") && (
+
+              {(mesReferencia && mesReferencia !== "todos") && (
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setMesReferencia("");
-                    setPrestadorFiltro("todos");
                   }}
                   size="sm"
                 >

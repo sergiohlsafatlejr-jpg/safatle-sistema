@@ -798,6 +798,44 @@ function codigoDespesaParaTipo(codigoDespesa?: string): ParsedProcedimento['tipo
 }
 
 /**
+ * Converte tipo de lançamento do arquivo Excel para tipoDespesa
+ * Usado principalmente para arquivos Unimed que têm coluna "Tipo Lançamento"
+ */
+function tipoLancamentoParaTipoDespesa(tipoLancamento?: string): ParsedProcedimento['tipoDespesa'] {
+  if (!tipoLancamento) return undefined;
+  
+  const tipo = tipoLancamento.toLowerCase().trim();
+  
+  // Mapeamento de tipos comuns da Unimed e outros convênios
+  if (tipo.includes('medicamento') || tipo.includes('medic') || tipo === 'med') {
+    return 'medicamento';
+  }
+  if (tipo.includes('material') || tipo.includes('mat') || tipo === 'mat/med') {
+    return 'material';
+  }
+  if (tipo.includes('diária') || tipo.includes('diaria') || tipo === 'diárias') {
+    return 'diaria';
+  }
+  if (tipo.includes('taxa') || tipo.includes('tx')) {
+    return 'taxa';
+  }
+  if (tipo.includes('gás') || tipo.includes('gas') || tipo.includes('oxigênio') || tipo.includes('oxigenio')) {
+    return 'gas';
+  }
+  if (tipo.includes('procedimento') || tipo.includes('proc') || tipo.includes('honorário') || tipo.includes('honorario')) {
+    return 'procedimento';
+  }
+  if (tipo.includes('exame') || tipo.includes('sadt')) {
+    return 'procedimento'; // Exames são tratados como procedimentos
+  }
+  if (tipo.includes('serviço') || tipo.includes('servico')) {
+    return 'procedimento';
+  }
+  
+  return 'outros';
+}
+
+/**
  * Extract procedimento from servicosExecutados node
  */
 function extractServicoFromNode(node: unknown, codigoDespesa?: string): ParsedProcedimento | null {
@@ -960,6 +998,8 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     // Adicionado "erro_tiss" e "errotiss" para capturar motivo de glosa do demonstrativo Unimed
     motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa", "erro_tiss", "errotiss"],
     valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado", "glosa_valor", "valor_glosa", "valorglosa"],
+    // Tipo de lançamento para classificar itens (Unimed: Tipo Lançamento)
+    tipoLancamento: ["tipo_lancamento", "tipolancamento", "tipo_lançamento", "tipolanamento", "tipo", "tipodespesa", "tipo_despesa", "tipodolancamento"],
   };
   
   const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1018,6 +1058,10 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     valorGlosado = valorTotal;
   }
   
+  // Extrair tipo de lançamento e converter para tipoDespesa
+  const tipoLancamentoRaw = findValue(columnMappings.tipoLancamento) as string | undefined;
+  const tipoDespesa = tipoLancamentoParaTipoDespesa(tipoLancamentoRaw);
+  
   return {
     codigo: String(codigoFinal),
     descricao: findValue(columnMappings.descricao) as string | undefined,
@@ -1032,7 +1076,8 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
     crmMedico: findValue(columnMappings.crmMedico) as string | undefined,
     motivoGlosa,
     valorGlosado,
-    dadosExtras: { ...row, situacaoItem },
+    tipoDespesa,
+    dadosExtras: { ...row, situacaoItem, tipoLancamento: tipoLancamentoRaw },
   };
 }
 

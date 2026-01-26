@@ -163,7 +163,7 @@ export default function RelatoriosBI() {
   const [filtroTipo, setFiltroTipo] = useState<string>('all');
   const [filtroPaciente, setFiltroPaciente] = useState<string>('');
   const [filtroProcedimento, setFiltroProcedimento] = useState<string>('');
-  const [filtroPrestador, setFiltroPrestador] = useState<string>('all');
+  
   
   // Modal de detalhes
   const [drillDownAberto, setDrillDownAberto] = useState(false);
@@ -186,7 +186,6 @@ export default function RelatoriosBI() {
       tipo: filtroTipo !== 'all' ? filtroTipo : undefined,
       paciente: filtroPaciente || undefined,
       procedimento: filtroProcedimento || undefined,
-      codigoPrestadorExecutante: filtroPrestador !== 'all' ? filtroPrestador : undefined,
     },
     { enabled: !!estabelecimentoAtual }
   );
@@ -197,14 +196,7 @@ export default function RelatoriosBI() {
     { enabled: !!estabelecimentoAtual }
   );
   
-  // Buscar prestadores executantes
-  const { data: prestadoresExecutantes } = trpc.procedimentos.listarPrestadoresExecutantes.useQuery(
-    {
-      convenioId: filtroConvenio !== 'all' ? parseInt(filtroConvenio) : undefined,
-      estabelecimentoId: estabelecimentoAtual?.id,
-    },
-    { enabled: !!estabelecimentoAtual }
-  );
+
   
   // Dados agrupados baseado na dimensão selecionada
   const dadosAgrupados = useMemo(() => {
@@ -531,24 +523,7 @@ export default function RelatoriosBI() {
                 </div>
               </div>
               
-              {/* Prestador Executante */}
-              <div>
-                <Label className="text-sm">Prestador Executante</Label>
-                <Select value={filtroPrestador} onValueChange={setFiltroPrestador}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Prestadores</SelectItem>
-                    {prestadoresExecutantes?.map((prest) => (
-                      <SelectItem key={prest.codigo} value={prest.codigo}>
-                        {prest.codigo} ({prest.quantidade} itens)
-                        {prest.estabelecimentoVinculado && ` - ${prest.estabelecimentoVinculado}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
             </div>
           </CardContent>
         </Card>

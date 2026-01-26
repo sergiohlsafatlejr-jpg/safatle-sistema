@@ -885,3 +885,10 @@
 - [x] Adicionar filtro de prestador executante na tela de Faturamento
 - [x] Adicionar filtro de prestador executante na tela de Relatórios BI
 - [x] Permitir seleção de prestador para visualizar dados específicos
+
+
+## Correções Filtro Prestador e Tipos Demonstrativo
+- [x] Corrigir filtro de prestador para vincular ao estabelecimento selecionado (mostrar apenas prestadores cadastrados)
+- [x] Remover filtro de prestador que impede visualização de múltiplos convênios
+- [x] Corrigir tipos no Demonstrativo Unimed usando coluna "tipo lançamento" do arquivo
+- [x] Levar classificação de tipo lançamento para os Relatórios BI

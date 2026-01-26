@@ -444,28 +444,67 @@ export default function Demonstrativo() {
                           const valorPago = valor - valorGlosado;
                           const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
                           
-                          // Determinar tipo do código baseado no código TUSS e descrição
-                          const getTipoCodigo = (codigo: string, descricao: string) => {
-                            const cod = codigo || "";
-                            const desc = (descricao || "").toLowerCase();
+                          // Determinar tipo do código baseado no tipoDespesa do banco ou tipoLancamento do arquivo
+                          const getTipoCodigo = (proc: any, extras: any) => {
+                            // Primeiro, verificar se tem tipoDespesa do banco de dados
+                            const tipoDespesa = proc.tipoDespesa;
+                            if (tipoDespesa) {
+                              switch (tipoDespesa) {
+                                case 'material': return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
+                                case 'medicamento': return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
+                                case 'diaria': return { tipo: "Diária", cor: "bg-gray-100 text-gray-700" };
+                                case 'taxa': return { tipo: "Taxa", cor: "bg-slate-100 text-slate-700" };
+                                case 'gas': return { tipo: "Gás", cor: "bg-cyan-100 text-cyan-700" };
+                                case 'procedimento': return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
+                                case 'outros': return { tipo: "Outros", cor: "bg-neutral-100 text-neutral-700" };
+                              }
+                            }
                             
-                            // Materiais: códigos começam com 07
+                            // Segundo, verificar se tem tipoLancamento no dadosExtras (do arquivo Excel)
+                            const tipoLancamento = extras?.tipoLancamento as string | undefined;
+                            if (tipoLancamento) {
+                              const tipo = tipoLancamento.toLowerCase().trim();
+                              if (tipo.includes('medicamento') || tipo.includes('medic') || tipo === 'med') {
+                                return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
+                              }
+                              if (tipo.includes('material') || tipo.includes('mat')) {
+                                return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
+                              }
+                              if (tipo.includes('diária') || tipo.includes('diaria')) {
+                                return { tipo: "Diária", cor: "bg-gray-100 text-gray-700" };
+                              }
+                              if (tipo.includes('taxa') || tipo.includes('tx')) {
+                                return { tipo: "Taxa", cor: "bg-slate-100 text-slate-700" };
+                              }
+                              if (tipo.includes('gás') || tipo.includes('gas') || tipo.includes('oxigênio')) {
+                                return { tipo: "Gás", cor: "bg-cyan-100 text-cyan-700" };
+                              }
+                              if (tipo.includes('procedimento') || tipo.includes('proc') || tipo.includes('honorário')) {
+                                return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
+                              }
+                              if (tipo.includes('exame') || tipo.includes('sadt')) {
+                                return { tipo: "Exame", cor: "bg-blue-100 text-blue-700" };
+                              }
+                              // Se tem tipoLancamento mas não reconhecido, mostrar o valor original
+                              return { tipo: tipoLancamento, cor: "bg-neutral-100 text-neutral-700" };
+                            }
+                            
+                            // Fallback: usar código TUSS para determinar tipo
+                            const cod = proc.codigo || "";
+                            const desc = (proc.descricao || "").toLowerCase();
+                            
                             if (cod.startsWith("07")) return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
-                            // Medicamentos: códigos começam com 06
                             if (cod.startsWith("06")) return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
-                            // Taxas e diárias: códigos começam com 05 ou 08
                             if (cod.startsWith("05") || cod.startsWith("08")) return { tipo: "Taxa/Diária", cor: "bg-gray-100 text-gray-700" };
-                            // Exames: códigos começam com 40, 41, 42 ou descrição contém palavras-chave
                             if (cod.startsWith("40") || cod.startsWith("41") || cod.startsWith("42") ||
                                 desc.includes("exame") || desc.includes("dosagem") || desc.includes("hemograma") ||
                                 desc.includes("urina") || desc.includes("sangue") || desc.includes("laborat")) {
                               return { tipo: "Exame", cor: "bg-blue-100 text-blue-700" };
                             }
-                            // Procedimentos: outros códigos
                             return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
                           };
                           
-                          const tipoCodigo = getTipoCodigo(proc.codigo, proc.descricao);
+                          const tipoCodigo = getTipoCodigo(proc, extras);
 
                           return (
                             <TableRow 
