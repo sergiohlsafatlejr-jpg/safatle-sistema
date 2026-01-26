@@ -97,7 +97,12 @@ const camposAnalise = {
     { id: 'medico', label: 'Médico', icon: User },
     { id: 'paciente', label: 'Paciente', icon: User },
     { id: 'procedimento', label: 'Procedimento', icon: FileText },
+    { id: 'descricao', label: 'Descrição do Item', icon: FileText },
+    { id: 'guia', label: 'Guia', icon: Receipt },
     { id: 'mes', label: 'Mês/Ano', icon: Calendar },
+    { id: 'motivoGlosa', label: 'Motivo da Glosa', icon: Ban },
+    { id: 'statusGlosa', label: 'Status da Glosa', icon: AlertTriangle },
+    { id: 'recursoGlosa', label: 'Recurso de Glosa', icon: Wallet },
   ],
   metricas: [
     { id: 'valorFaturado', label: 'Valor Faturado (R$)', icon: DollarSign },
@@ -211,8 +216,23 @@ export default function RelatoriosBI() {
       case 'procedimento':
         dados = dadosBI.porProcedimento;
         break;
+      case 'descricao':
+        dados = dadosBI.porDescricao || [];
+        break;
+      case 'guia':
+        dados = dadosBI.porGuia || [];
+        break;
       case 'mes':
         dados = dadosBI.porMes;
+        break;
+      case 'motivoGlosa':
+        dados = dadosBI.porMotivoGlosa || [];
+        break;
+      case 'statusGlosa':
+        dados = dadosBI.porStatusGlosa || [];
+        break;
+      case 'recursoGlosa':
+        dados = dadosBI.porRecursoGlosa || [];
         break;
       default:
         dados = dadosBI.porConvenio;

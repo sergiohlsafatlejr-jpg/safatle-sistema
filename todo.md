@@ -816,3 +816,17 @@
 - [x] Corrigir parser/formatação de datas no Demonstrativo (função parseDate corrigida)
 - [x] Corrigir parser/formatação de datas na Conciliação Tasy
 - [ ] Reimportar demonstrativo para aplicar correção nas datas já armazenadas
+
+
+## Correção de Exclusão de Arquivo XML
+- [ ] Analisar erro "Failed to fetch" na exclusão de arquivo XML no estabelecimento Ox Uti
+- [ ] Corrigir a rota de exclusão de arquivo
+- [ ] Testar exclusão de arquivo XML no Ox Uti
+
+
+## Expansão dos Campos de Agrupamento - Relatórios BI
+- [x] Adicionar campos do XML de Importação (Descrição do Item, Médico)
+- [x] Adicionar campos do Demonstrativo (Glosas por Motivo, Descrição do Item, por Guia)
+- [x] Adicionar campos da Análise de Glosa (Glosa Aceita, Glosa Recursada)
+- [x] Adicionar dados do Recurso de Glosa
+- [x] Testar agrupamentos com os novos campos

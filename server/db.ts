@@ -12067,6 +12067,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   porMedico: DadosBIAgrupado[];
   porPaciente: DadosBIAgrupado[];
   porProcedimento: DadosBIAgrupado[];
+  porDescricao: DadosBIAgrupado[];
+  porGuia: DadosBIAgrupado[];
+  porMotivoGlosa: DadosBIAgrupado[];
+  porStatusGlosa: DadosBIAgrupado[];
+  porRecursoGlosa: DadosBIAgrupado[];
 }> {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
@@ -12320,8 +12325,130 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
   }
 
+  // Agrupar por descrição do item
+  const porDescricaoMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const chave = proc.descricao || 'Sem Descrição';
+    if (!porDescricaoMap.has(chave)) {
+      porDescricaoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porDescricaoMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const chave = proc.descricao || 'Sem Descrição';
+    if (porDescricaoMap.has(chave)) {
+      const item = porDescricaoMap.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || "0");
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+    }
+  }
+  for (const item of Array.from(porDescricaoMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por guia
+  const porGuiaMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosEnviadosFiltrados) {
+    const chave = proc.numeroGuia || proc.guiaPrestador || 'Sem Guia';
+    if (!porGuiaMap.has(chave)) {
+      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porGuiaMap.get(chave)!;
+    item.valorFaturado += parseFloat(proc.valorTotal || "0");
+    item.quantidade += parseFloat(String(proc.quantidade || "1"));
+    item.registros++;
+  }
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const chave = proc.numeroGuia || proc.guiaPrestador || 'Sem Guia';
+    if (porGuiaMap.has(chave)) {
+      const item = porGuiaMap.get(chave)!;
+      const valorTotal = parseFloat(proc.valorTotal || "0");
+      const valorGlosado = parseFloat(proc.valorGlosado || "0");
+      item.valorRecebido += valorTotal - valorGlosado;
+      item.valorGlosado += valorGlosado;
+    }
+  }
+  for (const item of Array.from(porGuiaMap.values())) {
+    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  }
+
+  // Agrupar por motivo de glosa (do demonstrativo/retorno)
+  const porMotivoGlosaMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const valorGlosado = parseFloat(proc.valorGlosado || "0");
+    if (valorGlosado > 0) {
+      const chave = proc.motivoGlosa || proc.codigoGlosa || 'Motivo Não Informado';
+      if (!porMotivoGlosaMap.has(chave)) {
+        porMotivoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      }
+      const item = porMotivoGlosaMap.get(chave)!;
+      item.valorGlosado += valorGlosado;
+      item.valorFaturado += parseFloat(proc.valorTotal || "0");
+      item.valorRecebido += parseFloat(proc.valorTotal || "0") - valorGlosado;
+      item.quantidade += parseFloat(String(proc.quantidade || "1"));
+      item.registros++;
+    }
+  }
+  for (const item of Array.from(porMotivoGlosaMap.values())) {
+    item.valorPendente = 0; // Glosas já processadas
+  }
+
+  // Agrupar por status da glosa (Aceita/Recursada) - baseado na classificação dos procedimentos
+  const porStatusGlosaMap = new Map<string, DadosBIAgrupado>();
+  for (const proc of procedimentosRetornadosFiltrados) {
+    const valorGlosado = parseFloat(proc.valorGlosado || "0");
+    if (valorGlosado > 0) {
+      // Usar classificação de glosa se disponível
+      const chave = proc.classificacaoGlosa || 'pendente';
+      const chaveFormatada = chave === 'aceitar' ? 'Glosa Aceita' 
+        : chave === 'recursar' ? 'Glosa Recursada'
+        : chave === 'auto_aceitar' ? 'Aceita (Auto)'
+        : chave === 'auto_recursar' ? 'Recursada (Auto)'
+        : 'Pendente';
+      if (!porStatusGlosaMap.has(chaveFormatada)) {
+        porStatusGlosaMap.set(chaveFormatada, { chave: chaveFormatada, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      }
+      const item = porStatusGlosaMap.get(chaveFormatada)!;
+      item.valorGlosado += valorGlosado;
+      item.valorFaturado += parseFloat(proc.valorTotal || "0");
+      item.registros++;
+    }
+  }
+
+  // Buscar dados de recursos de glosa
+  const recursosGlosaData = await db.select().from(recursosGlosa).where(
+    estabelecimentoId && estabelecimentoId > 0 
+      ? eq(recursosGlosa.estabelecimentoId, estabelecimentoId)
+      : sql`1=1`
+  );
+
+  // Agrupar por status do recurso
+  const porRecursoGlosaMap = new Map<string, DadosBIAgrupado>();
+  for (const recurso of recursosGlosaData) {
+    const statusOriginal = recurso.status || 'pendente_envio';
+    const chave = statusOriginal === 'deferido_parcial' ? 'Recurso Deferido Parcial'
+      : statusOriginal === 'em_analise' ? 'Em Análise'
+      : statusOriginal === 'enviado' ? 'Recurso Enviado'
+      : statusOriginal === 'rascunho' ? 'Rascunho'
+      : statusOriginal === 'cancelado' ? 'Cancelado'
+      : 'Pendente Envio';
+    if (!porRecursoGlosaMap.has(chave)) {
+      porRecursoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const item = porRecursoGlosaMap.get(chave)!;
+    item.valorGlosado += parseFloat(String(recurso.valorGlosado || "0"));
+    item.valorRecebido += parseFloat(String(recurso.valorRecuperado || "0"));
+    item.registros++;
+  }
+
   // Ordenar por valor faturado (decrescente)
   const ordenarPorValor = (a: DadosBIAgrupado, b: DadosBIAgrupado) => b.valorFaturado - a.valorFaturado;
+  const ordenarPorGlosa = (a: DadosBIAgrupado, b: DadosBIAgrupado) => b.valorGlosado - a.valorGlosado;
 
   return {
     resumo: {
@@ -12343,6 +12470,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     porMedico: Array.from(porMedicoMap.values()).sort(ordenarPorValor),
     porPaciente: Array.from(porPacienteMap.values()).sort(ordenarPorValor),
     porProcedimento: Array.from(porProcedimentoMap.values()).sort(ordenarPorValor),
+    porDescricao: Array.from(porDescricaoMap.values()).sort(ordenarPorValor),
+    porGuia: Array.from(porGuiaMap.values()).sort(ordenarPorValor),
+    porMotivoGlosa: Array.from(porMotivoGlosaMap.values()).sort(ordenarPorGlosa),
+    porStatusGlosa: Array.from(porStatusGlosaMap.values()).sort(ordenarPorGlosa),
+    porRecursoGlosa: Array.from(porRecursoGlosaMap.values()).sort(ordenarPorGlosa),
   };
 }
 
