@@ -119,11 +119,13 @@ export default function ConciliacaoTasy() {
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
 
-  // Buscar contas unificadas do Tasy
+  // Buscar contas unificadas do Tasy (filtradas por mês/ano de referência)
   const { data: contasTasy, isLoading: loadingTasy, refetch: refetchContas } = trpc.importacaoTasy.contasUnificadas.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
       convenio: convenioId && convenioId !== 'all' ? convenioId : undefined,
+      mesReferencia: mes && mes !== 'all' ? parseInt(mes) : undefined,
+      anoReferencia: ano && ano !== 'all' ? parseInt(ano) : undefined,
       limite: 10000,
     },
     { enabled: !!estabelecimentoAtual }
@@ -464,7 +466,7 @@ export default function ConciliacaoTasy() {
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Mês</label>
+                <label className="text-sm font-medium mb-1 block">Mês de Referência</label>
                 <Select value={mes} onValueChange={setMes}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o mês" />
@@ -480,7 +482,7 @@ export default function ConciliacaoTasy() {
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Ano</label>
+                <label className="text-sm font-medium mb-1 block">Ano de Referência</label>
                 <Select value={ano} onValueChange={setAno}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o ano" />

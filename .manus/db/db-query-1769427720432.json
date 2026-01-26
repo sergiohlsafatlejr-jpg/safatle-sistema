@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, estabelecimentoId, totalContas, contasOk, contasComGlosa FROM resultadosConciliacaoTasy LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, estabelecimentoId, totalContas, contasOk, contasComGlosa FROM resultadosConciliacaoTasy LIMIT 5",
+  "rows": [
+    {
+      "id": "1",
+      "estabelecimentoId": "60011",
+      "totalContas": "10000",
+      "contasOk": "477",
+      "contasComGlosa": "380"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\testabelecimentoId\ttotalContas\tcontasOk\tcontasComGlosa\n1\t60011\t10000\t477\t380\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

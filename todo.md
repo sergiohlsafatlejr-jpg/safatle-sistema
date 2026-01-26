@@ -798,3 +798,13 @@
 - [x] Implementar visualização de detalhes de conciliações anteriores
 - [x] Implementar exclusão de conciliações
 - [x] Implementar gráfico de evolução das conciliações
+
+
+## Melhorias na Visualização de Conciliações
+- [x] Criar mecanismo para visualizar contas conciliadas salvas
+- [x] Implementar modal ou tela de detalhes das contas de cada conciliação
+- [x] Ajustar filtros de conciliação para usar data de referência do importador
+- [x] Corrigir exibição do histórico de conciliações
+- [x] Corrigir erro de conversão de datas no salvamento (RangeError: Invalid time value)
+- [x] Salvar itens da conciliação na tabela itensConciliacaoTasy (10.000 itens)
+- [x] Implementar visualização das contas conciliadas no modal do histórico com filtros e paginação

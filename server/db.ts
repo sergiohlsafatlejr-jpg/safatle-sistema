@@ -13348,6 +13348,8 @@ export async function getContasTasy(
     status?: string;
     dataInicio?: Date;
     dataFim?: Date;
+    mesReferencia?: number; // 1-12
+    anoReferencia?: number; // Ex: 2025
     limite?: number;
     offset?: number;
   }
@@ -13374,6 +13376,16 @@ export async function getContasTasy(
   }
   if (filtros?.dataFim) {
     conditions.push(sql`${contasTasy.dataFaturado} <= ${filtros.dataFim}`);
+  }
+  
+  // Filtrar por mês e ano de referência (baseado na data de faturamento)
+  if (filtros?.mesReferencia && filtros?.anoReferencia) {
+    conditions.push(sql`MONTH(${contasTasy.dataFaturado}) = ${filtros.mesReferencia}`);
+    conditions.push(sql`YEAR(${contasTasy.dataFaturado}) = ${filtros.anoReferencia}`);
+  } else if (filtros?.mesReferencia) {
+    conditions.push(sql`MONTH(${contasTasy.dataFaturado}) = ${filtros.mesReferencia}`);
+  } else if (filtros?.anoReferencia) {
+    conditions.push(sql`YEAR(${contasTasy.dataFaturado}) = ${filtros.anoReferencia}`);
   }
 
   return db
@@ -13584,6 +13596,10 @@ export async function salvarResultadoConciliacao(
   if (!db) return { id: 0, success: false };
 
   try {
+    console.log('[salvarResultadoConciliacao] Iniciando salvamento...');
+    console.log('[salvarResultadoConciliacao] Dados:', JSON.stringify(dados));
+    console.log('[salvarResultadoConciliacao] Total de itens a salvar:', itens.length);
+
     // Inserir resultado principal
     const [resultado] = await db.insert(resultadosConciliacaoTasy).values({
       estabelecimentoId: dados.estabelecimentoId,
@@ -13607,10 +13623,13 @@ export async function salvarResultadoConciliacao(
 
     const resultadoId = (resultado as any).insertId;
 
+    console.log('[salvarResultadoConciliacao] Itens recebidos:', itens.length);
+
     // Inserir itens em lotes de 500
     const batchSize = 500;
     for (let i = 0; i < itens.length; i += batchSize) {
       const batch = itens.slice(i, i + batchSize);
+      console.log(`[salvarResultadoConciliacao] Inserindo batch ${i / batchSize + 1}, tamanho: ${batch.length}`);
       const insertedItens = await db.insert(itensConciliacaoTasy).values(
         batch.map(item => ({
           resultadoConciliacaoId: resultadoId,

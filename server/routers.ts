@@ -4459,6 +4459,8 @@ export const appRouter = router({
         status: z.string().optional(),
         dataInicio: z.string().optional(),
         dataFim: z.string().optional(),
+        mesReferencia: z.number().optional(), // 1-12
+        anoReferencia: z.number().optional(), // Ex: 2025
         limite: z.number().optional().default(100),
         offset: z.number().optional().default(0),
       }))
@@ -4471,6 +4473,8 @@ export const appRouter = router({
           status: input.status,
           dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          mesReferencia: input.mesReferencia,
+          anoReferencia: input.anoReferencia,
           limite: input.limite,
           offset: input.offset,
         });
@@ -4786,11 +4790,31 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { itens, ...dados } = input;
+        
+        // Função para converter data de forma segura
+        const parseDate = (dateStr: string | undefined): Date | undefined => {
+          if (!dateStr || dateStr === '-' || dateStr === '') return undefined;
+          try {
+            // Tentar converter formato DD/MM/YYYY para Date
+            if (dateStr.includes('/')) {
+              const [day, month, year] = dateStr.split('/');
+              const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+              if (!isNaN(date.getTime())) return date;
+            }
+            // Tentar converter ISO ou outros formatos
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) return date;
+            return undefined;
+          } catch {
+            return undefined;
+          }
+        };
+        
         const result = await db.salvarResultadoConciliacao(
           { ...dados, userId: ctx.user.id },
           itens.map(item => ({
             ...item,
-            dataInternacao: item.dataInternacao ? new Date(item.dataInternacao) : undefined,
+            dataInternacao: parseDate(item.dataInternacao),
           })),
           new Map() // Detalhes vazios por enquanto
         );
