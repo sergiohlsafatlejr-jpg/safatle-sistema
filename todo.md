@@ -920,3 +920,6 @@
 - [x] Corrigir Relatório BI - valores de recebido e glosado não aparecem no agrupamento por Descrição do Item
 - [x] Implementar normalização case-insensitive para combinar descrições de arquivos enviados e retornados
 - [x] Atualizar valorGlosado para itens com situação GLOSADO no demonstrativo
+
+- [x] Limpar estabelecimentos de teste do banco de dados (manter apenas Pronto Socorro Infantil, Maternidade Ela, Ox Uti)
+- [x] Limpar usuários de teste (manter apenas Sergio e Lorena)

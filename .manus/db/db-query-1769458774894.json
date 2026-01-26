@@ -1,0 +1,95 @@
+{
+  "query": "SELECT id, nome, cnpj FROM estabelecimentos ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, cnpj FROM estabelecimentos ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "Pronto Socorro Infantil",
+      "cnpj": "01.545.649/0001-50"
+    },
+    {
+      "id": "60011",
+      "nome": "Maternidade Ela ",
+      "cnpj": "24.790.438/0001-89"
+    },
+    {
+      "id": "390001",
+      "nome": "Ox Uti ",
+      "cnpj": "05.562.645/0001-31"
+    },
+    {
+      "id": "420001",
+      "nome": "Estabelecimento Teste 1 - 1769445460251",
+      "cnpj": "11.111.111/0001-51"
+    },
+    {
+      "id": "420002",
+      "nome": "Estabelecimento Teste 2 - 1769445460251",
+      "cnpj": "22.222.222/0001-52"
+    },
+    {
+      "id": "420006",
+      "nome": "Estabelecimento Teste 1 - 1769446130588",
+      "cnpj": "11.111.111/0001-88"
+    },
+    {
+      "id": "420007",
+      "nome": "Estabelecimento Teste 2 - 1769446130588",
+      "cnpj": "22.222.222/0001-89"
+    },
+    {
+      "id": "420011",
+      "nome": "Estabelecimento Teste 1 - 1769446729113",
+      "cnpj": "11.111.111/0001-13"
+    },
+    {
+      "id": "420012",
+      "nome": "Estabelecimento Teste 2 - 1769446729113",
+      "cnpj": "22.222.222/0001-14"
+    },
+    {
+      "id": "450001",
+      "nome": "Estabelecimento Teste 1 - 1769448002251",
+      "cnpj": "11.111.111/0001-51"
+    },
+    {
+      "id": "450002",
+      "nome": "Estabelecimento Teste 2 - 1769448002251",
+      "cnpj": "22.222.222/0001-52"
+    },
+    {
+      "id": "480001",
+      "nome": "Estabelecimento Teste 1 - 1769450007179",
+      "cnpj": "11.111.111/0001-79"
+    },
+    {
+      "id": "480002",
+      "nome": "Estabelecimento Teste 2 - 1769450007179",
+      "cnpj": "22.222.222/0001-80"
+    },
+    {
+      "id": "480006",
+      "nome": "Estabelecimento Teste 1 - 1769453339882",
+      "cnpj": "11.111.111/0001-82"
+    },
+    {
+      "id": "480007",
+      "nome": "Estabelecimento Teste 2 - 1769453339882",
+      "cnpj": "22.222.222/0001-83"
+    },
+    {
+      "id": "510001",
+      "nome": "Estabelecimento Teste 1 - 1769455616823",
+      "cnpj": "11.111.111/0001-23"
+    },
+    {
+      "id": "510002",
+      "nome": "Estabelecimento Teste 2 - 1769455616823",
+      "cnpj": "22.222.222/0001-24"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tcnpj\n1\tPronto Socorro Infantil\t01.545.649/0001-50\n60011\tMaternidade Ela \t24.790.438/0001-89\n390001\tOx Uti \t05.562.645/0001-31\n420001\tEstabelecimento Teste 1 - 1769445460251\t11.111.111/0001-51\n420002\tEstabelecimento Teste 2 - 1769445460251\t22.222.222/0001-52\n420006\tEstabelecimento Teste 1 - 1769446130588\t11.111.111/0001-88\n420007\tEstabelecimento Teste 2 - 1769446130588\t22.222.222/0001-89\n420011\tEstabelecimento Teste 1 - 1769446729113\t11.111.111/0001-13\n420012\tEstabelecimento Teste 2 - 1769446729113\t22.222.222/0001-14\n450001\tEstabelecimento Teste 1 - 1769448002251\t11.111.111/0001-51\n450002\tEstabelecimento Teste 2 - 1769448002251\t22.222.222/0001-52\n480001\tEstabelecimento Teste 1 - 1769450007179\t11.111.111/0001-79\n480002\tEstabelecimento Teste 2 - 1769450007179\t22.222.222/0001-80\n480006\tEstabelecimento Teste 1 - 1769453339882\t11.111.111/0001-82\n480007\tEstabelecimento Teste 2 - 1769453339882\t22.222.222/0001-83\n510001\tEstabelecimento Teste 1 - 1769455616823\t11.111.111/0001-23\n510002\tEstabelecimento Teste 2 - 1769455616823\t22.222.222/0001-24\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}
