@@ -272,6 +272,7 @@ export const lotesRecurso = mysqlTable("lotesRecurso", {
   valorTotalGlosado: decimal("valorTotalGlosado", { precision: 12, scale: 2 }).default("0"),
   valorTotalRecursado: decimal("valorTotalRecursado", { precision: 12, scale: 2 }).default("0"),
   valorTotalRecuperado: decimal("valorTotalRecuperado", { precision: 12, scale: 2 }).default("0"),
+  valorTotalRecebido: decimal("valorTotalRecebido", { precision: 12, scale: 2 }).default("0"),
   quantidadeItens: int("quantidadeItens").default(0),
   
   // Status e datas

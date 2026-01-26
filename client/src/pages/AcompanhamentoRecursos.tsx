@@ -111,26 +111,53 @@ export default function AcompanhamentoRecursos() {
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
   const [loteIdParaDetalhes, setLoteIdParaDetalhes] = useState<number | null>(null);
   
+  // Utils para invalidar queries
+  const utils = trpc.useUtils();
+  
   // Mutation para atualizar pagamento do item
   const atualizarPagamentoMutation = trpc.recursos.atualizarPagamentoItem.useMutation({
     onSuccess: () => {
       toast.success("Pagamento atualizado com sucesso!");
+      const itemIdEditado = editandoItem;
+      const valorEditado = valorRecebidoEdit;
+      const dataEditada = dataPagamentoEdit;
+      
       setEditandoItem(null);
       setSalvandoItem(false);
-      // Atualizar o item no estado local
-      if (loteDetalhes && loteDetalhes.itens) {
+      
+      // Atualizar o item no estado local e recalcular o total do lote
+      if (loteDetalhes && loteDetalhes.itens && itemIdEditado) {
         const itensAtualizados = loteDetalhes.itens.map((item: any) => {
-          if (item.id === editandoItem) {
+          if (item.id === itemIdEditado) {
             return {
               ...item,
-              valorRecebido: valorRecebidoEdit || "0",
-              dataPagamento: dataPagamentoEdit || null,
+              valorRecebido: valorEditado || "0",
+              dataPagamento: dataEditada || null,
             };
           }
           return item;
         });
-        setLoteDetalhes({ ...loteDetalhes, itens: itensAtualizados });
+        
+        // Recalcular o total do lote somando os valores recebidos dos itens
+        let novoTotalRecebido = 0;
+        for (const item of itensAtualizados) {
+          const valor = parseFloat(item.valorRecebido || "0");
+          if (!isNaN(valor)) {
+            novoTotalRecebido += valor;
+          }
+        }
+        
+        setLoteDetalhes({ 
+          ...loteDetalhes, 
+          itens: itensAtualizados,
+          valorTotalRecebido: novoTotalRecebido.toFixed(2)
+        });
       }
+      
+      // Invalidar queries para atualizar dados do servidor
+      utils.recursos.detalhesLote.invalidate();
+      utils.recursos.listarLotes.invalidate();
+      utils.recursos.resumoLotes.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);

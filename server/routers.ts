@@ -1561,6 +1561,12 @@ export const appRouter = router({
           "Atualização de pagamento do recurso"
         );
         
+        // Recalcular o total do lote após atualização do item
+        const recurso = await db.getRecursoById(input.recursoId);
+        if (recurso && recurso.loteId) {
+          await db.recalcularTotalLote(recurso.loteId);
+        }
+        
         return { success: true };
       }),
 

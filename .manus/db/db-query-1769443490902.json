@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, numeroLote, valorTotalRecebido, valorTotalGlosado, valorTotalRecursado FROM lotesRecurso WHERE id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, numeroLote, valorTotalRecebido, valorTotalGlosado, valorTotalRecursado FROM lotesRecurso WHERE id = 1;",
+  "rows": [
+    {
+      "id": "1",
+      "numeroLote": "L202601261420487",
+      "valorTotalRecebido": "350.50",
+      "valorTotalGlosado": "3955.74",
+      "valorTotalRecursado": "3955.74"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnumeroLote\tvalorTotalRecebido\tvalorTotalGlosado\tvalorTotalRecursado\n1\tL202601261420487\t350.50\t3955.74\t3955.74\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

@@ -852,3 +852,11 @@
 - [x] Adicionar botão de salvar alterações
 - [x] Atualizar totais do lote ao salvar alterações nos itens
 - [x] Testar edição inline e persistência dos dados
+
+
+## Recálculo Automático do Valor Recebido Total do Lote
+- [ ] Atualizar rota backend para recalcular total do lote após atualização de item
+- [ ] Atualizar frontend para refletir o novo total após salvar
+- [ ] Testar recálculo automático do valor recebido total
+
+- [x] Corrigir recálculo automático do valor total recebido do lote após edição inline de itens de recurso de glosa

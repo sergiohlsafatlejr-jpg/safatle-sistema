@@ -8178,6 +8178,43 @@ export async function atualizarLoteRecurso(params: {
 }
 
 /**
+ * Recalcula o valor total recebido de um lote somando os valores recebidos dos itens
+ */
+export async function recalcularTotalLote(loteId: number): Promise<{ success: boolean; valorTotalRecebido: string }> {
+  const db = await getDb();
+  if (!db) return { success: false, valorTotalRecebido: "0" };
+
+  // Buscar todos os recursos do lote
+  const recursosDoLote = await db
+    .select({
+      valorRecebido: recursosGlosa.valorRecebido,
+    })
+    .from(recursosGlosa)
+    .where(eq(recursosGlosa.loteId, loteId));
+
+  // Somar os valores recebidos
+  let totalRecebido = 0;
+  for (const recurso of recursosDoLote) {
+    if (recurso.valorRecebido) {
+      const valor = parseFloat(recurso.valorRecebido);
+      if (!isNaN(valor)) {
+        totalRecebido += valor;
+      }
+    }
+  }
+
+  const valorTotalRecebido = totalRecebido.toFixed(2);
+
+  // Atualizar o lote com o novo total
+  await db
+    .update(lotesRecurso)
+    .set({ valorTotalRecebido })
+    .where(eq(lotesRecurso.id, loteId));
+
+  return { success: true, valorTotalRecebido };
+}
+
+/**
  * Busca detalhes de um lote de recurso com seus recursos
  */
 export async function getDetalhesLoteRecurso(loteId: number) {
@@ -8209,12 +8246,30 @@ export async function getDetalhesLoteRecurso(loteId: number) {
     ? await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1)
     : [null];
 
+  // Mapear recursos para itens com campos de pagamento
+  const itens = recursosDoLote.map(r => ({
+    id: r.id,
+    guiaNumero: r.guiaNumero,
+    codigoProcedimento: r.codigoProcedimento,
+    descricaoProcedimento: r.descricaoProcedimento,
+    pacienteNome: r.pacienteNome,
+    valorGlosado: r.valorGlosado,
+    valorRecursado: r.valorCobrado, // valorRecursado = valorCobrado (valor que foi cobrado/recursado)
+    valorRecebido: r.valorRecebido || "0",
+    dataPagamento: r.dataPagamento,
+    status: r.status,
+    motivoGlosa: r.motivoGlosaConvenio, // Campo correto é motivoGlosaConvenio
+    justificativa: r.justificativaRecurso, // Campo correto é justificativaRecurso
+  }));
+
   return {
     ...lote,
     convenioNome: convenio?.nome || "Não informado",
     estabelecimentoNome: estabelecimento?.nome || "Não informado",
     recursos: recursosDoLote,
+    itens: itens,
     totalRecursos: recursosDoLote.length,
+    valorTotalRecebido: lote.valorTotalRecebido || "0",
   };
 }
 
