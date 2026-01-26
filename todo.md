@@ -925,3 +925,8 @@
 - [x] Limpar usuários de teste (manter apenas Sergio e Lorena)
 
 - [x] Recuperar dados do Ox Uti após limpeza (migrar arquivos de IDs antigos 60011 e 390001 para ID 3)
+
+- [x] Corrigir migração de dados - separar Ox Uti e Maternidade Ela corretamente
+- [x] Migrar recursos de glosa (9 itens) e lote de recurso do ID 390001 para Ox Uti (ID 3)
+- [x] Mover demonstrativo-0282645 para Maternidade Ela (ID 2)
+- [x] Migrar regras de IA (4 itens) do ID 390001 para Ox Uti (ID 3)
