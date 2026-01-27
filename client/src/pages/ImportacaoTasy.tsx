@@ -65,8 +65,8 @@ import {
   Play,
 } from "lucide-react";
 
-// Tamanho do lote para envio ao servidor
-const BATCH_SIZE = 500;
+// Tamanho do lote para envio ao servidor (reduzido para evitar timeout em arquivos grandes)
+const BATCH_SIZE = 100;
 
 // Tipo para os dados do Tasy (faturamento)
 interface DadoTasy {
@@ -833,7 +833,7 @@ export default function ImportacaoTasy() {
           });
 
           if (i + BATCH_SIZE < dados.faturadoTasy.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 200)); // Delay maior para evitar sobrecarga
           }
         }
         offsetDados = dados.faturadoTasy.length;

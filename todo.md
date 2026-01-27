@@ -965,3 +965,5 @@
 - [ ] Atualizar navegação e menu lateral com as novas telas
 
 - [x] Corrigir erro de carregamento da biblioteca sql.js - 'Content unavailable. Resource was not cached'
+
+- [x] Corrigir erro 'Failed to fetch' na importação de arquivo SQLite grande - reduzir tamanho dos lotes (BATCH_SIZE de 500 para 100)
