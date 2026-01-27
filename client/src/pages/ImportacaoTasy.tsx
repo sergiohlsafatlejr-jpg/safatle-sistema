@@ -289,22 +289,21 @@ export default function ImportacaoTasy() {
 
   // Função para ler o SQLite usando sql.js - lê todas as tabelas
   const readSQLiteFile = async (file: File): Promise<DadosSQLite> => {
-    // Carrega sql.js dinamicamente
+    // Aguarda a biblioteca sql.js estar disponível (carregada no index.html)
+    let attempts = 0;
+    while (!(window as any).initSqlJs && attempts < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    
     const initSqlJs = (window as any).initSqlJs;
     if (!initSqlJs) {
-      // Carrega a biblioteca se ainda não estiver carregada
-      await new Promise<void>((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Falha ao carregar sql.js'));
-        document.head.appendChild(script);
-      });
+      throw new Error('Biblioteca sql.js não carregada. Por favor, recarregue a página.');
     }
 
-    // Inicializa sql.js
-    const SQL = await (window as any).initSqlJs({
-      locateFile: (file: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+    // Inicializa sql.js com a versão mais recente
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
     });
 
     // Lê o arquivo como ArrayBuffer

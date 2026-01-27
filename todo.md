@@ -958,3 +958,10 @@
 - [x] Normalizar tipoItem para PROC/TAXA ou MAT/MED na importação
 
 - [x] Corrigir leitura de arquivo SQLite com tabela FaturadoTasy - sistema retorna "Nenhum dado válido encontrado" (tabela: Faturado_Recebido_glosado_Motivo_Tasy)
+
+- [ ] Separar frontend em duas telas: Contas Faturadas (enviadas) e Contas Recebidas (retornos)
+- [ ] Criar tela Contas Faturadas - exibir dados do Tasy/SQLite (valores faturados/enviados aos convênios)
+- [ ] Criar tela Contas Recebidas - exibir dados de retorno XML/Excel dos convênios (valores pagos, glosados)
+- [ ] Atualizar navegação e menu lateral com as novas telas
+
+- [x] Corrigir erro de carregamento da biblioteca sql.js - 'Content unavailable. Resource was not cached'
