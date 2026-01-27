@@ -15234,6 +15234,7 @@ export async function getFaturadoTasyParaRelatorio(
   filtros?: {
     dataInicio?: Date;
     dataFim?: Date;
+    mesAno?: string; // Formato YYYY-MM para filtrar por competência
     convenio?: string;
     tipo?: 'MATERIAL' | 'HONORARIO';
     limite?: number;
@@ -15252,32 +15253,55 @@ export async function getFaturadoTasyParaRelatorio(
     const tipoFiltro = filtros.tipo === 'MATERIAL' ? 'MAT/MED' : 'PROC/TAXA';
     conditions.push(eq(faturadoTasy.tipoItem, tipoFiltro));
   }
-  if (filtros?.dataInicio) {
-    conditions.push(sql`${faturadoTasy.dtItem} >= ${filtros.dataInicio}`);
-  }
-  if (filtros?.dataFim) {
-    conditions.push(sql`${faturadoTasy.dtItem} <= ${filtros.dataFim}`);
+  // Filtro por competência (mês/ano) - prioridade sobre dataInicio/dataFim
+  if (filtros?.mesAno) {
+    // Busca por competência que contenha o mês/ano (formato pode variar: MM/YYYY, YYYY-MM, etc)
+    const [ano, mes] = filtros.mesAno.split('-');
+    conditions.push(sql`(${faturadoTasy.competencia} LIKE ${`%${mes}/${ano}%`} OR ${faturadoTasy.competencia} LIKE ${`%${ano}-${mes}%`} OR ${faturadoTasy.competencia} LIKE ${`%${mes}-${ano}%`})`);
+  } else {
+    if (filtros?.dataInicio) {
+      conditions.push(sql`${faturadoTasy.dtItem} >= ${filtros.dataInicio}`);
+    }
+    if (filtros?.dataFim) {
+      conditions.push(sql`${faturadoTasy.dtItem} <= ${filtros.dataFim}`);
+    }
   }
 
   const registros = await db
     .select()
     .from(faturadoTasy)
     .where(and(...conditions))
-    .orderBy(desc(faturadoTasy.dtItem))
+    .orderBy(desc(faturadoTasy.competencia), desc(faturadoTasy.dtItem))
     .limit(filtros?.limite || 10000)
     .offset(filtros?.offset || 0);
 
   // Converter para o formato esperado pelo RelatoriosTasy
-  return registros.map(r => ({
+  // Usa competencia como dataFaturado (formato MM/YYYY ou YYYY-MM)
+  const parseCompetencia = (comp: string | null): Date | null => {
+    if (!comp) return null;
+    // Tenta parsear formatos comuns: MM/YYYY, YYYY-MM, MM-YYYY
+    const match = comp.match(/(\d{1,2})[\/\-](\d{4})/) || comp.match(/(\d{4})[\/\-](\d{1,2})/);
+    if (match) {
+      const [, first, second] = match;
+      const mes = first.length <= 2 ? parseInt(first) : parseInt(second);
+      const ano = first.length === 4 ? parseInt(first) : parseInt(second);
+      return new Date(ano, mes - 1, 1);
+    }
+    return null;
+  };
+
+  return registros.map(r => {
+    const dataCompetencia = parseCompetencia(r.competencia);
+    return {
     id: r.id,
     atendimento: r.atend || '',
     nrInternoConta: r.conta || '',
     sequencia: r.sequencia || '',
-    dataFaturado: r.dtItem,
+    dataFaturado: dataCompetencia || r.dtItem, // Usa competencia como dataFaturado
     guia: r.protocolo || '',
     convenio: r.convenio || '',
     paciente: '', // Não disponível na nova estrutura
-    dataConta: r.dtItem,
+    dataConta: dataCompetencia || r.dtItem,
     codigo: r.cdItem || '',
     codigoConvenio: r.cdItemTuss || '',
     descricao: r.descricao || '',
@@ -15301,5 +15325,5 @@ export async function getFaturadoTasyParaRelatorio(
     mesAno: r.competencia || '',
     trimestre: '',
     ano: r.competencia ? r.competencia.split('/')[1] : '',
-  }));
+  };});
 }

@@ -970,3 +970,5 @@
 
 - [x] Corrigir campos de valor nulos na importação FaturadoTasy (estabelecimentoId estava sendo salvo como 0)
 - [x] Corrigir dados não aparecendo nas telas/relatórios após importação (atualizado registros para estabelecimentoId correto)
+
+- [x] Ajustar relatórios FaturadoTasy para usar campo competencia como referência de data
