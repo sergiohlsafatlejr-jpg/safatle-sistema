@@ -972,3 +972,8 @@
 - [x] Corrigir dados não aparecendo nas telas/relatórios após importação (atualizado registros para estabelecimentoId correto)
 
 - [x] Ajustar relatórios FaturadoTasy para usar campo competencia como referência de data
+
+- [x] Formatar campo competência para MM/AAAA na tela Faturado Tasy (em vez de AAAA/MM/DD)
+- [x] Verificar qual campo é usado como período no Relatório Tasy (usa dataInicio/dataFim calculados a partir de mês/ano selecionados)
+- [x] Criar tela Contas Faturadas (Tasy) com dados FaturadoTasy agrupados por conta
+- [x] Criar tela de detalhes dos itens por conta (ao clicar em uma conta)

@@ -5359,6 +5359,50 @@ export const appRouter = router({
         };
         return db.getFaturadoTasyParaRelatorio(input.estabelecimentoId, filtros);
       }),
+
+    // Conciliação de contas - agrupado por conta
+    conciliacao: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+        conta: z.string().optional(),
+        status: z.enum(['pago', 'parcial', 'glosado', 'pendente']).optional(),
+        limite: z.number().optional().default(500),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        return db.getConciliacaoFaturadoTasy(input.estabelecimentoId, {
+          competencia: input.competencia,
+          convenio: input.convenio,
+          conta: input.conta,
+          status: input.status,
+          limite: input.limite,
+          offset: input.offset,
+        });
+      }),
+
+    // Itens de uma conta específica
+    itensPorConta: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        conta: z.string(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getItensFaturadoTasyPorConta(input.estabelecimentoId, input.conta, {
+          competencia: input.competencia,
+          convenio: input.convenio,
+        });
+      }),
+
+    // Competências disponíveis para filtros
+    competenciasDisponiveis: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getCompetenciasFaturadoTasy(input.estabelecimentoId);
+      }),
   }),
 
   // ============ RELATÓRIOS BI ============

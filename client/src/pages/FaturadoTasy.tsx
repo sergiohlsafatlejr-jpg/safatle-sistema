@@ -294,6 +294,29 @@ export default function FaturadoTasy() {
     return `${value.toFixed(2)}%`;
   };
 
+  // Formata competência para MM/AAAA
+  const formatCompetencia = (comp: string | null | undefined): string => {
+    if (!comp) return '-';
+    // Se já está no formato MM/AAAA, retorna como está
+    if (/^\d{2}\/\d{4}$/.test(comp)) return comp;
+    // Se está no formato AAAA-MM-DD ou AAAA/MM/DD
+    const matchYMD = comp.match(/(\d{4})[-\/](\d{2})[-\/]?(\d{2})?/);
+    if (matchYMD) {
+      return `${matchYMD[2]}/${matchYMD[1]}`;
+    }
+    // Se está no formato MM-AAAA
+    const matchMY = comp.match(/(\d{2})[-](\d{4})/);
+    if (matchMY) {
+      return `${matchMY[1]}/${matchMY[2]}`;
+    }
+    // Se está no formato AAAA-MM
+    const matchYM = comp.match(/(\d{4})-(\d{2})$/);
+    if (matchYM) {
+      return `${matchYM[2]}/${matchYM[1]}`;
+    }
+    return comp;
+  };
+
   if (!estabelecimentoId) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -359,7 +382,7 @@ export default function FaturadoTasy() {
                   <SelectItem value="__all__">Todas</SelectItem>
                   {competencias?.map((c) => (
                     <SelectItem key={c.competencia} value={c.competencia}>
-                      {c.competencia} ({c.totalRegistros} itens)
+                      {formatCompetencia(c.competencia)} ({c.totalRegistros} itens)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -567,7 +590,7 @@ export default function FaturadoTasy() {
                   <TableBody>
                     {listaItens?.map((item: any) => (
                       <TableRow key={item.id}>
-                        <TableCell>{item.competencia}</TableCell>
+                        <TableCell>{formatCompetencia(item.competencia)}</TableCell>
                         <TableCell>
                           <Badge variant={item.tipoItem === 'PROC/TAXA' ? 'default' : 'secondary'} className="text-xs">
                             {item.tipoItem}
@@ -614,7 +637,7 @@ export default function FaturadoTasy() {
                   <TableBody>
                     {itensGlosados?.map((item: any) => (
                       <TableRow key={item.id}>
-                        <TableCell>{item.competencia}</TableCell>
+                        <TableCell>{formatCompetencia(item.competencia)}</TableCell>
                         <TableCell className="font-mono text-xs">{item.cdItem}</TableCell>
                         <TableCell className="max-w-[200px] truncate" title={item.descricao}>
                           {item.descricao}

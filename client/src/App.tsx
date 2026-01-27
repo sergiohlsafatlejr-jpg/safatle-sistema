@@ -48,6 +48,7 @@ import RelatoriosBI from "./pages/RelatoriosBI";
 import ConciliacaoContasPagas from "./pages/ConciliacaoContasPagas";
 import HistoricoConciliacaoTasy from "./pages/HistoricoConciliacaoTasy";
 import FaturadoTasy from "./pages/FaturadoTasy";
+import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -104,6 +105,7 @@ function Router() {
       <Route path={"/conciliacao-contas-pagas"} component={ConciliacaoContasPagas} />
       <Route path={"/historico-conciliacao-tasy"} component={HistoricoConciliacaoTasy} />
       <Route path={"/faturado-tasy"} component={FaturadoTasy} />
+      <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

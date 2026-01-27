@@ -15327,3 +15327,300 @@ export async function getFaturadoTasyParaRelatorio(
     ano: r.competencia ? r.competencia.split('/')[1] : '',
   };});
 }
+
+
+/**
+ * Busca contas do FaturadoTasy agrupadas para conciliação
+ */
+export async function getConciliacaoFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+    conta?: string;
+    status?: 'pago' | 'parcial' | 'glosado' | 'pendente';
+    limite?: number;
+    offset?: number;
+  }
+): Promise<{
+  resumo: {
+    totalContas: number;
+    totalFaturado: number;
+    totalPago: number;
+    totalGlosado: number;
+    totalPendente: number;
+    contasPagas: number;
+    contasParciais: number;
+    contasGlosadas: number;
+    contasPendentes: number;
+  };
+  contas: {
+    conta: string;
+    convenio: string;
+    competencia: string;
+    atendimento: string;
+    protocolo: string;
+    setor: string;
+    profExec: string;
+    totalItens: number;
+    valorFaturado: number;
+    valorPago: number;
+    valorGlosado: number;
+    valorPendente: number;
+    status: 'pago' | 'parcial' | 'glosado' | 'pendente';
+  }[];
+}> {
+  const db = await getDb();
+  if (!db) return {
+    resumo: {
+      totalContas: 0,
+      totalFaturado: 0,
+      totalPago: 0,
+      totalGlosado: 0,
+      totalPendente: 0,
+      contasPagas: 0,
+      contasParciais: 0,
+      contasGlosadas: 0,
+      contasPendentes: 0,
+    },
+    contas: [],
+  };
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.conta) {
+    conditions.push(sql`${faturadoTasy.conta} LIKE ${`%${filtros.conta}%`}`);
+  }
+
+  // Buscar contas agrupadas
+  const contasAgrupadas = await db
+    .select({
+      conta: faturadoTasy.conta,
+      convenio: faturadoTasy.convenio,
+      competencia: faturadoTasy.competencia,
+      atendimento: faturadoTasy.atend,
+      protocolo: faturadoTasy.protocolo,
+      setor: faturadoTasy.setor,
+      profExec: faturadoTasy.profExec,
+      totalItens: sql<number>`COUNT(*)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      valorPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      valorGlosado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .groupBy(
+      faturadoTasy.conta,
+      faturadoTasy.convenio,
+      faturadoTasy.competencia,
+      faturadoTasy.atend,
+      faturadoTasy.protocolo,
+      faturadoTasy.setor,
+      faturadoTasy.profExec
+    )
+    .orderBy(desc(sql`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`))
+    .limit(filtros?.limite || 500)
+    .offset(filtros?.offset || 0);
+
+  // Calcular status e pendente para cada conta
+  const contasComStatus = contasAgrupadas.map(c => {
+    const valorFaturado = c.valorFaturado || 0;
+    const valorPago = c.valorPago || 0;
+    const valorGlosado = c.valorGlosado || 0;
+    const valorPendente = Math.max(0, valorFaturado - valorPago - valorGlosado);
+
+    let status: 'pago' | 'parcial' | 'glosado' | 'pendente' = 'pendente';
+    if (valorPago >= valorFaturado * 0.99) {
+      status = 'pago';
+    } else if (valorGlosado >= valorFaturado * 0.99) {
+      status = 'glosado';
+    } else if (valorPago > 0 || valorGlosado > 0) {
+      status = 'parcial';
+    }
+
+    return {
+      conta: c.conta || '',
+      convenio: c.convenio || '',
+      competencia: c.competencia || '',
+      atendimento: c.atendimento || '',
+      protocolo: c.protocolo || '',
+      setor: c.setor || '',
+      profExec: c.profExec || '',
+      totalItens: c.totalItens || 0,
+      valorFaturado,
+      valorPago,
+      valorGlosado,
+      valorPendente,
+      status,
+    };
+  });
+
+  // Filtrar por status se especificado
+  const contasFiltradas = filtros?.status
+    ? contasComStatus.filter(c => c.status === filtros.status)
+    : contasComStatus;
+
+  // Calcular resumo
+  const resumo = {
+    totalContas: contasFiltradas.length,
+    totalFaturado: contasFiltradas.reduce((acc, c) => acc + c.valorFaturado, 0),
+    totalPago: contasFiltradas.reduce((acc, c) => acc + c.valorPago, 0),
+    totalGlosado: contasFiltradas.reduce((acc, c) => acc + c.valorGlosado, 0),
+    totalPendente: contasFiltradas.reduce((acc, c) => acc + c.valorPendente, 0),
+    contasPagas: contasFiltradas.filter(c => c.status === 'pago').length,
+    contasParciais: contasFiltradas.filter(c => c.status === 'parcial').length,
+    contasGlosadas: contasFiltradas.filter(c => c.status === 'glosado').length,
+    contasPendentes: contasFiltradas.filter(c => c.status === 'pendente').length,
+  };
+
+  return { resumo, contas: contasFiltradas };
+}
+
+/**
+ * Busca itens de uma conta específica do FaturadoTasy
+ */
+export async function getItensFaturadoTasyPorConta(
+  estabelecimentoId: number,
+  conta: string,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+  }
+): Promise<{
+  conta: string;
+  convenio: string;
+  competencia: string;
+  atendimento: string;
+  protocolo: string;
+  setor: string;
+  profExec: string;
+  valorFaturadoTotal: number;
+  valorPagoTotal: number;
+  valorGlosadoTotal: number;
+  itens: {
+    id: number;
+    tipoItem: string;
+    cdItem: string;
+    cdItemTuss: string;
+    descricao: string;
+    qtd: number;
+    vlFaturado: number;
+    vlPago: number;
+    vlGlosa: number;
+    motivoGlosa: string;
+    dtItem: Date | null;
+  }[];
+}> {
+  const db = await getDb();
+  if (!db) return {
+    conta: '',
+    convenio: '',
+    competencia: '',
+    atendimento: '',
+    protocolo: '',
+    setor: '',
+    profExec: '',
+    valorFaturadoTotal: 0,
+    valorPagoTotal: 0,
+    valorGlosadoTotal: 0,
+    itens: [],
+  };
+
+  const conditions: SQL[] = [
+    eq(faturadoTasy.estabelecimentoId, estabelecimentoId),
+    eq(faturadoTasy.conta, conta),
+  ];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+
+  const itens = await db
+    .select()
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .orderBy(faturadoTasy.tipoItem, faturadoTasy.descricao);
+
+  if (itens.length === 0) {
+    return {
+      conta: '',
+      convenio: '',
+      competencia: '',
+      atendimento: '',
+      protocolo: '',
+      setor: '',
+      profExec: '',
+      valorFaturadoTotal: 0,
+      valorPagoTotal: 0,
+      valorGlosadoTotal: 0,
+      itens: [],
+    };
+  }
+
+  const primeiro = itens[0];
+  const valorFaturadoTotal = itens.reduce((acc, i) => acc + parseFloat(i.vlFaturado || '0'), 0);
+  const valorPagoTotal = itens.reduce((acc, i) => acc + parseFloat(i.vlPago || '0'), 0);
+  const valorGlosadoTotal = itens.reduce((acc, i) => acc + parseFloat(i.vlGlosa || '0'), 0);
+
+  return {
+    conta: primeiro.conta || '',
+    convenio: primeiro.convenio || '',
+    competencia: primeiro.competencia || '',
+    atendimento: primeiro.atend || '',
+    protocolo: primeiro.protocolo || '',
+    setor: primeiro.setor || '',
+    profExec: primeiro.profExec || '',
+    valorFaturadoTotal,
+    valorPagoTotal,
+    valorGlosadoTotal,
+    itens: itens.map(i => ({
+      id: i.id,
+      tipoItem: i.tipoItem,
+      cdItem: i.cdItem || '',
+      cdItemTuss: i.cdItemTuss || '',
+      descricao: i.descricao || '',
+      qtd: parseFloat(i.qtd || '0'),
+      vlFaturado: parseFloat(i.vlFaturado || '0'),
+      vlPago: parseFloat(i.vlPago || '0'),
+      vlGlosa: parseFloat(i.vlGlosa || '0'),
+      motivoGlosa: i.motivoGlosa || '',
+      dtItem: i.dtItem,
+    })),
+  };
+}
+
+/**
+ * Busca competências disponíveis do FaturadoTasy para filtros
+ */
+export async function getCompetenciasFaturadoTasy(
+  estabelecimentoId: number
+): Promise<{ competencia: string; totalRegistros: number; valorFaturado: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      competencia: faturadoTasy.competencia,
+      totalRegistros: sql<number>`COUNT(*)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(faturadoTasy)
+    .where(eq(faturadoTasy.estabelecimentoId, estabelecimentoId))
+    .groupBy(faturadoTasy.competencia)
+    .orderBy(desc(faturadoTasy.competencia));
+
+  return result.map(r => ({
+    competencia: r.competencia || '',
+    totalRegistros: r.totalRegistros || 0,
+    valorFaturado: r.valorFaturado || 0,
+  }));
+}
