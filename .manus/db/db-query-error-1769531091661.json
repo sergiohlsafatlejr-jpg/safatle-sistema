@@ -1,0 +1,8 @@
+{
+  "query": "SELECT * FROM faturado_tasy LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT * FROM faturado_tasy LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '98mrdve9uf2zrmz25bpsye.faturado_tasy' doesn't exist"
+  ]
+}

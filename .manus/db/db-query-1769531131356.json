@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN vlFaturado IS NULL THEN 1 ELSE 0 END) as vlFaturado_null, SUM(CASE WHEN vlPago IS NULL THEN 1 ELSE 0 END) as vlPago_null, SUM(CASE WHEN vlGlosa IS NULL THEN 1 ELSE 0 END) as vlGlosa_null FROM faturadoTasy;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, SUM(CASE WHEN vlFaturado IS NULL THEN 1 ELSE 0 END) as vlFaturado_null, SUM(CASE WHEN vlPago IS NULL THEN 1 ELSE 0 END) as vlPago_null, SUM(CASE WHEN vlGlosa IS NULL THEN 1 ELSE 0 END) as vlGlosa_null FROM faturadoTasy;",
+  "rows": [
+    {
+      "total": "952360",
+      "vlFaturado_null": "42415",
+      "vlPago_null": "463817",
+      "vlGlosa_null": "910360"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tvlFaturado_null\tvlPago_null\tvlGlosa_null\n952360\t42415\t463817\t910360\n",
+  "stderr": "",
+  "execution_time_ms": 827
+}

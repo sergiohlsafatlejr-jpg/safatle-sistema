@@ -967,3 +967,6 @@
 - [x] Corrigir erro de carregamento da biblioteca sql.js - 'Content unavailable. Resource was not cached'
 
 - [x] Corrigir erro 'Failed to fetch' na importação de arquivo SQLite grande - reduzir tamanho dos lotes (BATCH_SIZE de 500 para 100)
+
+- [x] Corrigir campos de valor nulos na importação FaturadoTasy (estabelecimentoId estava sendo salvo como 0)
+- [x] Corrigir dados não aparecendo nas telas/relatórios após importação (atualizado registros para estabelecimentoId correto)

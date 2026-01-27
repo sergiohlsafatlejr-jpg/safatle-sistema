@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, sequencia, convenio, competencia, tipoItem, vlFaturado, vlPago, vlGlosa FROM faturadoTasy LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, sequencia, convenio, competencia, tipoItem, vlFaturado, vlPago, vlGlosa FROM faturadoTasy LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "sequencia": "71960",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "PROC/TAXA",
+      "vlFaturado": "63.6800",
+      "vlPago": "63.6800",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "2",
+      "sequencia": "52987",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "PROC/TAXA",
+      "vlFaturado": "113.7500",
+      "vlPago": "113.7500",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "3",
+      "sequencia": "499571",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "85.7200",
+      "vlPago": "85.7200",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "4",
+      "sequencia": "499572",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "4.2800",
+      "vlPago": "4.2800",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "5",
+      "sequencia": "499570",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "14.1200",
+      "vlPago": "14.1200",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "6",
+      "sequencia": "499573",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "3.4300",
+      "vlPago": "3.4300",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "7",
+      "sequencia": "499576",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "57.6500",
+      "vlPago": "57.6500",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "8",
+      "sequencia": "499581",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "8.5600",
+      "vlPago": "8.5600",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "9",
+      "sequencia": "499575",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "7.4100",
+      "vlPago": "7.4100",
+      "vlGlosa": "NULL"
+    },
+    {
+      "id": "10",
+      "sequencia": "499582",
+      "convenio": "Sul America",
+      "competencia": "2025-07-04",
+      "tipoItem": "MAT/MED",
+      "vlFaturado": "2.2500",
+      "vlPago": "2.2500",
+      "vlGlosa": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsequencia\tconvenio\tcompetencia\ttipoItem\tvlFaturado\tvlPago\tvlGlosa\n1\t71960\tSul America\t2025-07-04\tPROC/TAXA\t63.6800\t63.6800\tNULL\n2\t52987\tSul America\t2025-07-04\tPROC/TAXA\t113.7500\t113.7500\tNULL\n3\t499571\tSul America\t2025-07-04\tMAT/MED\t85.7200\t85.7200\tNULL\n4\t499572\tSul America\t2025-07-04\tMAT/MED\t4.2800\t4.2800\tNULL\n5\t499570\tSul America\t2025-07-04\tMAT/MED\t14.1200\t14.1200\tNULL\n6\t499573\tSul America\t2025-07-04\tMAT/MED\t3.4300\t3.4300\tNULL\n7\t499576\tSul America\t2025-07-04\tMAT/MED\t57.6500\t57.6500\tNULL\n8\t499581\tSul America\t2025-07-04\tMAT/MED\t8.5600\t8.5600\tNULL\n9\t499575\tSul America\t2025-07-04\tMAT/MED\t7.4100\t7.4100\tNULL\n10\t499582\tSul America\t2025-07-04\tMAT/MED\t2.2500\t2.2500\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

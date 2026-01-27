@@ -5270,12 +5270,18 @@ export const appRouter = router({
         importacaoId: z.number(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Busca o estabelecimentoId da importação se não foi fornecido
+        // Busca o estabelecimentoId da importação
         let estabelecimentoId: number = input.estabelecimentoId || 0;
-        if (!estabelecimentoId) {
-          const importacoes = await db.getImportacoesTasy(0); // Busca todas
-          const importacao = importacoes.find(i => i.id === input.importacaoId);
-          estabelecimentoId = importacao?.estabelecimentoId || 0;
+        
+        // Sempre busca da importação para garantir consistência
+        const importacoes = await db.getImportacoesTasy(0); // Busca todas
+        const importacao = importacoes.find(i => i.id === input.importacaoId);
+        if (importacao && importacao.estabelecimentoId) {
+          estabelecimentoId = importacao.estabelecimentoId;
+        }
+        
+        if (!estabelecimentoId || estabelecimentoId === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'EstabelecimentoId não encontrado na importação' });
         }
         
         // Função para normalizar tipoItem
