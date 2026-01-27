@@ -14745,7 +14745,8 @@ export async function getFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -14805,7 +14806,8 @@ export async function contarFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -14864,7 +14866,8 @@ export async function getEstatisticasFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -14988,7 +14991,8 @@ export async function getResumoPorTipoFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -15036,7 +15040,8 @@ export async function getItensGlosadosFaturadoTasy(
   ];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -15118,7 +15123,8 @@ export async function getDadosBIFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -15325,7 +15331,8 @@ export async function getFaturadoTasyParaRelatorio(
     mesAno: r.competencia || '',
     trimestre: '',
     ano: r.competencia ? r.competencia.split('/')[1] : '',
-  };});
+  };
+});
 }
 
 
@@ -15389,7 +15396,8 @@ export async function getConciliacaoFaturadoTasy(
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
@@ -15538,7 +15546,8 @@ export async function getItensFaturadoTasyPorConta(
   ];
 
   if (filtros?.competencia) {
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Formato: AAAA-MM, usar LIKE para comparar com AAAA-MM-DD
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   }
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);

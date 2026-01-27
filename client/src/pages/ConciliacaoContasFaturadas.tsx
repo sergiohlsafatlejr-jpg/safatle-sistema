@@ -63,31 +63,23 @@ export default function ConciliacaoContasFaturadas() {
   );
 
   // Calcular competência a partir de ano e mês selecionados
-  // Formato no banco: MM/AAAA (ex: 01/2024)
+  // Formato no banco: AAAA-MM-DD (ex: 2025-12-01)
+  // Filtro usa apenas AAAA-MM para comparar com LIKE 'AAAA-MM%'
   const competenciaFiltro = useMemo(() => {
     if (anoFiltro === "todos" || mesFiltro === "todos") return undefined;
-    return `${mesFiltro}/${anoFiltro}`;
+    return `${anoFiltro}-${mesFiltro}`;
   }, [anoFiltro, mesFiltro]);
 
   // Extrair anos e meses únicos das competências
-  // Formato no banco: MM/AAAA (ex: 01/2024)
+  // Formato no banco: AAAA-MM-DD (ex: 2025-12-01)
   const anosDisponiveis = useMemo(() => {
     if (!competencias) return [];
     const anos = new Set<string>();
     competencias.forEach(c => {
-      // Tentar extrair ano de diferentes formatos: MM/AAAA, AAAA-MM, AAAA
       const comp = c.competencia || '';
-      let ano = '';
-      // Formato MM/AAAA
-      const matchBarra = comp.match(/\d{2}\/(\d{4})/);
-      if (matchBarra) {
-        ano = matchBarra[1];
-      } else {
-        // Formato AAAA-MM ou AAAA
-        const matchAno = comp.match(/(\d{4})/);
-        if (matchAno) ano = matchAno[1];
-      }
-      if (ano) anos.add(ano);
+      // Formato AAAA-MM-DD - extrair os primeiros 4 dígitos
+      const matchAno = comp.match(/^(\d{4})/);
+      if (matchAno) anos.add(matchAno[1]);
     });
     return Array.from(anos).sort((a, b) => b.localeCompare(a));
   }, [competencias]);
@@ -246,8 +238,8 @@ export default function ConciliacaoContasFaturadas() {
   };
 
   const abrirDetalhes = (conta: string) => {
-    setContaSelecionada(conta);
-    setModalAberto(true);
+    // Navegar para a tela de detalhes em vez de abrir modal
+    window.location.href = `/contas-faturadas/${encodeURIComponent(conta)}`;
   };
 
   // Exportar para Excel

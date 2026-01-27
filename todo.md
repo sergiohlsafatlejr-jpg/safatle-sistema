@@ -981,3 +981,6 @@
 - [x] Alterar filtro de competência na tela Contas Faturadas para dois campos separados: Ano e Mês
 
 - [x] Corrigir filtros de Ano e Mês na tela Contas Faturadas - formato ajustado para MM/AAAA
+
+- [x] Corrigir filtro de competência na tela Contas Faturadas - formato ajustado para AAAA-MM com LIKE
+- [x] Criar tela separada de detalhes da conta (DetalhesContaFaturada.tsx)
