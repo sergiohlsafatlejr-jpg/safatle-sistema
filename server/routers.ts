@@ -5309,6 +5309,29 @@ export const appRouter = router({
         const count = await db.excluirFaturadoTasyPorImportacao(input.importacaoId);
         return { excluidos: count };
       }),
+
+    // Dados para Relatório Tasy (formato compatível com importacaoTasy.dados)
+    dadosRelatorio: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        convenio: z.string().optional(),
+        tipo: z.enum(['MATERIAL', 'HONORARIO']).optional(),
+        limite: z.number().optional().default(10000),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        const filtros = {
+          dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+          dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          convenio: input.convenio,
+          tipo: input.tipo,
+          limite: input.limite,
+          offset: input.offset,
+        };
+        return db.getFaturadoTasyParaRelatorio(input.estabelecimentoId, filtros);
+      }),
   }),
 
   // ============ RELATÓRIOS BI ============

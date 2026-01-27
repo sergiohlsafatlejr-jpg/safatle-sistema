@@ -15223,3 +15223,83 @@ export async function getDadosBIFaturadoTasy(
     })),
   };
 }
+
+
+/**
+ * Busca dados do FaturadoTasy no formato esperado pelo RelatoriosTasy
+ * Converte os campos para manter compatibilidade com a estrutura antiga
+ */
+export async function getFaturadoTasyParaRelatorio(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenio?: string;
+    tipo?: 'MATERIAL' | 'HONORARIO';
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.tipo) {
+    const tipoFiltro = filtros.tipo === 'MATERIAL' ? 'MAT/MED' : 'PROC/TAXA';
+    conditions.push(eq(faturadoTasy.tipoItem, tipoFiltro));
+  }
+  if (filtros?.dataInicio) {
+    conditions.push(sql`${faturadoTasy.dtItem} >= ${filtros.dataInicio}`);
+  }
+  if (filtros?.dataFim) {
+    conditions.push(sql`${faturadoTasy.dtItem} <= ${filtros.dataFim}`);
+  }
+
+  const registros = await db
+    .select()
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .orderBy(desc(faturadoTasy.dtItem))
+    .limit(filtros?.limite || 10000)
+    .offset(filtros?.offset || 0);
+
+  // Converter para o formato esperado pelo RelatoriosTasy
+  return registros.map(r => ({
+    id: r.id,
+    atendimento: r.atend || '',
+    nrInternoConta: r.conta || '',
+    sequencia: r.sequencia || '',
+    dataFaturado: r.dtItem,
+    guia: r.protocolo || '',
+    convenio: r.convenio || '',
+    paciente: '', // Não disponível na nova estrutura
+    dataConta: r.dtItem,
+    codigo: r.cdItem || '',
+    codigoConvenio: r.cdItemTuss || '',
+    descricao: r.descricao || '',
+    quantidade: r.qtd ? parseInt(r.qtd) : 0,
+    unidade: '',
+    valorUnitario: r.vlFaturado && r.qtd ? parseFloat(r.vlFaturado) / parseInt(r.qtd) : 0,
+    valorTotal: r.vlFaturado ? parseFloat(r.vlFaturado) : 0,
+    valorPago: r.vlPago ? parseFloat(r.vlPago) : 0,
+    valorGlosado: r.vlGlosa ? parseFloat(r.vlGlosa) : 0,
+    motivoGlosa: r.motivoGlosa || '',
+    setor: r.setor || '',
+    protocolo: r.protocolo || '',
+    statusProtocolo: '',
+    tipo: r.tipoItem === 'MAT/MED' ? 'MATERIAL' : 'HONORARIO',
+    medico: r.profExec || '',
+    funcaoMedico: '',
+    crm: '',
+    valorMedico: 0,
+    // Campos adicionais para compatibilidade
+    competencia: r.competencia || '',
+    mesAno: r.competencia || '',
+    trimestre: '',
+    ano: r.competencia ? r.competencia.split('/')[1] : '',
+  }));
+}

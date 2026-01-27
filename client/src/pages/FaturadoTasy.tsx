@@ -55,6 +55,18 @@ export default function FaturadoTasy() {
     { enabled: !!estabelecimentoId && activeTab === "relatorio" }
   );
 
+  const { data: todosItens } = trpc.faturadoTasy.list.useQuery(
+    { 
+      estabelecimentoId: estabelecimentoId!, 
+      competencia: filtroCompetencia || undefined, 
+      convenio: filtroConvenio || undefined,
+      tipoItem: filtroTipoItem as any || undefined,
+      descricao: filtroBusca || undefined,
+      limite: 10000 // Para exportação
+    },
+    { enabled: !!estabelecimentoId }
+  );
+
   const { data: listaItens, isLoading: loadingItens } = trpc.faturadoTasy.list.useQuery(
     { 
       estabelecimentoId: estabelecimentoId!, 
@@ -222,6 +234,54 @@ export default function FaturadoTasy() {
     }
   }, [estabelecimentoId, criarImportacaoMutation, importarMutation, refetchEstatisticas]);
 
+  // Função de exportação Excel
+  const handleExportExcel = useCallback(() => {
+    if (!todosItens?.length) {
+      toast.error('Não há dados para exportar');
+      return;
+    }
+
+    try {
+      const dadosExport = todosItens.map(item => ({
+        'Sequência': item.sequencia || '',
+        'Convênio': item.convenio || '',
+        'Competência': item.competencia || '',
+        'Protocolo': item.protocolo || '',
+        'Setor': item.setor || '',
+        'Atendimento': item.atend || '',
+        'Conta': item.conta || '',
+        'Profissional': item.profExec || '',
+        'Tipo Item': item.tipoItem || '',
+        'Código Item': item.cdItem || '',
+        'Código TUSS': item.cdItemTuss || '',
+        'Data Item': item.dtItem || '',
+        'Descrição': item.descricao || '',
+        'Quantidade': item.qtd || 0,
+        'Valor Faturado': item.vlFaturado || 0,
+        'A Receber': item.aReceber || 0,
+        'Valor Pago': item.vlPago || 0,
+        'Valor Glosa': item.vlGlosa || 0,
+        'Motivo Glosa': item.motivoGlosa || '',
+        'Retorno': item.retorno || '',
+        'Data Pagamento': item.dtPgto || '',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dadosExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Faturado Tasy');
+      
+      // Ajustar largura das colunas
+      const colWidths = Object.keys(dadosExport[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+      ws['!cols'] = colWidths;
+
+      const fileName = `faturado_tasy_${filtroCompetencia || 'todos'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success(`Exportado ${todosItens.length} registros para ${fileName}`);
+    } catch (error: any) {
+      toast.error(`Erro na exportação: ${error.message}`);
+    }
+  }, [todosItens, filtroCompetencia]);
+
   // Formatadores
   const formatCurrency = (value: number | undefined) => {
     if (value === undefined || value === null) return 'R$ 0,00';
@@ -250,6 +310,10 @@ export default function FaturadoTasy() {
           <p className="text-muted-foreground">Importação e análise de dados de faturamento do Tasy</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportExcel} disabled={!todosItens?.length}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Excel
+          </Button>
           <Button variant="outline" onClick={() => refetchEstatisticas()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar

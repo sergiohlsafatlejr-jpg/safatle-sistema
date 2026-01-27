@@ -384,6 +384,9 @@ export default function RelatoriosTasy() {
   const [analisandoIA, setAnalisandoIA] = useState(false);
   const [sugestoesIA, setSugestoesIA] = useState<any[]>([]);
   
+  // Estado para seleção de fonte de dados
+  const [fonteDados, setFonteDados] = useState<'antiga' | 'faturadoTasy'>('antiga');
+
   // Estados para modo apresentação
   const [modoApresentacao, setModoApresentacao] = useState(false);
   const [slideAtual, setSlideAtual] = useState(0);
@@ -408,8 +411,8 @@ export default function RelatoriosTasy() {
     return Array.from({ length: 6 }, (_, i) => anoAtual - i);
   }, []);
 
-  // Buscar dados do Tasy
-  const { data: dadosTasy, isLoading } = trpc.importacaoTasy.dados.useQuery(
+  // Buscar dados do Tasy (fonte antiga)
+  const { data: dadosTasyAntigo, isLoading: isLoadingAntigo } = trpc.importacaoTasy.dados.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
       dataInicio: new Date(anoSelecionado, mesSelecionado - 1, 1).toISOString(),
@@ -418,11 +421,28 @@ export default function RelatoriosTasy() {
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
       limite: 10000,
     },
-    { enabled: !!estabelecimentoAtual?.id }
+    { enabled: !!estabelecimentoAtual?.id && fonteDados === 'antiga' }
   );
 
-  // Buscar dados do período 2 para comparativo
-  const { data: dadosTasyPeriodo2 } = trpc.importacaoTasy.dados.useQuery(
+  // Buscar dados do FaturadoTasy (fonte nova)
+  const { data: dadosFaturadoTasy, isLoading: isLoadingNovo } = trpc.faturadoTasy.dadosRelatorio.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id || 0,
+      dataInicio: new Date(anoSelecionado, mesSelecionado - 1, 1).toISOString(),
+      dataFim: new Date(anoSelecionado, mesSelecionado, 0).toISOString(),
+      convenio: convenioFiltro || undefined,
+      tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
+      limite: 10000,
+    },
+    { enabled: !!estabelecimentoAtual?.id && fonteDados === 'faturadoTasy' }
+  );
+
+  // Combinar dados baseado na fonte selecionada
+  const dadosTasy = fonteDados === 'faturadoTasy' ? dadosFaturadoTasy : dadosTasyAntigo;
+  const isLoading = fonteDados === 'faturadoTasy' ? isLoadingNovo : isLoadingAntigo;
+
+  // Buscar dados do período 2 para comparativo (fonte antiga)
+  const { data: dadosTasyPeriodo2Antigo } = trpc.importacaoTasy.dados.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
       dataInicio: new Date(periodo2Ano, periodo2Mes - 1, 1).toISOString(),
@@ -431,8 +451,24 @@ export default function RelatoriosTasy() {
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
       limite: 10000,
     },
-    { enabled: !!estabelecimentoAtual?.id && comparativoAtivo }
+    { enabled: !!estabelecimentoAtual?.id && comparativoAtivo && fonteDados === 'antiga' }
   );
+
+  // Buscar dados do período 2 para comparativo (fonte nova)
+  const { data: dadosFaturadoTasyPeriodo2 } = trpc.faturadoTasy.dadosRelatorio.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id || 0,
+      dataInicio: new Date(periodo2Ano, periodo2Mes - 1, 1).toISOString(),
+      dataFim: new Date(periodo2Ano, periodo2Mes, 0).toISOString(),
+      convenio: convenioFiltro || undefined,
+      tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
+      limite: 10000,
+    },
+    { enabled: !!estabelecimentoAtual?.id && comparativoAtivo && fonteDados === 'faturadoTasy' }
+  );
+
+  // Combinar dados do período 2
+  const dadosTasyPeriodo2 = fonteDados === 'faturadoTasy' ? dadosFaturadoTasyPeriodo2 : dadosTasyPeriodo2Antigo;
 
   // Buscar dashboards salvos
   const { data: dashboardsSalvos } = trpc.dashboards.listar.useQuery(
@@ -1314,6 +1350,20 @@ export default function RelatoriosTasy() {
                         <span className="text-xs">Linha</span>
                       </Button>
                     </div>
+                  </div>
+
+                  {/* Fonte de Dados */}
+                  <div className="pt-4 border-t">
+                    <Label className="text-xs text-muted-foreground mb-2 block">FONTE DE DADOS</Label>
+                    <Select value={fonteDados} onValueChange={(v) => setFonteDados(v as 'antiga' | 'faturadoTasy')}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Selecione a fonte" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="antiga">Importação Tasy (Antiga)</SelectItem>
+                        <SelectItem value="faturadoTasy">Faturado Tasy (Nova)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Período */}

@@ -942,4 +942,9 @@
 - [x] Criar funções de banco de dados para FaturadoTasy (inserir, listar, resumo, excluir)
 - [x] Criar rotas tRPC para FaturadoTasy (inserir, listar, resumo, excluirPorImportacao)
 - [x] Criar tela de frontend Faturado Tasy para importação e visualização
-- [ ] Atualizar Relatório Tasy para usar a nova tabela FaturadoTasy
+- [x] Atualizar Relatório Tasy para usar a nova tabela FaturadoTasy (seletor de fonte de dados adicionado)
+
+## Exportação Excel e Integração Relatório Tasy
+- [x] Adicionar botão de exportação Excel na tela Faturado Tasy
+- [x] Criar função handleExportExcel no frontend para exportar dados
+- [x] Integrar Relatório Tasy para usar a nova tabela FaturadoTasy (seletor de fonte de dados: Antiga vs Nova)
