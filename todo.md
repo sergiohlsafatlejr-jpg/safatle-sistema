@@ -992,3 +992,5 @@
 - [x] Corrigir KPIs que ainda mostram NaN na tela de detalhes e Contas Faturadas (tratamento robusto de valores null com parseFloat)
 - [x] Ajustar Relatório Tasy para usar filtro de competência AAAA-MM (em vez de dtItem)
 - [x] Simplificar relatórios para serem mais precisos (parseFloat com tratamento de null em todos os campos de valor)
+
+- [x] Substituir função getFaturadoTasyParaRelatorio pela versão com helper toNum (trata pontos de milhar e vírgulas brasileiras)

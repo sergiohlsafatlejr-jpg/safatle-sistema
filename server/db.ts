@@ -15240,7 +15240,7 @@ export async function getFaturadoTasyParaRelatorio(
   filtros?: {
     dataInicio?: Date;
     dataFim?: Date;
-    mesAno?: string; // Formato YYYY-MM para filtrar por competência
+    mesAno?: string;
     convenio?: string;
     tipo?: 'MATERIAL' | 'HONORARIO';
     limite?: number;
@@ -15249,89 +15249,78 @@ export async function getFaturadoTasyParaRelatorio(
 ): Promise<any[]> {
   const db = await getDb();
   if (!db) return [];
-
   const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
-
   if (filtros?.convenio) {
     conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
   }
+  
   if (filtros?.tipo) {
     const tipoFiltro = filtros.tipo === 'MATERIAL' ? 'MAT/MED' : 'PROC/TAXA';
     conditions.push(eq(faturadoTasy.tipoItem, tipoFiltro));
   }
-  // Filtro por competência (mês/ano) - prioridade sobre dataInicio/dataFim
+  
+  // CORREÇÃO 1: Filtro de competência unificado
   if (filtros?.mesAno) {
-    // Busca por competência que contenha o mês/ano (formato AAAA-MM)
     conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.mesAno}%`}`);
-  } else if (filtros?.dataInicio && filtros?.dataFim) {
-    // Se dataInicio e dataFim são fornecidos, extrair o mês/ano e filtrar por competência
-    const dataIni = new Date(filtros.dataInicio);
-    const ano = dataIni.getFullYear();
-    const mes = String(dataIni.getMonth() + 1).padStart(2, '0');
-    const competenciaFiltro = `${ano}-${mes}`;
-    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${competenciaFiltro}%`}`);
+  } else if (filtros?.dataInicio) {
+    const d = new Date(filtros.dataInicio);
+    const comp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${comp}%`}`);
   }
-
   const registros = await db
     .select()
     .from(faturadoTasy)
     .where(and(...conditions))
-    .orderBy(desc(faturadoTasy.competencia), desc(faturadoTasy.dtItem))
-    .limit(filtros?.limite || 10000)
-    .offset(filtros?.offset || 0);
-
-  // Converter para o formato esperado pelo RelatoriosTasy
-  // Usa competencia como dataFaturado (formato MM/YYYY ou YYYY-MM)
-  const parseCompetencia = (comp: string | null): Date | null => {
-    if (!comp) return null;
-    // Tenta parsear formatos comuns: MM/YYYY, YYYY-MM, MM-YYYY
-    const match = comp.match(/(\d{1,2})[\/\-](\d{4})/) || comp.match(/(\d{4})[\/\-](\d{1,2})/);
-    if (match) {
-      const [, first, second] = match;
-      const mes = first.length <= 2 ? parseInt(first) : parseInt(second);
-      const ano = first.length === 4 ? parseInt(first) : parseInt(second);
-      return new Date(ano, mes - 1, 1);
-    }
-    return null;
+    .orderBy(desc(faturadoTasy.competencia))
+    .limit(filtros?.limite || 10000);
+  // CORREÇÃO 2: Helper robusto para números (evita NaN até com vírgulas brasileiras)
+  const toNum = (val: any): number => {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const clean = String(val).replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
   };
-
   return registros.map(r => {
-    const dataCompetencia = parseCompetencia(r.competencia);
+    const vFaturado = toNum(r.vlFaturado);
+    const vPago = toNum(r.vlPago);
+    const vGlosa = toNum(r.vlGlosa);
+    const qtd = toNum(r.qtd) || 1; // Evita divisão por zero
     return {
-    id: r.id,
-    atendimento: r.atend || '',
-    nrInternoConta: r.conta || '',
-    sequencia: r.sequencia || '',
-    dataFaturado: dataCompetencia || r.dtItem, // Usa competencia como dataFaturado
-    guia: r.protocolo || '',
-    convenio: r.convenio || '',
-    paciente: '', // Não disponível na nova estrutura
-    dataConta: dataCompetencia || r.dtItem,
-    codigo: r.cdItem || '',
-    codigoConvenio: r.cdItemTuss || '',
-    descricao: r.descricao || '',
-    quantidade: r.qtd != null ? parseFloat(String(r.qtd)) || 0 : 0,
-    unidade: '',
-    valorUnitario: r.vlFaturado != null && r.qtd != null ? (parseFloat(String(r.vlFaturado)) || 0) / (parseFloat(String(r.qtd)) || 1) : 0,
-    valorTotal: r.vlFaturado != null ? parseFloat(String(r.vlFaturado)) || 0 : 0,
-    valorPago: r.vlPago != null ? parseFloat(String(r.vlPago)) || 0 : 0,
-    valorGlosado: r.vlGlosa != null ? parseFloat(String(r.vlGlosa)) || 0 : 0,
-    motivoGlosa: r.motivoGlosa || '',
-    setor: r.setor || '',
-    protocolo: r.protocolo || '',
-    statusProtocolo: '',
-    tipo: r.tipoItem === 'MAT/MED' ? 'MATERIAL' : 'HONORARIO',
-    medico: r.profExec || '',
-    funcaoMedico: '',
-    crm: '',
-    valorMedico: 0,
-    // Campos adicionais para compatibilidade
-    competencia: r.competencia || '',
-    mesAno: r.competencia || '',
-    trimestre: '',
-    ano: r.competencia ? r.competencia.split('/')[1] : '',
-  };
-});
+      ...r,
+      id: r.id,
+      atendimento: r.atend || '',
+      nrInternoConta: r.conta || '',
+      sequencia: r.sequencia || '',
+      convenio: r.convenio || '',
+      dataFaturado: r.dtItem || new Date(),
+      guia: r.protocolo || '',
+      paciente: '',
+      dataConta: r.dtItem || new Date(),
+      codigo: r.cdItem || '',
+      codigoConvenio: r.cdItemTuss || '',
+      descricao: r.descricao || '',
+      quantidade: qtd,
+      unidade: '',
+      valorUnitario: vFaturado / qtd, // Agora seguro
+      valorTotal: vFaturado,
+      valorPago: vPago,
+      valorGlosado: vGlosa,
+      motivoGlosa: r.motivoGlosa || '',
+      setor: r.setor || '',
+      protocolo: r.protocolo || '',
+      statusProtocolo: '',
+      tipo: r.tipoItem === 'MAT/MED' ? 'MATERIAL' : 'HONORARIO',
+      medico: r.profExec || '',
+      funcaoMedico: '',
+      crm: '',
+      valorMedico: 0,
+      competencia: r.competencia || '',
+      mesAno: r.competencia || '',
+      trimestre: '',
+      ano: r.competencia ? r.competencia.split('/')[1] : '',
+    };
+  });
 }
 
 
