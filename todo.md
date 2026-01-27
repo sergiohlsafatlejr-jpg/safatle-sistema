@@ -997,3 +997,6 @@
 
 - [x] Atualizar função toNum para detectar formato brasileiro vs americano
 - [x] Criar componente ResumoRelatorio na página de relatórios Tasy
+
+- [x] Simplificar função toNum para toMoney com parseFloat simples (DECIMAL já vem formatado do banco)
+- [x] Verificar formato da competência no filtro vs banco (filtro AAAA-MM, banco AAAA-MM-DD, usa LIKE)

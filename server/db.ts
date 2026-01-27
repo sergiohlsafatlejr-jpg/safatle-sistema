@@ -15273,28 +15273,18 @@ export async function getFaturadoTasyParaRelatorio(
     .where(and(...conditions))
     .orderBy(desc(faturadoTasy.competencia))
     .limit(filtros?.limite || 10000);
-  // CORREÇÃO 2: Helper robusto para números (detecta formato BR vs US)
-  const toNum = (val: any): number => {
-    if (val === null || val === undefined || val === '') return 0;
-    
-    // Se já for número, apenas garante que não é NaN
-    if (typeof val === 'number') return isNaN(val) ? 0 : val;
-    let str = String(val).trim();
-    // Detecta se o formato é Brasileiro (1.250,50) ou Americano (1250.50)
-    // Se tem vírgula e ponto, ou só vírgula, tratamos como BR
-    if (str.includes(',') && str.includes('.')) {
-      str = str.replace(/\./g, '').replace(',', '.');
-    } else if (str.includes(',')) {
-      str = str.replace(',', '.');
-    }
-    const parsed = parseFloat(str);
-    return isNaN(parsed) ? 0 : parsed;
+  // Helper simples para números - DECIMAL já vem formatado corretamente do banco
+  const toMoney = (val: any): number => {
+    if (val === null || val === undefined) return 0;
+    // Se for número, apenas retorna. Se for string, converte direto.
+    const n = typeof val === 'number' ? val : parseFloat(String(val));
+    return isNaN(n) ? 0 : n;
   };
   return registros.map(r => {
-    const vFaturado = toNum(r.vlFaturado);
-    const vPago = toNum(r.vlPago);
-    const vGlosa = toNum(r.vlGlosa);
-    const qtd = toNum(r.qtd) || 1; // Evita divisão por zero
+    const vFaturado = toMoney(r.vlFaturado);
+    const vPago = toMoney(r.vlPago);
+    const vGlosa = toMoney(r.vlGlosa);
+    const qtd = toMoney(r.qtd) || 1; // Evita divisão por zero
     return {
       ...r,
       id: r.id,
