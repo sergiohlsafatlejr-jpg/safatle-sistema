@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, conta, vlFaturado, vlPago, vlGlosa, competencia FROM faturadoTasy WHERE estabelecimentoId = 2 LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, conta, vlFaturado, vlPago, vlGlosa, competencia FROM faturadoTasy WHERE estabelecimentoId = 2 LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "conta": "13364",
+      "vlFaturado": "63.6800",
+      "vlPago": "63.6800",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "2",
+      "conta": "13364",
+      "vlFaturado": "113.7500",
+      "vlPago": "113.7500",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "3",
+      "conta": "13364",
+      "vlFaturado": "85.7200",
+      "vlPago": "85.7200",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "4",
+      "conta": "13364",
+      "vlFaturado": "4.2800",
+      "vlPago": "4.2800",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "5",
+      "conta": "13364",
+      "vlFaturado": "14.1200",
+      "vlPago": "14.1200",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "6",
+      "conta": "13364",
+      "vlFaturado": "3.4300",
+      "vlPago": "3.4300",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "7",
+      "conta": "13364",
+      "vlFaturado": "57.6500",
+      "vlPago": "57.6500",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "8",
+      "conta": "13364",
+      "vlFaturado": "8.5600",
+      "vlPago": "8.5600",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "9",
+      "conta": "13364",
+      "vlFaturado": "7.4100",
+      "vlPago": "7.4100",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    },
+    {
+      "id": "10",
+      "conta": "13364",
+      "vlFaturado": "2.2500",
+      "vlPago": "2.2500",
+      "vlGlosa": "NULL",
+      "competencia": "2025-07-04"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tconta\tvlFaturado\tvlPago\tvlGlosa\tcompetencia\n1\t13364\t63.6800\t63.6800\tNULL\t2025-07-04\n2\t13364\t113.7500\t113.7500\tNULL\t2025-07-04\n3\t13364\t85.7200\t85.7200\tNULL\t2025-07-04\n4\t13364\t4.2800\t4.2800\tNULL\t2025-07-04\n5\t13364\t14.1200\t14.1200\tNULL\t2025-07-04\n6\t13364\t3.4300\t3.4300\tNULL\t2025-07-04\n7\t13364\t57.6500\t57.6500\tNULL\t2025-07-04\n8\t13364\t8.5600\t8.5600\tNULL\t2025-07-04\n9\t13364\t7.4100\t7.4100\tNULL\t2025-07-04\n10\t13364\t2.2500\t2.2500\tNULL\t2025-07-04\n",
+  "stderr": "",
+  "execution_time_ms": 106
+}

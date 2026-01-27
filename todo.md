@@ -988,3 +988,7 @@
 - [x] Corrigir erro na navegação para tela de detalhes da conta - adicionado DashboardLayout e useLocation
 
 - [x] Corrigir KPIs da tela de detalhes da conta mostrando NaN (tratamento de valores null/undefined)
+
+- [x] Corrigir KPIs que ainda mostram NaN na tela de detalhes e Contas Faturadas (tratamento robusto de valores null com parseFloat)
+- [x] Ajustar Relatório Tasy para usar filtro de competência AAAA-MM (em vez de dtItem)
+- [x] Simplificar relatórios para serem mais precisos (parseFloat com tratamento de null em todos os campos de valor)

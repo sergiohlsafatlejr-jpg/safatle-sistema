@@ -15261,16 +15261,15 @@ export async function getFaturadoTasyParaRelatorio(
   }
   // Filtro por competência (mês/ano) - prioridade sobre dataInicio/dataFim
   if (filtros?.mesAno) {
-    // Busca por competência que contenha o mês/ano (formato pode variar: MM/YYYY, YYYY-MM, etc)
-    const [ano, mes] = filtros.mesAno.split('-');
-    conditions.push(sql`(${faturadoTasy.competencia} LIKE ${`%${mes}/${ano}%`} OR ${faturadoTasy.competencia} LIKE ${`%${ano}-${mes}%`} OR ${faturadoTasy.competencia} LIKE ${`%${mes}-${ano}%`})`);
-  } else {
-    if (filtros?.dataInicio) {
-      conditions.push(sql`${faturadoTasy.dtItem} >= ${filtros.dataInicio}`);
-    }
-    if (filtros?.dataFim) {
-      conditions.push(sql`${faturadoTasy.dtItem} <= ${filtros.dataFim}`);
-    }
+    // Busca por competência que contenha o mês/ano (formato AAAA-MM)
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.mesAno}%`}`);
+  } else if (filtros?.dataInicio && filtros?.dataFim) {
+    // Se dataInicio e dataFim são fornecidos, extrair o mês/ano e filtrar por competência
+    const dataIni = new Date(filtros.dataInicio);
+    const ano = dataIni.getFullYear();
+    const mes = String(dataIni.getMonth() + 1).padStart(2, '0');
+    const competenciaFiltro = `${ano}-${mes}`;
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${competenciaFiltro}%`}`);
   }
 
   const registros = await db
@@ -15311,12 +15310,12 @@ export async function getFaturadoTasyParaRelatorio(
     codigo: r.cdItem || '',
     codigoConvenio: r.cdItemTuss || '',
     descricao: r.descricao || '',
-    quantidade: r.qtd ? parseInt(r.qtd) : 0,
+    quantidade: r.qtd != null ? parseFloat(String(r.qtd)) || 0 : 0,
     unidade: '',
-    valorUnitario: r.vlFaturado && r.qtd ? parseFloat(r.vlFaturado) / parseInt(r.qtd) : 0,
-    valorTotal: r.vlFaturado ? parseFloat(r.vlFaturado) : 0,
-    valorPago: r.vlPago ? parseFloat(r.vlPago) : 0,
-    valorGlosado: r.vlGlosa ? parseFloat(r.vlGlosa) : 0,
+    valorUnitario: r.vlFaturado != null && r.qtd != null ? (parseFloat(String(r.vlFaturado)) || 0) / (parseFloat(String(r.qtd)) || 1) : 0,
+    valorTotal: r.vlFaturado != null ? parseFloat(String(r.vlFaturado)) || 0 : 0,
+    valorPago: r.vlPago != null ? parseFloat(String(r.vlPago)) || 0 : 0,
+    valorGlosado: r.vlGlosa != null ? parseFloat(String(r.vlGlosa)) || 0 : 0,
     motivoGlosa: r.motivoGlosa || '',
     setor: r.setor || '',
     protocolo: r.protocolo || '',

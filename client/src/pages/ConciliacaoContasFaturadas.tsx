@@ -190,8 +190,17 @@ export default function ConciliacaoContasFaturadas() {
   }, [conciliacao?.contas, busca, ordenacao]);
 
   // Funções auxiliares
-  const formatarMoeda = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+  const formatarMoeda = (valor: number | string | null | undefined) => {
+    let num = 0;
+    if (typeof valor === 'string') {
+      num = parseFloat(valor);
+    } else if (typeof valor === 'number') {
+      num = valor;
+    }
+    if (isNaN(num) || num === null || num === undefined) {
+      num = 0;
+    }
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
   };
 
   const formatarCompetencia = (comp: string | null | undefined): string => {

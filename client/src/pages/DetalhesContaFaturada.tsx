@@ -37,7 +37,15 @@ import * as XLSX from "xlsx";
 
 // Função para formatar valores monetários
 const formatCurrency = (value: number | string | null | undefined): string => {
-  const num = typeof value === 'string' ? parseFloat(value) : (value || 0);
+  let num = 0;
+  if (typeof value === 'string') {
+    num = parseFloat(value);
+  } else if (typeof value === 'number') {
+    num = value;
+  }
+  if (isNaN(num) || num === null || num === undefined) {
+    num = 0;
+  }
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
