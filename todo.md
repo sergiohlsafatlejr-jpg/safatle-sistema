@@ -936,3 +936,10 @@
 
 - [x] Corrigir tabela de preço para filtrar por estabelecimento (manter apenas no Pronto Socorro Infantil)
 - [x] Adicionar novas métricas ao Relatório BI (Ticket Médio, Taxa de Glosa, Total Guias, Média/Item, Recursado, Recuperação)
+
+- [ ] Excluir tabelas antigas do Tasy (ContasPagasTasy, ContasTasy, DadosTasy, ItensContasTasy, ItensPagosTasy, MatMedTasy) - aguardando migração completa
+- [x] Criar nova tabela FaturadoTasy com campos unificados
+- [x] Criar funções de banco de dados para FaturadoTasy (inserir, listar, resumo, excluir)
+- [x] Criar rotas tRPC para FaturadoTasy (inserir, listar, resumo, excluirPorImportacao)
+- [x] Criar tela de frontend Faturado Tasy para importação e visualização
+- [ ] Atualizar Relatório Tasy para usar a nova tabela FaturadoTasy

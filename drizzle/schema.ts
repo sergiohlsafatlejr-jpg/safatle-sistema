@@ -1314,55 +1314,86 @@ export type InsertRegraIA = typeof regrasIA.$inferInsert;
 
 
 /**
- * Dados importados do Tasy - Tabela unificada de materiais e honorários
+ * Faturado Tasy - Tabela unificada de faturamento do Tasy
+ * Armazena todos os itens faturados (procedimentos, taxas, mat/med) do sistema Tasy
+ */
+export const faturadoTasy = mysqlTable("faturadoTasy", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  importacaoId: int("importacaoId").notNull(), // Referência à importação que trouxe este registro
+  
+  // Identificadores
+  sequencia: varchar("sequencia", { length: 50 }), // Número de sequência
+  convenio: varchar("convenio", { length: 255 }), // Nome do convênio
+  competencia: varchar("competencia", { length: 20 }), // Data de competência (mês/ano referência)
+  protocolo: varchar("protocolo", { length: 100 }), // Número do protocolo
+  setor: varchar("setor", { length: 255 }), // Setor de atendimento
+  atend: varchar("atend", { length: 50 }), // Número do atendimento
+  conta: varchar("conta", { length: 50 }), // Número da conta
+  profExec: varchar("profExec", { length: 255 }), // Profissional executor
+  
+  // Motivo de exclusão
+  cdMotivoExcConta: varchar("cdMotivoExcConta", { length: 50 }), // Código motivo exclusão conta
+  dsComplMotivoExcon: text("dsComplMotivoExcon"), // Descrição complementar motivo
+  
+  // Dados do item
+  tipoItem: mysqlEnum("tipoItem", ["PROC/TAXA", "MAT/MED"]).notNull(), // Tipo do item
+  cdItem: varchar("cdItem", { length: 50 }), // Código do item
+  cdItemTuss: varchar("cdItemTuss", { length: 50 }), // Código TUSS do item
+  dtItem: timestamp("dtItem"), // Data do item
+  descricao: text("descricao"), // Descrição do item
+  qtd: decimal("qtd", { precision: 10, scale: 4 }), // Quantidade
+  
+  // Valores
+  vlFaturado: decimal("vlFaturado", { precision: 12, scale: 4 }), // Valor faturado
+  aReceber: decimal("aReceber", { precision: 12, scale: 4 }), // Valor a receber
+  vlPago: decimal("vlPago", { precision: 12, scale: 4 }), // Valor pago
+  vlGlosa: decimal("vlGlosa", { precision: 12, scale: 4 }), // Valor da glosa
+  motivoGlosa: text("motivoGlosa"), // Descrição do motivo da glosa
+  
+  // Dados de retorno/pagamento
+  retorno: varchar("retorno", { length: 50 }), // Número do retorno
+  dtPgto: timestamp("dtPgto"), // Data do pagamento
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FaturadoTasy = typeof faturadoTasy.$inferSelect;
+export type InsertFaturadoTasy = typeof faturadoTasy.$inferInsert;
+
+/**
+ * Dados do Tasy (LEGADO - mantido para compatibilidade)
  * Armazena os dados exportados do sistema Tasy para integração com o Safatle
  */
 export const dadosTasy = mysqlTable("dadosTasy", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
-  importacaoId: int("importacaoId").notNull(), // Referência à importação que trouxe este registro
-  
-  // Identificadores únicos do Tasy
-  atendimento: varchar("atendimento", { length: 50 }).notNull(), // NR_ATENDIMENTO - chave principal
-  nrInternoConta: varchar("nrInternoConta", { length: 50 }), // NR_INTERNO_CONTA
-  sequencia: varchar("sequencia", { length: 50 }), // NR_SEQUENCIA ou sequencial gerado
-  
-  // Dados do faturamento
-  dataFaturado: timestamp("dataFaturado"), // DT_MESANO_REFERENCIA
-  guia: varchar("guia", { length: 100 }), // NR_DOC_CONVENIO
-  convenio: varchar("convenio", { length: 255 }), // DS_CONVENIO
-  
-  // Dados do paciente
-  paciente: varchar("paciente", { length: 255 }), // NM_PACIENTE
-  dataConta: timestamp("dataConta"), // DT_CONTA ou DT_PROCEDIMENTO
-  
-  // Dados do item
-  codigo: varchar("codigo", { length: 50 }), // CD_MATERIAL ou CD_PROCEDIMENTO
-  codigoConvenio: varchar("codigoConvenio", { length: 50 }), // CD_MATERIAL ou CD_PROCEDIMENTO_CONVENIO
-  descricao: text("descricao"), // DS_MATERIAL ou DS_PROC_CONVENIO
-  quantidade: decimal("quantidade", { precision: 10, scale: 4 }), // QT_MATERIAL ou QT_PROCEDIMENTO
-  unidade: varchar("unidade", { length: 20 }), // CD_UNIDADE_MEDIDA
-  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }), // VL_UNITARIO ou VL_PROCEDIMENTO
-  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }), // VL_MATERIAL ou VL_PROCEDIMENTO
-  
-  // Dados adicionais
-  setor: varchar("setor", { length: 255 }), // DS_SETOR_ATENDIMENTO
-  protocolo: varchar("protocolo", { length: 100 }), // NR_PROTOCOLO
-  statusProtocolo: varchar("statusProtocolo", { length: 50 }), // IE_STATUS_PROTOCOLO
-  
-  // Tipo do registro
+  importacaoId: int("importacaoId").notNull(),
+  atendimento: varchar("atendimento", { length: 50 }).notNull(),
+  nrInternoConta: varchar("nrInternoConta", { length: 50 }),
+  sequencia: varchar("sequencia", { length: 50 }),
+  dataFaturado: timestamp("dataFaturado"),
+  guia: varchar("guia", { length: 100 }),
+  convenio: varchar("convenio", { length: 255 }),
+  paciente: varchar("paciente", { length: 255 }),
+  dataConta: timestamp("dataConta"),
+  codigo: varchar("codigo", { length: 50 }),
+  codigoConvenio: varchar("codigoConvenio", { length: 50 }),
+  descricao: text("descricao"),
+  quantidade: decimal("quantidade", { precision: 10, scale: 4 }),
+  unidade: varchar("unidade", { length: 20 }),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 12, scale: 4 }),
+  setor: varchar("setor", { length: 255 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  statusProtocolo: varchar("statusProtocolo", { length: 50 }),
   tipo: mysqlEnum("tipo", ["MATERIAL", "HONORARIO"]).notNull(),
-  
-  // Dados específicos de honorários
-  medico: varchar("medico", { length: 255 }), // NM_MEDICO
-  funcaoMedico: varchar("funcaoMedico", { length: 100 }), // DS_FUNCAO
-  crm: varchar("crm", { length: 50 }), // NR_CRM
-  valorMedico: decimal("valorMedico", { precision: 12, scale: 4 }), // VL_MEDICO
-  
-  // Controle de processamento
-  processado: mysqlEnum("processado", ["sim", "nao"]).default("nao").notNull(), // Se já foi vinculado a um procedimento
-  procedimentoId: int("procedimentoId"), // Referência ao procedimento vinculado (se houver)
-  
+  medico: varchar("medico", { length: 255 }),
+  funcaoMedico: varchar("funcaoMedico", { length: 100 }),
+  crm: varchar("crm", { length: 50 }),
+  valorMedico: decimal("valorMedico", { precision: 12, scale: 4 }),
+  processado: mysqlEnum("processado", ["sim", "nao"]).default("nao").notNull(),
+  procedimentoId: int("procedimentoId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

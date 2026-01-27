@@ -55,6 +55,9 @@ import {
   InsertInsightIA,
   regrasIA,
   InsertRegraIA,
+  faturadoTasy,
+  InsertFaturadoTasy,
+  // Tabelas antigas do Tasy (mantidas para compatibilidade)
   dadosTasy,
   InsertDadoTasy,
   importacoesTasy,
@@ -14666,4 +14669,557 @@ export async function listarTodosPrestadores(): Promise<any[]> {
     .orderBy(convenios.nome, estabelecimentos.nome);
 
   return result;
+}
+
+
+// ============ FATURADO TASY (NOVA TABELA UNIFICADA) ============
+
+/**
+ * Insere um lote de registros do Faturado Tasy
+ */
+export async function insertFaturadoTasyBatch(
+  registros: InsertFaturadoTasy[],
+  estabelecimentoId: number
+): Promise<{ inseridos: number; ignorados: number; erros: number }> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  if (registros.length === 0) {
+    return { inseridos: 0, ignorados: 0, erros: 0 };
+  }
+
+  let inseridos = 0;
+  let erros = 0;
+
+  // Inserir em lotes de 1000 registros
+  const BATCH_INSERT = 1000;
+  
+  for (let i = 0; i < registros.length; i += BATCH_INSERT) {
+    const batch = registros.slice(i, i + BATCH_INSERT);
+    
+    try {
+      await db.insert(faturadoTasy).values(batch);
+      inseridos += batch.length;
+    } catch (error: any) {
+      console.error('Erro no bulk insert faturadoTasy:', error.message);
+      
+      // Tenta inserir um por um
+      for (const registro of batch) {
+        try {
+          await db.insert(faturadoTasy).values(registro);
+          inseridos++;
+        } catch (err: any) {
+          console.error('Erro ao inserir registro:', err.message);
+          erros++;
+        }
+      }
+    }
+  }
+
+  return { inseridos, ignorados: 0, erros };
+}
+
+/**
+ * Busca dados do Faturado Tasy com filtros
+ */
+export async function getFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+    tipoItem?: 'PROC/TAXA' | 'MAT/MED';
+    protocolo?: string;
+    atend?: string;
+    conta?: string;
+    cdItem?: string;
+    descricao?: string;
+    comGlosa?: boolean;
+    comPagamento?: boolean;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.tipoItem) {
+    conditions.push(eq(faturadoTasy.tipoItem, filtros.tipoItem));
+  }
+  if (filtros?.protocolo) {
+    conditions.push(sql`${faturadoTasy.protocolo} LIKE ${`%${filtros.protocolo}%`}`);
+  }
+  if (filtros?.atend) {
+    conditions.push(eq(faturadoTasy.atend, filtros.atend));
+  }
+  if (filtros?.conta) {
+    conditions.push(eq(faturadoTasy.conta, filtros.conta));
+  }
+  if (filtros?.cdItem) {
+    conditions.push(eq(faturadoTasy.cdItem, filtros.cdItem));
+  }
+  if (filtros?.descricao) {
+    conditions.push(sql`${faturadoTasy.descricao} LIKE ${`%${filtros.descricao}%`}`);
+  }
+  if (filtros?.comGlosa) {
+    conditions.push(sql`${faturadoTasy.vlGlosa} > 0`);
+  }
+  if (filtros?.comPagamento) {
+    conditions.push(sql`${faturadoTasy.vlPago} > 0`);
+  }
+
+  const result = await db
+    .select()
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .orderBy(desc(faturadoTasy.createdAt))
+    .limit(filtros?.limite || 100)
+    .offset(filtros?.offset || 0);
+
+  return result;
+}
+
+/**
+ * Conta registros do Faturado Tasy
+ */
+export async function contarFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+    tipoItem?: 'PROC/TAXA' | 'MAT/MED';
+    comGlosa?: boolean;
+    comPagamento?: boolean;
+  }
+): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.tipoItem) {
+    conditions.push(eq(faturadoTasy.tipoItem, filtros.tipoItem));
+  }
+  if (filtros?.comGlosa) {
+    conditions.push(sql`${faturadoTasy.vlGlosa} > 0`);
+  }
+  if (filtros?.comPagamento) {
+    conditions.push(sql`${faturadoTasy.vlPago} > 0`);
+  }
+
+  const [result] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(faturadoTasy)
+    .where(and(...conditions));
+
+  return result?.count || 0;
+}
+
+/**
+ * Busca estatísticas do Faturado Tasy
+ */
+export async function getEstatisticasFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+  }
+): Promise<{
+  totalRegistros: number;
+  totalProcTaxa: number;
+  totalMatMed: number;
+  valorFaturado: number;
+  valorAReceber: number;
+  valorPago: number;
+  valorGlosa: number;
+  totalConvenios: number;
+  totalCompetencias: number;
+}> {
+  const db = await getDb();
+  if (!db) return {
+    totalRegistros: 0,
+    totalProcTaxa: 0,
+    totalMatMed: 0,
+    valorFaturado: 0,
+    valorAReceber: 0,
+    valorPago: 0,
+    valorGlosa: 0,
+    totalConvenios: 0,
+    totalCompetencias: 0,
+  };
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+
+  const [result] = await db
+    .select({
+      totalRegistros: sql<number>`COUNT(*)`,
+      totalProcTaxa: sql<number>`SUM(CASE WHEN ${faturadoTasy.tipoItem} = 'PROC/TAXA' THEN 1 ELSE 0 END)`,
+      totalMatMed: sql<number>`SUM(CASE WHEN ${faturadoTasy.tipoItem} = 'MAT/MED' THEN 1 ELSE 0 END)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      valorAReceber: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.aReceber} AS DECIMAL(15,2))), 0)`,
+      valorPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      valorGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+      totalConvenios: sql<number>`COUNT(DISTINCT ${faturadoTasy.convenio})`,
+      totalCompetencias: sql<number>`COUNT(DISTINCT ${faturadoTasy.competencia})`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions));
+
+  return {
+    totalRegistros: result?.totalRegistros || 0,
+    totalProcTaxa: result?.totalProcTaxa || 0,
+    totalMatMed: result?.totalMatMed || 0,
+    valorFaturado: result?.valorFaturado || 0,
+    valorAReceber: result?.valorAReceber || 0,
+    valorPago: result?.valorPago || 0,
+    valorGlosa: result?.valorGlosa || 0,
+    totalConvenios: result?.totalConvenios || 0,
+    totalCompetencias: result?.totalCompetencias || 0,
+  };
+}
+
+/**
+ * Lista competências disponíveis no Faturado Tasy
+ */
+export async function listarCompetenciasFaturadoTasy(
+  estabelecimentoId: number
+): Promise<{ competencia: string; totalRegistros: number; valorFaturado: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      competencia: faturadoTasy.competencia,
+      totalRegistros: sql<number>`COUNT(*)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(faturadoTasy)
+    .where(eq(faturadoTasy.estabelecimentoId, estabelecimentoId))
+    .groupBy(faturadoTasy.competencia)
+    .orderBy(desc(faturadoTasy.competencia));
+
+  return result.map(r => ({
+    competencia: r.competencia || '',
+    totalRegistros: r.totalRegistros || 0,
+    valorFaturado: r.valorFaturado || 0,
+  }));
+}
+
+/**
+ * Lista convênios disponíveis no Faturado Tasy
+ */
+export async function listarConveniosFaturadoTasy(
+  estabelecimentoId: number
+): Promise<{ convenio: string; totalRegistros: number; valorFaturado: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      convenio: faturadoTasy.convenio,
+      totalRegistros: sql<number>`COUNT(*)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(faturadoTasy)
+    .where(eq(faturadoTasy.estabelecimentoId, estabelecimentoId))
+    .groupBy(faturadoTasy.convenio)
+    .orderBy(desc(sql`SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2)))`));
+
+  return result.map(r => ({
+    convenio: r.convenio || '',
+    totalRegistros: r.totalRegistros || 0,
+    valorFaturado: r.valorFaturado || 0,
+  }));
+}
+
+/**
+ * Exclui registros do Faturado Tasy por importação
+ */
+export async function excluirFaturadoTasyPorImportacao(importacaoId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .delete(faturadoTasy)
+    .where(eq(faturadoTasy.importacaoId, importacaoId));
+
+  return result[0]?.affectedRows || 0;
+}
+
+/**
+ * Busca resumo por tipo de item do Faturado Tasy
+ */
+export async function getResumoPorTipoFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+  }
+): Promise<{
+  tipoItem: string;
+  totalRegistros: number;
+  valorFaturado: number;
+  valorPago: number;
+  valorGlosa: number;
+}[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+
+  const result = await db
+    .select({
+      tipoItem: faturadoTasy.tipoItem,
+      totalRegistros: sql<number>`COUNT(*)`,
+      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      valorPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      valorGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .groupBy(faturadoTasy.tipoItem);
+
+  return result.map(r => ({
+    tipoItem: r.tipoItem || '',
+    totalRegistros: r.totalRegistros || 0,
+    valorFaturado: r.valorFaturado || 0,
+    valorPago: r.valorPago || 0,
+    valorGlosa: r.valorGlosa || 0,
+  }));
+}
+
+/**
+ * Busca itens glosados do Faturado Tasy
+ */
+export async function getItensGlosadosFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+    limite?: number;
+    offset?: number;
+  }
+): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [
+    eq(faturadoTasy.estabelecimentoId, estabelecimentoId),
+    sql`${faturadoTasy.vlGlosa} > 0`,
+  ];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+
+  const result = await db
+    .select()
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .orderBy(desc(faturadoTasy.vlGlosa))
+    .limit(filtros?.limite || 100)
+    .offset(filtros?.offset || 0);
+
+  return result;
+}
+
+/**
+ * Busca dados para Relatório BI do Faturado Tasy
+ */
+export async function getDadosBIFaturadoTasy(
+  estabelecimentoId: number,
+  filtros?: {
+    competencia?: string;
+    convenio?: string;
+    tipoItem?: 'PROC/TAXA' | 'MAT/MED';
+  }
+): Promise<{
+  resumo: {
+    totalFaturado: number;
+    totalAReceber: number;
+    totalPago: number;
+    totalGlosa: number;
+    totalRegistros: number;
+    totalContas: number;
+    ticketMedio: number;
+    taxaGlosa: number;
+    taxaRecebimento: number;
+  };
+  porConvenio: {
+    convenio: string;
+    totalFaturado: number;
+    totalPago: number;
+    totalGlosa: number;
+    totalRegistros: number;
+  }[];
+  porTipoItem: {
+    tipoItem: string;
+    totalFaturado: number;
+    totalPago: number;
+    totalGlosa: number;
+    totalRegistros: number;
+  }[];
+  porCompetencia: {
+    competencia: string;
+    totalFaturado: number;
+    totalPago: number;
+    totalGlosa: number;
+    totalRegistros: number;
+  }[];
+}> {
+  const db = await getDb();
+  if (!db) return {
+    resumo: {
+      totalFaturado: 0,
+      totalAReceber: 0,
+      totalPago: 0,
+      totalGlosa: 0,
+      totalRegistros: 0,
+      totalContas: 0,
+      ticketMedio: 0,
+      taxaGlosa: 0,
+      taxaRecebimento: 0,
+    },
+    porConvenio: [],
+    porTipoItem: [],
+    porCompetencia: [],
+  };
+
+  const conditions: SQL[] = [eq(faturadoTasy.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.competencia) {
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  }
+  if (filtros?.convenio) {
+    conditions.push(sql`${faturadoTasy.convenio} LIKE ${`%${filtros.convenio}%`}`);
+  }
+  if (filtros?.tipoItem) {
+    conditions.push(eq(faturadoTasy.tipoItem, filtros.tipoItem));
+  }
+
+  // Resumo geral
+  const [resumoResult] = await db
+    .select({
+      totalFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      totalAReceber: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.aReceber} AS DECIMAL(15,2))), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      totalGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+      totalContas: sql<number>`COUNT(DISTINCT ${faturadoTasy.conta})`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions));
+
+  const totalFaturado = resumoResult?.totalFaturado || 0;
+  const totalPago = resumoResult?.totalPago || 0;
+  const totalGlosa = resumoResult?.totalGlosa || 0;
+  const totalContas = resumoResult?.totalContas || 0;
+
+  const resumo = {
+    totalFaturado,
+    totalAReceber: resumoResult?.totalAReceber || 0,
+    totalPago,
+    totalGlosa,
+    totalRegistros: resumoResult?.totalRegistros || 0,
+    totalContas,
+    ticketMedio: totalContas > 0 ? totalFaturado / totalContas : 0,
+    taxaGlosa: totalFaturado > 0 ? (totalGlosa / totalFaturado) * 100 : 0,
+    taxaRecebimento: totalFaturado > 0 ? (totalPago / totalFaturado) * 100 : 0,
+  };
+
+  // Por convênio
+  const porConvenio = await db
+    .select({
+      convenio: faturadoTasy.convenio,
+      totalFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      totalGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .groupBy(faturadoTasy.convenio)
+    .orderBy(desc(sql`SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2)))`));
+
+  // Por tipo de item
+  const porTipoItem = await db
+    .select({
+      tipoItem: faturadoTasy.tipoItem,
+      totalFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      totalGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .groupBy(faturadoTasy.tipoItem);
+
+  // Por competência
+  const porCompetencia = await db
+    .select({
+      competencia: faturadoTasy.competencia,
+      totalFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlPago} AS DECIMAL(15,2))), 0)`,
+      totalGlosa: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlGlosa} AS DECIMAL(15,2))), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(faturadoTasy)
+    .where(and(...conditions))
+    .groupBy(faturadoTasy.competencia)
+    .orderBy(desc(faturadoTasy.competencia));
+
+  return {
+    resumo,
+    porConvenio: porConvenio.map(r => ({
+      convenio: r.convenio || '',
+      totalFaturado: r.totalFaturado || 0,
+      totalPago: r.totalPago || 0,
+      totalGlosa: r.totalGlosa || 0,
+      totalRegistros: r.totalRegistros || 0,
+    })),
+    porTipoItem: porTipoItem.map(r => ({
+      tipoItem: r.tipoItem || '',
+      totalFaturado: r.totalFaturado || 0,
+      totalPago: r.totalPago || 0,
+      totalGlosa: r.totalGlosa || 0,
+      totalRegistros: r.totalRegistros || 0,
+    })),
+    porCompetencia: porCompetencia.map(r => ({
+      competencia: r.competencia || '',
+      totalFaturado: r.totalFaturado || 0,
+      totalPago: r.totalPago || 0,
+      totalGlosa: r.totalGlosa || 0,
+      totalRegistros: r.totalRegistros || 0,
+    })),
+  };
 }

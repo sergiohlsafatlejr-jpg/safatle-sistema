@@ -3885,6 +3885,25 @@ export const appRouter = router({
 
   // ============ IMPORTAÇÃO DE DADOS DO TASY ============
   importacaoTasy: router({
+    // Criar nova importação (simples, sem upload)
+    criar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nomeArquivo: z.string(),
+        tamanhoArquivo: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const importacao = await db.createImportacaoTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          userId: ctx.user.id,
+          nomeArquivo: input.nomeArquivo,
+          tamanhoArquivo: input.tamanhoArquivo,
+          status: 'aguardando',
+          progresso: 0,
+        });
+        return { id: importacao.id };
+      }),
+
     // Criar nova importação (upload de arquivo SQLite)
     upload: protectedProcedure
       .input(z.object({
@@ -5118,6 +5137,177 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         return db.getEvolucaoConciliacoes(input.estabelecimentoId, input.meses);
+      }),
+  }),
+
+  // ============ FATURADO TASY ============
+  faturadoTasy: router({
+    // Listar registros com filtros
+    list: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+        tipoItem: z.enum(['PROC/TAXA', 'MAT/MED']).optional(),
+        protocolo: z.string().optional(),
+        atend: z.string().optional(),
+        conta: z.string().optional(),
+        cdItem: z.string().optional(),
+        descricao: z.string().optional(),
+        comGlosa: z.boolean().optional(),
+        comPagamento: z.boolean().optional(),
+        limite: z.number().optional(),
+        offset: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Contar registros
+    count: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+        tipoItem: z.enum(['PROC/TAXA', 'MAT/MED']).optional(),
+        comGlosa: z.boolean().optional(),
+        comPagamento: z.boolean().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.contarFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Buscar estatísticas
+    estatisticas: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getEstatisticasFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Listar competências disponíveis
+    competencias: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.listarCompetenciasFaturadoTasy(input.estabelecimentoId);
+      }),
+
+    // Listar convênios disponíveis
+    convenios: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.listarConveniosFaturadoTasy(input.estabelecimentoId);
+      }),
+
+    // Resumo por tipo de item
+    resumoPorTipo: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getResumoPorTipoFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Itens glosados
+    itensGlosados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+        limite: z.number().optional(),
+        offset: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getItensGlosadosFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Dados para Relatório BI
+    dadosBI: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+        tipoItem: z.enum(['PROC/TAXA', 'MAT/MED']).optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getDadosBIFaturadoTasy(input.estabelecimentoId, input);
+      }),
+
+    // Importar dados do Excel
+    importar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        dados: z.array(z.object({
+          sequencia: z.string().optional(),
+          convenio: z.string().optional(),
+          competencia: z.string().optional(),
+          protocolo: z.string().optional(),
+          setor: z.string().optional(),
+          atend: z.string().optional(),
+          conta: z.string().optional(),
+          profExec: z.string().optional(),
+          cdMotivoExcConta: z.string().optional(),
+          dsComplMotivoExcon: z.string().optional(),
+          tipoItem: z.enum(['PROC/TAXA', 'MAT/MED']),
+          cdItem: z.string().optional(),
+          cdItemTuss: z.string().optional(),
+          dtItem: z.string().optional(),
+          descricao: z.string().optional(),
+          qtd: z.number().optional(),
+          vlFaturado: z.number().optional(),
+          aReceber: z.number().optional(),
+          vlPago: z.number().optional(),
+          vlGlosa: z.number().optional(),
+          motivoGlosa: z.string().optional(),
+          retorno: z.string().optional(),
+          dtPgto: z.string().optional(),
+        })),
+        importacaoId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const registros = input.dados.map(d => ({
+          estabelecimentoId: input.estabelecimentoId,
+          importacaoId: input.importacaoId,
+          sequencia: d.sequencia || null,
+          convenio: d.convenio || null,
+          competencia: d.competencia || null,
+          protocolo: d.protocolo || null,
+          setor: d.setor || null,
+          atend: d.atend || null,
+          conta: d.conta || null,
+          profExec: d.profExec || null,
+          cdMotivoExcConta: d.cdMotivoExcConta || null,
+          dsComplMotivoExcon: d.dsComplMotivoExcon || null,
+          tipoItem: d.tipoItem,
+          cdItem: d.cdItem || null,
+          cdItemTuss: d.cdItemTuss || null,
+          dtItem: d.dtItem ? new Date(d.dtItem) : null,
+          descricao: d.descricao || null,
+          qtd: d.qtd ? String(d.qtd) : null,
+          vlFaturado: d.vlFaturado ? String(d.vlFaturado) : null,
+          aReceber: d.aReceber ? String(d.aReceber) : null,
+          vlPago: d.vlPago ? String(d.vlPago) : null,
+          vlGlosa: d.vlGlosa ? String(d.vlGlosa) : null,
+          motivoGlosa: d.motivoGlosa || null,
+          retorno: d.retorno || null,
+          dtPgto: d.dtPgto ? new Date(d.dtPgto) : null,
+        }));
+
+        const resultado = await db.insertFaturadoTasyBatch(registros as any, input.estabelecimentoId);
+        return resultado;
+      }),
+
+    // Excluir por importação
+    excluirPorImportacao: protectedProcedure
+      .input(z.object({ importacaoId: z.number() }))
+      .mutation(async ({ input }) => {
+        const count = await db.excluirFaturadoTasyPorImportacao(input.importacaoId);
+        return { excluidos: count };
       }),
   }),
 

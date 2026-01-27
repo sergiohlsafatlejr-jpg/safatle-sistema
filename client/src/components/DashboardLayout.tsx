@@ -115,6 +115,7 @@ const menuItems: MenuItem[] = [
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
   { icon: Database, label: "Importação Tasy", path: "/importacao-tasy", adminOnly: true },
+  { icon: Receipt, label: "Faturado Tasy", path: "/faturado-tasy", modulo: "arquivos" },
   { icon: ArrowLeftRight, label: "Conciliação Tasy", path: "/conciliacao-tasy", adminOnly: true },
   { icon: List, label: "Contas Tasy", path: "/contas-tasy", modulo: "arquivos" },
   { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "arquivos" },
