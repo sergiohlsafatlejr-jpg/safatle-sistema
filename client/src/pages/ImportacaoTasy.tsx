@@ -331,11 +331,18 @@ export default function ImportacaoTasy() {
 
     // ========== DETECTA FORMATO DO ARQUIVO ==========
     // Verifica se é o formato FaturadoTasy (novo formato unificado)
-    const faturadoTasyTable = tableNames.find((t: string) => 
-      t.toLowerCase() === 'faturadotasy' || 
-      t.toLowerCase() === 'faturado_tasy'
-    );
+    const faturadoTasyTable = tableNames.find((t: string) => {
+      const tableLower = t.toLowerCase();
+      return tableLower === 'faturadotasy' || 
+             tableLower === 'faturado_tasy' ||
+             tableLower === 'faturado_recebido_glosado_motivo_tasy' ||
+             tableLower.includes('faturado') && tableLower.includes('tasy');
+    });
     const formatoFaturadoTasy = !!faturadoTasyTable;
+    
+    if (faturadoTasyTable) {
+      console.log(`Tabela FaturadoTasy encontrada: ${faturadoTasyTable}`);
+    }
     
     // Verifica se é o novo formato (tabelas separadas: Procedimentos_Tasy, Mat_Med_Tasy)
     const procedimentosTable = tableNames.find((t: string) => 

@@ -956,3 +956,5 @@
 - [x] Adicionar suporte à leitura de arquivos SQLite com tabela FaturadoTasy na tela de Importação Tasy
 - [x] Mapear campos da tabela FaturadoTasy (sequencia, convenio, competencia, protocolo, setor, atend, conta, prof_exec, tipo_item, cd_item, cd_item_tuss, descricao, qtd, vl_faturado, a_receber, vl_pago, vl_glosa, motivo_glosa, retorno, dt_pgto)
 - [x] Normalizar tipoItem para PROC/TAXA ou MAT/MED na importação
+
+- [x] Corrigir leitura de arquivo SQLite com tabela FaturadoTasy - sistema retorna "Nenhum dado válido encontrado" (tabela: Faturado_Recebido_glosado_Motivo_Tasy)
