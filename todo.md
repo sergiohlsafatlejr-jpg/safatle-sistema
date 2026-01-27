@@ -948,3 +948,5 @@
 - [x] Adicionar botão de exportação Excel na tela Faturado Tasy
 - [x] Criar função handleExportExcel no frontend para exportar dados
 - [x] Integrar Relatório Tasy para usar a nova tabela FaturadoTasy (seletor de fonte de dados: Antiga vs Nova)
+
+- [x] Corrigir botão de importação Excel na tela Faturado Tasy (usando useRef para acionar input de arquivo)

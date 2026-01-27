@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ export default function FaturadoTasy() {
   const [filtroBusca, setFiltroBusca] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
   const { data: estatisticas, isLoading: loadingEstatisticas, refetch: refetchEstatisticas } = trpc.faturadoTasy.estatisticas.useQuery(
@@ -318,22 +319,23 @@ export default function FaturadoTasy() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar
           </Button>
-          <Label htmlFor="file-upload" className="cursor-pointer">
-            <Button asChild disabled={isImporting}>
-              <span>
-                <Upload className="h-4 w-4 mr-2" />
-                {isImporting ? `Importando... ${importProgress}%` : 'Importar Excel'}
-              </span>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleFileUpload}
+              disabled={isImporting}
+            />
+            <Button 
+              disabled={isImporting} 
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {isImporting ? `Importando... ${importProgress}%` : 'Importar Excel'}
             </Button>
-          </Label>
-          <Input
-            id="file-upload"
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={handleFileUpload}
-            disabled={isImporting}
-          />
+          </>
         </div>
       </div>
 
