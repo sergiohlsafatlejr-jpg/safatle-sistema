@@ -41,8 +41,10 @@ export default function ConciliacaoContasFaturadas() {
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
 
   // Filtros
-  const [competenciaFiltro, setCompetenciaFiltro] = useState("todos");
+  const [anoFiltro, setAnoFiltro] = useState("todos");
+  const [mesFiltro, setMesFiltro] = useState("todos");
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
+
   const [contaFiltro, setContaFiltro] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
@@ -60,6 +62,40 @@ export default function ConciliacaoContasFaturadas() {
     { enabled: estabelecimentoId > 0 }
   );
 
+  // Calcular competência a partir de ano e mês selecionados
+  const competenciaFiltro = useMemo(() => {
+    if (anoFiltro === "todos" || mesFiltro === "todos") return undefined;
+    return `${anoFiltro}-${mesFiltro.padStart(2, '0')}`;
+  }, [anoFiltro, mesFiltro]);
+
+  // Extrair anos e meses únicos das competências
+  const anosDisponiveis = useMemo(() => {
+    if (!competencias) return [];
+    const anos = new Set<string>();
+    competencias.forEach(c => {
+      const match = c.competencia.match(/(\d{4})/);
+      if (match) anos.add(match[1]);
+    });
+    return Array.from(anos).sort((a, b) => b.localeCompare(a));
+  }, [competencias]);
+
+  const mesesDisponiveis = useMemo(() => {
+    return [
+      { valor: '01', nome: 'Janeiro' },
+      { valor: '02', nome: 'Fevereiro' },
+      { valor: '03', nome: 'Março' },
+      { valor: '04', nome: 'Abril' },
+      { valor: '05', nome: 'Maio' },
+      { valor: '06', nome: 'Junho' },
+      { valor: '07', nome: 'Julho' },
+      { valor: '08', nome: 'Agosto' },
+      { valor: '09', nome: 'Setembro' },
+      { valor: '10', nome: 'Outubro' },
+      { valor: '11', nome: 'Novembro' },
+      { valor: '12', nome: 'Dezembro' },
+    ];
+  }, []);
+
   // Query de convênios disponíveis
   const { data: convenios } = trpc.faturadoTasy.convenios.useQuery(
     { estabelecimentoId },
@@ -70,7 +106,7 @@ export default function ConciliacaoContasFaturadas() {
   const { data: conciliacao, isLoading, refetch } = trpc.faturadoTasy.conciliacao.useQuery(
     {
       estabelecimentoId,
-      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
+      competencia: competenciaFiltro,
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
       conta: contaFiltro || undefined,
       status: statusFiltro !== "todos" ? statusFiltro as any : undefined,
@@ -83,7 +119,7 @@ export default function ConciliacaoContasFaturadas() {
     {
       estabelecimentoId,
       conta: contaSelecionada || "",
-      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
+      competencia: competenciaFiltro,
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
     },
     { enabled: !!contaSelecionada && modalAberto }
@@ -355,18 +391,34 @@ export default function ConciliacaoContasFaturadas() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <div>
-                <Label>Competência</Label>
-                <Select value={competenciaFiltro} onValueChange={setCompetenciaFiltro}>
+                <Label>Ano</Label>
+                <Select value={anoFiltro} onValueChange={setAnoFiltro}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
+                    <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    {competencias?.map((c) => (
-                      <SelectItem key={c.competencia} value={c.competencia}>
-                        {formatarCompetencia(c.competencia)} ({c.totalRegistros} itens)
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {anosDisponiveis.map((ano) => (
+                      <SelectItem key={ano} value={ano}>
+                        {ano}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Mês</Label>
+                <Select value={mesFiltro} onValueChange={setMesFiltro}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {mesesDisponiveis.map((mes) => (
+                      <SelectItem key={mes.valor} value={mes.valor}>
+                        {mes.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

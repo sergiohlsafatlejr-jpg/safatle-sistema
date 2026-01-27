@@ -977,3 +977,5 @@
 - [x] Verificar qual campo é usado como período no Relatório Tasy (usa dataInicio/dataFim calculados a partir de mês/ano selecionados)
 - [x] Criar tela Contas Faturadas (Tasy) com dados FaturadoTasy agrupados por conta
 - [x] Criar tela de detalhes dos itens por conta (ao clicar em uma conta)
+
+- [x] Alterar filtro de competência na tela Contas Faturadas para dois campos separados: Ano e Mês
