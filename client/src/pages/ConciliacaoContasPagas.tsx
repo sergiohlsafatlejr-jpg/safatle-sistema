@@ -40,44 +40,53 @@ export default function ConciliacaoContasPagas() {
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
 
   // Filtros
-  const [mesAnoFiltro, setMesAnoFiltro] = useState(""); // Filtro principal por mês/ano
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
+  const [competenciaFiltro, setCompetenciaFiltro] = useState(""); // Filtro principal por competência
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
-  const [guiaFiltro, setGuiaFiltro] = useState("");
+  const [contaFiltro, setContaFiltro] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
 
   // Modal de detalhes
-  const [contaSelecionada, setContaSelecionada] = useState<any>(null);
+  const [contaSelecionada, setContaSelecionada] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
 
   // Ordenação
   const [ordenacao, setOrdenacao] = useState<{ campo: string; direcao: 'asc' | 'desc' }>({ campo: 'valorFaturado', direcao: 'desc' });
 
-  // Query de meses disponíveis
-  const { data: mesesDisponiveis } = trpc.importacaoTasy.mesesDisponiveis.useQuery(
+  // Query de competências disponíveis
+  const { data: competenciasDisponiveis } = trpc.faturadoTasy.competenciasDisponiveis.useQuery(
     { estabelecimentoId },
     { enabled: estabelecimentoId > 0 }
   );
 
-  // Query de conciliação
-  const { data: conciliacao, isLoading, refetch } = trpc.importacaoTasy.conciliacaoCompleta.useQuery(
+  // Query de conciliação usando endpoint do faturadoTasy
+  const { data: conciliacao, isLoading, refetch } = trpc.faturadoTasy.conciliacao.useQuery(
     {
       estabelecimentoId,
-      mesAno: mesAnoFiltro || undefined,
-      dataInicio: !mesAnoFiltro && dataInicio ? dataInicio : undefined,
-      dataFim: !mesAnoFiltro && dataFim ? dataFim : undefined,
+      competencia: competenciaFiltro && competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
-      guia: guiaFiltro || undefined,
+      conta: contaFiltro || undefined,
+      status: statusFiltro !== "todos" ? statusFiltro as any : undefined,
+      limite: 500,
     },
     { enabled: estabelecimentoId > 0 }
   );
 
   // Query de convênios
-  const { data: convenios } = trpc.importacaoTasy.conveniosContasPagas.useQuery(
+  const { data: convenios } = trpc.faturadoTasy.convenios.useQuery(
     { estabelecimentoId },
     { enabled: estabelecimentoId > 0 }
+  );
+
+  // Query de itens da conta selecionada
+  const { data: itensConta, isLoading: isLoadingItens } = trpc.faturadoTasy.itensPorConta.useQuery(
+    {
+      estabelecimentoId,
+      conta: contaSelecionada || "",
+      competencia: competenciaFiltro && competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
+      convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
+    },
+    { enabled: !!contaSelecionada && estabelecimentoId > 0 }
   );
 
   // Filtrar e ordenar contas
@@ -86,19 +95,14 @@ export default function ConciliacaoContasPagas() {
 
     let resultado = [...conciliacao.contas];
 
-    // Filtro por status
-    if (statusFiltro !== "todos") {
-      resultado = resultado.filter(c => c.status === statusFiltro);
-    }
-
     // Filtro por busca
     if (busca) {
       const termoBusca = busca.toLowerCase();
       resultado = resultado.filter(c =>
-        c.paciente?.toLowerCase().includes(termoBusca) ||
-        c.guia?.toLowerCase().includes(termoBusca) ||
-        c.nrConta?.toLowerCase().includes(termoBusca) ||
-        c.convenio?.toLowerCase().includes(termoBusca)
+        c.conta?.toLowerCase().includes(termoBusca) ||
+        c.convenio?.toLowerCase().includes(termoBusca) ||
+        c.atendimento?.toLowerCase().includes(termoBusca) ||
+        c.profExec?.toLowerCase().includes(termoBusca)
       );
     }
 
@@ -119,13 +123,13 @@ export default function ConciliacaoContasPagas() {
           valorA = a.valorGlosado;
           valorB = b.valorGlosado;
           break;
-        case 'paciente':
-          valorA = a.paciente || '';
-          valorB = b.paciente || '';
+        case 'conta':
+          valorA = a.conta || '';
+          valorB = b.conta || '';
           break;
-        case 'dataConta':
-          valorA = a.dataConta ? new Date(a.dataConta).getTime() : 0;
-          valorB = b.dataConta ? new Date(b.dataConta).getTime() : 0;
+        case 'competencia':
+          valorA = a.competencia || '';
+          valorB = b.competencia || '';
           break;
         default:
           valorA = a.valorFaturado;
@@ -139,16 +143,25 @@ export default function ConciliacaoContasPagas() {
     });
 
     return resultado;
-  }, [conciliacao?.contas, statusFiltro, busca, ordenacao]);
+  }, [conciliacao?.contas, busca, ordenacao]);
 
   // Funções auxiliares
   const formatarMoeda = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
   };
 
-  const formatarData = (data: Date | string | null) => {
-    if (!data) return '-';
-    return new Date(data).toLocaleDateString('pt-BR');
+  const formatarCompetencia = (comp: string | null) => {
+    if (!comp) return '-';
+    // Formato esperado: "2025-01-01 00:00:00" ou "2025-01"
+    const matchYMD = comp.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (matchYMD) {
+      return `${matchYMD[2]}/${matchYMD[1]}`;
+    }
+    const matchYM = comp.match(/(\d{4})-(\d{2})$/);
+    if (matchYM) {
+      return `${matchYM[2]}/${matchYM[1]}`;
+    }
+    return comp;
   };
 
   const getStatusBadge = (status: string) => {
@@ -174,7 +187,7 @@ export default function ConciliacaoContasPagas() {
     }
   };
 
-  const abrirDetalhes = (conta: any) => {
+  const abrirDetalhes = (conta: string) => {
     setContaSelecionada(conta);
     setModalAberto(true);
   };
@@ -185,36 +198,20 @@ export default function ConciliacaoContasPagas() {
 
     // Dados das contas
     const dadosContas = contasFiltradas.map(c => ({
-      'Conta': c.nrConta || '-',
-      'Guia': c.guia || '-',
+      'Conta': c.conta || '-',
+      'Competência': formatarCompetencia(c.competencia),
       'Convênio': c.convenio || '-',
-      'Paciente': c.paciente || '-',
-      'Data': formatarData(c.dataConta),
+      'Atendimento': c.atendimento || '-',
+      'Protocolo': c.protocolo || '-',
+      'Setor': c.setor || '-',
+      'Profissional': c.profExec || '-',
+      'Total Itens': c.totalItens,
       'Valor Faturado': c.valorFaturado,
       'Valor Pago': c.valorPago,
       'Valor Glosado': c.valorGlosado,
+      'Valor Pendente': c.valorPendente,
       'Status': c.status
     }));
-
-    // Dados dos itens
-    const dadosItens: any[] = [];
-    contasFiltradas.forEach(c => {
-      c.itens?.forEach((item: any) => {
-        dadosItens.push({
-          'Conta': c.nrConta || '-',
-          'Guia': c.guia || '-',
-          'Paciente': c.paciente || '-',
-          'Código': item.codigo || '-',
-          'Descrição': item.descricao || '-',
-          'Tipo': item.tipo || '-',
-          'Quantidade': item.quantidade,
-          'Valor Faturado': item.valorFaturado,
-          'Valor Pago': item.valorPago,
-          'Valor Glosado': item.valorGlosado,
-          'Motivo Glosa': item.motivoGlosa || '-'
-        });
-      });
-    });
 
     const wb = XLSX.utils.book_new();
     
@@ -236,13 +233,53 @@ export default function ConciliacaoContasPagas() {
     const wsContas = XLSX.utils.json_to_sheet(dadosContas);
     XLSX.utils.book_append_sheet(wb, wsContas, 'Contas');
 
-    // Aba de itens
-    if (dadosItens.length > 0) {
-      const wsItens = XLSX.utils.json_to_sheet(dadosItens);
-      XLSX.utils.book_append_sheet(wb, wsItens, 'Itens');
-    }
-
     XLSX.writeFile(wb, `conciliacao_contas_pagas_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Exportar itens de uma conta específica para Excel
+  const exportarItensConta = () => {
+    if (!itensConta || !itensConta.itens.length) return;
+
+    // Dados do cabeçalho da conta
+    const dadosConta = [{
+      'Conta': contaSelecionada || '-',
+      'Convênio': itensConta.convenio || '-',
+      'Competência': formatarCompetencia(itensConta.competencia),
+      'Atendimento': itensConta.atendimento || '-',
+      'Protocolo': itensConta.protocolo || '-',
+      'Setor': itensConta.setor || '-',
+      'Profissional': itensConta.profExec || '-',
+      'Total Faturado': itensConta.valorFaturadoTotal,
+      'Total Pago': itensConta.valorPagoTotal,
+      'Total Glosado': itensConta.valorGlosadoTotal,
+    }];
+
+    // Dados dos itens
+    const dadosItens = itensConta.itens.map((item: any) => ({
+      'Tipo': item.tipoItem || '-',
+      'Código': item.cdItem || '-',
+      'Código TUSS': item.cdItemTuss || '-',
+      'Descrição': item.descricao || '-',
+      'Quantidade': item.qtd || 0,
+      'Valor Faturado': item.vlFaturado || 0,
+      'Valor Pago': item.vlPago || 0,
+      'Valor Glosa': item.vlGlosa || 0,
+      'Motivo Glosa': item.motivoGlosa || '-',
+      'Data Item': item.dtItem || '-',
+      'Retorno': item.retorno || '-',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    
+    // Aba de resumo da conta
+    const wsResumo = XLSX.utils.json_to_sheet(dadosConta);
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Conta');
+
+    // Aba de itens
+    const wsItens = XLSX.utils.json_to_sheet(dadosItens);
+    XLSX.utils.book_append_sheet(wb, wsItens, 'Itens');
+
+    XLSX.writeFile(wb, `itens_conta_${contaSelecionada}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   if (!estabelecimentoId) {
@@ -270,7 +307,7 @@ export default function ConciliacaoContasPagas() {
               <FileText className="w-7 h-7 text-primary" />
               Conciliação Contas Pagas
             </h1>
-            <p className="text-muted-foreground">Cruzamento de dados faturados x pagos x glosados do Tasy</p>
+            <p className="text-muted-foreground">Visualização de contas pagas do Tasy agrupadas por conta (dados do FaturadoTasy)</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => refetch()}>
@@ -391,46 +428,22 @@ export default function ConciliacaoContasPagas() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
-              <div className="lg:col-span-2">
-                <Label className="font-semibold text-primary">Mês/Ano Faturado</Label>
-                <Select value={mesAnoFiltro} onValueChange={(v) => {
-                  setMesAnoFiltro(v);
-                  if (v) {
-                    setDataInicio("");
-                    setDataFim("");
-                  }
-                }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <Label className="font-semibold text-primary">Competência</Label>
+                <Select value={competenciaFiltro} onValueChange={setCompetenciaFiltro}>
                   <SelectTrigger className="border-primary">
-                    <SelectValue placeholder="Selecione o mês/ano" />
+                    <SelectValue placeholder="Selecione a competência" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos os meses</SelectItem>
-                    {mesesDisponiveis?.map((m) => (
-                      <SelectItem key={m.mesAno} value={m.mesAno}>{m.label}</SelectItem>
+                    <SelectItem value="todos">Todas as competências</SelectItem>
+                    {competenciasDisponiveis?.map((c: any) => (
+                      <SelectItem key={c.competencia} value={c.competencia}>
+                        {formatarCompetencia(c.competencia)} ({c.total} itens)
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Data Início {mesAnoFiltro && mesAnoFiltro !== "todos" && "(desativado)"}</Label>
-                <Input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                  disabled={!!mesAnoFiltro && mesAnoFiltro !== "todos"}
-                  className={mesAnoFiltro && mesAnoFiltro !== "todos" ? "opacity-50" : ""}
-                />
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Data Fim {mesAnoFiltro && mesAnoFiltro !== "todos" && "(desativado)"}</Label>
-                <Input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                  disabled={!!mesAnoFiltro && mesAnoFiltro !== "todos"}
-                  className={mesAnoFiltro && mesAnoFiltro !== "todos" ? "opacity-50" : ""}
-                />
               </div>
               <div>
                 <Label>Convênio</Label>
@@ -440,8 +453,8 @@ export default function ConciliacaoContasPagas() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    {convenios?.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    {convenios?.map((c: any) => (
+                      <SelectItem key={c.convenio} value={c.convenio}>{c.convenio}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -462,11 +475,11 @@ export default function ConciliacaoContasPagas() {
                 </Select>
               </div>
               <div>
-                <Label>Guia</Label>
+                <Label>Conta</Label>
                 <Input
-                  placeholder="Número da guia"
-                  value={guiaFiltro}
-                  onChange={(e) => setGuiaFiltro(e.target.value)}
+                  placeholder="Número da conta"
+                  value={contaFiltro}
+                  onChange={(e) => setContaFiltro(e.target.value)}
                 />
               </div>
               <div>
@@ -474,7 +487,7 @@ export default function ConciliacaoContasPagas() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Paciente, guia, conta..."
+                    placeholder="Conta, convênio, atendimento..."
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     className="pl-9"
@@ -503,33 +516,34 @@ export default function ConciliacaoContasPagas() {
               <div className="text-center py-8 text-muted-foreground">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhuma conta encontrada com os filtros selecionados.</p>
-                <p className="text-sm">Importe dados de contas pagas do Tasy para visualizar a conciliação.</p>
+                <p className="text-sm">Importe dados do FaturadoTasy para visualizar a conciliação.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-3 font-medium">Conta/Guia</th>
+                      <th 
+                        className="text-left p-3 font-medium cursor-pointer hover:bg-muted/50"
+                        onClick={() => alternarOrdenacao('conta')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Conta
+                          <ArrowUpDown className="w-4 h-4" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left p-3 font-medium cursor-pointer hover:bg-muted/50"
+                        onClick={() => alternarOrdenacao('competencia')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Competência
+                          <ArrowUpDown className="w-4 h-4" />
+                        </div>
+                      </th>
                       <th className="text-left p-3 font-medium">Convênio</th>
-                      <th 
-                        className="text-left p-3 font-medium cursor-pointer hover:bg-muted/50"
-                        onClick={() => alternarOrdenacao('paciente')}
-                      >
-                        <div className="flex items-center gap-1">
-                          Paciente
-                          <ArrowUpDown className="w-4 h-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="text-left p-3 font-medium cursor-pointer hover:bg-muted/50"
-                        onClick={() => alternarOrdenacao('dataConta')}
-                      >
-                        <div className="flex items-center gap-1">
-                          Data
-                          <ArrowUpDown className="w-4 h-4" />
-                        </div>
-                      </th>
+                      <th className="text-left p-3 font-medium">Atendimento</th>
+                      <th className="text-center p-3 font-medium">Itens</th>
                       <th 
                         className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50"
                         onClick={() => alternarOrdenacao('valorFaturado')}
@@ -569,14 +583,14 @@ export default function ConciliacaoContasPagas() {
                   </thead>
                   <tbody>
                     {contasFiltradas.slice(0, 100).map((conta, index) => (
-                      <tr key={index} className="border-b hover:bg-muted/50">
+                      <tr key={`${conta.conta}-${index}`} className="border-b hover:bg-muted/50">
                         <td className="p-3">
-                          <div className="font-medium">{conta.nrConta || '-'}</div>
-                          <div className="text-xs text-muted-foreground">{conta.guia || '-'}</div>
+                          <div className="font-medium font-mono">{conta.conta || '-'}</div>
                         </td>
-                        <td className="p-3 text-sm">{conta.convenio || '-'}</td>
-                        <td className="p-3 text-sm max-w-[200px] truncate">{conta.paciente || '-'}</td>
-                        <td className="p-3 text-sm">{formatarData(conta.dataConta)}</td>
+                        <td className="p-3 text-sm">{formatarCompetencia(conta.competencia)}</td>
+                        <td className="p-3 text-sm max-w-[150px] truncate" title={conta.convenio}>{conta.convenio || '-'}</td>
+                        <td className="p-3 text-sm font-mono">{conta.atendimento || '-'}</td>
+                        <td className="p-3 text-center">{conta.totalItens}</td>
                         <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(conta.valorFaturado)}</td>
                         <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(conta.valorPago)}</td>
                         <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(conta.valorGlosado)}</td>
@@ -585,7 +599,7 @@ export default function ConciliacaoContasPagas() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => abrirDetalhes(conta)}
+                            onClick={() => abrirDetalhes(conta.conta)}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -610,55 +624,63 @@ export default function ConciliacaoContasPagas() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Detalhes da Conta
+                Detalhes da Conta: {contaSelecionada}
               </DialogTitle>
             </DialogHeader>
 
-            {contaSelecionada && (
+            {isLoadingItens ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : itensConta ? (
               <div className="space-y-6">
                 {/* Resumo da Conta */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card>
                     <CardContent className="p-4">
                       <p className="text-sm text-muted-foreground">Conta</p>
-                      <p className="font-bold">{contaSelecionada.nrConta || '-'}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground">Guia</p>
-                      <p className="font-bold">{contaSelecionada.guia || '-'}</p>
+                      <p className="font-bold">{contaSelecionada || '-'}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
                       <p className="text-sm text-muted-foreground">Convênio</p>
-                      <p className="font-bold">{contaSelecionada.convenio || '-'}</p>
+                      <p className="font-bold">{itensConta.convenio || '-'}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <div className="mt-1">{getStatusBadge(contaSelecionada.status)}</div>
+                      <p className="text-sm text-muted-foreground">Competência</p>
+                      <p className="font-bold">{formatarCompetencia(itensConta.competencia)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-muted-foreground">Atendimento</p>
+                      <p className="font-bold">{itensConta.atendimento || '-'}</p>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Paciente e Data */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Informações adicionais */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Card>
                     <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground">Paciente</p>
-                      <p className="font-bold text-lg">{contaSelecionada.paciente || '-'}</p>
+                      <p className="text-sm text-muted-foreground">Protocolo</p>
+                      <p className="font-bold">{itensConta.protocolo || '-'}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground">Data da Conta</p>
-                      <p className="font-bold text-lg flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        {formatarData(contaSelecionada.dataConta)}
-                      </p>
+                      <p className="text-sm text-muted-foreground">Setor</p>
+                      <p className="font-bold">{itensConta.setor || '-'}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-muted-foreground">Profissional</p>
+                      <p className="font-bold">{itensConta.profExec || '-'}</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -669,7 +691,7 @@ export default function ConciliacaoContasPagas() {
                     <CardContent className="p-4">
                       <p className="text-sm text-blue-600 dark:text-blue-400">Valor Faturado</p>
                       <p className="font-bold text-2xl text-blue-700 dark:text-blue-300">
-                        {formatarMoeda(contaSelecionada.valorFaturado)}
+                        {formatarMoeda(itensConta.valorFaturadoTotal)}
                       </p>
                     </CardContent>
                   </Card>
@@ -677,11 +699,11 @@ export default function ConciliacaoContasPagas() {
                     <CardContent className="p-4">
                       <p className="text-sm text-green-600 dark:text-green-400">Valor Pago</p>
                       <p className="font-bold text-2xl text-green-700 dark:text-green-300">
-                        {formatarMoeda(contaSelecionada.valorPago)}
+                        {formatarMoeda(itensConta.valorPagoTotal)}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400">
-                        {contaSelecionada.valorFaturado > 0 
-                          ? ((contaSelecionada.valorPago / contaSelecionada.valorFaturado) * 100).toFixed(1) 
+                        {itensConta.valorFaturadoTotal > 0 
+                          ? ((itensConta.valorPagoTotal / itensConta.valorFaturadoTotal) * 100).toFixed(1) 
                           : 0}% do faturado
                       </p>
                     </CardContent>
@@ -690,11 +712,11 @@ export default function ConciliacaoContasPagas() {
                     <CardContent className="p-4">
                       <p className="text-sm text-red-600 dark:text-red-400">Valor Glosado</p>
                       <p className="font-bold text-2xl text-red-700 dark:text-red-300">
-                        {formatarMoeda(contaSelecionada.valorGlosado)}
+                        {formatarMoeda(itensConta.valorGlosadoTotal)}
                       </p>
                       <p className="text-xs text-red-600 dark:text-red-400">
-                        {contaSelecionada.valorFaturado > 0 
-                          ? ((contaSelecionada.valorGlosado / contaSelecionada.valorFaturado) * 100).toFixed(1) 
+                        {itensConta.valorFaturadoTotal > 0 
+                          ? ((itensConta.valorGlosadoTotal / itensConta.valorFaturadoTotal) * 100).toFixed(1) 
                           : 0}% do faturado
                       </p>
                     </CardContent>
@@ -704,16 +726,27 @@ export default function ConciliacaoContasPagas() {
                 {/* Tabela de Itens */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Itens da Conta ({contaSelecionada.itens?.length || 0})</CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Itens da Conta ({itensConta.itens.length})</CardTitle>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => exportarItensConta()}
+                        disabled={!itensConta.itens.length}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Exportar Itens
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto max-h-[400px]">
                       <table className="w-full">
                         <thead className="sticky top-0 bg-background">
                           <tr className="border-b">
+                            <th className="text-left p-2 font-medium">Tipo</th>
                             <th className="text-left p-2 font-medium">Código</th>
                             <th className="text-left p-2 font-medium min-w-[300px]">Descrição</th>
-                            <th className="text-center p-2 font-medium">Tipo</th>
                             <th className="text-center p-2 font-medium">Qtd</th>
                             <th className="text-right p-2 font-medium">Faturado</th>
                             <th className="text-right p-2 font-medium">Pago</th>
@@ -723,26 +756,25 @@ export default function ConciliacaoContasPagas() {
                           </tr>
                         </thead>
                         <tbody>
-                          {contaSelecionada.itens?.map((item: any, index: number) => (
-                            <tr key={index} className={`border-b ${item.valorGlosado > 0 ? 'bg-red-50 dark:bg-red-950/30' : ''}`}>
-                              <td className="p-2 font-mono text-sm">{item.codigo || '-'}</td>
-                              <td className="p-2 text-sm">{item.descricao || '-'}</td>
-                              <td className="p-2 text-center">
-                                <Badge variant="outline" className="text-xs">
-                                  {item.tipo}
+                          {itensConta.itens.map((item: any, index: number) => (
+                            <tr key={item.id || index} className={`border-b ${item.vlGlosa > 0 ? 'bg-red-50 dark:bg-red-950/30' : ''}`}>
+                              <td className="p-2">
+                                <Badge variant={item.tipoItem === 'PROC/TAXA' ? 'default' : 'secondary'} className="text-xs">
+                                  {item.tipoItem}
                                 </Badge>
                               </td>
-                              <td className="p-2 text-center">{item.quantidade}</td>
-                              <td className="p-2 text-right text-blue-600">{formatarMoeda(item.valorFaturado)}</td>
-                              <td className="p-2 text-right text-green-600">{formatarMoeda(item.valorPago)}</td>
-                              <td className="p-2 text-right text-red-600">{formatarMoeda(item.valorGlosado)}</td>
+                              <td className="p-2 font-mono text-sm">{item.cdItem || '-'}</td>
+                              <td className="p-2 text-sm">{item.descricao || '-'}</td>
+                              <td className="p-2 text-center">{item.qtd}</td>
+                              <td className="p-2 text-right text-blue-600">{formatarMoeda(item.vlFaturado)}</td>
+                              <td className="p-2 text-right text-green-600">{formatarMoeda(item.vlPago)}</td>
+                              <td className="p-2 text-right text-red-600">{formatarMoeda(item.vlGlosa)}</td>
                               <td className="p-2 text-sm text-red-600 font-mono">{item.motivoGlosa || '-'}</td>
                               <td className="p-2 text-sm text-red-600">
                                 {item.motivoGlosa ? (
                                   <div className="space-y-1">
                                     {(() => {
                                       const descricao = traduzirMotivoGlosa(item.motivoGlosa);
-                                      // Extrair código para buscar info completa
                                       const codigoMatch = item.motivoGlosa.match(/\b(\d{4})\b/);
                                       const glosaInfo = codigoMatch ? GLOSAS_TISS[codigoMatch[1]] : null;
                                       return (
@@ -775,6 +807,8 @@ export default function ConciliacaoContasPagas() {
                   </CardContent>
                 </Card>
               </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">Nenhum dado encontrado para esta conta.</p>
             )}
           </DialogContent>
         </Dialog>
