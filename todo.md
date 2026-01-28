@@ -1042,3 +1042,5 @@
 - [x] Adicionar badge 'Alta Administrativa' para guias com múltiplas transações
 
 - [x] Corrigir lógica de agrupamento Master-Detail: agrupar por guiaNumero + numeroLote + sequencialTransacao (mesmo quando 'null')
+
+- [x] Corrigir parser XML para capturar corretamente sequencialTransacao da tag TISS (evitar string 'null' no banco)

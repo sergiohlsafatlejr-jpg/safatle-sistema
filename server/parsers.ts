@@ -493,7 +493,20 @@ function findGuiasComSequencial(obj: unknown): Array<{ guia: unknown; sequencial
           const guiasTISSRecord = guiasTISSItem as Record<string, unknown>;
           
           // Extract sequencialTransacao from this guiasTISS
-          const sequencialTransacao = getTextValue(guiasTISSRecord['sequencialTransacao']);
+          // Tenta buscar com e sem namespace ANS
+          let sequencialTransacao = getTextValue(guiasTISSRecord['sequencialTransacao'])
+            || getTextValue(guiasTISSRecord['ans:sequencialTransacao'])
+            || getTextValue(guiasTISSRecord['ns2:sequencialTransacao']);
+          
+          // Se não encontrou diretamente, buscar em todas as chaves que contenham 'sequencial'
+          if (!sequencialTransacao) {
+            for (const [key, value] of Object.entries(guiasTISSRecord)) {
+              if (key.toLowerCase().includes('sequencialtransacao')) {
+                sequencialTransacao = getTextValue(value);
+                if (sequencialTransacao) break;
+              }
+            }
+          }
           
           // Find the actual guia inside guiasTISS (guiaSP-SADT, guiaConsulta, guiaResumoInternacao, etc.)
           for (const [guiaKey, guiaValue] of Object.entries(guiasTISSRecord)) {
@@ -1425,8 +1438,13 @@ export function toProcedimentoInsert(
     tipoDespesa: parsed.tipoDespesa,
     dadosExtras: parsed.dadosExtras,
     // Chave composta para identificar faturamento único
-    numeroLote: parsed.numeroLote,
-    sequencialTransacao: parsed.sequencialTransacao,
+    // Garantir que valores 'null' (string) ou vazios sejam convertidos para undefined (NULL real no banco)
+    numeroLote: (parsed.numeroLote && parsed.numeroLote !== 'null' && parsed.numeroLote.trim() !== '') 
+      ? parsed.numeroLote 
+      : undefined,
+    sequencialTransacao: (parsed.sequencialTransacao && parsed.sequencialTransacao !== 'null' && parsed.sequencialTransacao.trim() !== '') 
+      ? parsed.sequencialTransacao 
+      : undefined,
   };
 }
 
