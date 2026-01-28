@@ -1002,6 +1002,8 @@
 - [x] Verificar formato da competência no filtro vs banco (filtro AAAA-MM, banco AAAA-MM-DD, usa LIKE)
 
 - [x] Corrigir KPIs para somar todos os registros da competência (query separada para resumo geral)
-- [ ] Adicionar paginação para visualizar todas as contas
+- [x] Adicionar paginação na tabela de contas para navegar por todas as contas
+- [x] Adicionar filtro por convênio nos KPIs para ver totais específicos por operadora
+- [x] Preservar filtros ao retornar da tela de detalhes da conta
 
 - [x] Investigar diferença nos valores de faturamento - removidos registros duplicados da importação 180002

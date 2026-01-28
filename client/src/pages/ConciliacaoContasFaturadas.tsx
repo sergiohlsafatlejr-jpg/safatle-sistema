@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -31,25 +31,72 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Package
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
+
+// Chave para armazenar filtros no localStorage
+const FILTROS_STORAGE_KEY = 'contas_faturadas_filtros';
+
+// Interface para os filtros salvos
+interface FiltrosSalvos {
+  anoFiltro: string;
+  mesFiltro: string;
+  convenioFiltro: string;
+  statusFiltro: string;
+  contaFiltro: string;
+  busca: string;
+  paginaAtual: number;
+}
 
 export default function ConciliacaoContasFaturadas() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
+
+  // Carregar filtros salvos do localStorage
+  const carregarFiltrosSalvos = (): FiltrosSalvos | null => {
+    try {
+      const saved = localStorage.getItem(FILTROS_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar filtros salvos:', e);
+    }
+    return null;
+  };
+
+  // Salvar filtros no localStorage
+  const salvarFiltros = (filtros: FiltrosSalvos) => {
+    try {
+      localStorage.setItem(FILTROS_STORAGE_KEY, JSON.stringify(filtros));
+    } catch (e) {
+      console.error('Erro ao salvar filtros:', e);
+    }
+  };
+
+  // Inicializar filtros com valores salvos ou padrão
+  const filtrosSalvos = carregarFiltrosSalvos();
 
   // Filtros
-  const [anoFiltro, setAnoFiltro] = useState("todos");
-  const [mesFiltro, setMesFiltro] = useState("todos");
-  const [convenioFiltro, setConvenioFiltro] = useState("todos");
+  const [anoFiltro, setAnoFiltro] = useState(filtrosSalvos?.anoFiltro || "todos");
+  const [mesFiltro, setMesFiltro] = useState(filtrosSalvos?.mesFiltro || "todos");
+  const [convenioFiltro, setConvenioFiltro] = useState(filtrosSalvos?.convenioFiltro || "todos");
+  const [contaFiltro, setContaFiltro] = useState(filtrosSalvos?.contaFiltro || "");
+  const [statusFiltro, setStatusFiltro] = useState(filtrosSalvos?.statusFiltro || "todos");
+  const [busca, setBusca] = useState(filtrosSalvos?.busca || "");
 
-  const [contaFiltro, setContaFiltro] = useState("");
-  const [statusFiltro, setStatusFiltro] = useState("todos");
-  const [busca, setBusca] = useState("");
+  // Paginação
+  const [paginaAtual, setPaginaAtual] = useState(filtrosSalvos?.paginaAtual || 1);
+  const itensPorPagina = 50;
 
   // Modal de detalhes
   const [contaSelecionada, setContaSelecionada] = useState<string | null>(null);
@@ -57,6 +104,24 @@ export default function ConciliacaoContasFaturadas() {
 
   // Ordenação
   const [ordenacao, setOrdenacao] = useState<{ campo: string; direcao: 'asc' | 'desc' }>({ campo: 'valorFaturado', direcao: 'desc' });
+
+  // Salvar filtros sempre que mudarem
+  useEffect(() => {
+    salvarFiltros({
+      anoFiltro,
+      mesFiltro,
+      convenioFiltro,
+      statusFiltro,
+      contaFiltro,
+      busca,
+      paginaAtual
+    });
+  }, [anoFiltro, mesFiltro, convenioFiltro, statusFiltro, contaFiltro, busca, paginaAtual]);
+
+  // Resetar página ao mudar filtros
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [anoFiltro, mesFiltro, convenioFiltro, statusFiltro, contaFiltro, busca]);
 
   // Query de competências disponíveis
   const { data: competencias } = trpc.faturadoTasy.competenciasDisponiveis.useQuery(
@@ -109,7 +174,7 @@ export default function ConciliacaoContasFaturadas() {
     { enabled: estabelecimentoId > 0 }
   );
 
-  // Query de conciliação
+  // Query de conciliação com paginação
   const { data: conciliacao, isLoading, refetch } = trpc.faturadoTasy.conciliacao.useQuery(
     {
       estabelecimentoId,
@@ -117,6 +182,8 @@ export default function ConciliacaoContasFaturadas() {
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
       conta: contaFiltro || undefined,
       status: statusFiltro !== "todos" ? statusFiltro as any : undefined,
+      limite: 5000, // Buscar mais registros para permitir paginação no frontend
+      offset: 0,
     },
     { enabled: estabelecimentoId > 0 }
   );
@@ -189,6 +256,19 @@ export default function ConciliacaoContasFaturadas() {
     return resultado;
   }, [conciliacao?.contas, busca, ordenacao]);
 
+  // Calcular paginação
+  const totalContas = contasFiltradas.length;
+  const totalPaginas = Math.ceil(totalContas / itensPorPagina);
+  const indiceInicio = (paginaAtual - 1) * itensPorPagina;
+  const indiceFim = Math.min(indiceInicio + itensPorPagina, totalContas);
+  const contasPaginadas = contasFiltradas.slice(indiceInicio, indiceFim);
+
+  // Funções de navegação de página
+  const irParaPrimeiraPagina = () => setPaginaAtual(1);
+  const irParaPaginaAnterior = () => setPaginaAtual(p => Math.max(1, p - 1));
+  const irParaProximaPagina = () => setPaginaAtual(p => Math.min(totalPaginas, p + 1));
+  const irParaUltimaPagina = () => setPaginaAtual(totalPaginas);
+
   // Funções auxiliares
   const formatarMoeda = (valor: number | string | null | undefined) => {
     let num = 0;
@@ -250,6 +330,7 @@ export default function ConciliacaoContasFaturadas() {
 
   const abrirDetalhes = (conta: string) => {
     // Navegar para a tela de detalhes usando wouter
+    // Os filtros já estão salvos no localStorage
     setLocation(`/contas-faturadas/${encodeURIComponent(conta)}`);
   };
 
@@ -297,6 +378,17 @@ export default function ConciliacaoContasFaturadas() {
     XLSX.writeFile(wb, `conciliacao_contas_faturadas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // Limpar todos os filtros
+  const limparFiltros = () => {
+    setAnoFiltro("todos");
+    setMesFiltro("todos");
+    setConvenioFiltro("todos");
+    setStatusFiltro("todos");
+    setContaFiltro("");
+    setBusca("");
+    setPaginaAtual(1);
+  };
+
   if (!estabelecimentoId) {
     return (
       <DashboardLayout>
@@ -336,7 +428,7 @@ export default function ConciliacaoContasFaturadas() {
           </div>
         </div>
 
-        {/* Cards de Resumo */}
+        {/* Cards de Resumo - Agora mostram totais filtrados por convênio quando selecionado */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {[...Array(5)].map((_, i) => (
@@ -357,6 +449,9 @@ export default function ConciliacaoContasFaturadas() {
                   <span className="text-sm">Total Contas</span>
                 </div>
                 <p className="text-2xl font-bold">{conciliacao?.resumo.totalContas || 0}</p>
+                {convenioFiltro !== "todos" && (
+                  <p className="text-xs text-muted-foreground mt-1">Filtrado: {convenioFiltro}</p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -366,6 +461,9 @@ export default function ConciliacaoContasFaturadas() {
                   <span className="text-sm">Total Faturado</span>
                 </div>
                 <p className="text-2xl font-bold text-blue-600">{formatarMoeda(conciliacao?.resumo.totalFaturado || 0)}</p>
+                {convenioFiltro !== "todos" && (
+                  <p className="text-xs text-muted-foreground mt-1">Filtrado: {convenioFiltro}</p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -375,6 +473,9 @@ export default function ConciliacaoContasFaturadas() {
                   <span className="text-sm">Total Pago</span>
                 </div>
                 <p className="text-2xl font-bold text-green-600">{formatarMoeda(conciliacao?.resumo.totalPago || 0)}</p>
+                {convenioFiltro !== "todos" && (
+                  <p className="text-xs text-muted-foreground mt-1">Filtrado: {convenioFiltro}</p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -384,6 +485,9 @@ export default function ConciliacaoContasFaturadas() {
                   <span className="text-sm">Total Glosado</span>
                 </div>
                 <p className="text-2xl font-bold text-red-600">{formatarMoeda(conciliacao?.resumo.totalGlosado || 0)}</p>
+                {convenioFiltro !== "todos" && (
+                  <p className="text-xs text-muted-foreground mt-1">Filtrado: {convenioFiltro}</p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -393,6 +497,9 @@ export default function ConciliacaoContasFaturadas() {
                   <span className="text-sm">Total Pendente</span>
                 </div>
                 <p className="text-2xl font-bold text-yellow-600">{formatarMoeda(conciliacao?.resumo.totalPendente || 0)}</p>
+                {convenioFiltro !== "todos" && (
+                  <p className="text-xs text-muted-foreground mt-1">Filtrado: {convenioFiltro}</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -401,10 +508,15 @@ export default function ConciliacaoContasFaturadas() {
         {/* Filtros */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              Filtros
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filtros
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={limparFiltros}>
+                Limpar Filtros
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -498,9 +610,60 @@ export default function ConciliacaoContasFaturadas() {
         {/* Tabela de Contas */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Contas ({contasFiltradas.length})
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                Contas ({totalContas})
+              </CardTitle>
+              {/* Controles de Paginação no Cabeçalho */}
+              {totalPaginas > 1 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">
+                    Mostrando {indiceInicio + 1}-{indiceFim} de {totalContas}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={irParaPrimeiraPagina}
+                      disabled={paginaAtual === 1}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={irParaPaginaAnterior}
+                      disabled={paginaAtual === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="px-2 font-medium">
+                      {paginaAtual} / {totalPaginas}
+                    </span>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={irParaProximaPagina}
+                      disabled={paginaAtual === totalPaginas}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={irParaUltimaPagina}
+                      disabled={paginaAtual === totalPaginas}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -509,77 +672,154 @@ export default function ConciliacaoContasFaturadas() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : contasFiltradas.length === 0 ? (
+            ) : contasPaginadas.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhuma conta encontrada com os filtros selecionados.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="cursor-pointer" onClick={() => alternarOrdenacao('conta')}>
-                        <div className="flex items-center gap-1">
-                          Conta
-                          <ArrowUpDown className="w-3 h-3" />
-                        </div>
-                      </TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => alternarOrdenacao('competencia')}>
-                        <div className="flex items-center gap-1">
-                          Competência
-                          <ArrowUpDown className="w-3 h-3" />
-                        </div>
-                      </TableHead>
-                      <TableHead>Convênio</TableHead>
-                      <TableHead>Atendimento</TableHead>
-                      <TableHead>Itens</TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorFaturado')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Faturado
-                          <ArrowUpDown className="w-3 h-3" />
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorPago')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Pago
-                          <ArrowUpDown className="w-3 h-3" />
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorGlosado')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Glosado
-                          <ArrowUpDown className="w-3 h-3" />
-                        </div>
-                      </TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contasFiltradas.map((conta, index) => (
-                      <TableRow key={`${conta.conta}-${index}`} className="hover:bg-muted/50">
-                        <TableCell className="font-mono text-sm">{conta.conta || '-'}</TableCell>
-                        <TableCell>{formatarCompetencia(conta.competencia)}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={conta.convenio}>
-                          {conta.convenio || '-'}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{conta.atendimento || '-'}</TableCell>
-                        <TableCell className="text-center">{conta.totalItens}</TableCell>
-                        <TableCell className="text-right font-medium">{formatarMoeda(conta.valorFaturado)}</TableCell>
-                        <TableCell className="text-right font-medium text-green-600">{formatarMoeda(conta.valorPago)}</TableCell>
-                        <TableCell className="text-right font-medium text-red-600">{formatarMoeda(conta.valorGlosado)}</TableCell>
-                        <TableCell>{getStatusBadge(conta.status)}</TableCell>
-                        <TableCell className="text-center">
-                          <Button variant="ghost" size="sm" onClick={() => abrirDetalhes(conta.conta)}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="cursor-pointer" onClick={() => alternarOrdenacao('conta')}>
+                          <div className="flex items-center gap-1">
+                            Conta
+                            <ArrowUpDown className="w-3 h-3" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer" onClick={() => alternarOrdenacao('competencia')}>
+                          <div className="flex items-center gap-1">
+                            Competência
+                            <ArrowUpDown className="w-3 h-3" />
+                          </div>
+                        </TableHead>
+                        <TableHead>Convênio</TableHead>
+                        <TableHead>Atendimento</TableHead>
+                        <TableHead>Itens</TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorFaturado')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Faturado
+                            <ArrowUpDown className="w-3 h-3" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorPago')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Pago
+                            <ArrowUpDown className="w-3 h-3" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => alternarOrdenacao('valorGlosado')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Glosado
+                            <ArrowUpDown className="w-3 h-3" />
+                          </div>
+                        </TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {contasPaginadas.map((conta, index) => (
+                        <TableRow key={`${conta.conta}-${index}`} className="hover:bg-muted/50">
+                          <TableCell className="font-mono text-sm">{conta.conta || '-'}</TableCell>
+                          <TableCell>{formatarCompetencia(conta.competencia)}</TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={conta.convenio}>
+                            {conta.convenio || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{conta.atendimento || '-'}</TableCell>
+                          <TableCell className="text-center">{conta.totalItens}</TableCell>
+                          <TableCell className="text-right font-medium">{formatarMoeda(conta.valorFaturado)}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">{formatarMoeda(conta.valorPago)}</TableCell>
+                          <TableCell className="text-right font-medium text-red-600">{formatarMoeda(conta.valorGlosado)}</TableCell>
+                          <TableCell>{getStatusBadge(conta.status)}</TableCell>
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="sm" onClick={() => abrirDetalhes(conta.conta)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Controles de Paginação no Rodapé */}
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Página {paginaAtual} de {totalPaginas} ({totalContas} contas)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={irParaPrimeiraPagina}
+                        disabled={paginaAtual === 1}
+                      >
+                        <ChevronsLeft className="h-4 w-4 mr-1" />
+                        Primeira
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={irParaPaginaAnterior}
+                        disabled={paginaAtual === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Anterior
+                      </Button>
+                      
+                      {/* Números de página */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
+                          let pageNum: number;
+                          if (totalPaginas <= 5) {
+                            pageNum = i + 1;
+                          } else if (paginaAtual <= 3) {
+                            pageNum = i + 1;
+                          } else if (paginaAtual >= totalPaginas - 2) {
+                            pageNum = totalPaginas - 4 + i;
+                          } else {
+                            pageNum = paginaAtual - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={paginaAtual === pageNum ? "default" : "outline"}
+                              size="sm"
+                              className="w-8 h-8 p-0"
+                              onClick={() => setPaginaAtual(pageNum)}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={irParaProximaPagina}
+                        disabled={paginaAtual === totalPaginas}
+                      >
+                        Próxima
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={irParaUltimaPagina}
+                        disabled={paginaAtual === totalPaginas}
+                      >
+                        Última
+                        <ChevronsRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
