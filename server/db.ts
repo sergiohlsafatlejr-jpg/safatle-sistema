@@ -7915,7 +7915,7 @@ export async function listarLogsAuditoria(filtros: {
 export async function criarUsuario(dados: {
   name: string;
   email: string;
-  role?: "admin" | "user";
+  role?: "admin" | "user" | "tasy_user";
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

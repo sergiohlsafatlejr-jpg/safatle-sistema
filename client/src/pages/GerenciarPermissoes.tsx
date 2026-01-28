@@ -159,7 +159,7 @@ export default function GerenciarPermissoes() {
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
-    role: "user" as "admin" | "user",
+    role: "user" as "admin" | "user" | "tasy_user",
     estabelecimentosIds: [] as number[],
     grupoServico: "visualizador" as "administrador" | "faturista" | "recurso_glosa" | "gestor" | "visualizador",
   });
@@ -897,8 +897,8 @@ export default function GerenciarPermissoes() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                            {user.role === "admin" ? "Administrador" : "Usuário"}
+                          <Badge variant={user.role === "admin" ? "default" : user.role === "tasy_user" ? "outline" : "secondary"}>
+                            {user.role === "admin" ? "Administrador" : user.role === "tasy_user" ? "Usuário Tasy" : "Usuário"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -1150,22 +1150,25 @@ export default function GerenciarPermissoes() {
               <Label>Tipo de Usuário</Label>
               <Select
                 value={newUser.role}
-                onValueChange={(value: "admin" | "user") => setNewUser(prev => ({ ...prev, role: value }))}
+                onValueChange={(value: "admin" | "user" | "tasy_user") => setNewUser(prev => ({ ...prev, role: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">Usuário Comum</SelectItem>
+                  <SelectItem value="tasy_user">Usuário Tasy</SelectItem>
                   <SelectItem value="admin">Administrador do Sistema</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Administradores têm acesso total ao sistema, independente das permissões por estabelecimento.
+                {newUser.role === "admin" && "Administradores têm acesso total ao sistema, independente das permissões por estabelecimento."}
+                {newUser.role === "user" && "Usuários comuns têm acesso baseado nas permissões configuradas por estabelecimento."}
+                {newUser.role === "tasy_user" && "Usuários Tasy têm acesso restrito apenas às funcionalidades do sistema Tasy (Importação, Faturado, Relatórios Tasy, etc.)."}
               </p>
             </div>
 
-            {newUser.role === "user" && (
+            {(newUser.role === "user" || newUser.role === "tasy_user") && (
               <>
                 <div className="space-y-2">
                   <Label>Estabelecimentos com Acesso *</Label>

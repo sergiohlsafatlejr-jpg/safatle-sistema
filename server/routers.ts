@@ -3211,7 +3211,7 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(2),
         email: z.string().email(),
-        role: z.enum(["admin", "user"]).optional(),
+        role: z.enum(["admin", "user", "tasy_user"]).optional(),
         grupoId: z.number().optional(),
         estabelecimentosIds: z.array(z.number()).optional(),
       }))
