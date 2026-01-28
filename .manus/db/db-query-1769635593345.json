@@ -1,0 +1,346 @@
+{
+  "query": "SELECT id, nome, tipoArquivo, direcao, status FROM arquivos WHERE estabelecimentoId = 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, tipoArquivo, direcao, status FROM arquivos WHERE estabelecimentoId = 3;",
+  "rows": [
+    {
+      "id": "150058",
+      "nome": "demonstrativo-0282622.xlsx",
+      "tipoArquivo": "excel",
+      "direcao": "retornado",
+      "status": "processado"
+    },
+    {
+      "id": "210001",
+      "nome": "00000000000000086384_e2aab763ea28c422d527cfe72ea7fc00.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210002",
+      "nome": "00000000000000086132_5cf7c3fa087e3c2ba8676d20d2619f34.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210003",
+      "nome": "00000000000000086548_7e3c695e252038204b59e2235fa7872d.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210004",
+      "nome": "00000000000000086550_d866ffd5dfc3d5d8ccd59cb158818991.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210005",
+      "nome": "00000000000000086558_23a59bf5a93dcdcbb9c860b4369beb40 (1).xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210006",
+      "nome": "00000000000000086559_7cc8d827d273b835ac4e1dfc70d99a8e.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210007",
+      "nome": "00000000000000086560_eb7c1270dedb785e476f7d73d38ec2a5.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210008",
+      "nome": "00000000000000086561_7cfb74150b6bb68814080a098e37f642.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210009",
+      "nome": "00000000000000086564_de3e2f1d7fe4eb2b98166f34d1366136.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210010",
+      "nome": "00000000000000865661_d30697ecf3c709695bcaf602ea13157f.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210011",
+      "nome": "00000000000000086566_8b16aab19ddef5838b1a40d95d628932.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210012",
+      "nome": "00000000000000086547_2c980fb8f58c9757e93521780f31737b.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210013",
+      "nome": "00000000000000086544_22edf895a1d38f36728b80ee752cf882.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210014",
+      "nome": "00000000000000086543_8e90dd70da0950bc1a49fab7f4ba702b.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210015",
+      "nome": "00000000000000086540_1e970beb7921f9b7ff14b36635d69ee7.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210016",
+      "nome": "00000000000000086539_da9f54820e0ee7416e08e28f2f02007e.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210017",
+      "nome": "00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210018",
+      "nome": "00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210019",
+      "nome": "00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210020",
+      "nome": "00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "210021",
+      "nome": "00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270001",
+      "nome": "00000000000000085913_658a159b2f33b17e36c21eeb77bbde23.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270002",
+      "nome": "00000000000000085914_ecd09b88cf469b50ad8c158606689f60.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270003",
+      "nome": "00000000000000085916_ef4899119dff26319bd5c8605616980a.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270004",
+      "nome": "00000000000000085918_8b20e9344ff0e19af5af1d965cfb9965.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270005",
+      "nome": "00000000000000085919_b713e0ac8d142a53fc35bf395a52b239.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270006",
+      "nome": "00000000000000085920_01eabea89f9b560102eb0416a246e210.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270007",
+      "nome": "00000000000000086037_b59442f24d53d4831d1e5d260a28d753.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270008",
+      "nome": "00000000000000086057_7aef5a5c4319bc55d56c051864c7348d.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270009",
+      "nome": "00000000000000086059_3e113706534b7e183fbd0932bdda2c07.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270010",
+      "nome": "00000000000000086060_b2f4f1ddd67239f904275b44d2c97d92.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270011",
+      "nome": "00000000000000085661_3b8dd31b10b97f3f2e2af54c6ab622d6.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270012",
+      "nome": "00000000000000085665_6c71e81acb60bb2c54b6bd72733f9dda.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270013",
+      "nome": "00000000000000085666_8eb6e7ade8c091547383aae44354ccdb.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270014",
+      "nome": "00000000000000085683_4f9f2536d49016b3c8e8f6d1f23c79d7.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270015",
+      "nome": "00000000000000085686_4b10ed73ee355309e1000fb958dcaac7.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270016",
+      "nome": "00000000000000085686_ebcde657d26c7669cacd2c956deb9540.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270017",
+      "nome": "00000000000000085700_76805f8b855dc67cbded326d2d1fcb51.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270018",
+      "nome": "00000000000000085725_b10c8449037e65f10441b5762a0021f9.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270019",
+      "nome": "00000000000000085732_bd16cc4b5fd74f972a05055af42ef323.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270020",
+      "nome": "00000000000000085734_a5260f83a03792f31a79ac0b51ca1a3f.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270021",
+      "nome": "00000000000000085756_a57def78e977a93963bbf1ded24fe2ce.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270022",
+      "nome": "00000000000000085762_cc0ffd4daee8ff7adcb1c2fad124b7f5.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270023",
+      "nome": "00000000000000085773_6b876e053b3dfe4671f8533a3928df4d.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270024",
+      "nome": "00000000000000085774_1f86526b0aef9cb4f973aea5f83f18a8.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270026",
+      "nome": "00000000000000085795_12dbec48e3a44695aacce21409438bad.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    },
+    {
+      "id": "270027",
+      "nome": "00000000000000085911_a610f25048302e78b43bd3f2008bfd8a.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "status": "processado"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ttipoArquivo\tdirecao\tstatus\n150058\tdemonstrativo-0282622.xlsx\texcel\tretornado\tprocessado\n210001\t00000000000000086384_e2aab763ea28c422d527cfe72ea7fc00.xml\txml\tenviado\tprocessado\n210002\t00000000000000086132_5cf7c3fa087e3c2ba8676d20d2619f34.xml\txml\tenviado\tprocessado\n210003\t00000000000000086548_7e3c695e252038204b59e2235fa7872d.xml\txml\tenviado\tprocessado\n210004\t00000000000000086550_d866ffd5dfc3d5d8ccd59cb158818991.xml\txml\tenviado\tprocessado\n210005\t00000000000000086558_23a59bf5a93dcdcbb9c860b4369beb40 (1).xml\txml\tenviado\tprocessado\n210006\t00000000000000086559_7cc8d827d273b835ac4e1dfc70d99a8e.xml\txml\tenviado\tprocessado\n210007\t00000000000000086560_eb7c1270dedb785e476f7d73d38ec2a5.xml\txml\tenviado\tprocessado\n210008\t00000000000000086561_7cfb74150b6bb68814080a098e37f642.xml\txml\tenviado\tprocessado\n210009\t00000000000000086564_de3e2f1d7fe4eb2b98166f34d1366136.xml\txml\tenviado\tprocessado\n210010\t00000000000000865661_d30697ecf3c709695bcaf602ea13157f.xml\txml\tenviado\tprocessado\n210011\t00000000000000086566_8b16aab19ddef5838b1a40d95d628932.xml\txml\tenviado\tprocessado\n210012\t00000000000000086547_2c980fb8f58c9757e93521780f31737b.xml\txml\tenviado\tprocessado\n210013\t00000000000000086544_22edf895a1d38f36728b80ee752cf882.xml\txml\tenviado\tprocessado\n210014\t00000000000000086543_8e90dd70da0950bc1a49fab7f4ba702b.xml\txml\tenviado\tprocessado\n210015\t00000000000000086540_1e970beb7921f9b7ff14b36635d69ee7.xml\txml\tenviado\tprocessado\n210016\t00000000000000086539_da9f54820e0ee7416e08e28f2f02007e.xml\txml\tenviado\tprocessado\n210017\t00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml\txml\tenviado\tprocessado\n210018\t00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml\txml\tenviado\tprocessado\n210019\t00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml\txml\tenviado\tprocessado\n210020\t00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml\txml\tenviado\tprocessado\n210021\t00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml\txml\tenviado\tprocessado\n270001\t00000000000000085913_658a159b2f33b17e36c21eeb77bbde23.xml\txml\tenviado\tprocessado\n270002\t00000000000000085914_ecd09b88cf469b50ad8c158606689f60.xml\txml\tenviado\tprocessado\n270003\t00000000000000085916_ef4899119dff26319bd5c8605616980a.xml\txml\tenviado\tprocessado\n270004\t00000000000000085918_8b20e9344ff0e19af5af1d965cfb9965.xml\txml\tenviado\tprocessado\n270005\t00000000000000085919_b713e0ac8d142a53fc35bf395a52b239.xml\txml\tenviado\tprocessado\n270006\t00000000000000085920_01eabea89f9b560102eb0416a246e210.xml\txml\tenviado\tprocessado\n270007\t00000000000000086037_b59442f24d53d4831d1e5d260a28d753.xml\txml\tenviado\tprocessado\n270008\t00000000000000086057_7aef5a5c4319bc55d56c051864c7348d.xml\txml\tenviado\tprocessado\n270009\t00000000000000086059_3e113706534b7e183fbd0932bdda2c07.xml\txml\tenviado\tprocessado\n270010\t00000000000000086060_b2f4f1ddd67239f904275b44d2c97d92.xml\txml\tenviado\tprocessado\n270011\t00000000000000085661_3b8dd31b10b97f3f2e2af54c6ab622d6.xml\txml\tenviado\tprocessado\n270012\t00000000000000085665_6c71e81acb60bb2c54b6bd72733f9dda.xml\txml\tenviado\tprocessado\n270013\t00000000000000085666_8eb6e7ade8c091547383aae44354ccdb.xml\txml\tenviado\tprocessado\n270014\t00000000000000085683_4f9f2536d49016b3c8e8f6d1f23c79d7.xml\txml\tenviado\tprocessado\n270015\t00000000000000085686_4b10ed73ee355309e1000fb958dcaac7.xml\txml\tenviado\tprocessado\n270016\t00000000000000085686_ebcde657d26c7669cacd2c956deb9540.xml\txml\tenviado\tprocessado\n270017\t00000000000000085700_76805f8b855dc67cbded326d2d1fcb51.xml\txml\tenviado\tprocessado\n270018\t00000000000000085725_b10c8449037e65f10441b5762a0021f9.xml\txml\tenviado\tprocessado\n270019\t00000000000000085732_bd16cc4b5fd74f972a05055af42ef323.xml\txml\tenviado\tprocessado\n270020\t00000000000000085734_a5260f83a03792f31a79ac0b51ca1a3f.xml\txml\tenviado\tprocessado\n270021\t00000000000000085756_a57def78e977a93963bbf1ded24fe2ce.xml\txml\tenviado\tprocessado\n270022\t00000000000000085762_cc0ffd4daee8ff7adcb1c2fad124b7f5.xml\txml\tenviado\tprocessado\n270023\t00000000000000085773_6b876e053b3dfe4671f8533a3928df4d.xml\txml\tenviado\tprocessado\n270024\t00000000000000085774_1f86526b0aef9cb4f973aea5f83f18a8.xml\txml\tenviado\tprocessado\n270026\t00000000000000085795_12dbec48e3a44695aacce21409438bad.xml\txml\tenviado\tprocessado\n270027\t00000000000000085911_a610f25048302e78b43bd3f2008bfd8a.xml\txml\tenviado\tprocessado\n",
+  "stderr": "",
+  "execution_time_ms": 75
+}

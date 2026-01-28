@@ -126,13 +126,23 @@ export default function ContaConvenio() {
     
     procedimentos.forEach((p: any) => {
       // Chave composta: guiaNumero + numeroLote + sequencialTransacao
-      // Se o lote for 'null' (string), nulo ou vazio, usar ID do procedimento para evitar agrupamento indevido
-      const loteValido = p.numeroLote && p.numeroLote !== 'null' && p.numeroLote.trim() !== '';
+      // Validação: considera inválido se for null, 'null' (string), undefined, ou vazio
+      const loteValido = p.numeroLote && p.numeroLote !== 'null' && p.numeroLote !== 'undefined' && String(p.numeroLote).trim() !== '';
+      const seqValido = p.sequencialTransacao && p.sequencialTransacao !== 'null' && p.sequencialTransacao !== 'undefined' && String(p.sequencialTransacao).trim() !== '';
       
-      // Se tiver lote válido, agrupa pela chave composta; senão, cada registro é individual
-      const chave = loteValido 
-        ? `${p.guiaNumero || 'sem_guia'}_${p.numeroLote}_${p.sequencialTransacao || 'sem_seq'}`
-        : `single_${p.id}`;
+      // Lógica de agrupamento:
+      // 1. Se tiver lote E sequencial válidos: agrupa por guiaNumero + numeroLote + sequencialTransacao
+      // 2. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote
+      // 3. Fallback: agrupa por guiaNumero + arquivoId (garante separação por arquivo importado)
+      let chave: string;
+      if (loteValido && seqValido) {
+        chave = `${p.guiaNumero || 'sem_guia'}_${p.numeroLote}_${p.sequencialTransacao}`;
+      } else if (loteValido) {
+        chave = `${p.guiaNumero || 'sem_guia'}_${p.numeroLote}_sem_seq`;
+      } else {
+        // Fallback: agrupa por guia + arquivo (não explode por item individual)
+        chave = `${p.guiaNumero || 'sem_guia'}_arquivo_${p.arquivoId}`;  
+      }
       
       if (!grupos[chave]) {
         grupos[chave] = {
@@ -161,7 +171,8 @@ export default function ContaConvenio() {
       // Usar a data mais antiga como data da conta
       if (p.dataExecucao) {
         const dataItem = new Date(p.dataExecucao);
-        if (!grupos[chave].dataConta || dataItem < grupos[chave].dataConta) {
+        const currentDate = grupos[chave].dataConta;
+        if (!currentDate || dataItem < currentDate) {
           grupos[chave].dataConta = dataItem;
         }
       }

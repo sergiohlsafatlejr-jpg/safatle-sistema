@@ -1048,3 +1048,10 @@
 - [x] Corrigir parser XML para capturar numeroLote e sequencialTransacao (não gravar string 'null')
 - [x] Ajustar chave de agrupamento no frontend para usar ID quando lote for 'null'
 - [x] Garantir exibição do lote na coluna da tabela
+
+- [ ] Corrigir extração do numeroLote e sequencialTransacao no parser XML (campos continuam como '-' após reimportação)
+
+- [x] Corrigir parser para não salvar string 'null' (usar undefined/NULL real)
+- [x] Ajustar lógica de agrupamento no frontend com fallback guiaNumero+idArquivo
+- [x] Garantir exibição do lote na coluna da tabela (não mostrar traço quando há valor)
+- [x] Fornecer comando SQL de limpeza para converter 'null' string para NULL real
