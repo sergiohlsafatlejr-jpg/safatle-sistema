@@ -23,7 +23,7 @@ import {
   Flame,
   Stethoscope
 } from "lucide-react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 
 // Mapeamento de código de despesa para nome e ícone
@@ -46,7 +46,13 @@ export default function ContaDetalhes() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const params = useParams<{ guiaNumero: string }>();
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const guiaNumero = decodeURIComponent(params.guiaNumero || "");
+  
+  // Detectar de onde veio o usuário (conta-convenio ou contas-demonstrativo)
+  const searchParams = new URLSearchParams(searchString);
+  const origem = searchParams.get('origem') || 'conta-convenio';
+  const voltarUrl = `/${origem}`;
 
   // Buscar procedimentos da guia
   const { data: procedimentosData, isLoading } = trpc.procedimentos.list.useQuery(
@@ -168,7 +174,7 @@ export default function ContaDetalhes() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => setLocation("/contas")}>
+            <Button variant="outline" size="icon" onClick={() => setLocation(voltarUrl)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -199,8 +205,8 @@ export default function ContaDetalhes() {
             <CardContent className="py-16 text-center">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">Nenhum item encontrado para esta guia</p>
-              <Button variant="outline" className="mt-4" onClick={() => setLocation("/contas")}>
-                Voltar para Contas
+              <Button variant="outline" className="mt-4" onClick={() => setLocation(voltarUrl)}>
+                Voltar
               </Button>
             </CardContent>
           </Card>

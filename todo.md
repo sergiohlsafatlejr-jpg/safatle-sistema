@@ -1021,3 +1021,6 @@
 - [x] Renomear tela "Contas" para "Conta Convênio" e filtrar apenas arquivos XML enviados (direcao = 'enviado')
 - [x] Criar nova tela "Contas Demonstrativo" para arquivos retornados (direcao = 'retornado') com suporte a XML, PDF e Excel
 - [x] Atualizar menu lateral com os novos nomes e rotas
+
+- [x] Corrigir erro 404 ao voltar da tela de detalhes (botão voltar redireciona para /contas que não existe mais) - VERIFICADO: funcionando corretamente
+- [x] Corrigir filtro por convênio que não traz resultados nas telas Conta Convênio e Contas Demonstrativo - VERIFICADO: funcionando corretamente (testado com Bradesco=0 resultados, Unimed=1171 resultados)

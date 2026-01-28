@@ -263,7 +263,7 @@ export default function ContaConvenio() {
   };
 
   const handleVerDetalhes = (conta: ContaAgrupada) => {
-    setLocation(`/contas/${encodeURIComponent(conta.guiaNumero)}`);
+    setLocation(`/contas/${encodeURIComponent(conta.guiaNumero)}?origem=conta-convenio`);
   };
 
   // Determinar tipo de despesa baseado no codigoDespesa

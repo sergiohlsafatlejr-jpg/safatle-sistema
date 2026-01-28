@@ -263,7 +263,7 @@ export default function ContasDemonstrativo() {
   };
 
   const handleVerDetalhes = (conta: ContaAgrupada) => {
-    setLocation(`/contas/${encodeURIComponent(conta.guiaNumero)}`);
+    setLocation(`/contas/${encodeURIComponent(conta.guiaNumero)}?origem=contas-demonstrativo`);
   };
 
   // Determinar tipo de despesa baseado no codigoDespesa

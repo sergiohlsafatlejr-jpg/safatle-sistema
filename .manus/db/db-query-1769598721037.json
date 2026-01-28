@@ -1,0 +1,19 @@
+{
+  "query": "SELECT a.id, a.nome, a.convenioId, c.nome as convenioNome, a.direcao, a.tipoArquivo, a.estabelecimentoId\nFROM arquivos a \nLEFT JOIN convenios c ON a.convenioId = c.id\nWHERE a.estabelecimentoId = 2 AND a.direcao = 'retornado'\nORDER BY a.id DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.convenioId, c.nome as convenioNome, a.direcao, a.tipoArquivo, a.estabelecimentoId\nFROM arquivos a \nLEFT JOIN convenios c ON a.convenioId = c.id\nWHERE a.estabelecimentoId = 2 AND a.direcao = 'retornado'\nORDER BY a.id DESC\nLIMIT 10;",
+  "rows": [
+    {
+      "id": "120001",
+      "nome": "demonstrativo-0282645 (1).xlsx",
+      "convenioId": "1",
+      "convenioNome": "Unimed",
+      "direcao": "retornado",
+      "tipoArquivo": "excel",
+      "estabelecimentoId": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tconvenioId\tconvenioNome\tdirecao\ttipoArquivo\testabelecimentoId\n120001\tdemonstrativo-0282645 (1).xlsx\t1\tUnimed\tretornado\texcel\t2\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}
