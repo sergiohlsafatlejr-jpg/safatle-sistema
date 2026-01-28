@@ -1010,3 +1010,7 @@
 
 - [x] Corrigir valores da tela Relatórios Tasy para serem iguais aos da tela Faturado Tasy (mesma competência)
 - [x] Modificar tela Relatórios Tasy para usar mesma lógica e dados da tela Faturado Tasy (seleção de competência específica)
+
+- [x] Corrigir função de competência na tela Relatórios Tasy que não está funcionando
+
+- [x] Corrigir filtro de competência na tela Relatórios Tasy para aparecer quando Faturado Tasy (Nova) é selecionado (RESOLVIDO: usuário estava acessando versão publicada antiga - precisa publicar nova versão)
