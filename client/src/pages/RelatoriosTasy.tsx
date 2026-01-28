@@ -379,6 +379,7 @@ export default function RelatoriosTasy() {
   const [convenioFiltro, setConvenioFiltro] = useState<string>("");
   const [tipoFiltro, setTipoFiltro] = useState<string>("all");
   const [setorFiltro, setSetorFiltro] = useState<string>("");
+  const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>(""); // Competência específica (igual à tela Faturado Tasy)
   
   // Estados para configuração do relatório
   const [colunasVisiveis, setColunasVisiveis] = useState<string[]>([
@@ -443,6 +444,29 @@ export default function RelatoriosTasy() {
     return Array.from({ length: 6 }, (_, i) => anoAtual - i);
   }, []);
 
+  // Buscar competências disponíveis (igual à tela Faturado Tasy)
+  const { data: competencias } = trpc.faturadoTasy.competencias.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0 },
+    { enabled: !!estabelecimentoAtual?.id && fonteDados === 'faturadoTasy' }
+  );
+
+  // Buscar convênios disponíveis (igual à tela Faturado Tasy)
+  const { data: conveniosFaturadoTasy } = trpc.faturadoTasy.convenios.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0 },
+    { enabled: !!estabelecimentoAtual?.id && fonteDados === 'faturadoTasy' }
+  );
+
+  // Formatar competência para exibição
+  const formatCompetencia = (comp: string) => {
+    if (!comp) return '';
+    // Formato esperado: "2025-12-01 00:00:00" -> "12/2025"
+    const match = comp.match(/(\d{4})-(\d{2})/);
+    if (match) {
+      return `${match[2]}/${match[1]}`;
+    }
+    return comp;
+  };
+
   // Buscar dados do Tasy (fonte antiga)
   const { data: dadosTasyAntigo, isLoading: isLoadingAntigo } = trpc.importacaoTasy.dados.useQuery(
     {
@@ -451,20 +475,22 @@ export default function RelatoriosTasy() {
       dataFim: new Date(anoSelecionado, mesSelecionado, 0).toISOString(),
       convenio: convenioFiltro || undefined,
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
-      limite: 10000,
+      limite: 100000,
     },
     { enabled: !!estabelecimentoAtual?.id && fonteDados === 'antiga' }
   );
 
-  // Buscar dados do FaturadoTasy (fonte nova)
+  // Buscar dados do FaturadoTasy (fonte nova) - AGORA USA COMPETÊNCIA ESPECÍFICA
   const { data: dadosFaturadoTasy, isLoading: isLoadingNovo } = trpc.faturadoTasy.dadosRelatorio.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || 0,
-      dataInicio: new Date(anoSelecionado, mesSelecionado - 1, 1).toISOString(),
-      dataFim: new Date(anoSelecionado, mesSelecionado, 0).toISOString(),
+      // Se tiver competência selecionada, usa ela; senão usa mês/ano
+      competencia: competenciaSelecionada || undefined,
+      dataInicio: !competenciaSelecionada ? new Date(anoSelecionado, mesSelecionado - 1, 1).toISOString() : undefined,
+      dataFim: !competenciaSelecionada ? new Date(anoSelecionado, mesSelecionado, 0).toISOString() : undefined,
       convenio: convenioFiltro || undefined,
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
-      limite: 10000,
+      limite: 100000,
     },
     { enabled: !!estabelecimentoAtual?.id && fonteDados === 'faturadoTasy' }
   );
@@ -481,7 +507,7 @@ export default function RelatoriosTasy() {
       dataFim: new Date(periodo2Ano, periodo2Mes, 0).toISOString(),
       convenio: convenioFiltro || undefined,
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
-      limite: 10000,
+      limite: 100000,
     },
     { enabled: !!estabelecimentoAtual?.id && comparativoAtivo && fonteDados === 'antiga' }
   );
@@ -494,7 +520,7 @@ export default function RelatoriosTasy() {
       dataFim: new Date(periodo2Ano, periodo2Mes, 0).toISOString(),
       convenio: convenioFiltro || undefined,
       tipo: tipoFiltro === "all" ? undefined : (tipoFiltro as "MATERIAL" | "HONORARIO"),
-      limite: 10000,
+      limite: 100000,
     },
     { enabled: !!estabelecimentoAtual?.id && comparativoAtivo && fonteDados === 'faturadoTasy' }
   );
@@ -1392,7 +1418,10 @@ export default function RelatoriosTasy() {
                   {/* Fonte de Dados */}
                   <div className="pt-4 border-t">
                     <Label className="text-xs text-muted-foreground mb-2 block">FONTE DE DADOS</Label>
-                    <Select value={fonteDados} onValueChange={(v) => setFonteDados(v as 'antiga' | 'faturadoTasy')}>
+                    <Select value={fonteDados} onValueChange={(v) => {
+                      setFonteDados(v as 'antiga' | 'faturadoTasy');
+                      setCompetenciaSelecionada(""); // Limpa competência ao trocar fonte
+                    }}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Selecione a fonte" />
                       </SelectTrigger>
@@ -1403,35 +1432,62 @@ export default function RelatoriosTasy() {
                     </Select>
                   </div>
 
-                  {/* Período */}
+                  {/* Competência (para Faturado Tasy) ou Período (para fonte antiga) */}
                   <div className="pt-4 border-t">
-                    <Label className="text-xs text-muted-foreground mb-2 block">PERÍODO</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Select value={String(mesSelecionado)} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Mês" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {meses.map((mes) => (
-                            <SelectItem key={mes.value} value={String(mes.value)}>
-                              {mes.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={String(anoSelecionado)} onValueChange={(v) => setAnoSelecionado(parseInt(v))}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Ano" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {anos.map((ano) => (
-                            <SelectItem key={ano} value={String(ano)}>
-                              {ano}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {fonteDados === 'faturadoTasy' ? (
+                      <>
+                        <Label className="text-xs text-muted-foreground mb-2 block">COMPETÊNCIA</Label>
+                        <Select 
+                          value={competenciaSelecionada || "__all__"} 
+                          onValueChange={(v) => setCompetenciaSelecionada(v === "__all__" ? "" : v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Selecione a competência" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__all__">Todas</SelectItem>
+                            {competencias?.map((c) => (
+                              <SelectItem key={c.competencia} value={c.competencia}>
+                                {formatCompetencia(c.competencia)} ({c.totalRegistros.toLocaleString('pt-BR')} itens)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Selecione uma competência específica para ver os mesmos dados da tela Faturado Tasy
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Label className="text-xs text-muted-foreground mb-2 block">PERÍODO</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select value={String(mesSelecionado)} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Mês" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {meses.map((mes) => (
+                                <SelectItem key={mes.value} value={String(mes.value)}>
+                                  {mes.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select value={String(anoSelecionado)} onValueChange={(v) => setAnoSelecionado(parseInt(v))}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Ano" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {anos.map((ano) => (
+                                <SelectItem key={ano} value={String(ano)}>
+                                  {ano}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Ações */}

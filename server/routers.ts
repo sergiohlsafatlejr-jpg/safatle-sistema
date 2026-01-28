@@ -5343,6 +5343,7 @@ export const appRouter = router({
         estabelecimentoId: z.number(),
         dataInicio: z.string().optional(),
         dataFim: z.string().optional(),
+        competencia: z.string().optional(), // Competência específica (ex: "2025-12-01 00:00:00")
         convenio: z.string().optional(),
         tipo: z.enum(['MATERIAL', 'HONORARIO']).optional(),
         limite: z.number().optional().default(10000),
@@ -5352,6 +5353,7 @@ export const appRouter = router({
         const filtros = {
           dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+          competencia: input.competencia, // Competência específica
           convenio: input.convenio,
           tipo: input.tipo,
           limite: input.limite,

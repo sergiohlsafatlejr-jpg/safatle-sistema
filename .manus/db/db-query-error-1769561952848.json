@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_registros,\n  SUM(CAST(vlFaturado AS DECIMAL(15,2))) as total_faturado,\n  SUM(CAST(vlPago AS DECIMAL(15,2))) as total_pago,\n  SUM(CAST(vlGlosa AS DECIMAL(15,2))) as total_glosa\nFROM faturado_tasy \nWHERE estabelecimentoId = 2 \nAND competencia LIKE '2025-12%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  COUNT(*) as total_registros,\n  SUM(CAST(vlFaturado AS DECIMAL(15,2))) as total_faturado,\n  SUM(CAST(vlPago AS DECIMAL(15,2))) as total_pago,\n  SUM(CAST(vlGlosa AS DECIMAL(15,2))) as total_glosa\nFROM faturado_tasy \nWHERE estabelecimentoId = 2 \nAND competencia LIKE '2025-12%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '98mrdve9uf2zrmz25bpsye.faturado_tasy' doesn't exist"
+  ]
+}

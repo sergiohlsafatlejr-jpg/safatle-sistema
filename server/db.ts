@@ -15241,6 +15241,7 @@ export async function getFaturadoTasyParaRelatorio(
     dataInicio?: Date;
     dataFim?: Date;
     mesAno?: string;
+    competencia?: string; // Competência específica (ex: "2025-12-01 00:00:00")
     convenio?: string;
     tipo?: 'MATERIAL' | 'HONORARIO';
     limite?: number;
@@ -15259,8 +15260,11 @@ export async function getFaturadoTasyParaRelatorio(
     conditions.push(eq(faturadoTasy.tipoItem, tipoFiltro));
   }
   
-  // CORREÇÃO 1: Filtro de competência unificado
-  if (filtros?.mesAno) {
+  // Filtro de competência - prioriza competência específica (igual à tela Faturado Tasy)
+  if (filtros?.competencia) {
+    // Competência específica (ex: "2025-12-01 00:00:00") - filtro exato
+    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+  } else if (filtros?.mesAno) {
     conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.mesAno}%`}`);
   } else if (filtros?.dataInicio) {
     const d = new Date(filtros.dataInicio);

@@ -1007,3 +1007,6 @@
 - [x] Preservar filtros ao retornar da tela de detalhes da conta
 
 - [x] Investigar diferença nos valores de faturamento - removidos registros duplicados da importação 180002
+
+- [x] Corrigir valores da tela Relatórios Tasy para serem iguais aos da tela Faturado Tasy (mesma competência)
+- [x] Modificar tela Relatórios Tasy para usar mesma lógica e dados da tela Faturado Tasy (seleção de competência específica)
