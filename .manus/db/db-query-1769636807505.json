@@ -1,0 +1,230 @@
+{
+  "query": "SELECT id, guiaNumero, numeroLote, sequencialTransacao, pacienteNome, valorTotal, arquivoId, JSON_EXTRACT(dadosExtras, '$.protocoloTISS') as protocoloTISS, JSON_EXTRACT(dadosExtras, '$.protocolo') as protocolo FROM procedimentos WHERE arquivoId IN (SELECT id FROM arquivos WHERE tipoArquivo = 'excel' AND direcao = 'retornado') LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, guiaNumero, numeroLote, sequencialTransacao, pacienteNome, valorTotal, arquivoId, JSON_EXTRACT(dadosExtras, '$.protocoloTISS') as protocoloTISS, JSON_EXTRACT(dadosExtras, '$.protocolo') as protocolo FROM procedimentos WHERE arquivoId IN (SELECT id FROM arquivos WHERE tipoArquivo = 'excel' AND direcao = 'retornado') LIMIT 20;",
+  "rows": [
+    {
+      "id": "12017",
+      "guiaNumero": "67717209",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA FIGUEIREDO BENAGLIA",
+      "valorTotal": "152.43",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12018",
+      "guiaNumero": "67717209",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA FIGUEIREDO BENAGLIA",
+      "valorTotal": "41.14",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12019",
+      "guiaNumero": "67717209",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA FIGUEIREDO BENAGLIA",
+      "valorTotal": "32.28",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12020",
+      "guiaNumero": "67717209",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA FIGUEIREDO BENAGLIA",
+      "valorTotal": "3.77",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12021",
+      "guiaNumero": "67717018",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA FIGUEIREDO BENAGLIA",
+      "valorTotal": "130.00",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12022",
+      "guiaNumero": "67494918",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA MARIA PEREIRA GOIS",
+      "valorTotal": "37.20",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12023",
+      "guiaNumero": "67494918",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA MARIA PEREIRA GOIS",
+      "valorTotal": "33.61",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12024",
+      "guiaNumero": "67484478",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVA MARIA PEREIRA GOIS",
+      "valorTotal": "130.00",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12025",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "4.84",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12026",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "3.77",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12027",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "32.28",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12028",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "41.14",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12029",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "18.02",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12030",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "3.77",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12031",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "21.75",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12032",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "8.06",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12033",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "2.69",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12034",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "16.14",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12035",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "152.43",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    },
+    {
+      "id": "12036",
+      "guiaNumero": "67556529",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "EVELYN NOLETO OLIVEIRA",
+      "valorTotal": "69.96",
+      "arquivoId": "220",
+      "protocoloTISS": "NULL",
+      "protocolo": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tguiaNumero\tnumeroLote\tsequencialTransacao\tpacienteNome\tvalorTotal\tarquivoId\tprotocoloTISS\tprotocolo\n12017\t67717209\tNULL\tNULL\tEVA FIGUEIREDO BENAGLIA\t152.43\t220\tNULL\tNULL\n12018\t67717209\tNULL\tNULL\tEVA FIGUEIREDO BENAGLIA\t41.14\t220\tNULL\tNULL\n12019\t67717209\tNULL\tNULL\tEVA FIGUEIREDO BENAGLIA\t32.28\t220\tNULL\tNULL\n12020\t67717209\tNULL\tNULL\tEVA FIGUEIREDO BENAGLIA\t3.77\t220\tNULL\tNULL\n12021\t67717018\tNULL\tNULL\tEVA FIGUEIREDO BENAGLIA\t130.00\t220\tNULL\tNULL\n12022\t67494918\tNULL\tNULL\tEVA MARIA PEREIRA GOIS\t37.20\t220\tNULL\tNULL\n12023\t67494918\tNULL\tNULL\tEVA MARIA PEREIRA GOIS\t33.61\t220\tNULL\tNULL\n12024\t67484478\tNULL\tNULL\tEVA MARIA PEREIRA GOIS\t130.00\t220\tNULL\tNULL\n12025\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t4.84\t220\tNULL\tNULL\n12026\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t3.77\t220\tNULL\tNULL\n12027\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t32.28\t220\tNULL\tNULL\n12028\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t41.14\t220\tNULL\tNULL\n12029\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t18.02\t220\tNULL\tNULL\n12030\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t3.77\t220\tNULL\tNULL\n12031\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t21.75\t220\tNULL\tNULL\n12032\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t8.06\t220\tNULL\tNULL\n12033\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t2.69\t220\tNULL\tNULL\n12034\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t16.14\t220\tNULL\tNULL\n12035\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t152.43\t220\tNULL\tNULL\n12036\t67556529\tNULL\tNULL\tEVELYN NOLETO OLIVEIRA\t69.96\t220\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 307
+}

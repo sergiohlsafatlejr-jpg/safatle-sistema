@@ -119,37 +119,60 @@ export default function ContasDemonstrativo() {
 
   const procedimentos = procedimentosData?.items || [];
 
-  // Agrupar procedimentos por chave composta: guiaNumero + numeroLote + sequencialTransacao
+  // Agrupar procedimentos por chave composta
+  // Para arquivos Excel (Unimed): usa Protocolo TISS como identificador de transação
+  // Para arquivos XML: usa guiaNumero + numeroLote + sequencialTransacao
   // Cada grupo representa uma transação única de faturamento (separa Altas Administrativas)
   const contasAgrupadas = useMemo(() => {
     const grupos: Record<string, ContaAgrupada> = {};
     
     procedimentos.forEach((p: any) => {
-      // Chave composta: guiaNumero + numeroLote + sequencialTransacao
-      // Validação: considera inválido se for null, 'null' (string), undefined, ou vazio
+      // Extrair Protocolo TISS dos dadosExtras (para arquivos Excel da Unimed)
+      const protocoloTISS = p.dadosExtras?.['Protocolo TISS'] || p.dadosExtras?.protocoloTISS;
+      const lotePrestador = p.dadosExtras?.['Lote Prestador'] || p.dadosExtras?.lotePrestador;
+      
+      // Validação dos campos
+      const protocoloValido = protocoloTISS && String(protocoloTISS).trim() !== '' && protocoloTISS !== 'null';
       const loteValido = p.numeroLote && p.numeroLote !== 'null' && p.numeroLote !== 'undefined' && String(p.numeroLote).trim() !== '';
       const seqValido = p.sequencialTransacao && p.sequencialTransacao !== 'null' && p.sequencialTransacao !== 'undefined' && String(p.sequencialTransacao).trim() !== '';
+      const lotePrestadorValido = lotePrestador && String(lotePrestador).trim() !== '' && lotePrestador !== 'null';
       
       // Lógica de agrupamento:
-      // 1. Se tiver lote E sequencial válidos: agrupa por guiaNumero + numeroLote + sequencialTransacao
-      // 2. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote
-      // 3. Fallback: agrupa por guiaNumero + arquivoId (garante separação por arquivo importado)
+      // 1. Se tiver Protocolo TISS válido (Excel Unimed): agrupa por guiaNumero + protocoloTISS
+      // 2. Se tiver lote E sequencial válidos (XML): agrupa por guiaNumero + numeroLote + sequencialTransacao
+      // 3. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote
+      // 4. Se tiver Lote Prestador (Excel): agrupa por guiaNumero + lotePrestador
+      // 5. Fallback: agrupa por guiaNumero + arquivoId (garante separação por arquivo importado)
       let chave: string;
-      if (loteValido && seqValido) {
+      let loteExibicao: string = '-';
+      
+      if (protocoloValido) {
+        // Arquivos Excel da Unimed - usar Protocolo TISS
+        chave = `${p.guiaNumero || 'sem_guia'}_protocolo_${protocoloTISS}`;
+        loteExibicao = String(protocoloTISS);
+      } else if (loteValido && seqValido) {
+        // Arquivos XML com lote e sequencial
         chave = `${p.guiaNumero || 'sem_guia'}_${p.numeroLote}_${p.sequencialTransacao}`;
+        loteExibicao = p.numeroLote;
       } else if (loteValido) {
+        // Arquivos XML apenas com lote
         chave = `${p.guiaNumero || 'sem_guia'}_${p.numeroLote}_sem_seq`;
+        loteExibicao = p.numeroLote;
+      } else if (lotePrestadorValido) {
+        // Arquivos Excel com Lote Prestador
+        chave = `${p.guiaNumero || 'sem_guia'}_lote_${lotePrestador}`;
+        loteExibicao = String(lotePrestador);
       } else {
         // Fallback: agrupa por guia + arquivo (não explode por item individual)
-        chave = `${p.guiaNumero || 'sem_guia'}_arquivo_${p.arquivoId}`;  
+        chave = `${p.guiaNumero || 'sem_guia'}_arquivo_${p.arquivoId}`;
       }
       
       if (!grupos[chave]) {
         grupos[chave] = {
           chave,
           guiaNumero: p.guiaNumero || "-",
-          numeroLote: p.numeroLote || "-",
-          sequencialTransacao: p.sequencialTransacao || "-",
+          numeroLote: loteExibicao,
+          sequencialTransacao: p.sequencialTransacao || protocoloTISS || "-",
           senha: p.senha || p.dadosExtras?.senha || "-",
           carteirinha: p.pacienteCarteirinha || "-",
           dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,

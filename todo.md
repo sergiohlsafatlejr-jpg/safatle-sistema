@@ -1055,3 +1055,5 @@
 - [x] Ajustar lógica de agrupamento no frontend com fallback guiaNumero+idArquivo
 - [x] Garantir exibição do lote na coluna da tabela (não mostrar traço quando há valor)
 - [x] Fornecer comando SQL de limpeza para converter 'null' string para NULL real
+
+- [x] Aplicar lógica de agrupamento de Altas Administrativas na tela Contas Demonstrativo usando campo Protocolo TISS
