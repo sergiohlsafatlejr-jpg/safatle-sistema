@@ -61,6 +61,13 @@ export default function ConciliacaoDetalhes() {
   const urlParams = new URLSearchParams(window.location.search);
   const mesReferencia = urlParams.get("mes") ? parseInt(urlParams.get("mes")!) : new Date().getMonth() + 1;
   const anoReferencia = urlParams.get("ano") ? parseInt(urlParams.get("ano")!) : new Date().getFullYear();
+  const chaveComposta = urlParams.get("chave") || "";
+
+  // Função para voltar à lista de contas mantendo o contexto
+  const handleVoltar = () => {
+    // Voltar para a lista de contas do convênio selecionado com os filtros de período
+    setLocation(`/conciliacao?convenio=${convenioId}&mes=${mesReferencia}&ano=${anoReferencia}`);
+  };
 
   // Buscar dados da conta
   const { data: contaData, isLoading } = trpc.conciliacao.detalhesConta.useQuery(
@@ -207,9 +214,9 @@ export default function ConciliacaoDetalhes() {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <Button variant="ghost" onClick={() => setLocation("/conciliacao")}>
+          <Button variant="ghost" onClick={handleVoltar}>
             <ChevronLeft className="h-4 w-4 mr-2" />
-            Voltar para Conciliação
+            Voltar para Lista de Contas
           </Button>
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Dados da conta não encontrados</p>
@@ -225,7 +232,7 @@ export default function ConciliacaoDetalhes() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => setLocation("/conciliacao")}>
+            <Button variant="ghost" onClick={handleVoltar}>
               <ChevronLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>

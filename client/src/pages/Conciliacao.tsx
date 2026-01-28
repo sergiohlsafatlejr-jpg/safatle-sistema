@@ -28,7 +28,7 @@ import {
   CircleCheck,
   CircleMinus
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -134,6 +134,25 @@ export default function Conciliacao() {
 
   // Memoize anos para evitar recriação a cada render
   const anos = useMemo(() => getAnos(), []);
+
+  // Restaurar estado a partir dos parâmetros da URL (quando voltar da tela de detalhes)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const convenioParam = urlParams.get("convenio");
+    const mesParam = urlParams.get("mes");
+    const anoParam = urlParams.get("ano");
+    
+    if (convenioParam && mesParam && anoParam) {
+      // Restaurar estado para mostrar a lista de contas do convênio
+      setConvenioId(convenioParam);
+      setMesReferencia(mesParam);
+      setAnoReferencia(anoParam);
+      setEtapa("lista_contas");
+      
+      // Limpar os parâmetros da URL para evitar loop
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
