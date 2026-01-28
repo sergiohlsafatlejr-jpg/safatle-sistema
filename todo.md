@@ -1024,3 +1024,6 @@
 
 - [x] Corrigir erro 404 ao voltar da tela de detalhes (botão voltar redireciona para /contas que não existe mais) - VERIFICADO: funcionando corretamente
 - [x] Corrigir filtro por convênio que não traz resultados nas telas Conta Convênio e Contas Demonstrativo - VERIFICADO: funcionando corretamente (testado com Bradesco=0 resultados, Unimed=1171 resultados)
+
+- [x] Corrigir filtro de convênio na tela Conta Convênio - não traz resultados ao selecionar Unimed (Ox Uti) - CORRIGIDO: removido filtro automático por prestador vinculado
+- [x] Corrigir filtro de convênio na tela Contas Demonstrativo - não está filtrando por convênio corretamente - CORRIGIDO: removido filtro automático por prestador vinculado

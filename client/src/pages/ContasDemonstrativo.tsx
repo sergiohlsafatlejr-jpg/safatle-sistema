@@ -82,8 +82,10 @@ export default function ContasDemonstrativo() {
   );
 
   // Determinar o código do prestador a ser usado no filtro
-  // Se o usuário selecionou manualmente, usar esse; senão, usar o vinculado ao estabelecimento
-  const codigoPrestadorFiltro = prestadorExecutante || prestadorVinculado?.codigoPrestador || undefined;
+  // IMPORTANTE: Usar apenas o prestador selecionado manualmente pelo usuário
+  // O prestador vinculado ao estabelecimento NÃO deve ser usado automaticamente
+  // pois muitos procedimentos podem ter codigoPrestadorExecutante = NULL
+  const codigoPrestadorFiltro = prestadorExecutante || undefined;
 
   // Buscar arquivos do convênio selecionado
   const { data: arquivos } = trpc.arquivos.list.useQuery(
