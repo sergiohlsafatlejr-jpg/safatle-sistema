@@ -1027,3 +1027,6 @@
 
 - [x] Corrigir filtro de convênio na tela Conta Convênio - não traz resultados ao selecionar Unimed (Ox Uti) - CORRIGIDO: removido filtro automático por prestador vinculado
 - [x] Corrigir filtro de convênio na tela Contas Demonstrativo - não está filtrando por convênio corretamente - CORRIGIDO: removido filtro automático por prestador vinculado
+
+- [x] Alterar lógica de agrupamento em ContaConvenio.tsx para usar ID do procedimento como chave (evitar somas indevidas em Alta Administrativa)
+- [x] Alterar lógica de agrupamento em ContasDemonstrativo.tsx para usar ID do procedimento como chave

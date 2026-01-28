@@ -112,62 +112,30 @@ export default function ContaConvenio() {
 
   const procedimentos = procedimentosData?.items || [];
 
-  // Agrupar procedimentos por chave composta (numeroLote + sequencialTransacao)
-  // Isso permite que uma mesma guia tenha múltiplos faturamentos parciais (altas administrativas)
+  // Cada procedimento é tratado como uma linha individual
+  // Usa o ID do procedimento como chave única para evitar somas indevidas em casos de Alta Administrativa
   const contasAgrupadas = useMemo(() => {
     const grupos: Record<string, ContaAgrupada> = {};
     
     procedimentos.forEach((p: any) => {
-      // Usar chave composta: numeroLote + sequencialTransacao
-      // Se não tiver esses campos, usar guiaNumero como fallback
-      const numeroLote = p.numeroLote || '';
-      const sequencialTransacao = p.sequencialTransacao || '';
+      // Usar ID do procedimento como chave única - cada registro é uma linha individual
+      const chave = p.id.toString();
       
-      // Chave única: se tiver lote e sequencial, usar eles; senão, usar guia
-      const chave = (numeroLote && sequencialTransacao) 
-        ? `${numeroLote}_${sequencialTransacao}` 
-        : (p.guiaNumero || `sem_guia_${p.id}`);
-      
-      if (!grupos[chave]) {
-        grupos[chave] = {
-          guiaNumero: p.guiaNumero || "-",
-          numeroLote: numeroLote || "-",
-          sequencialTransacao: sequencialTransacao || "-",
-          senha: p.senha || p.dadosExtras?.senha || "-",
-          carteirinha: p.pacienteCarteirinha || "-",
-          dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
-          valorTotal: 0,
-          pacienteNome: p.pacienteNome || "-",
-          convenioNome: p.convenioNome || "-",
-          arquivoNome: p.arquivoNome || "-",
-          arquivoId: p.arquivoId,
-          itens: [],
-          quantidadeItens: 0,
-        };
-      }
-      
-      grupos[chave].valorTotal += parseFloat(p.valorTotal || "0");
-      grupos[chave].itens.push(p);
-      grupos[chave].quantidadeItens++;
-      
-      // Usar a data mais antiga como data da conta
-      if (p.dataExecucao) {
-        const dataItem = new Date(p.dataExecucao);
-        if (!grupos[chave].dataConta || dataItem < grupos[chave].dataConta) {
-          grupos[chave].dataConta = dataItem;
-        }
-      }
-      
-      // Preencher dados que podem estar vazios
-      if (p.pacienteNome && grupos[chave].pacienteNome === "-") {
-        grupos[chave].pacienteNome = p.pacienteNome;
-      }
-      if (p.pacienteCarteirinha && grupos[chave].carteirinha === "-") {
-        grupos[chave].carteirinha = p.pacienteCarteirinha;
-      }
-      if ((p.senha || p.dadosExtras?.senha) && grupos[chave].senha === "-") {
-        grupos[chave].senha = p.senha || p.dadosExtras?.senha;
-      }
+      grupos[chave] = {
+        guiaNumero: p.guiaNumero || "-",
+        numeroLote: p.numeroLote || "-",
+        sequencialTransacao: p.sequencialTransacao || "-",
+        senha: p.senha || p.dadosExtras?.senha || "-",
+        carteirinha: p.pacienteCarteirinha || "-",
+        dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
+        valorTotal: parseFloat(p.valorTotal || "0"),
+        pacienteNome: p.pacienteNome || "-",
+        convenioNome: p.convenioNome || "-",
+        arquivoNome: p.arquivoNome || "-",
+        arquivoId: p.arquivoId,
+        itens: [p],
+        quantidadeItens: 1,
+      };
     });
     
     // Converter para array e ordenar por data (mais recente primeiro)
