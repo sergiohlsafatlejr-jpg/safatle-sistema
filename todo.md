@@ -1065,3 +1065,4 @@
 - [x] Criar nova permissão "Usuário Tasy" que restringe o acesso apenas às abas relacionadas ao Tasy
 - [x] Modificar tela Conciliação Contas Pagas para usar dados da tabela FaturadoTasy com mesma lógica de Contas Faturadas
 - [x] Adicionar opção de exportar os itens detalhados de uma conta específica para Excel no modal de detalhes
+- [x] Bug: Tela Conciliação Contas Pagas não está mostrando dados - restaurar para versão anterior funcional
