@@ -1,0 +1,55 @@
+{
+  "query": "SELECT estabelecimentoId, COUNT(*) as total, LEFT(competencia, 7) as mes_ano FROM faturadoTasy GROUP BY estabelecimentoId, LEFT(competencia, 7) ORDER BY estabelecimentoId, mes_ano LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT estabelecimentoId, COUNT(*) as total, LEFT(competencia, 7) as mes_ano FROM faturadoTasy GROUP BY estabelecimentoId, LEFT(competencia, 7) ORDER BY estabelecimentoId, mes_ano LIMIT 50;",
+  "rows": [
+    {
+      "estabelecimentoId": "2",
+      "total": "68115",
+      "mes_ano": "2025-07"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "74087",
+      "mes_ano": "2025-08"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "74894",
+      "mes_ano": "2025-09"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "60800",
+      "mes_ano": "2025-10"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "46865",
+      "mes_ano": "2025-11"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "48035",
+      "mes_ano": "2025-12"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "39519",
+      "mes_ano": "2026-01"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "44086",
+      "mes_ano": "2026-02"
+    },
+    {
+      "estabelecimentoId": "2",
+      "total": "20279",
+      "mes_ano": "2026-03"
+    }
+  ],
+  "messages": [],
+  "stdout": "estabelecimentoId\ttotal\tmes_ano\n2\t68115\t2025-07\n2\t74087\t2025-08\n2\t74894\t2025-09\n2\t60800\t2025-10\n2\t46865\t2025-11\n2\t48035\t2025-12\n2\t39519\t2026-01\n2\t44086\t2026-02\n2\t20279\t2026-03\n",
+  "stderr": "",
+  "execution_time_ms": 656
+}

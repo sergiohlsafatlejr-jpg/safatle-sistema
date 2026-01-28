@@ -14902,7 +14902,7 @@ export async function getEstatisticasFaturadoTasy(
 }
 
 /**
- * Lista competências disponíveis no Faturado Tasy
+ * Lista competências disponíveis no Faturado Tasy (agrupadas por mês/ano)
  */
 export async function listarCompetenciasFaturadoTasy(
   estabelecimentoId: number
@@ -14910,22 +14910,30 @@ export async function listarCompetenciasFaturadoTasy(
   const db = await getDb();
   if (!db) return [];
 
-  const result = await db
-    .select({
-      competencia: faturadoTasy.competencia,
-      totalRegistros: sql<number>`COUNT(*)`,
-      valorFaturado: sql<number>`COALESCE(SUM(CAST(${faturadoTasy.vlFaturado} AS DECIMAL(15,2))), 0)`,
-    })
-    .from(faturadoTasy)
-    .where(eq(faturadoTasy.estabelecimentoId, estabelecimentoId))
-    .groupBy(faturadoTasy.competencia)
-    .orderBy(desc(faturadoTasy.competencia));
+  try {
+    // Agrupa por mês/ano (primeiros 7 caracteres: AAAA-MM) usando raw SQL
+    const result = await db.execute(
+      sql`SELECT 
+            LEFT(competencia, 7) as competencia,
+            COUNT(*) as totalRegistros,
+            COALESCE(SUM(CAST(vlFaturado AS DECIMAL(15,2))), 0) as valorFaturado
+          FROM faturadoTasy 
+          WHERE estabelecimentoId = ${estabelecimentoId}
+          GROUP BY LEFT(competencia, 7)
+          ORDER BY LEFT(competencia, 7) DESC`
+    );
 
-  return result.map(r => ({
-    competencia: r.competencia || '',
-    totalRegistros: r.totalRegistros || 0,
-    valorFaturado: r.valorFaturado || 0,
-  }));
+    // O resultado é um array de arrays, precisamos processar
+    const rows = (result as unknown as any[][])[0] as any[];
+    return rows.map(r => ({
+      competencia: r.competencia || '',
+      totalRegistros: Number(r.totalRegistros) || 0,
+      valorFaturado: Number(r.valorFaturado) || 0,
+    }));
+  } catch (error) {
+    console.error('Erro ao listar competências:', error);
+    return [];
+  }
 }
 
 /**
@@ -15260,10 +15268,10 @@ export async function getFaturadoTasyParaRelatorio(
     conditions.push(eq(faturadoTasy.tipoItem, tipoFiltro));
   }
   
-  // Filtro de competência - prioriza competência específica (igual à tela Faturado Tasy)
+  // Filtro de competência - prioriza competência específica (agrupada por mês/ano)
   if (filtros?.competencia) {
-    // Competência específica (ex: "2025-12-01 00:00:00") - filtro exato
-    conditions.push(eq(faturadoTasy.competencia, filtros.competencia));
+    // Competência no formato AAAA-MM - filtra por LIKE para pegar todos os registros do mês
+    conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.competencia}%`}`);
   } else if (filtros?.mesAno) {
     conditions.push(sql`${faturadoTasy.competencia} LIKE ${`${filtros.mesAno}%`}`);
   } else if (filtros?.dataInicio) {

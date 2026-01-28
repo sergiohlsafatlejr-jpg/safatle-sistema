@@ -1014,3 +1014,6 @@
 - [x] Corrigir função de competência na tela Relatórios Tasy que não está funcionando
 
 - [x] Corrigir filtro de competência na tela Relatórios Tasy para aparecer quando Faturado Tasy (Nova) é selecionado (RESOLVIDO: usuário estava acessando versão publicada antiga - precisa publicar nova versão)
+
+- [x] Unificar filtro de competência na tela Relatórios Tasy para agrupar por mês/ano (ex: 09/2025) ao invés de mostrar cada importação separadamente
+- [x] Remover abas Conciliação Tasy e Contas Tasy do menu lateral
