@@ -2300,6 +2300,8 @@ export async function getEstatisticasRecursos(userId: number) {
 export interface ItemConciliacao {
   guiaNumero: string;
   numeroLote: string;
+  sequencialTransacao: string; // Para identificar Alta Administrativa
+  protocoloTISS: string; // Para arquivos Excel da Unimed
   dataExecucao: string;
   codigo: string;
   descricao: string;
@@ -2309,6 +2311,7 @@ export interface ItemConciliacao {
   valorGlosado: number;
   motivoGlosa: string;
   status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido";
+  arquivoId?: number; // Para fallback de agrupamento
 }
 
 export interface ResumoConciliacao {
@@ -2495,6 +2498,13 @@ export async function getConciliacaoPorConvenio(filters: {
     retornadosMapSimplificado.get(chaveSimples)!.push(proc);
   }
 
+  // Função auxiliar para extrair Protocolo TISS dos dadosExtras
+  const extrairProtocoloTISS = (proc: any): string => {
+    if (!proc.dadosExtras) return '';
+    const extras = typeof proc.dadosExtras === 'string' ? JSON.parse(proc.dadosExtras) : proc.dadosExtras;
+    return extras['Protocolo TISS'] || extras.protocoloTISS || '';
+  };
+
   // Processar conciliação
   const itensConciliados: ItemConciliacao[] = [];
   const chavesProcessadas = new Set<string>();
@@ -2556,6 +2566,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           numeroLote: env.numeroLote || "",
+          sequencialTransacao: env.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(env),
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2565,6 +2577,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: 0,
           motivoGlosa: "",
           status: "ok",
+          arquivoId: env.arquivoId,
         });
         totalConciliados++;
         valorTotalPago += valorEnviado;
@@ -2573,6 +2586,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           numeroLote: env.numeroLote || "",
+          sequencialTransacao: env.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(env),
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2582,6 +2597,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: 0,
           motivoGlosa: "Procedimento não encontrado - requer análise",
           status: "divergente",
+          arquivoId: env.arquivoId,
         });
         totalDivergentes++;
       } else {
@@ -2589,6 +2605,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           numeroLote: env.numeroLote || "",
+          sequencialTransacao: env.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(env),
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2598,6 +2616,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: 0,
           motivoGlosa: "Aguardando retorno do convênio",
           status: "nao_recebido",
+          arquivoId: env.arquivoId,
         });
         totalNaoRecebidos++;
         valorTotalNaoRecebido += valorEnviado;
@@ -2633,6 +2652,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           numeroLote: env.numeroLote || "",
+          sequencialTransacao: env.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(env),
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2642,6 +2663,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: valorGlosadoExplicito,
           motivoGlosa: motivoGlosa || "Glosa identificada no retorno",
           status: "glosado",
+          arquivoId: env.arquivoId,
         });
         totalGlosados++;
       } else if (isBradescoStyle && valorGlosadoExplicito === 0) {
@@ -2651,6 +2673,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: env.guiaNumero || "",
           numeroLote: env.numeroLote || "",
+          sequencialTransacao: env.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(env),
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: env.codigo,
           descricao: env.descricao || "",
@@ -2660,6 +2684,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: 0,
           motivoGlosa: "",
           status: "ok",
+          arquivoId: env.arquivoId,
         });
         totalConciliados++;
       } else {
@@ -2672,6 +2697,8 @@ export async function getConciliacaoPorConvenio(filters: {
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
             numeroLote: env.numeroLote || "",
+            sequencialTransacao: env.sequencialTransacao || "",
+            protocoloTISS: extrairProtocoloTISS(env),
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2681,6 +2708,7 @@ export async function getConciliacaoPorConvenio(filters: {
             valorGlosado: 0,
             motivoGlosa: "",
             status: "ok",
+            arquivoId: env.arquivoId,
           });
           totalConciliados++;
         } else if (diferenca > 0) {
@@ -2688,6 +2716,8 @@ export async function getConciliacaoPorConvenio(filters: {
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
             numeroLote: env.numeroLote || "",
+            sequencialTransacao: env.sequencialTransacao || "",
+            protocoloTISS: extrairProtocoloTISS(env),
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2697,6 +2727,7 @@ export async function getConciliacaoPorConvenio(filters: {
             valorGlosado: diferenca,
             motivoGlosa: motivoGlosa || "Valor divergente",
             status: "glosado",
+            arquivoId: env.arquivoId,
           });
           totalGlosados++;
           valorTotalGlosado += diferenca;
@@ -2705,6 +2736,8 @@ export async function getConciliacaoPorConvenio(filters: {
           itensConciliados.push({
             guiaNumero: env.guiaNumero || "",
             numeroLote: env.numeroLote || "",
+            sequencialTransacao: env.sequencialTransacao || "",
+            protocoloTISS: extrairProtocoloTISS(env),
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
             codigo: env.codigo,
             descricao: env.descricao || "",
@@ -2714,6 +2747,7 @@ export async function getConciliacaoPorConvenio(filters: {
             valorGlosado: 0,
             motivoGlosa: motivoGlosa || "",
             status: "divergente",
+            arquivoId: env.arquivoId,
           });
           totalDivergentes++;
         }
@@ -2731,6 +2765,8 @@ export async function getConciliacaoPorConvenio(filters: {
         itensConciliados.push({
           guiaNumero: ret.guiaNumero || "",
           numeroLote: ret.numeroLote || "",
+          sequencialTransacao: ret.sequencialTransacao || "",
+          protocoloTISS: extrairProtocoloTISS(ret),
           dataExecucao: ret.dataExecucao ? new Date(ret.dataExecucao).toLocaleDateString("pt-BR") : "",
           codigo: ret.codigo,
           descricao: ret.descricao || "",
@@ -2740,6 +2776,7 @@ export async function getConciliacaoPorConvenio(filters: {
           valorGlosado: 0,
           motivoGlosa: "Procedimento extra no retorno",
           status: "divergente",
+          arquivoId: ret.arquivoId,
         });
         totalDivergentes++;
       }
@@ -2783,8 +2820,11 @@ export async function getConciliacaoPorConvenio(filters: {
 
 // Interface para conta agrupada na conciliação
 export interface ContaConciliacao {
+  chave: string; // Chave composta para identificação única
   guiaNumero: string;
   numeroLote: string;
+  sequencialTransacao: string; // Para identificar Alta Administrativa
+  protocoloTISS: string; // Para arquivos Excel da Unimed
   pacienteNome: string;
   dataExecucao: string;
   valorTotalFaturado: number;
@@ -2792,10 +2832,54 @@ export interface ContaConciliacao {
   valorTotalGlosado: number;
   status: "ok" | "glosado" | "nao_encontrado" | "parcial";
   totalItens: number;
+  isAltaAdministrativa: boolean; // Indica se a guia tem múltiplas transações
   itens: ItemConciliacao[];
 }
 
-// Função para agrupar conciliação por conta
+// Função auxiliar para gerar chave composta de agrupamento (igual ao frontend)
+// Usa: guiaNumero + numeroLote + sequencialTransacao para XML
+// Ou: guiaNumero + protocoloTISS para Excel da Unimed
+function gerarChaveAgrupamento(item: ItemConciliacao): string {
+  // Validação dos campos
+  const protocoloValido = item.protocoloTISS && 
+    String(item.protocoloTISS).trim() !== '' && 
+    item.protocoloTISS !== 'null' &&
+    item.protocoloTISS !== '-';
+  
+  const loteValido = item.numeroLote && 
+    item.numeroLote !== 'null' && 
+    item.numeroLote !== 'undefined' && 
+    item.numeroLote !== '-' &&
+    String(item.numeroLote).trim() !== '';
+  
+  const seqValido = item.sequencialTransacao && 
+    item.sequencialTransacao !== 'null' && 
+    item.sequencialTransacao !== 'undefined' && 
+    item.sequencialTransacao !== '-' &&
+    String(item.sequencialTransacao).trim() !== '';
+  
+  const guia = item.guiaNumero || 'sem_guia';
+  
+  // Lógica de agrupamento:
+  // 1. Se tiver Protocolo TISS válido (Excel Unimed): agrupa por guiaNumero + protocoloTISS
+  // 2. Se tiver lote E sequencial válidos (XML): agrupa por guiaNumero + numeroLote + sequencialTransacao
+  // 3. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote
+  // 4. Fallback: agrupa por guiaNumero + arquivoId (garante separação por arquivo importado)
+  if (protocoloValido) {
+    return `${guia}_protocolo_${item.protocoloTISS}`;
+  } else if (loteValido && seqValido) {
+    return `${guia}_${item.numeroLote}_${item.sequencialTransacao}`;
+  } else if (loteValido) {
+    return `${guia}_${item.numeroLote}_sem_seq`;
+  } else if (item.arquivoId) {
+    return `${guia}_arquivo_${item.arquivoId}`;
+  } else {
+    return guia;
+  }
+}
+
+// Função para agrupar conciliação por conta usando chave composta
+// Separa corretamente casos de Alta Administrativa (mesma guia, múltiplas transações)
 export async function getConciliacaoAgrupadaPorConta(filters: {
   convenioId: number;
   userId: number;
@@ -2817,16 +2901,28 @@ export async function getConciliacaoAgrupadaPorConta(filters: {
     return { contas: [], resumo: null, total: 0 };
   }
 
-  // Agrupar por guia (conta)
+  // Agrupar por chave composta (guiaNumero + numeroLote + sequencialTransacao ou protocoloTISS)
   const contasMap = new Map<string, ContaConciliacao>();
+  // Mapa auxiliar para contar quantas transações cada guia tem (para identificar Alta Administrativa)
+  const guiaTransacoes = new Map<string, Set<string>>();
 
   for (const item of resultado.itens) {
-    const chave = item.guiaNumero || "SEM_GUIA";
+    const chave = gerarChaveAgrupamento(item);
+    const guia = item.guiaNumero || 'SEM_GUIA';
+    
+    // Rastrear transações por guia para identificar Alta Administrativa
+    if (!guiaTransacoes.has(guia)) {
+      guiaTransacoes.set(guia, new Set());
+    }
+    guiaTransacoes.get(guia)!.add(chave);
     
     if (!contasMap.has(chave)) {
       contasMap.set(chave, {
+        chave,
         guiaNumero: item.guiaNumero,
         numeroLote: item.numeroLote,
+        sequencialTransacao: item.sequencialTransacao || '-',
+        protocoloTISS: item.protocoloTISS || '-',
         pacienteNome: item.pacienteNome,
         dataExecucao: item.dataExecucao,
         valorTotalFaturado: 0,
@@ -2834,6 +2930,7 @@ export async function getConciliacaoAgrupadaPorConta(filters: {
         valorTotalGlosado: 0,
         status: "ok",
         totalItens: 0,
+        isAltaAdministrativa: false, // Será atualizado depois
         itens: [],
       });
     }
@@ -2858,6 +2955,15 @@ export async function getConciliacaoAgrupadaPorConta(filters: {
       if (conta.status === "ok") {
         conta.status = "parcial";
       }
+    }
+  }
+
+  // Marcar contas como Alta Administrativa se a guia tiver múltiplas transações
+  for (const conta of Array.from(contasMap.values())) {
+    const guia = conta.guiaNumero || 'SEM_GUIA';
+    const transacoes = guiaTransacoes.get(guia);
+    if (transacoes && transacoes.size > 1) {
+      conta.isAltaAdministrativa = true;
     }
   }
 

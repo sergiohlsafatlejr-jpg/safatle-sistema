@@ -179,3 +179,255 @@ describe("Conciliação Automática", () => {
     });
   });
 });
+
+
+// ============ TESTES PARA CHAVE DE AGRUPAMENTO (Alta Administrativa) ============
+
+// Interface simplificada para testes de chave
+interface ItemConciliacaoChave {
+  guiaNumero: string;
+  numeroLote: string;
+  sequencialTransacao: string;
+  protocoloTISS: string;
+  arquivoId?: number;
+}
+
+// Função de geração de chave (cópia da implementação em db.ts)
+function gerarChaveAgrupamento(item: ItemConciliacaoChave): string {
+  // Validação dos campos
+  const protocoloValido = item.protocoloTISS && 
+    String(item.protocoloTISS).trim() !== '' && 
+    item.protocoloTISS !== 'null' &&
+    item.protocoloTISS !== '-';
+  
+  const loteValido = item.numeroLote && 
+    item.numeroLote !== 'null' && 
+    item.numeroLote !== 'undefined' && 
+    item.numeroLote !== '-' &&
+    String(item.numeroLote).trim() !== '';
+  
+  const seqValido = item.sequencialTransacao && 
+    item.sequencialTransacao !== 'null' && 
+    item.sequencialTransacao !== 'undefined' && 
+    item.sequencialTransacao !== '-' &&
+    String(item.sequencialTransacao).trim() !== '';
+  
+  const guia = item.guiaNumero || 'sem_guia';
+  
+  if (protocoloValido) {
+    return `${guia}_protocolo_${item.protocoloTISS}`;
+  } else if (loteValido && seqValido) {
+    return `${guia}_${item.numeroLote}_${item.sequencialTransacao}`;
+  } else if (loteValido) {
+    return `${guia}_${item.numeroLote}_sem_seq`;
+  } else if (item.arquivoId) {
+    return `${guia}_arquivo_${item.arquivoId}`;
+  } else {
+    return guia;
+  }
+}
+
+describe("Conciliação Automática - Geração de Chave de Agrupamento", () => {
+  describe("Cenário 1: Arquivos XML com lote e sequencial", () => {
+    it("deve gerar chaves diferentes para mesma guia com sequenciais diferentes (Alta Administrativa)", () => {
+      const item1: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "1",
+        protocoloTISS: "",
+      };
+      
+      const item2: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "2",
+        protocoloTISS: "",
+      };
+      
+      const chave1 = gerarChaveAgrupamento(item1);
+      const chave2 = gerarChaveAgrupamento(item2);
+      
+      expect(chave1).not.toBe(chave2);
+      expect(chave1).toBe("12345_100_1");
+      expect(chave2).toBe("12345_100_2");
+    });
+    
+    it("deve gerar mesma chave para itens da mesma transação", () => {
+      const item1: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "1",
+        protocoloTISS: "",
+      };
+      
+      const item2: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "1",
+        protocoloTISS: "",
+      };
+      
+      expect(gerarChaveAgrupamento(item1)).toBe(gerarChaveAgrupamento(item2));
+    });
+  });
+  
+  describe("Cenário 2: Arquivos Excel com Protocolo TISS (Unimed)", () => {
+    it("deve gerar chaves diferentes para mesma guia com protocolos diferentes", () => {
+      const item1: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "",
+        sequencialTransacao: "",
+        protocoloTISS: "PROT001",
+      };
+      
+      const item2: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "",
+        sequencialTransacao: "",
+        protocoloTISS: "PROT002",
+      };
+      
+      const chave1 = gerarChaveAgrupamento(item1);
+      const chave2 = gerarChaveAgrupamento(item2);
+      
+      expect(chave1).not.toBe(chave2);
+      expect(chave1).toBe("12345_protocolo_PROT001");
+      expect(chave2).toBe("12345_protocolo_PROT002");
+    });
+    
+    it("deve priorizar Protocolo TISS sobre lote/sequencial", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "1",
+        protocoloTISS: "PROT001",
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345_protocolo_PROT001");
+    });
+  });
+  
+  describe("Cenário 3: Fallback para arquivos sem identificadores", () => {
+    it("deve usar arquivoId quando não há lote nem protocolo", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "",
+        sequencialTransacao: "",
+        protocoloTISS: "",
+        arquivoId: 42,
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345_arquivo_42");
+    });
+    
+    it("deve usar apenas guia quando não há nenhum identificador", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "",
+        sequencialTransacao: "",
+        protocoloTISS: "",
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345");
+    });
+    
+    it("deve usar 'sem_guia' quando não há guia", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "",
+        numeroLote: "",
+        sequencialTransacao: "",
+        protocoloTISS: "",
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("sem_guia");
+    });
+  });
+  
+  describe("Cenário 4: Validação de valores inválidos", () => {
+    it("deve tratar 'null' como valor inválido para protocolo", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "100",
+        sequencialTransacao: "1",
+        protocoloTISS: "null",
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345_100_1");
+    });
+    
+    it("deve tratar '-' como valor inválido para lote", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "-",
+        sequencialTransacao: "1",
+        protocoloTISS: "",
+        arquivoId: 42,
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345_arquivo_42");
+    });
+    
+    it("deve tratar string vazia com espaços como valor inválido", () => {
+      const item: ItemConciliacaoChave = {
+        guiaNumero: "12345",
+        numeroLote: "   ",
+        sequencialTransacao: "",
+        protocoloTISS: "",
+        arquivoId: 42,
+      };
+      
+      const chave = gerarChaveAgrupamento(item);
+      
+      expect(chave).toBe("12345_arquivo_42");
+    });
+  });
+  
+  describe("Cenário 5: Caso real de Alta Administrativa", () => {
+    it("deve separar corretamente 3 transações da mesma guia", () => {
+      // Simula uma guia com 3 altas administrativas (internação com múltiplas saídas)
+      const transacoes: ItemConciliacaoChave[] = [
+        {
+          guiaNumero: "GUIA-2024-001",
+          numeroLote: "LOT001",
+          sequencialTransacao: "001",
+          protocoloTISS: "",
+        },
+        {
+          guiaNumero: "GUIA-2024-001",
+          numeroLote: "LOT001",
+          sequencialTransacao: "002",
+          protocoloTISS: "",
+        },
+        {
+          guiaNumero: "GUIA-2024-001",
+          numeroLote: "LOT001",
+          sequencialTransacao: "003",
+          protocoloTISS: "",
+        },
+      ];
+      
+      const chaves = transacoes.map(gerarChaveAgrupamento);
+      
+      // Todas as chaves devem ser diferentes
+      const chavesUnicas = new Set(chaves);
+      expect(chavesUnicas.size).toBe(3);
+      
+      // Verificar formato das chaves
+      expect(chaves[0]).toBe("GUIA-2024-001_LOT001_001");
+      expect(chaves[1]).toBe("GUIA-2024-001_LOT001_002");
+      expect(chaves[2]).toBe("GUIA-2024-001_LOT001_003");
+    });
+  });
+});

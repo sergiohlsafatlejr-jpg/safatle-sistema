@@ -62,6 +62,8 @@ const getAnos = () => {
 interface ItemConciliacao {
   guiaNumero: string;
   numeroLote: string;
+  sequencialTransacao: string; // Para identificar Alta Administrativa
+  protocoloTISS: string; // Para arquivos Excel da Unimed
   dataExecucao: string;
   codigo: string;
   descricao: string;
@@ -71,11 +73,15 @@ interface ItemConciliacao {
   valorGlosado: number;
   motivoGlosa: string;
   status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido";
+  arquivoId?: number;
 }
 
 interface ContaConciliacao {
+  chave: string; // Chave composta para identificação única
   guiaNumero: string;
   numeroLote: string;
+  sequencialTransacao: string; // Para identificar Alta Administrativa
+  protocoloTISS: string; // Para arquivos Excel da Unimed
   pacienteNome: string;
   dataExecucao: string;
   valorTotalFaturado: number;
@@ -83,6 +89,7 @@ interface ContaConciliacao {
   valorTotalGlosado: number;
   status: "ok" | "glosado" | "nao_encontrado" | "parcial";
   totalItens: number;
+  isAltaAdministrativa: boolean; // Indica se a guia tem múltiplas transações
   itens: ItemConciliacao[];
 }
 
@@ -303,8 +310,10 @@ export default function Conciliacao() {
 
   const handleAbrirDetalhes = (conta: ContaConciliacao) => {
     // Navegar para a tela de detalhes da conta
+    // Usa a chave composta para identificar corretamente a transação (especialmente em Altas Administrativas)
     const guiaEncoded = encodeURIComponent(conta.guiaNumero || "sem-guia");
-    setLocation(`/conciliacao/${convenioId}/${guiaEncoded}?mes=${mesReferencia}&ano=${anoReferencia}`);
+    const chaveEncoded = encodeURIComponent(conta.chave || `${conta.guiaNumero}_${conta.numeroLote}_${conta.sequencialTransacao}`);
+    setLocation(`/conciliacao/${convenioId}/${guiaEncoded}?mes=${mesReferencia}&ano=${anoReferencia}&chave=${chaveEncoded}`);
   };
 
   // Calcular total de páginas
@@ -654,9 +663,9 @@ export default function Conciliacao() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {contasFiltradas.map((conta, idx) => (
+                          {contasFiltradas.map((conta) => (
                             <TableRow 
-                              key={`${conta.guiaNumero}-${idx}`}
+                              key={conta.chave || `${conta.guiaNumero}-${conta.numeroLote}-${conta.sequencialTransacao}`}
                               className={`cursor-pointer hover:bg-muted/50 ${
                                 conta.status === "glosado" ? "bg-red-50/50 dark:bg-red-950/20" :
                                 conta.status === "nao_encontrado" ? "bg-amber-50/50 dark:bg-amber-950/20" :
@@ -670,7 +679,16 @@ export default function Conciliacao() {
                                   {getStatusIcon(conta.status)}
                                 </div>
                               </TableCell>
-                              <TableCell className="font-medium">{conta.guiaNumero || "Sem Guia"}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {conta.guiaNumero || "Sem Guia"}
+                                  {conta.isAltaAdministrativa && (
+                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                      Alta Adm.
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="max-w-[200px] truncate" title={conta.pacienteNome}>
                                 {conta.pacienteNome}
                               </TableCell>

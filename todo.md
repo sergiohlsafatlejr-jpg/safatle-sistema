@@ -1057,3 +1057,7 @@
 - [x] Fornecer comando SQL de limpeza para converter 'null' string para NULL real
 
 - [x] Aplicar lógica de agrupamento de Altas Administrativas na tela Contas Demonstrativo usando campo Protocolo TISS
+
+- [ ] Implementar conciliação automática que considera Altas Administrativas (usando Protocolo TISS ou lote+sequencial como chave de match)
+
+- [x] Implementar conciliação automática que considera Altas Administrativas (usando Protocolo TISS ou lote+sequencial como chave de match)
