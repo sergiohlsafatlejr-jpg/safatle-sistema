@@ -1033,3 +1033,6 @@
 
 - [x] Implementar padrão Master-Detail no ContaConvenio.tsx com agrupamento por guiaNumero + numeroLote + sequencialTransacao
 - [x] Implementar padrão Master-Detail no ContasDemonstrativo.tsx com linhas expansíveis
+
+- [x] Verificar dados da guia 66829180 no banco (numeroLote e sequencialTransacao) - VERIFICADO: 4 transações diferentes com lotes 85918, 85795, 86037 e null
+- [x] Verificar e corrigir chave de renderização do componente React (key deve usar chave composta) - CORRIGIDO: adicionado React.Fragment com key={conta.chave}

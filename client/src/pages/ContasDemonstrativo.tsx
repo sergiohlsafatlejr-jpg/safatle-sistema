@@ -32,7 +32,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
@@ -551,7 +551,7 @@ export default function ContasDemonstrativo() {
                       {contasPaginadas.map((conta, index) => {
                         const isExpanded = expandedRows.has(conta.chave);
                         return (
-                          <>
+                          <React.Fragment key={conta.chave}>
                             {/* Linha Master */}
                             <TableRow 
                               key={conta.chave}
@@ -679,7 +679,7 @@ export default function ContasDemonstrativo() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>
