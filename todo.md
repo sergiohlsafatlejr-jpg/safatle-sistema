@@ -1030,3 +1030,6 @@
 
 - [x] Alterar lógica de agrupamento em ContaConvenio.tsx para usar ID do procedimento como chave (evitar somas indevidas em Alta Administrativa)
 - [x] Alterar lógica de agrupamento em ContasDemonstrativo.tsx para usar ID do procedimento como chave
+
+- [x] Implementar padrão Master-Detail no ContaConvenio.tsx com agrupamento por guiaNumero + numeroLote + sequencialTransacao
+- [x] Implementar padrão Master-Detail no ContasDemonstrativo.tsx com linhas expansíveis

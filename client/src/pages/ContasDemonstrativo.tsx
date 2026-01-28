@@ -6,6 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -23,18 +28,21 @@ import {
   Hash,
   User,
   DollarSign,
-  FileText
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
-// Interface para conta agrupada
-// Agora usa chave composta (numeroLote + sequencialTransacao) para identificar faturamentos únicos
+// Interface para conta agrupada (Master)
+// Usa chave composta (guiaNumero + numeroLote + sequencialTransacao) para identificar faturamentos únicos
 interface ContaAgrupada {
+  chave: string; // Chave composta para identificação única
   guiaNumero: string;
-  numeroLote: string; // Número do lote TISS
-  sequencialTransacao: string; // Sequencial da transação
+  numeroLote: string;
+  sequencialTransacao: string;
   senha: string;
   carteirinha: string;
   dataConta: Date | null;
@@ -43,7 +51,7 @@ interface ContaAgrupada {
   convenioNome: string;
   arquivoNome: string;
   arquivoId: number;
-  itens: any[];
+  itens: any[]; // Lista de procedimentos (Detail)
   quantidadeItens: number;
 }
 
@@ -58,6 +66,7 @@ export default function ContasDemonstrativo() {
   const [prestadorExecutante, setPrestadorExecutante] = useState<string>("");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const pageSize = 50;
 
   // Buscar convênios
@@ -83,8 +92,6 @@ export default function ContasDemonstrativo() {
 
   // Determinar o código do prestador a ser usado no filtro
   // IMPORTANTE: Usar apenas o prestador selecionado manualmente pelo usuário
-  // O prestador vinculado ao estabelecimento NÃO deve ser usado automaticamente
-  // pois muitos procedimentos podem ter codigoPrestadorExecutante = NULL
   const codigoPrestadorFiltro = prestadorExecutante || undefined;
 
   // Buscar arquivos do convênio selecionado
@@ -105,37 +112,67 @@ export default function ContasDemonstrativo() {
       codigoPrestadorExecutante: codigoPrestadorFiltro,
       direcaoArquivo: "retornado" as const, // Apenas arquivos retornados pelas operadoras
       page: 1,
-      pageSize: 10000, // Buscar todos para agrupar
+      pageSize: 10000,
     },
     { enabled: !!estabelecimentoAtual }
   );
 
   const procedimentos = procedimentosData?.items || [];
 
-  // Cada procedimento é tratado como uma linha individual
-  // Usa o ID do procedimento como chave única para evitar somas indevidas em casos de Alta Administrativa
+  // Agrupar procedimentos por chave composta: guiaNumero + numeroLote + sequencialTransacao
+  // Cada grupo representa uma transação única de faturamento (separa Altas Administrativas)
   const contasAgrupadas = useMemo(() => {
     const grupos: Record<string, ContaAgrupada> = {};
     
     procedimentos.forEach((p: any) => {
-      // Usar ID do procedimento como chave única - cada registro é uma linha individual
-      const chave = p.id.toString();
+      // Chave composta: guiaNumero + numeroLote + sequencialTransacao
+      const guiaNumero = p.guiaNumero || 'sem_guia';
+      const numeroLote = p.numeroLote || 'sem_lote';
+      const sequencialTransacao = p.sequencialTransacao || 'sem_seq';
+      const chave = `${guiaNumero}_${numeroLote}_${sequencialTransacao}`;
       
-      grupos[chave] = {
-        guiaNumero: p.guiaNumero || "-",
-        numeroLote: p.numeroLote || "-",
-        sequencialTransacao: p.sequencialTransacao || "-",
-        senha: p.senha || p.dadosExtras?.senha || "-",
-        carteirinha: p.pacienteCarteirinha || "-",
-        dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
-        valorTotal: parseFloat(p.valorTotal || "0"),
-        pacienteNome: p.pacienteNome || "-",
-        convenioNome: p.convenioNome || "-",
-        arquivoNome: p.arquivoNome || "-",
-        arquivoId: p.arquivoId,
-        itens: [p],
-        quantidadeItens: 1,
-      };
+      if (!grupos[chave]) {
+        grupos[chave] = {
+          chave,
+          guiaNumero: p.guiaNumero || "-",
+          numeroLote: p.numeroLote || "-",
+          sequencialTransacao: p.sequencialTransacao || "-",
+          senha: p.senha || p.dadosExtras?.senha || "-",
+          carteirinha: p.pacienteCarteirinha || "-",
+          dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
+          valorTotal: 0,
+          pacienteNome: p.pacienteNome || "-",
+          convenioNome: p.convenioNome || "-",
+          arquivoNome: p.arquivoNome || "-",
+          arquivoId: p.arquivoId,
+          itens: [],
+          quantidadeItens: 0,
+        };
+      }
+      
+      // Acumular valores e itens APENAS dentro da mesma transação
+      grupos[chave].valorTotal += parseFloat(p.valorTotal || "0");
+      grupos[chave].itens.push(p);
+      grupos[chave].quantidadeItens++;
+      
+      // Usar a data mais antiga como data da conta
+      if (p.dataExecucao) {
+        const dataItem = new Date(p.dataExecucao);
+        if (!grupos[chave].dataConta || dataItem < grupos[chave].dataConta) {
+          grupos[chave].dataConta = dataItem;
+        }
+      }
+      
+      // Preencher dados que podem estar vazios
+      if (p.pacienteNome && grupos[chave].pacienteNome === "-") {
+        grupos[chave].pacienteNome = p.pacienteNome;
+      }
+      if (p.pacienteCarteirinha && grupos[chave].carteirinha === "-") {
+        grupos[chave].carteirinha = p.pacienteCarteirinha;
+      }
+      if ((p.senha || p.dadosExtras?.senha) && grupos[chave].senha === "-") {
+        grupos[chave].senha = p.senha || p.dadosExtras?.senha;
+      }
     });
     
     // Converter para array e ordenar por data (mais recente primeiro)
@@ -153,6 +190,20 @@ export default function ContasDemonstrativo() {
 
   // Totais
   const valorTotalGeral = contasAgrupadas.reduce((acc, c) => acc + c.valorTotal, 0);
+  const totalItens = contasAgrupadas.reduce((acc, c) => acc + c.quantidadeItens, 0);
+
+  // Toggle expansão de linha
+  const toggleExpand = (chave: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(chave)) {
+        newSet.delete(chave);
+      } else {
+        newSet.add(chave);
+      }
+      return newSet;
+    });
+  };
 
   const handleExportCSV = () => {
     if (!contasAgrupadas.length) return;
@@ -180,7 +231,7 @@ export default function ContasDemonstrativo() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `contas_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `contas_demonstrativo_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -206,21 +257,21 @@ export default function ContasDemonstrativo() {
     const ws = XLSX.utils.json_to_sheet(excelData);
 
     ws["!cols"] = [
-      { wch: 15 },  // Guia
-      { wch: 15 },  // Nº Lote
-      { wch: 15 },  // Seq. Transação
-      { wch: 15 },  // Senha
-      { wch: 20 },  // Carteirinha
-      { wch: 35 },  // Paciente
-      { wch: 15 },  // Data Conta
-      { wch: 15 },  // Valor Total
-      { wch: 10 },  // Qtd Itens
-      { wch: 25 },  // Convênio
-      { wch: 40 },  // Arquivo
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 35 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 10 },
+      { wch: 25 },
+      { wch: 40 },
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Contas");
-    XLSX.writeFile(wb, `contas_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `contas_demonstrativo_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const formatDate = (date: Date | null) => {
@@ -281,16 +332,15 @@ export default function ContasDemonstrativo() {
               <Filter className="h-5 w-5" />
               Filtros
             </CardTitle>
-            <CardDescription>Filtre as contas por convênio, arquivo, prestador executante ou busca</CardDescription>
+            <CardDescription>
+              Filtre as contas por convênio, arquivo, prestador executante ou busca
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Mês Referência</label>
-                <Select value={mesReferencia} onValueChange={(value) => {
-                  setMesReferencia(value === "all" ? "" : value);
-                  setPage(1);
-                }}>
+                <Select value={mesReferencia} onValueChange={(v) => { setMesReferencia(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os meses" />
                   </SelectTrigger>
@@ -314,10 +364,7 @@ export default function ContasDemonstrativo() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Ano Referência</label>
-                <Select value={anoReferencia} onValueChange={(value) => {
-                  setAnoReferencia(value === "all" ? "" : value);
-                  setPage(1);
-                }}>
+                <Select value={anoReferencia} onValueChange={(v) => { setAnoReferencia(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os anos" />
                   </SelectTrigger>
@@ -333,18 +380,14 @@ export default function ContasDemonstrativo() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId} onValueChange={(value) => {
-                  setConvenioId(value === "all" ? "" : value);
-                  setArquivoId("");
-                  setPage(1);
-                }}>
+                <Select value={convenioId} onValueChange={(v) => { setConvenioId(v); setArquivoId(""); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os convênios</SelectItem>
                     {convenios?.map((c: any) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
+                      <SelectItem key={c.id} value={c.id.toString()}>
                         {c.nome}
                       </SelectItem>
                     ))}
@@ -354,17 +397,14 @@ export default function ContasDemonstrativo() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Arquivo</label>
-                <Select value={arquivoId} onValueChange={(value) => {
-                  setArquivoId(value === "all" ? "" : value);
-                  setPage(1);
-                }}>
+                <Select value={arquivoId} onValueChange={(v) => { setArquivoId(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os arquivos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os arquivos</SelectItem>
-                    {arquivos?.map((a: any) => (
-                      <SelectItem key={a.id} value={String(a.id)}>
+                    {arquivos?.filter((a: any) => a.direcao === "retornado").map((a: any) => (
+                      <SelectItem key={a.id} value={a.id.toString()}>
                         {a.nome}
                       </SelectItem>
                     ))}
@@ -374,18 +414,15 @@ export default function ContasDemonstrativo() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Prestador Executante</label>
-                <Select value={prestadorExecutante} onValueChange={(value) => {
-                  setPrestadorExecutante(value === "all" ? "" : value);
-                  setPage(1);
-                }}>
+                <Select value={prestadorExecutante} onValueChange={(v) => { setPrestadorExecutante(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os prestadores" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os prestadores</SelectItem>
-                    {prestadoresExecutantes?.map((p) => (
+                    {prestadoresExecutantes?.map((p: any) => (
                       <SelectItem key={p.codigo} value={p.codigo}>
-                        {p.codigo} ({p.quantidade} itens)
+                        {p.codigo}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -441,7 +478,7 @@ export default function ContasDemonstrativo() {
               <div className="flex items-center gap-2">
                 <Hash className="h-4 w-4 text-muted-foreground" />
                 <div className="text-2xl font-bold">
-                  {procedimentos.length}
+                  {totalItens}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">Total de Itens</p>
@@ -471,7 +508,7 @@ export default function ContasDemonstrativo() {
           </Card>
         </div>
 
-        {/* Tabela de Contas */}
+        {/* Tabela de Contas com Master-Detail */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -479,7 +516,7 @@ export default function ContasDemonstrativo() {
               Lista de Contas
             </CardTitle>
             <CardDescription>
-              Clique em uma conta para ver os detalhes dos itens
+              Clique na seta para expandir e ver os itens de cada transação
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -497,6 +534,7 @@ export default function ContasDemonstrativo() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Guia</TableHead>
                         <TableHead>Lote</TableHead>
                         <TableHead>Seq.</TableHead>
@@ -510,56 +548,140 @@ export default function ContasDemonstrativo() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contasPaginadas.map((conta, index) => (
-                        <TableRow 
-                          key={`${conta.numeroLote}-${conta.sequencialTransacao}-${index}`}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleVerDetalhes(conta)}
-                        >
-                          <TableCell className="font-mono font-medium">
-                            {conta.guiaNumero}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground">
-                            {conta.numeroLote !== "-" ? conta.numeroLote : "-"}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground">
-                            {conta.sequencialTransacao !== "-" ? conta.sequencialTransacao : "-"}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {conta.senha}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {conta.carteirinha}
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={conta.pacienteNome}>
-                            {conta.pacienteNome}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {formatDate(conta.dataConta)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-green-600">
-                            {formatCurrency(conta.valorTotal)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="secondary">
-                              {conta.quantidadeItens}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerDetalhes(conta);
-                              }}
+                      {contasPaginadas.map((conta, index) => {
+                        const isExpanded = expandedRows.has(conta.chave);
+                        return (
+                          <>
+                            {/* Linha Master */}
+                            <TableRow 
+                              key={conta.chave}
+                              className="cursor-pointer hover:bg-muted/50"
                             >
-                              <Eye className="h-4 w-4 mr-1" />
-                              Ver
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => toggleExpand(conta.chave)}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TableCell>
+                              <TableCell className="font-mono font-medium">
+                                {conta.guiaNumero}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {conta.numeroLote !== "-" ? conta.numeroLote : "-"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {conta.sequencialTransacao !== "-" ? conta.sequencialTransacao : "-"}
+                              </TableCell>
+                              <TableCell className="font-mono">
+                                {conta.senha}
+                              </TableCell>
+                              <TableCell className="font-mono">
+                                {conta.carteirinha}
+                              </TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={conta.pacienteNome}>
+                                {conta.pacienteNome}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {formatDate(conta.dataConta)}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-green-600">
+                                {formatCurrency(conta.valorTotal)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="secondary">
+                                  {conta.quantidadeItens}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVerDetalhes(conta);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Ver
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Linha Detail (Expandida) */}
+                            {isExpanded && (
+                              <TableRow key={`${conta.chave}-detail`}>
+                                <TableCell colSpan={11} className="bg-muted/30 p-0">
+                                  <div className="p-4">
+                                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
+                                      Itens da Transação ({conta.quantidadeItens} itens)
+                                    </h4>
+                                    <div className="rounded-md border bg-background">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead>Código</TableHead>
+                                            <TableHead>Descrição</TableHead>
+                                            <TableHead>Tipo</TableHead>
+                                            <TableHead className="text-center">Qtd</TableHead>
+                                            <TableHead className="text-right">Valor Unit.</TableHead>
+                                            <TableHead className="text-right">Valor Total</TableHead>
+                                            <TableHead>Data Exec.</TableHead>
+                                            <TableHead>Médico</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {conta.itens.map((item: any, itemIndex: number) => {
+                                            const tipoDespesa = getTipoDespesa(item.codigoDespesa);
+                                            return (
+                                              <TableRow key={item.id || itemIndex}>
+                                                <TableCell className="font-mono text-xs">
+                                                  {item.codigo}
+                                                </TableCell>
+                                                <TableCell className="max-w-[250px] truncate" title={item.descricao}>
+                                                  {item.descricao || "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Badge className={`${tipoDespesa.color} text-xs`}>
+                                                    {tipoDespesa.label}
+                                                  </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                  {item.quantidade || 1}
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-xs">
+                                                  {formatCurrency(parseFloat(item.valorUnitario || "0"))}
+                                                </TableCell>
+                                                <TableCell className="text-right font-medium text-green-600">
+                                                  {formatCurrency(parseFloat(item.valorTotal || "0"))}
+                                                </TableCell>
+                                                <TableCell className="whitespace-nowrap text-xs">
+                                                  {item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-"}
+                                                </TableCell>
+                                                <TableCell className="text-xs">
+                                                  {item.nomeMedico || "-"}
+                                                  {item.crmMedico && <span className="text-muted-foreground ml-1">({item.crmMedico})</span>}
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
