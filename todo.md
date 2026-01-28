@@ -1044,3 +1044,7 @@
 - [x] Corrigir lógica de agrupamento Master-Detail: agrupar por guiaNumero + numeroLote + sequencialTransacao (mesmo quando 'null')
 
 - [x] Corrigir parser XML para capturar corretamente sequencialTransacao da tag TISS (evitar string 'null' no banco)
+
+- [x] Corrigir parser XML para capturar numeroLote e sequencialTransacao (não gravar string 'null')
+- [x] Ajustar chave de agrupamento no frontend para usar ID quando lote for 'null'
+- [x] Garantir exibição do lote na coluna da tabela

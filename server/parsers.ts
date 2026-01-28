@@ -115,10 +115,12 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
     const procedimentos: ParsedProcedimento[] = [];
     
     // Extrair número do lote do cabeçalho TISS
-    const numeroLote = extractNumeroLote(result);
-    if (numeroLote) {
-      console.log('[Parser] Número do lote TISS:', numeroLote);
+    let numeroLote = extractNumeroLote(result);
+    // Garantir que não seja string 'null' ou vazio
+    if (numeroLote === 'null' || numeroLote === 'undefined' || (numeroLote && numeroLote.trim() === '')) {
+      numeroLote = undefined;
     }
+    console.log('[Parser] Número do lote TISS extraido:', numeroLote || 'NÃO ENCONTRADO');
     
     // Check if this is a GEAP Portal format (GuiaPortalXml)
     const guiasGEAP = findGuiasGEAP(result);
@@ -507,6 +509,13 @@ function findGuiasComSequencial(obj: unknown): Array<{ guia: unknown; sequencial
               }
             }
           }
+          
+          // Garantir que não seja string 'null' ou vazio
+          if (sequencialTransacao === 'null' || sequencialTransacao === 'undefined' || (sequencialTransacao && sequencialTransacao.trim() === '')) {
+            sequencialTransacao = undefined;
+          }
+          
+          console.log('[Parser] GuiasTISS - Sequencial extraido:', sequencialTransacao || 'NÃO ENCONTRADO');
           
           // Find the actual guia inside guiasTISS (guiaSP-SADT, guiaConsulta, guiaResumoInternacao, etc.)
           for (const [guiaKey, guiaValue] of Object.entries(guiasTISSRecord)) {
