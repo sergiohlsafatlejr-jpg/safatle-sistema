@@ -377,6 +377,52 @@ export default function ConciliacaoContasPagas() {
     XLSX.writeFile(wb, `conciliacao_contas_pagas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // Exportar itens de uma conta específica para Excel
+  const exportarItensConta = () => {
+    if (!itensConta || !itensConta.itens.length) return;
+
+    // Dados do cabeçalho da conta
+    const dadosConta = [{
+      'Conta': contaSelecionada || '-',
+      'Convênio': itensConta.convenio || '-',
+      'Competência': formatarCompetencia(itensConta.competencia),
+      'Atendimento': itensConta.atendimento || '-',
+      'Protocolo': itensConta.protocolo || '-',
+      'Setor': itensConta.setor || '-',
+      'Profissional': itensConta.profExec || '-',
+      'Total Faturado': itensConta.valorFaturadoTotal,
+      'Total Pago': itensConta.valorPagoTotal,
+      'Total Glosado': itensConta.valorGlosadoTotal,
+    }];
+
+    // Dados dos itens
+    const dadosItens = itensConta.itens.map((item: any) => ({
+      'Tipo': item.tipoItem || '-',
+      'Código': item.cdItem || '-',
+      'Código TUSS': item.cdItemTuss || '-',
+      'Descrição': item.descricao || '-',
+      'Quantidade': item.qtd || 0,
+      'Valor Faturado': item.vlFaturado || 0,
+      'Valor Pago': item.vlPago || 0,
+      'Valor Glosa': item.vlGlosa || 0,
+      'Motivo Glosa': item.motivoGlosa || '-',
+      'Data Item': item.dtItem || '-',
+      'Retorno': item.retorno || '-',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    
+    // Aba de resumo da conta
+    const wsResumo = XLSX.utils.json_to_sheet(dadosConta);
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Conta');
+
+    // Aba de itens
+    const wsItens = XLSX.utils.json_to_sheet(dadosItens);
+    XLSX.utils.book_append_sheet(wb, wsItens, 'Itens');
+
+    XLSX.writeFile(wb, `itens_conta_${contaSelecionada}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   // Limpar todos os filtros
   const limparFiltros = () => {
     setAnoFiltro("todos");
@@ -886,10 +932,21 @@ export default function ConciliacaoContasPagas() {
 
                 {/* Tabela de Itens */}
                 <div>
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <Package className="w-4 h-4" />
-                    Itens da Conta ({itensConta.itens.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Package className="w-4 h-4" />
+                      Itens da Conta ({itensConta.itens.length})
+                    </h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => exportarItensConta()}
+                      disabled={!itensConta.itens.length}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Exportar Itens
+                    </Button>
+                  </div>
                   <div className="overflow-x-auto max-h-[300px]">
                     <Table>
                       <TableHeader>
