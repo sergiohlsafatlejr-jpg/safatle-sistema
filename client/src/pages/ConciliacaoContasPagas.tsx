@@ -72,12 +72,13 @@ export default function ConciliacaoContasPagas() {
       if (match) {
         const ano = match[1];
         const mes = match[2];
+        const total = typeof c.total === 'number' ? c.total : parseInt(c.total) || 0;
         anosSet.add(ano);
         
         if (!mesesPorAnoMap[ano]) {
           mesesPorAnoMap[ano] = new Map();
         }
-        mesesPorAnoMap[ano].set(mes, (mesesPorAnoMap[ano].get(mes) || 0) + c.total);
+        mesesPorAnoMap[ano].set(mes, (mesesPorAnoMap[ano].get(mes) || 0) + total);
       }
     });
     
@@ -86,7 +87,7 @@ export default function ConciliacaoContasPagas() {
     const mesesPorAnoResult: Record<string, { mes: string; total: number }[]> = {};
     for (const [ano, mesesMap] of Object.entries(mesesPorAnoMap)) {
       mesesPorAnoResult[ano] = Array.from(mesesMap.entries())
-        .map(([mes, total]) => ({ mes, total }))
+        .map(([mes, total]) => ({ mes, total: total || 0 }))
         .sort((a, b) => b.mes.localeCompare(a.mes)); // Mais recente primeiro
     }
     
@@ -100,17 +101,16 @@ export default function ConciliacaoContasPagas() {
   }, [anoFiltro, mesesPorAno]);
 
   // Construir competência para filtro baseado em ano e mês selecionados
+  // O backend usa LIKE com o formato AAAA-MM para filtrar
   const competenciaFiltro = useMemo(() => {
     if (!anoFiltro || anoFiltro === "todos") return undefined;
     if (!mesFiltro || mesFiltro === "todos") {
-      // Filtrar por ano apenas - retorna a primeira competência do ano
-      return competenciasDisponiveis
-        ?.filter((c: any) => c.competencia?.startsWith(anoFiltro))
-        .map((c: any) => c.competencia)[0];
+      // Filtrar por ano apenas - usar formato AAAA
+      return anoFiltro;
     }
-    // Filtrar por ano e mês
-    return `${anoFiltro}-${mesFiltro}-01 00:00:00`;
-  }, [anoFiltro, mesFiltro, competenciasDisponiveis]);
+    // Filtrar por ano e mês - usar formato AAAA-MM
+    return `${anoFiltro}-${mesFiltro}`;
+  }, [anoFiltro, mesFiltro]);
 
   // Query de conciliação usando endpoint do faturadoTasy
   const { data: conciliacao, isLoading, refetch } = trpc.faturadoTasy.conciliacao.useQuery(
