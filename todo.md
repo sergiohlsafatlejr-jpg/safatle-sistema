@@ -1069,3 +1069,4 @@
 - [x] Alterar tela Conciliação Contas Pagas para usar dados da tabela FaturadoTasy com filtro por competência, mantendo o layout atual
 - [x] Corrigir filtro de competência na tela Conciliação Contas Pagas - agrupar competências duplicadas e usar filtros separados por Ano e Mês
 - [x] Bug: Filtros de Ano e Mês na tela Conciliação Contas Pagas mostrando NaN itens e não trazendo dados
+- [x] Adicionar opção de selecionar todas as contas e exportar tudo para Excel na tela de Repasse (não apenas a página atual)

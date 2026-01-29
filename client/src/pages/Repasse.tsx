@@ -72,6 +72,20 @@ export default function Repasse() {
     return d.toLocaleDateString("pt-BR");
   };
 
+  const [isExportingAll, setIsExportingAll] = useState(false);
+
+  // Mutation para exportar todos os dados
+  const exportAllMutation = trpc.repasse.exportAll.useQuery(
+    {
+      convenioId: convenioId ? parseInt(convenioId) : undefined,
+      estabelecimentoId: estabelecimentoAtual?.id,
+      dataInicio: dataInicio || undefined,
+      dataFim: dataFim || undefined,
+      search: buscaDebounced || undefined,
+    },
+    { enabled: false } // Não executar automaticamente
+  );
+
   const handleExportExcel = () => {
     if (!repasseData?.items || repasseData.items.length === 0) {
       toast.error("Nenhum dado para exportar");
@@ -100,8 +114,57 @@ export default function Repasse() {
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Repasse");
     
-    XLSX.writeFile(wb, `repasse_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `repasse_pagina_${page}_${new Date().toISOString().split("T")[0]}.xlsx`);
     toast.success("Arquivo exportado com sucesso!");
+  };
+
+  const handleExportAllExcel = async () => {
+    if (!repasseData?.total || repasseData.total === 0) {
+      toast.error("Nenhum dado para exportar");
+      return;
+    }
+
+    setIsExportingAll(true);
+    toast.info(`Buscando ${repasseData.total} registros para exportação...`);
+
+    try {
+      const result = await exportAllMutation.refetch();
+      
+      if (!result.data?.items || result.data.items.length === 0) {
+        toast.error("Nenhum dado retornado para exportação");
+        return;
+      }
+
+      const excelData = (result.data.items as any[]).map((item: any) => ({
+        "Guia": item.guiaNumero || "",
+        "Data Procedimento": formatDate(item.dataExecucao),
+        "Código": item.codigo,
+        "Descrição": item.descricao || "",
+        "Paciente": item.pacienteNome || "",
+        "Médico": item.nomeMedico || "",
+        "CRM": item.crmMedico || "",
+        "Convênio": item.convenioNome || "",
+        "Valor Faturado": parseFloat(item.valorFaturado || "0"),
+        "Valor Pago": parseFloat(item.valorPago || "0"),
+        "Valor Glosado": parseFloat(item.valorGlosado || "0"),
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      ws["!cols"] = [
+        { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 30 },
+        { wch: 30 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, "Repasse");
+      
+      XLSX.writeFile(wb, `repasse_completo_${new Date().toISOString().split("T")[0]}.xlsx`);
+      toast.success(`${result.data.items.length} registros exportados com sucesso!`);
+    } catch (error) {
+      console.error("Erro ao exportar:", error);
+      toast.error("Erro ao exportar dados");
+    } finally {
+      setIsExportingAll(false);
+    }
   };
 
   const resumo = repasseData?.resumo;
@@ -177,9 +240,21 @@ export default function Repasse() {
             </div>
 
             <div className="flex gap-2 mt-4">
-              <Button onClick={handleExportExcel} disabled={!repasseData?.items?.length}>
+              <Button onClick={handleExportExcel} disabled={!repasseData?.items?.length} variant="outline">
                 <Download className="h-4 w-4 mr-2" />
-                Exportar Excel
+                Exportar Página Atual
+              </Button>
+              <Button 
+                onClick={handleExportAllExcel} 
+                disabled={!repasseData?.total || isExportingAll}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isExportingAll ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Exportar Todos ({repasseData?.total || 0} itens)
               </Button>
             </div>
           </CardContent>
