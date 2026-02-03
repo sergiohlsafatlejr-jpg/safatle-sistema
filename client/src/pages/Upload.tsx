@@ -473,12 +473,23 @@ export default function Upload() {
 
               {/* Upload Progress */}
               {isUploading && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Enviando arquivos...</span>
-                    <span>{uploadProgress}%</span>
+                <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <span className="font-medium text-blue-900">Enviando arquivos...</span>
                   </div>
-                  <Progress value={uploadProgress} className="h-2" />
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm text-blue-700">
+                      <span>
+                        Arquivo {Math.min(Math.ceil((uploadProgress / 100) * selectedFiles.filter(f => f.status === "pending" || f.status === "error").length) || 1, selectedFiles.filter(f => f.status === "pending" || f.status === "error").length)} de {selectedFiles.filter(f => f.status === "pending" || f.status === "error").length}
+                      </span>
+                      <span className="font-medium">{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    O processamento dos itens continua em segundo plano após o upload. Você pode acompanhar o progresso na tela de Arquivos.
+                  </p>
                 </div>
               )}
 

@@ -162,18 +162,33 @@ export default function Arquivos() {
     const { status, progresso, itensProcessados, totalItens } = arquivo;
     switch (status) {
       case "processado":
-        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Processado</Badge>;
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Processado</Badge>
+            {totalItens > 0 && (
+              <span className="text-xs text-slate-500">
+                {totalItens.toLocaleString('pt-BR')} itens importados
+              </span>
+            )}
+          </div>
+        );
       case "erro":
         return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Erro</Badge>;
       case "processando":
         return (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-[140px]">
             <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 animate-pulse">
               Processando {progresso || 0}%
             </Badge>
+            <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div 
+                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                style={{ width: `${progresso || 0}%` }}
+              />
+            </div>
             {totalItens > 0 && (
               <span className="text-xs text-slate-500">
-                {itensProcessados || 0}/{totalItens} itens
+                {(itensProcessados || 0).toLocaleString('pt-BR')} de {totalItens.toLocaleString('pt-BR')} itens
               </span>
             )}
           </div>
