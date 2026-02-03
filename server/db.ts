@@ -2837,44 +2837,37 @@ export interface ContaConciliacao {
 }
 
 // Função auxiliar para gerar chave composta de agrupamento
-// Agrupa por: guiaNumero + numeroLote (para separar Altas Administrativas)
-// Os itens detalhados (com Protocolo TISS, Data, Código) são mostrados no drill-down
+// Lógica:
+// 1. XML: agrupa por guiaNumero + numeroLote (para separar Altas Administrativas)
+// 2. Demonstrativo (sem lote): agrupa por guiaNumero + protocoloTISS
+// Cada lote do XML e cada Protocolo TISS do Demonstrativo gera uma conta separada
 function gerarChaveAgrupamento(item: ItemConciliacao): string {
   // Validação dos campos
-  const protocoloValido = item.protocoloTISS && 
-    String(item.protocoloTISS).trim() !== '' && 
-    item.protocoloTISS !== 'null' &&
-    item.protocoloTISS !== '-';
-  
   const loteValido = item.numeroLote && 
     item.numeroLote !== 'null' && 
     item.numeroLote !== 'undefined' && 
     item.numeroLote !== '-' &&
     String(item.numeroLote).trim() !== '';
   
-  const seqValido = item.sequencialTransacao && 
-    item.sequencialTransacao !== 'null' && 
-    item.sequencialTransacao !== 'undefined' && 
-    item.sequencialTransacao !== '-' &&
-    String(item.sequencialTransacao).trim() !== '';
+  const protocoloValido = item.protocoloTISS && 
+    String(item.protocoloTISS).trim() !== '' && 
+    item.protocoloTISS !== 'null' &&
+    item.protocoloTISS !== '-';
   
   const guia = item.guiaNumero || 'sem_guia';
   // Normalizar nome do paciente para evitar duplicações por diferenças de case/espaços
   const paciente = (item.pacienteNome || '').trim().toLowerCase().replace(/\s+/g, '_');
   
   // Lógica de agrupamento para tela principal:
-  // Agrupa por guia + lote para separar Altas Administrativas
-  // Os itens individuais são agrupados dentro de cada conta
+  // 1. Se tiver lote válido (XML): agrupa por guia + lote
+  // 2. Se tiver protocolo válido (Demonstrativo): agrupa por guia + protocolo
+  // Isso garante que cada Alta Administrativa (lote) e cada Demonstrativo (protocolo) seja uma conta separada
   
-  // Se tiver lote e sequencial válidos (XML com sequencial - Alta Administrativa)
-  if (loteValido && seqValido) {
-    return `${guia}_${item.numeroLote}_${item.sequencialTransacao}`;
+  // Se tiver lote válido (XML)
+  if (loteValido) {
+    return `${guia}_lote_${item.numeroLote}`;
   }
-  // Se tiver apenas lote válido (agrupa por guia + lote)
-  else if (loteValido) {
-    return `${guia}_${item.numeroLote}`;
-  }
-  // Se tiver protocolo válido (Excel Unimed - agrupa por guia + protocolo)
+  // Se tiver protocolo válido (Demonstrativo)
   else if (protocoloValido) {
     return `${guia}_protocolo_${item.protocoloTISS}`;
   }
