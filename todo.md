@@ -1085,3 +1085,5 @@
 - [x] Corrigir importação do arquivo demonstrativo-0284932.xlsx - itens glosados não aparecem na tela de Demonstrativo (1206 itens glosados importados corretamente)
 
 - [x] Corrigir parser automático de Excel (parsers.ts) para mapear corretamente o campo "Situação Item" e importar glosas automaticamente
+
+- [x] Criar relatório Excel que exporte itens das guias agrupados por conta e convênio (botão "Excel Itens" na tela Conta Convênio)
