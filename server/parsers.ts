@@ -1073,12 +1073,19 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
   
   // Calcular valorGlosado: se existe coluna específica, usar; senão, se situação é GLOSADO, usar valorTotal
   let valorGlosado = parseNumber(findValue(columnMappings.valorGlosado));
-  const valorTotal = parseNumber(findValue(columnMappings.valorTotal));
+  let valorTotal = parseNumber(findValue(columnMappings.valorTotal));
   
-  // Se situação é GLOSADO e não tem valorGlosado específico, usar valorTotal como valorGlosado
+  // Verificar situação do item para determinar se é pago ou glosado
   const situacaoUpper = situacaoItem?.toUpperCase() || '';
-  if (!valorGlosado && situacaoUpper.includes('GLOS') && valorTotal) {
+  const isGlosado = situacaoUpper.includes('GLOS');
+  
+  // CORREÇÃO IMPORTANTE: Para arquivos da Unimed e similares, quando Situação Item = GLOSADO:
+  // - O "Valor Pagamento" (valorTotal) na verdade representa o valor glosado
+  // - O item não foi pago, então valorTotal deve ser 0
+  if (isGlosado && valorTotal && !valorGlosado) {
+    // Transferir o valor de valorTotal para valorGlosado
     valorGlosado = valorTotal;
+    valorTotal = 0;
   }
   
   // Extrair tipo de lançamento e converter para tipoDespesa
