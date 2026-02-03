@@ -273,7 +273,8 @@ export default function ContasDemonstrativo() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportExcel = () => {
+  // Exportar Excel com resumo das contas (uma linha por conta)
+  const handleExportExcelResumo = () => {
     if (!contasAgrupadas.length) return;
 
     const excelData = contasAgrupadas.map((c) => ({
@@ -308,7 +309,79 @@ export default function ContasDemonstrativo() {
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Contas");
-    XLSX.writeFile(wb, `contas_demonstrativo_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `contas_demonstrativo_resumo_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  // Exportar Excel com itens detalhados (todos os itens de todas as contas)
+  const handleExportExcelItens = () => {
+    if (!contasAgrupadas.length) return;
+
+    // Aba 1: Resumo das Contas
+    const resumoData = contasAgrupadas.map((c) => ({
+      "Guia": c.guiaNumero,
+      "Nº Lote": c.numeroLote,
+      "Seq. Transação": c.sequencialTransacao,
+      "Senha": c.senha,
+      "Carteirinha": c.carteirinha,
+      "Paciente": c.pacienteNome,
+      "Data Conta": c.dataConta ? c.dataConta.toLocaleDateString("pt-BR") : "-",
+      "Valor Total": c.valorTotal,
+      "Qtd Itens": c.quantidadeItens,
+      "Convênio": c.convenioNome,
+      "Arquivo": c.arquivoNome,
+    }));
+
+    // Aba 2: Itens Detalhados
+    const itensData: any[] = [];
+    contasAgrupadas.forEach((conta) => {
+      conta.itens.forEach((item: any) => {
+        const tipoDespesa = getTipoDespesa(item.codigoDespesa || item.tipoDespesa);
+        itensData.push({
+          "Guia": conta.guiaNumero,
+          "Nº Lote": conta.numeroLote,
+          "Seq. Transação": conta.sequencialTransacao,
+          "Senha": conta.senha,
+          "Carteirinha": conta.carteirinha,
+          "Paciente": conta.pacienteNome,
+          "Convênio": conta.convenioNome,
+          "Data Execução": item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-",
+          "Código": item.codigo || item.codigoProcedimento || "-",
+          "Descrição": item.descricao || item.descricaoProcedimento || "-",
+          "Tipo": tipoDespesa.label,
+          "Quantidade": item.quantidade || 1,
+          "Valor Unitário": parseFloat(item.valorUnitario || "0"),
+          "Valor Total": parseFloat(item.valorTotal || "0"),
+          "Valor Glosado": parseFloat(item.valorGlosado || "0"),
+          "Motivo Glosa": item.motivoGlosa || item.dadosExtras?.erroTISS || item.dadosExtras?.['Erro TISS'] || "-",
+          "Situação": item.situacao || (parseFloat(item.valorGlosado || "0") > 0 ? "GLOSADO" : "PAGO"),
+          "Médico": item.medicoNome || "-",
+          "CRM": item.medicoCRM || "-",
+          "Arquivo": conta.arquivoNome,
+        });
+      });
+    });
+
+    const wb = XLSX.utils.book_new();
+    
+    // Aba Resumo
+    const wsResumo = XLSX.utils.json_to_sheet(resumoData);
+    wsResumo["!cols"] = [
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
+      { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 40 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo Contas");
+
+    // Aba Itens Detalhados
+    const wsItens = XLSX.utils.json_to_sheet(itensData);
+    wsItens["!cols"] = [
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
+      { wch: 35 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 40 },
+      { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 30 }, { wch: 12 }, { wch: 30 }, { wch: 15 }, { wch: 40 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsItens, "Itens Detalhados");
+
+    XLSX.writeFile(wb, `relatorio_itens_demonstrativo_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const formatDate = (date: Date | null) => {
@@ -355,9 +428,13 @@ export default function ContasDemonstrativo() {
               <Download className="h-4 w-4 mr-2" />
               CSV
             </Button>
-            <Button onClick={handleExportExcel} disabled={!contasAgrupadas.length}>
+            <Button variant="outline" onClick={handleExportExcelResumo} disabled={!contasAgrupadas.length}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exportar Excel
+              Excel Resumo
+            </Button>
+            <Button onClick={handleExportExcelItens} disabled={!contasAgrupadas.length}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel Itens
             </Button>
           </div>
         </div>
