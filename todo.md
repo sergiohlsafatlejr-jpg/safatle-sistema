@@ -1075,3 +1075,4 @@
 - [x] Bug: Perda de filtros ao voltar da tela Detalhes da Conta para Conta-Convênio
 - [x] Bug: Tela Conciliação Automática duplicando atendimentos - precisa usar chave composta (guiaNumero + lote + sequencial + paciente) para agrupar
 - [x] Modificar lógica de conciliação para usar chave composta: guiaNumero + numeroLote + Protocolo TISS + Data Execução + Item do demonstrativo
+- [x] Bug: Tela Conciliação mostrando todos os itens individuais ao invés de agrupar por guia+lote - corrigir para agrupar primeiro por guia+lote

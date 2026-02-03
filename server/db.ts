@@ -2837,8 +2837,8 @@ export interface ContaConciliacao {
 }
 
 // Função auxiliar para gerar chave composta de agrupamento
-// Chave composta: guiaNumero + numeroLote + Protocolo TISS + Data Execução + Código do Item
-// Isso permite conciliação precisa entre XML e demonstrativo da Unimed
+// Agrupa por: guiaNumero + numeroLote (para separar Altas Administrativas)
+// Os itens detalhados (com Protocolo TISS, Data, Código) são mostrados no drill-down
 function gerarChaveAgrupamento(item: ItemConciliacao): string {
   // Validação dos campos
   const protocoloValido = item.protocoloTISS && 
@@ -2858,51 +2858,25 @@ function gerarChaveAgrupamento(item: ItemConciliacao): string {
     item.sequencialTransacao !== '-' &&
     String(item.sequencialTransacao).trim() !== '';
   
-  const dataValida = item.dataExecucao && 
-    item.dataExecucao !== 'null' && 
-    item.dataExecucao !== 'undefined' &&
-    String(item.dataExecucao).trim() !== '';
-  
-  const codigoValido = item.codigo && 
-    item.codigo !== 'null' && 
-    item.codigo !== 'undefined' &&
-    String(item.codigo).trim() !== '';
-  
   const guia = item.guiaNumero || 'sem_guia';
-  const lote = loteValido ? item.numeroLote : 'sem_lote';
-  const protocolo = protocoloValido ? item.protocoloTISS : 'sem_protocolo';
-  const data = dataValida ? item.dataExecucao.replace(/\//g, '-') : 'sem_data';
-  const codigo = codigoValido ? item.codigo : 'sem_codigo';
   // Normalizar nome do paciente para evitar duplicações por diferenças de case/espaços
   const paciente = (item.pacienteNome || '').trim().toLowerCase().replace(/\s+/g, '_');
   
-  // Lógica de agrupamento com chave composta completa:
-  // Prioridade: guiaNumero + numeroLote + protocoloTISS + dataExecucao + codigo
-  // Isso permite identificar cada item único na conciliação
+  // Lógica de agrupamento para tela principal:
+  // Agrupa por guia + lote para separar Altas Administrativas
+  // Os itens individuais são agrupados dentro de cada conta
   
-  // Se tiver lote e protocolo válidos (cenário ideal para conciliação XML + Demonstrativo)
-  if (loteValido && protocoloValido && dataValida && codigoValido) {
-    return `${guia}_${lote}_${protocolo}_${data}_${codigo}`;
+  // Se tiver lote e sequencial válidos (XML com sequencial - Alta Administrativa)
+  if (loteValido && seqValido) {
+    return `${guia}_${item.numeroLote}_${item.sequencialTransacao}`;
   }
-  // Se tiver lote, data e código (XML sem protocolo)
-  else if (loteValido && dataValida && codigoValido) {
-    return `${guia}_${lote}_${data}_${codigo}`;
-  }
-  // Se tiver protocolo, data e código (Demonstrativo sem lote)
-  else if (protocoloValido && dataValida && codigoValido) {
-    return `${guia}_${protocolo}_${data}_${codigo}`;
-  }
-  // Se tiver lote e sequencial (XML com sequencial)
-  else if (loteValido && seqValido) {
-    return `${guia}_${lote}_${item.sequencialTransacao}`;
-  }
-  // Se tiver apenas lote (agrupa por lote + paciente)
+  // Se tiver apenas lote válido (agrupa por guia + lote)
   else if (loteValido) {
-    return `${guia}_${lote}_${paciente}`;
+    return `${guia}_${item.numeroLote}`;
   }
-  // Se tiver protocolo (agrupa por protocolo + paciente)
+  // Se tiver protocolo válido (Excel Unimed - agrupa por guia + protocolo)
   else if (protocoloValido) {
-    return `${guia}_${protocolo}_${paciente}`;
+    return `${guia}_protocolo_${item.protocoloTISS}`;
   }
   // Fallback: agrupa por guia + paciente + arquivoId
   else if (item.arquivoId) {
