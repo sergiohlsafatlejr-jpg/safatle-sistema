@@ -995,34 +995,35 @@ export async function parseExcel(content: Buffer): Promise<ParseResult> {
   }
 }
 
+// Mapeamentos de colunas movidos para fora da função para evitar recriação a cada chamada
+const COLUMN_MAPPINGS: Record<string, string[]> = {
+  // Ampliado para aceitar mais variações de nomes de colunas de código
+  codigo: ["codigo", "cod", "código", "cod_proc", "codigo_procedimento", "item", "cod_item", "codigo_item", "codigodoprocedimento", "codigoprocedimento", "codprocedimento", "codproc", "codigoproc", "proc", "procedimento_cod", "cd_procedimento", "cdprocedimento", "codigotuss", "tuss", "codtuss", "codigotabela", "codtabela"],
+  descricao: ["descricao", "descrição", "desc", "procedimento_nome", "item_desc", "itemdesc", "descricao_item", "descricaoitem", "descricaodoprocedimento", "descricaoprocedimento", "procedimento"],
+  quantidade: ["quantidade", "qtd", "qtde", "quant", "quantidadesolicitada", "quantidadeliberada"],
+  valorUnitario: ["valor_unitario", "vl_unitario", "vlunitario", "preco"],
+  valorTotal: ["valor_total", "vl_total", "vltotal", "total", "valor_pagamento", "valorpagamento", "valor", "valorprocessado", "valorpago", "valorr"],
+  pacienteNome: ["paciente", "nome_paciente", "nome_beneficiario", "nomebeneficiario", "nomebeneficirio", "associado", "nome"],
+  pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula", "beneficiario", "beneficiário", "beneficirio"],
+  guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero", "numeroguia", "número_guia", "nmeroguia", "guiaoperadorasenha", "guiaoperadora", "docoriginal"],
+  nomeMedico: ["medico", "nome_medico", "profissional", "executante", "nome_prestador_executante", "nomeprestadorexecutante", "profissionalexecutante"],
+  crmMedico: ["crm", "crm_medico", "conselho", "prestador_executante", "prestadorexecutante"],
+  dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao", "dataexecuo", "datadoevento", "dataatendimento", "dataevento"],
+  situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "situaoitem", "status", "situacao"],
+  motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa", "erro_tiss", "errotiss"],
+  valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado", "glosa_valor", "valor_glosa", "valorglosa"],
+  tipoLancamento: ["tipo_lancamento", "tipolancamento", "tipo_lançamento", "tipolanamento", "tipo", "tipodespesa", "tipo_despesa", "tipodolancamento"],
+};
+
+// Cache de normalização de chaves de mapeamento
+const NORMALIZED_MAPPINGS: Record<string, Map<string, boolean>> = {};
+for (const [field, mappings] of Object.entries(COLUMN_MAPPINGS)) {
+  NORMALIZED_MAPPINGS[field] = new Map(mappings.map(m => [m.toLowerCase().replace(/[^a-z0-9]/g, ""), true]));
+}
+
 function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedimento | null {
-  // Map common column names to our fields
-  // Includes Unimed format: Item, Item Desc, Número Guia, Nome Beneficiário, Valor Pagamento, etc.
-  const columnMappings: Record<string, string[]> = {
-    // Ampliado para aceitar mais variações de nomes de colunas de código
-    codigo: ["codigo", "cod", "código", "cod_proc", "codigo_procedimento", "item", "cod_item", "codigo_item", "codigodoprocedimento", "codigoprocedimento", "codprocedimento", "codproc", "codigoproc", "proc", "procedimento_cod", "cd_procedimento", "cdprocedimento", "codigotuss", "tuss", "codtuss", "codigotabela", "codtabela"],
-    descricao: ["descricao", "descrição", "desc", "procedimento_nome", "item_desc", "itemdesc", "descricao_item", "descricaoitem", "descricaodoprocedimento", "descricaoprocedimento", "procedimento"],
-    quantidade: ["quantidade", "qtd", "qtde", "quant", "quantidadesolicitada", "quantidadeliberada"],
-    valorUnitario: ["valor_unitario", "vl_unitario", "vlunitario", "preco"],
-    valorTotal: ["valor_total", "vl_total", "vltotal", "total", "valor_pagamento", "valorpagamento", "valor", "valorprocessado", "valorpago", "valorr"],
-    // Adicionado "nomebeneficirio" (sem acento) para Unimed
-    pacienteNome: ["paciente", "nome_paciente", "nome_beneficiario", "nomebeneficiario", "nomebeneficirio", "associado", "nome"],
-    // Adicionado "beneficirio" (sem acento) para Unimed
-    pacienteCarteirinha: ["carteirinha", "carteira", "numero_carteira", "matricula", "beneficiario", "beneficiário", "beneficirio"],
-    // Adicionado "nmeroguia" (sem acento) para Unimed
-    guiaNumero: ["guia", "numero_guia", "num_guia", "guia_numero", "numeroguia", "número_guia", "nmeroguia", "guiaoperadorasenha", "guiaoperadora", "docoriginal"],
-    nomeMedico: ["medico", "nome_medico", "profissional", "executante", "nome_prestador_executante", "nomeprestadorexecutante", "profissionalexecutante"],
-    crmMedico: ["crm", "crm_medico", "conselho", "prestador_executante", "prestadorexecutante"],
-    // Adicionado "dataexecuo" (sem acento) para Unimed
-    dataExecucao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "dtexecucao", "dataexecuo", "datadoevento", "dataatendimento", "dataevento"],
-    // Adicionado "situaoitem" (sem acento) para Unimed
-    situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "situaoitem", "status", "situacao"],
-    // Adicionado "erro_tiss" e "errotiss" para capturar motivo de glosa do demonstrativo Unimed
-    motivoGlosa: ["motivo_glosa", "motivoglosa", "motivo", "glosa", "observacao", "observação", "obs", "justificativa", "descricao_glosa", "descricaoglosa", "codglosa", "erro_tiss", "errotiss"],
-    valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado", "glosa_valor", "valor_glosa", "valorglosa"],
-    // Tipo de lançamento para classificar itens (Unimed: Tipo Lançamento)
-    tipoLancamento: ["tipo_lancamento", "tipolancamento", "tipo_lançamento", "tipolanamento", "tipo", "tipodespesa", "tipo_despesa", "tipodolancamento"],
-  };
+  // Usar mapeamentos constantes para melhor performance
+  const columnMappings = COLUMN_MAPPINGS;
   
   const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
   const normalizedRow: Record<string, unknown> = {};

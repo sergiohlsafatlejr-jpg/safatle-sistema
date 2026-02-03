@@ -1077,3 +1077,4 @@
 - [x] Modificar lógica de conciliação para usar chave composta: guiaNumero + numeroLote + Protocolo TISS + Data Execução + Item do demonstrativo
 - [x] Bug: Tela Conciliação mostrando todos os itens individuais ao invés de agrupar por guia+lote - corrigir para agrupar primeiro por guia+lote
 - [x] Bug: Conciliação mostrando 7 contas ao invés de 4 para guia 65811869 - corrigido para agrupar XML por guia+lote e Demonstrativo por guia+protocolo
+- [x] Performance: Importação de arquivo Excel demonstrativo muito lenta - otimizado mapeamentos de colunas para constantes
