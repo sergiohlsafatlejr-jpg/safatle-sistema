@@ -729,6 +729,7 @@ export async function getProcedimentosPaginated(filters?: {
   }
 
   // Add filter for status glosa (pago, glosado, parcial)
+  // IMPORTANTE: Para arquivos de demonstrativo da Unimed, itens glosados têm valorTotal=0 e valorGlosado>0
   if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
     if (filters.statusGlosa === "pago") {
       // Pago: valorGlosado é null, 0 ou vazio
@@ -741,14 +742,14 @@ export async function getProcedimentosPaginated(filters?: {
         )
       );
     } else if (filters.statusGlosa === "glosado") {
-      // Glosado: valorGlosado >= valorTotal (glosa total)
+      // Glosado: valorGlosado > 0 (independente de valorTotal, pois itens glosados podem ter valorTotal=0)
       conditions.push(
-        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) >= CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))`
+        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0`
       );
     } else if (filters.statusGlosa === "parcial") {
-      // Parcial: valorGlosado > 0 mas < valorTotal
+      // Parcial: valorGlosado > 0 E valorTotal > 0 (glosa parcial - ambos os valores presentes)
       conditions.push(
-        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) < CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))`
+        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) > 0`
       );
     }
   }
@@ -799,13 +800,21 @@ export async function getProcedimentosPaginated(filters?: {
   const total = countResult[0]?.count || 0;
 
   // Get resumo with aggregation query from ALL items (not just paginated)
+  // IMPORTANTE: Para arquivos de demonstrativo da Unimed, itens glosados têm valorTotal=0 e valorGlosado>0
+  // Portanto, totalPago deve ser a soma de valorTotal onde valorGlosado=0 (itens pagos)
+  // E totalGlosado deve ser a soma de valorGlosado (itens glosados)
   const resumoResult = await db
     .select({
-      totalValor: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+      // Total de valorTotal (soma de todos os itens pagos - onde valorTotal > 0 e valorGlosado = 0)
+      totalValorPago: sql<number>`COALESCE(SUM(CASE WHEN (${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' OR CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0) THEN CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) ELSE 0 END), 0)`,
+      // Total de valorGlosado (soma de todos os itens glosados)
       totalGlosado: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2))), 0)`,
-      quantidadeGlosados: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) >= CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) THEN 1 ELSE 0 END)`,
-      quantidadeParciais: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 AND CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) < CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) THEN 1 ELSE 0 END)`,
-      quantidadePagos: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' THEN 1 ELSE 0 END)`,
+      // Quantidade de itens glosados: valorGlosado > 0 (independente de valorTotal)
+      quantidadeGlosados: sql<number>`SUM(CASE WHEN CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
+      // Quantidade de itens parciais: valorGlosado > 0 E valorTotal > 0 (glosa parcial)
+      quantidadeParciais: sql<number>`SUM(CASE WHEN CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
+      // Quantidade de itens pagos: valorGlosado = 0 ou NULL
+      quantidadePagos: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' OR CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0 THEN 1 ELSE 0 END)`,
       totalRegistros: sql<number>`count(*)`
     })
     .from(procedimentos)
@@ -813,14 +822,14 @@ export async function getProcedimentosPaginated(filters?: {
     .where(whereClause);
 
   const resumoData = resumoResult[0] || {};
-  const totalValor = parseFloat(String(resumoData.totalValor || 0));
+  const totalValorPago = parseFloat(String(resumoData.totalValorPago || 0));
   const totalGlosadoDb = parseFloat(String(resumoData.totalGlosado || 0));
   const quantidadeGlosados = parseInt(String(resumoData.quantidadeGlosados || 0));
   const quantidadeParciais = parseInt(String(resumoData.quantidadeParciais || 0));
   const quantidadePagos = parseInt(String(resumoData.quantidadePagos || 0));
 
   const resumo = {
-    totalPago: totalValor - totalGlosadoDb,
+    totalPago: totalValorPago,
     totalGlosado: totalGlosadoDb,
     quantidadePagos,
     quantidadeGlosados,
