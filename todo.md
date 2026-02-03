@@ -1091,3 +1091,5 @@
 - [x] Implementar exportação de itens detalhados na tela de Contas Demonstrativo (botões Excel Resumo e Excel Itens) - 2113 contas e 10000 itens exportados com sucesso
 
 - [x] Corrigir tela Demonstrativo: valor pago incorreto (mostra R$ 27.175 ao invés de R$ 72.227) e filtro de glosados não traz itens - CORRIGIDO: totalPago agora soma apenas valorTotal onde valorGlosado=0, filtro de glosados agora filtra por valorGlosado>0
+
+- [x] Implementar exportação Excel dos itens de todas as contas filtradas na tela Conciliação Contas Pagas (141 contas, 34.151 itens exportados com sucesso)

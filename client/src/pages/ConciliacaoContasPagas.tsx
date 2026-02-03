@@ -245,7 +245,10 @@ export default function ConciliacaoContasPagas() {
     setModalAberto(true);
   };
 
-  // Exportar para Excel
+  // Estado para controle de exportação de itens
+  const [exportandoItens, setExportandoItens] = useState(false);
+
+  // Exportar para Excel (resumo de contas)
   const exportarExcel = () => {
     if (!contasFiltradas.length) return;
 
@@ -287,6 +290,135 @@ export default function ConciliacaoContasPagas() {
     XLSX.utils.book_append_sheet(wb, wsContas, 'Contas');
 
     XLSX.writeFile(wb, `conciliacao_contas_pagas_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Exportar itens de todas as contas filtradas para Excel
+  const exportarItensTodasContas = async () => {
+    if (!contasFiltradas.length) return;
+    
+    setExportandoItens(true);
+    
+    try {
+      // Buscar itens de todas as contas filtradas
+      const todasAsContas = contasFiltradas.map(c => c.conta);
+      const todosOsItens: any[] = [];
+      
+      // Buscar itens de cada conta (em paralelo, mas limitado a 10 por vez para não sobrecarregar)
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < todasAsContas.length; i += BATCH_SIZE) {
+        const batch = todasAsContas.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (conta) => {
+          try {
+            const response = await fetch(`/api/trpc/faturadoTasy.itensPorConta?input=${encodeURIComponent(JSON.stringify({
+              json: {
+                estabelecimentoId,
+                conta,
+                competencia: competenciaFiltro || undefined,
+                convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
+              }
+            }))}`);
+            const data = await response.json();
+            if (data.result?.data?.json?.itens) {
+              const contaInfo = contasFiltradas.find(c => c.conta === conta);
+              return data.result.data.json.itens.map((item: any) => ({
+                conta,
+                convenio: contaInfo?.convenio || '-',
+                competencia: formatarCompetencia(contaInfo?.competencia || ''),
+                atendimento: contaInfo?.atendimento || '-',
+                protocolo: contaInfo?.protocolo || '-',
+                setor: contaInfo?.setor || '-',
+                profissional: contaInfo?.profExec || '-',
+                ...item
+              }));
+            }
+            return [];
+          } catch (e) {
+            console.error(`Erro ao buscar itens da conta ${conta}:`, e);
+            return [];
+          }
+        });
+        
+        const resultados = await Promise.all(promises);
+        resultados.forEach(itens => todosOsItens.push(...itens));
+      }
+      
+      if (todosOsItens.length === 0) {
+        alert('Nenhum item encontrado nas contas filtradas.');
+        return;
+      }
+      
+      // Formatar dados para Excel
+      const dadosItens = todosOsItens.map(item => {
+        // Traduzir motivo de glosa
+        const motivoTraduzido = item.motivoGlosa ? traduzirMotivoGlosa(item.motivoGlosa) : '-';
+        
+        return {
+          'Conta': item.conta || '-',
+          'Convênio': item.convenio || '-',
+          'Competência': item.competencia || '-',
+          'Atendimento': item.atendimento || '-',
+          'Protocolo': item.protocolo || '-',
+          'Setor': item.setor || '-',
+          'Profissional': item.profissional || '-',
+          'Tipo': item.tipoItem || '-',
+          'Código': item.cdItem || '-',
+          'Código TUSS': item.cdItemTuss || '-',
+          'Descrição': item.descricao || '-',
+          'Quantidade': item.qtd || 0,
+          'Valor Faturado': item.vlFaturado || 0,
+          'Valor Pago': item.vlPago || 0,
+          'Valor Glosa': item.vlGlosa || 0,
+          'Código Motivo Glosa': item.motivoGlosa || '-',
+          'Motivo Glosa': motivoTraduzido,
+          'Data Item': item.dtItem ? new Date(item.dtItem).toLocaleDateString('pt-BR') : '-',
+        };
+      });
+      
+      const wb = XLSX.utils.book_new();
+      
+      // Aba de resumo
+      const wsResumo = XLSX.utils.json_to_sheet([{
+        'Total Contas': contasFiltradas.length,
+        'Total Itens': todosOsItens.length,
+        'Total Faturado': conciliacao?.resumo.totalFaturado || 0,
+        'Total Pago': conciliacao?.resumo.totalPago || 0,
+        'Total Glosado': conciliacao?.resumo.totalGlosado || 0,
+        'Total Pendente': conciliacao?.resumo.totalPendente || 0,
+        'Filtro Competência': competenciaFiltro || 'Todos',
+        'Filtro Convênio': convenioFiltro !== 'todos' ? convenioFiltro : 'Todos',
+      }]);
+      XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+      
+      // Aba de resumo de contas
+      const dadosContas = contasFiltradas.map(c => ({
+        'Conta': c.conta || '-',
+        'Competência': formatarCompetencia(c.competencia),
+        'Convênio': c.convenio || '-',
+        'Atendimento': c.atendimento || '-',
+        'Protocolo': c.protocolo || '-',
+        'Setor': c.setor || '-',
+        'Profissional': c.profExec || '-',
+        'Total Itens': c.totalItens,
+        'Valor Faturado': c.valorFaturado,
+        'Valor Pago': c.valorPago,
+        'Valor Glosado': c.valorGlosado,
+        'Valor Pendente': c.valorPendente,
+        'Status': c.status
+      }));
+      const wsContas = XLSX.utils.json_to_sheet(dadosContas);
+      XLSX.utils.book_append_sheet(wb, wsContas, 'Resumo Contas');
+      
+      // Aba de itens detalhados
+      const wsItens = XLSX.utils.json_to_sheet(dadosItens);
+      XLSX.utils.book_append_sheet(wb, wsItens, 'Itens Detalhados');
+      
+      XLSX.writeFile(wb, `itens_contas_pagas_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Erro ao exportar itens:', error);
+      alert('Erro ao exportar itens. Tente novamente.');
+    } finally {
+      setExportandoItens(false);
+    }
   };
 
   // Exportar itens de uma conta específica para Excel
@@ -367,9 +499,13 @@ export default function ConciliacaoContasPagas() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Atualizar
             </Button>
-            <Button onClick={exportarExcel} disabled={!contasFiltradas.length}>
+            <Button variant="outline" onClick={exportarExcel} disabled={!contasFiltradas.length}>
               <Download className="w-4 h-4 mr-2" />
-              Exportar Excel
+              Excel Resumo
+            </Button>
+            <Button onClick={exportarItensTodasContas} disabled={!contasFiltradas.length || exportandoItens}>
+              <FileText className="w-4 h-4 mr-2" />
+              {exportandoItens ? 'Exportando...' : 'Excel Itens'}
             </Button>
           </div>
         </div>
