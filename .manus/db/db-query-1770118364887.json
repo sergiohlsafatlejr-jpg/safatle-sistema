@@ -1,0 +1,250 @@
+{
+  "query": "SELECT guiaNumero, numeroLote, sequencialTransacao, pacienteNome, DATE(dataExecucao) as dataExec, COUNT(*) as total\nFROM procedimentos \nWHERE guiaNumero = '65811869' \nGROUP BY guiaNumero, numeroLote, sequencialTransacao, pacienteNome, DATE(dataExecucao)\nORDER BY dataExec\nLIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT guiaNumero, numeroLote, sequencialTransacao, pacienteNome, DATE(dataExecucao) as dataExec, COUNT(*) as total\nFROM procedimentos \nWHERE guiaNumero = '65811869' \nGROUP BY guiaNumero, numeroLote, sequencialTransacao, pacienteNome, DATE(dataExecucao)\nORDER BY dataExec\nLIMIT 30;",
+  "rows": [
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-03",
+      "total": "39"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-03",
+      "total": "39"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-04",
+      "total": "37"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-04",
+      "total": "37"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-05",
+      "total": "35"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-05",
+      "total": "35"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-06",
+      "total": "36"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-06",
+      "total": "36"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-07",
+      "total": "36"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-07",
+      "total": "36"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-08",
+      "total": "35"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-08",
+      "total": "35"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-09",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-09",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-10",
+      "total": "27"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-10",
+      "total": "27"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-11",
+      "total": "29"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-11",
+      "total": "29"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-12",
+      "total": "31"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-12",
+      "total": "31"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-13",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-13",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "NULL",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NILZA T CHIAMENTI",
+      "dataExec": "2025-10-14",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85686",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-14",
+      "total": "28"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-15",
+      "total": "33"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-16",
+      "total": "25"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-17",
+      "total": "30"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-18",
+      "total": "34"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-19",
+      "total": "34"
+    },
+    {
+      "guiaNumero": "65811869",
+      "numeroLote": "85665",
+      "sequencialTransacao": "NULL",
+      "pacienteNome": "NULL",
+      "dataExec": "2025-10-20",
+      "total": "37"
+    }
+  ],
+  "messages": [],
+  "stdout": "guiaNumero\tnumeroLote\tsequencialTransacao\tpacienteNome\tdataExec\ttotal\n65811869\t85686\tNULL\tNULL\t2025-10-03\t39\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-03\t39\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-04\t37\n65811869\t85686\tNULL\tNULL\t2025-10-04\t37\n65811869\t85686\tNULL\tNULL\t2025-10-05\t35\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-05\t35\n65811869\t85686\tNULL\tNULL\t2025-10-06\t36\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-06\t36\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-07\t36\n65811869\t85686\tNULL\tNULL\t2025-10-07\t36\n65811869\t85686\tNULL\tNULL\t2025-10-08\t35\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-08\t35\n65811869\t85686\tNULL\tNULL\t2025-10-09\t28\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-09\t28\n65811869\t85686\tNULL\tNULL\t2025-10-10\t27\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-10\t27\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-11\t29\n65811869\t85686\tNULL\tNULL\t2025-10-11\t29\n65811869\t85686\tNULL\tNULL\t2025-10-12\t31\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-12\t31\n65811869\t85686\tNULL\tNULL\t2025-10-13\t28\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-13\t28\n65811869\tNULL\tNULL\tNILZA T CHIAMENTI\t2025-10-14\t28\n65811869\t85686\tNULL\tNULL\t2025-10-14\t28\n65811869\t85665\tNULL\tNULL\t2025-10-15\t33\n65811869\t85665\tNULL\tNULL\t2025-10-16\t25\n65811869\t85665\tNULL\tNULL\t2025-10-17\t30\n65811869\t85665\tNULL\tNULL\t2025-10-18\t34\n65811869\t85665\tNULL\tNULL\t2025-10-19\t34\n65811869\t85665\tNULL\tNULL\t2025-10-20\t37\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

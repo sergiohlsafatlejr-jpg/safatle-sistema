@@ -2839,6 +2839,7 @@ export interface ContaConciliacao {
 // Função auxiliar para gerar chave composta de agrupamento (igual ao frontend)
 // Usa: guiaNumero + numeroLote + sequencialTransacao para XML
 // Ou: guiaNumero + protocoloTISS para Excel da Unimed
+// Inclui pacienteNome para diferenciar quando há múltiplos pacientes com mesma guia
 function gerarChaveAgrupamento(item: ItemConciliacao): string {
   // Validação dos campos
   const protocoloValido = item.protocoloTISS && 
@@ -2859,22 +2860,24 @@ function gerarChaveAgrupamento(item: ItemConciliacao): string {
     String(item.sequencialTransacao).trim() !== '';
   
   const guia = item.guiaNumero || 'sem_guia';
+  // Normalizar nome do paciente para evitar duplicações por diferenças de case/espaços
+  const paciente = (item.pacienteNome || '').trim().toLowerCase().replace(/\s+/g, '_');
   
   // Lógica de agrupamento:
-  // 1. Se tiver Protocolo TISS válido (Excel Unimed): agrupa por guiaNumero + protocoloTISS
+  // 1. Se tiver Protocolo TISS válido (Excel Unimed): agrupa por guiaNumero + protocoloTISS + paciente
   // 2. Se tiver lote E sequencial válidos (XML): agrupa por guiaNumero + numeroLote + sequencialTransacao
-  // 3. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote
-  // 4. Fallback: agrupa por guiaNumero + arquivoId (garante separação por arquivo importado)
+  // 3. Se tiver apenas lote válido: agrupa por guiaNumero + numeroLote + paciente
+  // 4. Fallback: agrupa por guiaNumero + paciente + arquivoId (garante separação por arquivo importado)
   if (protocoloValido) {
-    return `${guia}_protocolo_${item.protocoloTISS}`;
+    return `${guia}_protocolo_${item.protocoloTISS}_${paciente}`;
   } else if (loteValido && seqValido) {
     return `${guia}_${item.numeroLote}_${item.sequencialTransacao}`;
   } else if (loteValido) {
-    return `${guia}_${item.numeroLote}_sem_seq`;
+    return `${guia}_${item.numeroLote}_${paciente}`;
   } else if (item.arquivoId) {
-    return `${guia}_arquivo_${item.arquivoId}`;
+    return `${guia}_${paciente}_arquivo_${item.arquivoId}`;
   } else {
-    return guia;
+    return `${guia}_${paciente}`;
   }
 }
 
