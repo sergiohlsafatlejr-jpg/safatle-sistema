@@ -12473,9 +12473,13 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
 
   // Filtro de período - usar dataReferencia OU createdAt como fallback
+  // Usar Date.UTC para garantir que as datas sejam criadas em UTC
   if (mesReferencia && anoReferencia) {
-    const dataInicio = new Date(anoReferencia, mesReferencia - 1, 1);
-    const dataFim = new Date(anoReferencia, mesReferencia, 0, 23, 59, 59);
+    // Criar datas em UTC para evitar problemas de timezone
+    const dataInicio = new Date(Date.UTC(anoReferencia, mesReferencia - 1, 1, 0, 0, 0));
+    // Último dia do mês às 23:59:59 UTC
+    const dataFim = new Date(Date.UTC(anoReferencia, mesReferencia, 0, 23, 59, 59));
+    console.log('[getDadosBI] Filtro mês - Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
     // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
     arquivosConditions.push(
       or(
@@ -12484,9 +12488,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       )
     );
   } else if (anoReferencia) {
-    const dataInicio = new Date(anoReferencia, 0, 1);
-    const dataFim = new Date(anoReferencia, 11, 31, 23, 59, 59);
-    console.log('[getDadosBI] Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
+    // Criar datas em UTC para o ano inteiro
+    const dataInicio = new Date(Date.UTC(anoReferencia, 0, 1, 0, 0, 0));
+    const dataFim = new Date(Date.UTC(anoReferencia, 11, 31, 23, 59, 59));
+    console.log('[getDadosBI] Filtro ano - Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
     // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
     arquivosConditions.push(
       or(
@@ -12613,7 +12618,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   for (const proc of procedimentosRetornadosFiltrados) {
     const valorTotal = parseFloat(proc.valorTotal || "0");
     const valorGlosado = parseFloat(proc.valorGlosado || "0");
-    totalRecebido += valorTotal - valorGlosado;
+    // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+    // Para itens glosados, valorTotal = 0 e valorGlosado > 0
+    if (valorGlosado === 0) {
+      totalRecebido += valorTotal;
+    }
     totalGlosado += valorGlosado;
   }
 
@@ -12646,7 +12655,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const item = porConvenioMap.get(chave)!;
       const valorTotal = parseFloat(proc.valorTotal || "0");
       const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      item.valorRecebido += valorTotal - valorGlosado;
+      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+      if (valorGlosado === 0) {
+        item.valorRecebido += valorTotal;
+      }
       item.valorGlosado += valorGlosado;
     }
   }
@@ -12675,7 +12687,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const item = porTipoMap.get(chave)!;
       const valorTotal = parseFloat(proc.valorTotal || "0");
       const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      item.valorRecebido += valorTotal - valorGlosado;
+      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+      if (valorGlosado === 0) {
+        item.valorRecebido += valorTotal;
+      }
       item.valorGlosado += valorGlosado;
     }
   }
@@ -12703,7 +12718,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const item = porMesMap.get(chave)!;
       const valorTotal = parseFloat(proc.valorTotal || "0");
       const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      item.valorRecebido += valorTotal - valorGlosado;
+      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+      if (valorGlosado === 0) {
+        item.valorRecebido += valorTotal;
+      }
       item.valorGlosado += valorGlosado;
     }
   }
@@ -12815,7 +12833,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     if (item.valorFaturado === 0) {
       item.valorFaturado = valorTotal;
     }
-    item.valorRecebido += valorTotal - valorGlosado;
+    // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+    if (valorGlosado === 0) {
+      item.valorRecebido += valorTotal;
+    }
     item.valorGlosado += valorGlosado;
     // Incrementar registros se este item veio apenas do demonstrativo
     if (item.registros === 0) {
@@ -12850,7 +12871,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const item = porGuiaMap.get(chave)!;
       const valorTotal = parseFloat(proc.valorTotal || "0");
       const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      item.valorRecebido += valorTotal - valorGlosado;
+      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
+      if (valorGlosado === 0) {
+        item.valorRecebido += valorTotal;
+      }
       item.valorGlosado += valorGlosado;
     }
   }
@@ -12870,7 +12894,8 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const item = porMotivoGlosaMap.get(chave)!;
       item.valorGlosado += valorGlosado;
       item.valorFaturado += parseFloat(proc.valorTotal || "0");
-      item.valorRecebido += parseFloat(proc.valorTotal || "0") - valorGlosado;
+      // Corrigido: para itens glosados, valorRecebido = 0 (não usar valorTotal - valorGlosado)
+      // valorRecebido permanece 0 pois são itens glosados
       item.quantidade += parseFloat(String(proc.quantidade || "1"));
       item.registros++;
     }
