@@ -71,10 +71,22 @@ function extractGuias(xml) {
         const valorTotal = getTagValue(procXml, 'valorTotal');
         
         // Extrair dados do profissional (equipeSadt)
-        const nomeProf = getTagValue(procXml, 'nomeProf') || getTagValue(procXml, 'nomeProfissional');
-        const conselho = getTagValue(procXml, 'conselho') || getTagValue(procXml, 'conselhoProfissional');
-        const numeroConselho = getTagValue(procXml, 'numeroConselhoProfissional');
-        const conselhoCompleto = conselho && numeroConselho ? `${conselho}-${numeroConselho}` : (conselho || numeroConselho || null);
+        // Procurar equipeSadt dentro do procedimento ou na guia
+        const equipeSadtMatch = procXml.match(/<ans:equipeSadt>([\s\S]*?)<\/ans:equipeSadt>/i);
+        let nomeProf = null;
+        let numeroConselho = null;
+        
+        if (equipeSadtMatch) {
+          const equipeSadtXml = equipeSadtMatch[1];
+          nomeProf = getTagValue(equipeSadtXml, 'nomeProf');
+          // conselho = código do conselho (ex: 06 = CRM)
+          // numeroConselhoProfissional = número do registro (ex: 11382)
+          numeroConselho = getTagValue(equipeSadtXml, 'numeroConselhoProfissional');
+        } else {
+          // Fallback para buscar diretamente
+          nomeProf = getTagValue(procXml, 'nomeProf');
+          numeroConselho = getTagValue(procXml, 'numeroConselhoProfissional');
+        }
         
         const valorTotalNum = parseFloat(valorTotal) || 0;
         valorTotalGuia += valorTotalNum;
@@ -98,7 +110,7 @@ function extractGuias(xml) {
           valorUnitario: parseFloat(valorUnitario) || 0,
           valorFaturado: valorTotalNum,
           nomeProf,
-          conselhoProf: conselhoCompleto,
+          conselhoProf: numeroConselho,
           valorTotalGuia: 0 // Será atualizado depois
         });
       }

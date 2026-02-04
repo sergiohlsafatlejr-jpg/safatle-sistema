@@ -1105,3 +1105,5 @@
 - [x] Processar todos os arquivos XML enviados da tabela arquivos e popular a tabela faturamento_tiss (796 arquivos, 13.795 itens, R$ 1.117.402,67)
 
 - [x] Reprocessar todos os arquivos XML e popular tabela faturamento_tiss com todos os campos corretamente preenchidos (796 arquivos, 23.311 itens, R$ 1.886.387,52)
+
+- [x] Corrigir mapeamento dos campos conselho e numeroConselhoProfissional na tabela faturamento_tiss (conselho_prof agora armazena apenas o número do CRM, ex: 11382)
