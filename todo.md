@@ -1107,3 +1107,5 @@
 - [x] Reprocessar todos os arquivos XML e popular tabela faturamento_tiss com todos os campos corretamente preenchidos (796 arquivos, 23.311 itens, R$ 1.886.387,52)
 
 - [x] Corrigir mapeamento dos campos conselho e numeroConselhoProfissional na tabela faturamento_tiss (conselho_prof agora armazena apenas o número do CRM, ex: 11382)
+
+- [x] Integrar tabela recebimento_tiss com o ORM Drizzle (adicionar definição no schema)

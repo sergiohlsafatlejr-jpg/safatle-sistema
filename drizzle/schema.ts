@@ -2181,3 +2181,56 @@ export const faturamentoTiss = mysqlTable("faturamento_tiss", {
 
 export type FaturamentoTiss = typeof faturamentoTiss.$inferSelect;
 export type InsertFaturamentoTiss = typeof faturamentoTiss.$inferInsert;
+
+
+/**
+ * Tabela de Recebimento TISS
+ * Armazena dados dos arquivos XML de retorno das operadoras (demonstrativos de pagamento)
+ */
+export const recebimentoTiss = mysqlTable("recebimento_tiss", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência ao arquivo de origem
+  arquivoId: int("arquivo_id"),
+  
+  // Dados do Demonstrativo
+  numeroDemonstrativo: varchar("numero_demonstrativo", { length: 20 }),
+  nomeOperadora: varchar("nome_operadora", { length: 150 }),
+  cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
+  dataEmissao: timestamp("data_emissao"),
+  
+  // Dados do Lote e Protocolo
+  numeroLotePrestador: varchar("numero_lote_prestador", { length: 20 }),
+  numeroProtocolo: varchar("numero_protocolo", { length: 20 }),
+  situacaoProtocolo: varchar("situacao_protocolo", { length: 5 }),
+  
+  // Dados da Guia
+  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }),
+  numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 20 }),
+  senha: varchar("senha", { length: 20 }),
+  numeroCarteira: varchar("numero_carteira", { length: 20 }),
+  situacaoGuia: varchar("situacao_guia", { length: 5 }),
+  
+  // Dados do Item
+  sequencialItem: int("sequencial_item"),
+  dataRealizacao: timestamp("data_realizacao"),
+  codigoTabela: varchar("codigo_tabela", { length: 5 }),
+  codigoProcedimento: varchar("codigo_procedimento", { length: 15 }),
+  descricaoProcedimento: varchar("descricao_procedimento", { length: 255 }),
+  
+  // Valores
+  valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
+  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
+  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
+  qtdExecutada: int("qtd_executada"),
+  
+  // Dados de Glosa
+  codigoGlosa: varchar("codigo_glosa", { length: 10 }),
+  descricaoGlosa: text("descricao_glosa"),
+  
+  // Data de importação
+  dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
+});
+
+export type RecebimentoTiss = typeof recebimentoTiss.$inferSelect;
+export type InsertRecebimentoTiss = typeof recebimentoTiss.$inferInsert;
