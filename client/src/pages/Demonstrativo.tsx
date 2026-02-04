@@ -18,7 +18,10 @@ import {
   AlertCircle,
   DollarSign,
   FileText,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -82,59 +85,58 @@ export default function Demonstrativo() {
   // Buscar convênios
   const { data: convenios, isLoading: isLoadingConvenios } = trpc.convenios.list.useQuery();
 
-  // Buscar procedimentos do convênio selecionado com filtros no backend
-  // Apenas arquivos retornados (para evitar duplicação com arquivos enviados)
-  // IMPORTANTE: Filtrar por estabelecimentoId para garantir isolamento de dados
-  const { data: procedimentosData, isLoading: isLoadingProcedimentos } = trpc.procedimentos.list.useQuery(
+  // Buscar dados de recebimento_tiss
+  const { data: recebimentoData, isLoading: isLoadingRecebimento, refetch } = trpc.recebimentoTiss.list.useQuery(
     { 
-      convenioId: parseInt(convenioId), 
+      convenioId: convenioId ? parseInt(convenioId) : undefined, 
       estabelecimentoId: estabelecimentoAtual?.id,
       page, 
       pageSize,
       search: buscaDebounced || undefined,
       statusGlosa: filtroStatus !== "todos" ? filtroStatus as "pago" | "glosado" | "parcial" : undefined,
-      apenasRetornados: true,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     },
-    { enabled: !!convenioId && !!estabelecimentoAtual }
+    { enabled: !!estabelecimentoAtual }
   );
 
   const formatCurrency = (value: number) => {
-    return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    return `R$ ${(value / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   };
 
   const handleExportExcel = () => {
-    if (!procedimentosData?.items || procedimentosData.items.length === 0) {
+    if (!recebimentoData?.items || recebimentoData.items.length === 0) {
       toast.error("Nenhum dado para exportar");
       return;
     }
 
-    const excelData = (procedimentosData.items as any[]).map((proc: any) => {
-      // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
-      const extras = proc.dadosExtras ? 
-        (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-      const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
-      const valor = parseFloat(proc.valorTotal || "0");
-      const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
+    const excelData = (recebimentoData.items as any[]).map((item: any) => {
+      const valorLiberado = parseFloat(item.valorLiberado || "0");
+      const valorInformado = parseFloat(item.valorInformado || "0");
+      const temGlosa = item.codigoGlosa && item.codigoGlosa !== '';
       
       let status = "Pago";
-      if (valorGlosado > 0 && valorGlosado >= valor) {
+      if (temGlosa && valorLiberado === 0) {
         status = "Glosado";
-      } else if (valorGlosado > 0) {
+      } else if (temGlosa) {
         status = "Parcial";
       }
 
       return {
-        "Guia": proc.guiaNumero || "",
-        "Data Execução": proc.dataExecucao ? new Date(proc.dataExecucao).toLocaleDateString("pt-BR") : "",
-        "Código": proc.codigo,
-        "Descrição": proc.descricao || "",
-        "Paciente": proc.pacienteNome || "",
-        "Quantidade": proc.quantidade || 1,
-        "Valor Pago": valor - valorGlosado,
-        "Valor Glosado": valorGlosado,
-        "Motivo Glosa": motivoGlosa,
+        "Guia": item.numeroGuiaPrestador || "",
+        "Protocolo": item.numeroProtocolo || "",
+        "Data Execução": item.dataRealizacao ? new Date(item.dataRealizacao).toLocaleDateString("pt-BR") : "",
+        "Data Pagamento": item.dataPagamento ? new Date(item.dataPagamento).toLocaleDateString("pt-BR") : "",
+        "Código": item.codigoProcedimento || "",
+        "Descrição": item.descricaoProcedimento || "",
+        "Tipo Lançamento": item.tipoLancamento || "",
+        "Beneficiário": item.nomeBeneficiario || "",
+        "Carteirinha": item.numeroCarteira || "",
+        "Quantidade": item.qtdExecutada || 1,
+        "Valor Informado": valorInformado / 100,
+        "Valor Liberado": valorLiberado / 100,
+        "Código Glosa": item.codigoGlosa || "",
+        "Descrição Glosa": item.descricaoGlosa || "",
         "Status": status,
       };
     });
@@ -142,8 +144,9 @@ export default function Demonstrativo() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
     ws["!cols"] = [
-      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 50 }, { wch: 30 },
-      { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 10 }
+      { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+      { wch: 50 }, { wch: 15 }, { wch: 30 }, { wch: 20 },
+      { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 10 }
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Demonstrativo");
     
@@ -159,37 +162,42 @@ export default function Demonstrativo() {
     setAnoReferencia("");
     setFiltroStatus("todos");
     setBusca("");
+    setConvenioId("");
   };
 
-  const getStatusBadge = (proc: any) => {
-    // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
-    const extras = proc.dadosExtras ? 
-      (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-    const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
-    const valor = parseFloat(proc.valorTotal || "0");
+  const getStatusBadge = (item: any) => {
+    const valorLiberado = parseFloat(item.valorLiberado || "0");
+    const temGlosa = item.codigoGlosa && item.codigoGlosa !== '';
 
-    if (valorGlosado > 0 && valorGlosado >= valor) {
+    if (temGlosa && valorLiberado === 0) {
       return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Glosado</Badge>;
-    } else if (valorGlosado > 0) {
+    } else if (temGlosa) {
       return <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600"><AlertCircle className="h-3 w-3" /> Parcial</Badge>;
     }
     return <Badge variant="outline" className="gap-1 border-green-500 text-green-600"><CheckCircle2 className="h-3 w-3" /> Pago</Badge>;
   };
 
-  const resumo = procedimentosData?.resumo;
-  const totalPages = Math.ceil((procedimentosData?.total || 0) / pageSize);
+  const resumo = recebimentoData?.resumo;
+  const totalPages = Math.ceil((recebimentoData?.total || 0) / pageSize);
+  const items = recebimentoData?.items || [];
 
   // Verificar se há filtros ativos
-  const temFiltrosAtivos = mesReferencia || anoReferencia || filtroStatus !== "todos" || busca;
+  const temFiltrosAtivos = mesReferencia || anoReferencia || filtroStatus !== "todos" || busca || convenioId;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Demonstrativo de Retorno</h1>
-          <p className="text-muted-foreground">
-            Visualize os itens do arquivo de retorno com status de pagamento e glosas
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Demonstrativo de Retorno</h1>
+            <p className="text-muted-foreground">
+              Visualize os itens do arquivo de retorno com status de pagamento e glosas - Tabela recebimento_tiss
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
         </div>
 
         {/* Seleção de arquivo */}
@@ -206,9 +214,10 @@ export default function Demonstrativo() {
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={setConvenioId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um convênio" />
+                    <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todos os convênios</SelectItem>
                     {convenios?.map((convenio: any) => (
                       <SelectItem key={convenio.id} value={String(convenio.id)}>
                         {convenio.nome} ({convenio.codigo})
@@ -278,7 +287,7 @@ export default function Demonstrativo() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Código, guia..."
+                    placeholder="Código, guia, paciente..."
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     className="pl-9"
@@ -287,27 +296,24 @@ export default function Demonstrativo() {
               </div>
             </div>
 
-            {convenioId && (
-              <div className="flex gap-2 mt-4">
-                <Button onClick={handleExportExcel} disabled={!procedimentosData?.items?.length}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar Excel
+            <div className="flex gap-2 mt-4">
+              <Button onClick={handleExportExcel} disabled={!items.length}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
+              {temFiltrosAtivos && (
+                <Button variant="outline" onClick={handleLimparFiltros}>
+                  Limpar Filtros
                 </Button>
-                {temFiltrosAtivos && (
-                  <Button variant="outline" onClick={handleLimparFiltros}>
-                    Limpar Filtros
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Indicador de período selecionado */}
-            {convenioId && (mesReferencia || anoReferencia) && (
+            {(mesReferencia || anoReferencia) && (
               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   Filtrando por referência: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
-                  <span className="text-xs opacity-70">(informado no upload do arquivo)</span>
                 </p>
               </div>
             )}
@@ -315,8 +321,8 @@ export default function Demonstrativo() {
         </Card>
 
         {/* Cards de resumo - clicáveis para filtrar */}
-        {convenioId && resumo && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {resumo && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card 
               className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "todos" ? "ring-2 ring-blue-500" : ""}`}
               onClick={() => setFiltroStatus("todos")}
@@ -326,7 +332,7 @@ export default function Demonstrativo() {
                   <FileText className="h-5 w-5 text-blue-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Total Itens</p>
-                    <p className="text-2xl font-bold">{resumo.total}</p>
+                    <p className="text-2xl font-bold">{Number(resumo.totalItens || 0).toLocaleString("pt-BR")}</p>
                   </div>
                 </div>
               </CardContent>
@@ -341,7 +347,7 @@ export default function Demonstrativo() {
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Pagos</p>
-                    <p className="text-2xl font-bold text-green-600">{resumo.quantidadePagos}</p>
+                    <p className="text-2xl font-bold text-green-600">{Number(resumo.itensPagos || 0).toLocaleString("pt-BR")}</p>
                   </div>
                 </div>
               </CardContent>
@@ -356,37 +362,19 @@ export default function Demonstrativo() {
                   <XCircle className="h-5 w-5 text-red-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Glosados</p>
-                    <p className="text-2xl font-bold text-red-600">{resumo.quantidadeGlosados}</p>
+                    <p className="text-2xl font-bold text-red-600">{Number(resumo.itensGlosados || 0).toLocaleString("pt-BR")}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card 
-              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "pago" ? "ring-2 ring-green-500" : ""}`}
-              onClick={() => setFiltroStatus("pago")}
-            >
+            <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <DollarSign className="h-5 w-5 text-emerald-600" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Pago</p>
-                    <p className="text-lg font-bold text-green-600">{formatCurrency(resumo.totalPago)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "glosado" ? "ring-2 ring-red-500" : ""}`}
-              onClick={() => setFiltroStatus("glosado")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-red-600" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Glosado</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrency(resumo.totalGlosado)}</p>
+                    <p className="text-sm text-muted-foreground">Valor Liberado</p>
+                    <p className="text-xl font-bold text-emerald-600">{formatCurrency(Number(resumo.valorLiberado || 0))}</p>
                   </div>
                 </div>
               </CardContent>
@@ -394,213 +382,87 @@ export default function Demonstrativo() {
           </div>
         )}
 
-        {/* Tabela de procedimentos */}
-        {convenioId && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Itens do Demonstrativo
-                {procedimentosData?.total !== undefined && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    ({procedimentosData.total} itens{temFiltrosAtivos ? ` filtrados` : ""})
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Detalhamento dos procedimentos com valores pagos e glosados
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingProcedimentos ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : procedimentosData?.items && procedimentosData.items.length > 0 ? (
-                <>
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[80px]">Tipo</TableHead>
-                          <TableHead className="w-[100px]">Guia</TableHead>
-                          <TableHead className="w-[100px]">Data</TableHead>
-                          <TableHead className="w-[100px]">Código</TableHead>
-                          <TableHead>Descrição</TableHead>
-                          <TableHead className="w-[150px]">Paciente</TableHead>
-                          <TableHead className="w-[80px] text-center">Qtd</TableHead>
-                          <TableHead className="w-[120px] text-right">Valor Pago</TableHead>
-                          <TableHead className="w-[120px] text-right">Valor Glosado</TableHead>
-                          <TableHead className="w-[200px]">Motivo Glosa</TableHead>
-                          <TableHead className="w-[100px] text-center">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(procedimentosData.items as any[]).map((proc: any) => {
-                          // Ler valorGlosado diretamente do procedimento (nova coluna) ou do dadosExtras (legado)
-                          const extras = proc.dadosExtras ? 
-                            (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-                          const valorGlosado = parseFloat(proc.valorGlosado || extras.valorGlosado || "0");
-                          const valor = parseFloat(proc.valorTotal || "0");
-                          const valorPago = valor - valorGlosado;
-                          const motivoGlosa = proc.motivoGlosa || extras.motivoGlosa || "";
-                          
-                          // Determinar tipo do código baseado no tipoDespesa do banco ou tipoLancamento do arquivo
-                          const getTipoCodigo = (proc: any, extras: any) => {
-                            // Primeiro, verificar se tem tipoDespesa do banco de dados
-                            const tipoDespesa = proc.tipoDespesa;
-                            if (tipoDespesa) {
-                              switch (tipoDespesa) {
-                                case 'material': return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
-                                case 'medicamento': return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
-                                case 'diaria': return { tipo: "Diária", cor: "bg-gray-100 text-gray-700" };
-                                case 'taxa': return { tipo: "Taxa", cor: "bg-slate-100 text-slate-700" };
-                                case 'gas': return { tipo: "Gás", cor: "bg-cyan-100 text-cyan-700" };
-                                case 'procedimento': return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
-                                case 'outros': return { tipo: "Outros", cor: "bg-neutral-100 text-neutral-700" };
-                              }
-                            }
-                            
-                            // Segundo, verificar se tem tipoLancamento no dadosExtras (do arquivo Excel)
-                            const tipoLancamento = extras?.tipoLancamento as string | undefined;
-                            if (tipoLancamento) {
-                              const tipo = tipoLancamento.toLowerCase().trim();
-                              if (tipo.includes('medicamento') || tipo.includes('medic') || tipo === 'med') {
-                                return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
-                              }
-                              if (tipo.includes('material') || tipo.includes('mat')) {
-                                return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
-                              }
-                              if (tipo.includes('diária') || tipo.includes('diaria')) {
-                                return { tipo: "Diária", cor: "bg-gray-100 text-gray-700" };
-                              }
-                              if (tipo.includes('taxa') || tipo.includes('tx')) {
-                                return { tipo: "Taxa", cor: "bg-slate-100 text-slate-700" };
-                              }
-                              if (tipo.includes('gás') || tipo.includes('gas') || tipo.includes('oxigênio')) {
-                                return { tipo: "Gás", cor: "bg-cyan-100 text-cyan-700" };
-                              }
-                              if (tipo.includes('procedimento') || tipo.includes('proc') || tipo.includes('honorário')) {
-                                return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
-                              }
-                              if (tipo.includes('exame') || tipo.includes('sadt')) {
-                                return { tipo: "Exame", cor: "bg-blue-100 text-blue-700" };
-                              }
-                              // Se tem tipoLancamento mas não reconhecido, mostrar o valor original
-                              return { tipo: tipoLancamento, cor: "bg-neutral-100 text-neutral-700" };
-                            }
-                            
-                            // Fallback: usar código TUSS para determinar tipo
-                            const cod = proc.codigo || "";
-                            const desc = (proc.descricao || "").toLowerCase();
-                            
-                            if (cod.startsWith("07")) return { tipo: "Material", cor: "bg-orange-100 text-orange-700" };
-                            if (cod.startsWith("06")) return { tipo: "Medicamento", cor: "bg-purple-100 text-purple-700" };
-                            if (cod.startsWith("05") || cod.startsWith("08")) return { tipo: "Taxa/Diária", cor: "bg-gray-100 text-gray-700" };
-                            if (cod.startsWith("40") || cod.startsWith("41") || cod.startsWith("42") ||
-                                desc.includes("exame") || desc.includes("dosagem") || desc.includes("hemograma") ||
-                                desc.includes("urina") || desc.includes("sangue") || desc.includes("laborat")) {
-                              return { tipo: "Exame", cor: "bg-blue-100 text-blue-700" };
-                            }
-                            return { tipo: "Procedimento", cor: "bg-green-100 text-green-700" };
-                          };
-                          
-                          const tipoCodigo = getTipoCodigo(proc, extras);
-
-                          return (
-                            <TableRow 
-                              key={proc.id}
-                              className={valorGlosado > 0 ? (valorGlosado >= valor ? "bg-red-50" : "bg-yellow-50") : ""}
-                            >
-                              <TableCell>
-                                <Badge variant="outline" className={`text-xs ${tipoCodigo.cor}`}>
-                                  {tipoCodigo.tipo}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">{proc.guiaNumero || "-"}</TableCell>
-                              <TableCell>
-                                {proc.dataExecucao 
-                                  ? new Date(proc.dataExecucao).toLocaleDateString("pt-BR") 
-                                  : "-"}
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">{proc.codigo}</TableCell>
-                              <TableCell className="max-w-[250px] truncate" title={proc.descricao || ""}>
-                                {proc.descricao || "-"}
-                              </TableCell>
-                              <TableCell className="max-w-[150px] truncate" title={proc.pacienteNome || ""}>
-                                {proc.pacienteNome || "-"}
-                              </TableCell>
-                              <TableCell className="text-center">{proc.quantidade || 1}</TableCell>
-                              <TableCell className="text-right font-mono text-green-600">
-                                {formatCurrency(valorPago > 0 ? valorPago : 0)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-red-600">
-                                {valorGlosado > 0 ? formatCurrency(valorGlosado) : "-"}
-                              </TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={motivoGlosa}>
-                                {motivoGlosa || "-"}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {getStatusBadge(proc)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Paginação */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4">
-                      <p className="text-sm text-muted-foreground">
-                        Página {page} de {totalPages}
-                      </p>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          disabled={page <= 1}
-                          onClick={() => setPage(p => p - 1)}
-                        >
-                          Anterior
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          disabled={page >= totalPages}
-                          onClick={() => setPage(p => p + 1)}
-                        >
-                          Próxima
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Nenhum item encontrado com os filtros aplicados.</p>
-                  {temFiltrosAtivos && (
-                    <Button variant="link" onClick={handleLimparFiltros} className="mt-2">
-                      Limpar filtros
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {!convenioId && (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center text-muted-foreground">
-                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Selecione um convênio para visualizar o demonstrativo.</p>
+        {/* Tabela de itens */}
+        <Card>
+          <CardContent className="pt-6">
+            {isLoadingRecebimento ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ) : items.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum item encontrado</p>
+                <p className="text-sm">Ajuste os filtros ou importe arquivos de retorno</p>
+              </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Guia</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead className="max-w-[250px]">Descrição</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Beneficiário</TableHead>
+                      <TableHead>Data Exec.</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item: any, idx: number) => (
+                      <TableRow key={item.id || idx} className={item.codigoGlosa ? "bg-red-50/50" : ""}>
+                        <TableCell className="font-mono">{item.numeroGuiaPrestador || "-"}</TableCell>
+                        <TableCell className="font-mono">{item.codigoProcedimento || "-"}</TableCell>
+                        <TableCell className="max-w-[250px] truncate">{item.descricaoProcedimento || "-"}</TableCell>
+                        <TableCell>{item.tipoLancamento || "-"}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{item.nomeBeneficiario || "-"}</TableCell>
+                        <TableCell>
+                          {item.dataRealizacao ? new Date(item.dataRealizacao).toLocaleDateString("pt-BR") : "-"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(parseFloat(item.valorLiberado || "0"))}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getStatusBadge(item)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {/* Paginação */}
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, recebimentoData?.total || 0)} de {recebimentoData?.total || 0} itens
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm">
+                      Página {page} de {totalPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

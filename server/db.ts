@@ -15854,17 +15854,23 @@ export async function insertRecebimentoTiss(
 export async function getRecebimentoTiss(filtros?: {
   estabelecimentoId?: number;
   arquivoId?: number;
+  convenioId?: number;
   numeroProtocolo?: string;
   numeroGuia?: string;
   beneficiario?: string;
+  search?: string;
   dataInicio?: string;
   dataFim?: string;
   situacaoItem?: string;
+  statusGlosa?: "todos" | "pago" | "glosado" | "parcial";
+  codigoPrestadorExecutante?: string;
+  mesReferencia?: number;
+  anoReferencia?: number;
   page?: number;
   pageSize?: number;
 }) {
   const db = await getDb();
-  if (!db) return { items: [], total: 0 };
+  if (!db) return { items: [], total: 0, resumo: null };
 
   const page = filtros?.page || 1;
   const pageSize = filtros?.pageSize || 50;
@@ -15877,6 +15883,10 @@ export async function getRecebimentoTiss(filtros?: {
   }
   if (filtros?.arquivoId) {
     conditions.push(eq(recebimentoTiss.arquivoId, filtros.arquivoId));
+  }
+  // Filtro por convênio via join com arquivos
+  if (filtros?.convenioId) {
+    conditions.push(eq(arquivos.convenioId, filtros.convenioId));
   }
   if (filtros?.numeroProtocolo) {
     conditions.push(like(recebimentoTiss.numeroProtocolo, `%${filtros.numeroProtocolo}%`));
@@ -15892,6 +15902,18 @@ export async function getRecebimentoTiss(filtros?: {
       )!
     );
   }
+  // Busca geral (guia, beneficiário, código, descrição)
+  if (filtros?.search) {
+    conditions.push(
+      or(
+        like(recebimentoTiss.numeroGuiaPrestador, `%${filtros.search}%`),
+        like(recebimentoTiss.numeroCarteira, `%${filtros.search}%`),
+        like(recebimentoTiss.nomeBeneficiario, `%${filtros.search}%`),
+        like(recebimentoTiss.codigoProcedimento, `%${filtros.search}%`),
+        like(recebimentoTiss.descricaoProcedimento, `%${filtros.search}%`)
+      )!
+    );
+  }
   if (filtros?.dataInicio) {
     conditions.push(gte(recebimentoTiss.dataPagamento, new Date(filtros.dataInicio)));
   }
@@ -15901,26 +15923,155 @@ export async function getRecebimentoTiss(filtros?: {
   if (filtros?.situacaoItem) {
     conditions.push(eq(recebimentoTiss.situacaoItem, filtros.situacaoItem));
   }
+  // Filtro por status de glosa
+  if (filtros?.statusGlosa && filtros.statusGlosa !== "todos") {
+    if (filtros.statusGlosa === "pago") {
+      conditions.push(
+        and(
+          or(
+            isNull(recebimentoTiss.codigoGlosa),
+            eq(recebimentoTiss.codigoGlosa, "")
+          )!,
+          sql`CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0`
+        )!
+      );
+    } else if (filtros.statusGlosa === "glosado") {
+      conditions.push(
+        or(
+          and(
+            isNotNull(recebimentoTiss.codigoGlosa),
+            sql`${recebimentoTiss.codigoGlosa} != ''`
+          )!,
+          sql`CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) = 0`
+        )!
+      );
+    } else if (filtros.statusGlosa === "parcial") {
+      conditions.push(
+        and(
+          sql`CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0`,
+          isNotNull(recebimentoTiss.codigoGlosa),
+          sql`${recebimentoTiss.codigoGlosa} != ''`
+        )!
+      );
+    }
+  }
+  // Filtro por prestador executante
+  if (filtros?.codigoPrestadorExecutante) {
+    conditions.push(eq(recebimentoTiss.codigoPrestadorExecutante, filtros.codigoPrestadorExecutante));
+  }
+  // Filtro por mês/ano de referência (baseado em dataPagamento)
+  if (filtros?.mesReferencia && filtros?.anoReferencia) {
+    conditions.push(
+      sql`MONTH(${recebimentoTiss.dataPagamento}) = ${filtros.mesReferencia} AND YEAR(${recebimentoTiss.dataPagamento}) = ${filtros.anoReferencia}`
+    );
+  } else if (filtros?.anoReferencia) {
+    conditions.push(
+      sql`YEAR(${recebimentoTiss.dataPagamento}) = ${filtros.anoReferencia}`
+    );
+  } else if (filtros?.mesReferencia) {
+    conditions.push(
+      sql`MONTH(${recebimentoTiss.dataPagamento}) = ${filtros.mesReferencia}`
+    );
+  }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   // Contar total
-  const countResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(recebimentoTiss)
-    .where(whereClause);
+  const countQuery = filtros?.convenioId
+    ? db
+        .select({ count: sql<number>`count(*)` })
+        .from(recebimentoTiss)
+        .leftJoin(arquivos, eq(recebimentoTiss.arquivoId, arquivos.id))
+        .where(whereClause)
+    : db
+        .select({ count: sql<number>`count(*)` })
+        .from(recebimentoTiss)
+        .where(whereClause);
+  
+  const countResult = await countQuery;
   const total = countResult[0]?.count || 0;
 
-  // Buscar itens
+  // Buscar itens com join para pegar nome do convênio
   const items = await db
-    .select()
+    .select({
+      id: recebimentoTiss.id,
+      arquivoId: recebimentoTiss.arquivoId,
+      estabelecimentoId: recebimentoTiss.estabelecimentoId,
+      numeroDemonstrativo: recebimentoTiss.numeroDemonstrativo,
+      nomeOperadora: recebimentoTiss.nomeOperadora,
+      cnpjOperadora: recebimentoTiss.cnpjOperadora,
+      dataEmissao: recebimentoTiss.dataEmissao,
+      dataPagamento: recebimentoTiss.dataPagamento,
+      numeroLotePrestador: recebimentoTiss.numeroLotePrestador,
+      numeroProtocolo: recebimentoTiss.numeroProtocolo,
+      situacaoProtocolo: recebimentoTiss.situacaoProtocolo,
+      codigoPrestadorPagamento: recebimentoTiss.codigoPrestadorPagamento,
+      nomePrestadorPagamento: recebimentoTiss.nomePrestadorPagamento,
+      codigoPrestadorExecutante: recebimentoTiss.codigoPrestadorExecutante,
+      nomePrestadorExecutante: recebimentoTiss.nomePrestadorExecutante,
+      numeroGuiaPrestador: recebimentoTiss.numeroGuiaPrestador,
+      numeroGuiaOperadora: recebimentoTiss.numeroGuiaOperadora,
+      senha: recebimentoTiss.senha,
+      numeroCarteira: recebimentoTiss.numeroCarteira,
+      nomeBeneficiario: recebimentoTiss.nomeBeneficiario,
+      situacaoGuia: recebimentoTiss.situacaoGuia,
+      sequencialItem: recebimentoTiss.sequencialItem,
+      dataRealizacao: recebimentoTiss.dataRealizacao,
+      horaExecucao: recebimentoTiss.horaExecucao,
+      codigoTabela: recebimentoTiss.codigoTabela,
+      codigoProcedimento: recebimentoTiss.codigoProcedimento,
+      descricaoProcedimento: recebimentoTiss.descricaoProcedimento,
+      tipoLancamento: recebimentoTiss.tipoLancamento,
+      valorInformado: recebimentoTiss.valorInformado,
+      valorProcessado: recebimentoTiss.valorProcessado,
+      valorLiberado: recebimentoTiss.valorLiberado,
+      qtdExecutada: recebimentoTiss.qtdExecutada,
+      codigoGlosa: recebimentoTiss.codigoGlosa,
+      descricaoGlosa: recebimentoTiss.descricaoGlosa,
+      situacaoItem: recebimentoTiss.situacaoItem,
+      codigoSolicitante: recebimentoTiss.codigoSolicitante,
+      nomeSolicitante: recebimentoTiss.nomeSolicitante,
+      acomodacaoInternacao: recebimentoTiss.acomodacaoInternacao,
+      dataInicioInternacao: recebimentoTiss.dataInicioInternacao,
+      dataFimInternacao: recebimentoTiss.dataFimInternacao,
+      dataImportacao: recebimentoTiss.dataImportacao,
+      convenioNome: convenios.nome,
+      arquivoNome: arquivos.nome,
+    })
     .from(recebimentoTiss)
+    .leftJoin(arquivos, eq(recebimentoTiss.arquivoId, arquivos.id))
+    .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
     .where(whereClause)
     .orderBy(desc(recebimentoTiss.dataPagamento), desc(recebimentoTiss.id))
     .limit(pageSize)
     .offset(offset);
 
-  return { items, total, page, pageSize };
+  // Calcular resumo (totais)
+  const resumoQuery = filtros?.convenioId
+    ? db
+        .select({
+          totalItens: sql<number>`COUNT(*)`,
+          valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
+          itensPagos: sql<number>`SUM(CASE WHEN (${recebimentoTiss.codigoGlosa} IS NULL OR ${recebimentoTiss.codigoGlosa} = '') AND CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
+          itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.codigoGlosa} IS NOT NULL AND ${recebimentoTiss.codigoGlosa} != '' THEN 1 ELSE 0 END)`,
+        })
+        .from(recebimentoTiss)
+        .leftJoin(arquivos, eq(recebimentoTiss.arquivoId, arquivos.id))
+        .where(whereClause)
+    : db
+        .select({
+          totalItens: sql<number>`COUNT(*)`,
+          valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
+          itensPagos: sql<number>`SUM(CASE WHEN (${recebimentoTiss.codigoGlosa} IS NULL OR ${recebimentoTiss.codigoGlosa} = '') AND CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
+          itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.codigoGlosa} IS NOT NULL AND ${recebimentoTiss.codigoGlosa} != '' THEN 1 ELSE 0 END)`,
+        })
+        .from(recebimentoTiss)
+        .where(whereClause);
+
+  const resumoResult = await resumoQuery;
+  const resumo = resumoResult[0] || null;
+
+  return { items, total, page, pageSize, resumo };
 }
 
 /**

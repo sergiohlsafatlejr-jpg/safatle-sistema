@@ -5552,12 +5552,18 @@ export const appRouter = router({
       .input(z.object({
         estabelecimentoId: z.number().optional(),
         arquivoId: z.number().optional(),
+        convenioId: z.number().optional(),
         numeroProtocolo: z.string().optional(),
         numeroGuia: z.string().optional(),
         beneficiario: z.string().optional(),
+        search: z.string().optional(),
         dataInicio: z.string().optional(),
         dataFim: z.string().optional(),
         situacaoItem: z.string().optional(),
+        statusGlosa: z.enum(["todos", "pago", "glosado", "parcial"]).optional(),
+        codigoPrestadorExecutante: z.string().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
         page: z.number().optional(),
         pageSize: z.number().optional(),
       }).optional())
