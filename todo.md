@@ -1101,3 +1101,5 @@
 - [x] Adicionar coluna Prof. Executante no relatório Excel de itens detalhados da tela Conciliação Contas Pagas
 
 - [x] Criar tabela faturamento_tiss no schema do banco de dados para armazenar dados de faturamento TISS
+
+- [x] Processar todos os arquivos XML enviados da tabela arquivos e popular a tabela faturamento_tiss (796 arquivos, 13.795 itens, R$ 1.117.402,67)
