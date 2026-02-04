@@ -90,6 +90,8 @@ import {
   InsertItemConciliacaoTasy,
   detalhesItensConciliacaoTasy,
   InsertDetalheItemConciliacaoTasy,
+  recebimentoTiss,
+  InsertRecebimentoTiss,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -15816,4 +15818,157 @@ export async function getCompetenciasFaturadoTasy(
     totalRegistros: r.totalRegistros || 0,
     valorFaturado: r.valorFaturado || 0,
   }));
+}
+
+
+// ============ RECEBIMENTO TISS ============
+
+/**
+ * Insere itens na tabela recebimento_tiss
+ */
+export async function insertRecebimentoTiss(
+  items: Partial<InsertRecebimentoTiss>[]
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (items.length === 0) return 0;
+
+  // Inserir em lotes de 500 para evitar timeout
+  const BATCH_SIZE = 500;
+  let totalInserted = 0;
+
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    await db.insert(recebimentoTiss).values(batch as InsertRecebimentoTiss[]);
+    totalInserted += batch.length;
+    console.log(`[insertRecebimentoTiss] Inseridos ${totalInserted}/${items.length} itens`);
+  }
+
+  return totalInserted;
+}
+
+/**
+ * Busca itens de recebimento_tiss com filtros
+ */
+export async function getRecebimentoTiss(filtros?: {
+  estabelecimentoId?: number;
+  arquivoId?: number;
+  numeroProtocolo?: string;
+  numeroGuia?: string;
+  beneficiario?: string;
+  dataInicio?: string;
+  dataFim?: string;
+  situacaoItem?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const page = filtros?.page || 1;
+  const pageSize = filtros?.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+
+  const conditions: SQL[] = [];
+
+  if (filtros?.estabelecimentoId) {
+    conditions.push(eq(recebimentoTiss.estabelecimentoId, filtros.estabelecimentoId));
+  }
+  if (filtros?.arquivoId) {
+    conditions.push(eq(recebimentoTiss.arquivoId, filtros.arquivoId));
+  }
+  if (filtros?.numeroProtocolo) {
+    conditions.push(like(recebimentoTiss.numeroProtocolo, `%${filtros.numeroProtocolo}%`));
+  }
+  if (filtros?.numeroGuia) {
+    conditions.push(like(recebimentoTiss.numeroGuiaPrestador, `%${filtros.numeroGuia}%`));
+  }
+  if (filtros?.beneficiario) {
+    conditions.push(
+      or(
+        like(recebimentoTiss.numeroCarteira, `%${filtros.beneficiario}%`),
+        like(recebimentoTiss.nomeBeneficiario, `%${filtros.beneficiario}%`)
+      )!
+    );
+  }
+  if (filtros?.dataInicio) {
+    conditions.push(gte(recebimentoTiss.dataPagamento, new Date(filtros.dataInicio)));
+  }
+  if (filtros?.dataFim) {
+    conditions.push(lte(recebimentoTiss.dataPagamento, new Date(filtros.dataFim)));
+  }
+  if (filtros?.situacaoItem) {
+    conditions.push(eq(recebimentoTiss.situacaoItem, filtros.situacaoItem));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Contar total
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(recebimentoTiss)
+    .where(whereClause);
+  const total = countResult[0]?.count || 0;
+
+  // Buscar itens
+  const items = await db
+    .select()
+    .from(recebimentoTiss)
+    .where(whereClause)
+    .orderBy(desc(recebimentoTiss.dataPagamento), desc(recebimentoTiss.id))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { items, total, page, pageSize };
+}
+
+/**
+ * Estatísticas de recebimento_tiss
+ */
+export async function getRecebimentoTissStats(filtros?: {
+  estabelecimentoId?: number;
+  arquivoId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions: SQL[] = [];
+
+  if (filtros?.estabelecimentoId) {
+    conditions.push(eq(recebimentoTiss.estabelecimentoId, filtros.estabelecimentoId));
+  }
+  if (filtros?.arquivoId) {
+    conditions.push(eq(recebimentoTiss.arquivoId, filtros.arquivoId));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const result = await db
+    .select({
+      totalItens: sql<number>`COUNT(*)`,
+      valorInformado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorInformado} AS DECIMAL(15,2))), 0)`,
+      valorProcessado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorProcessado} AS DECIMAL(15,2))), 0)`,
+      valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
+      itensPagos: sql<number>`SUM(CASE WHEN ${recebimentoTiss.situacaoItem} = 'PAGO' THEN 1 ELSE 0 END)`,
+      itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.situacaoItem} = 'GLOSADO' OR ${recebimentoTiss.codigoGlosa} IS NOT NULL THEN 1 ELSE 0 END)`,
+    })
+    .from(recebimentoTiss)
+    .where(whereClause);
+
+  return result[0] || null;
+}
+
+/**
+ * Exclui itens de recebimento_tiss por arquivo
+ */
+export async function deleteRecebimentoTissByArquivo(arquivoId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .delete(recebimentoTiss)
+    .where(eq(recebimentoTiss.arquivoId, arquivoId));
+
+  return result[0]?.affectedRows || 0;
 }

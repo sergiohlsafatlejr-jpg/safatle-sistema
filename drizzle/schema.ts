@@ -2185,48 +2185,69 @@ export type InsertFaturamentoTiss = typeof faturamentoTiss.$inferInsert;
 
 /**
  * Tabela de Recebimento TISS
- * Armazena dados dos arquivos XML de retorno das operadoras (demonstrativos de pagamento)
+ * Armazena dados dos arquivos de retorno das operadoras (demonstrativos de pagamento - XML ou Excel)
  */
 export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Referência ao arquivo de origem
+  // Referência ao arquivo de origem e estabelecimento
   arquivoId: int("arquivo_id"),
+  estabelecimentoId: int("estabelecimento_id"),
   
-  // Dados do Demonstrativo
+  // Dados do Demonstrativo/Pagamento
   numeroDemonstrativo: varchar("numero_demonstrativo", { length: 20 }),
   nomeOperadora: varchar("nome_operadora", { length: 150 }),
   cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
   dataEmissao: timestamp("data_emissao"),
+  dataPagamento: timestamp("data_pagamento"), // Data Pagto do Excel
   
   // Dados do Lote e Protocolo
-  numeroLotePrestador: varchar("numero_lote_prestador", { length: 20 }),
-  numeroProtocolo: varchar("numero_protocolo", { length: 20 }),
+  numeroLotePrestador: varchar("numero_lote_prestador", { length: 20 }), // Lote Prestador
+  numeroProtocolo: varchar("numero_protocolo", { length: 20 }), // Protocolo TISS
   situacaoProtocolo: varchar("situacao_protocolo", { length: 5 }),
   
+  // Dados do Prestador
+  codigoPrestadorPagamento: varchar("codigo_prestador_pagamento", { length: 20 }), // Código Prestador Pagamento
+  nomePrestadorPagamento: varchar("nome_prestador_pagamento", { length: 150 }), // Nome Prestador Pagamento
+  codigoPrestadorExecutante: varchar("codigo_prestador_executante", { length: 20 }), // Código Prestador Executante
+  nomePrestadorExecutante: varchar("nome_prestador_executante", { length: 150 }), // Nome Prestador Executante
+  
   // Dados da Guia
-  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }),
+  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }), // Número Guia
   numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 20 }),
   senha: varchar("senha", { length: 20 }),
-  numeroCarteira: varchar("numero_carteira", { length: 20 }),
+  numeroCarteira: varchar("numero_carteira", { length: 20 }), // Beneficiário
+  nomeBeneficiario: varchar("nome_beneficiario", { length: 150 }), // Nome Beneficiário
   situacaoGuia: varchar("situacao_guia", { length: 5 }),
   
   // Dados do Item
-  sequencialItem: int("sequencial_item"),
-  dataRealizacao: timestamp("data_realizacao"),
+  sequencialItem: int("sequencial_item"), // Seq
+  dataRealizacao: timestamp("data_realizacao"), // Data Execução
+  horaExecucao: varchar("hora_execucao", { length: 10 }), // Hora Execução
   codigoTabela: varchar("codigo_tabela", { length: 5 }),
-  codigoProcedimento: varchar("codigo_procedimento", { length: 15 }),
-  descricaoProcedimento: varchar("descricao_procedimento", { length: 255 }),
+  codigoProcedimento: varchar("codigo_procedimento", { length: 15 }), // Item
+  descricaoProcedimento: varchar("descricao_procedimento", { length: 255 }), // Item Desc
+  tipoLancamento: varchar("tipo_lancamento", { length: 50 }), // Tipo Lançamento
   
   // Valores
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
-  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
-  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
-  qtdExecutada: int("qtd_executada"),
+  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }), // Processado
+  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }), // Valor Pagamento
+  qtdExecutada: int("qtd_executada"), // Quantidade
   
   // Dados de Glosa
-  codigoGlosa: varchar("codigo_glosa", { length: 10 }),
+  codigoGlosa: varchar("codigo_glosa", { length: 10 }), // Erro TISS
   descricaoGlosa: text("descricao_glosa"),
+  situacaoItem: varchar("situacao_item", { length: 20 }), // Situação Item (PAGO/GLOSADO)
+  
+  // Dados do Solicitante
+  codigoSolicitante: varchar("codigo_solicitante", { length: 20 }), // Código Solicitante
+  nomeSolicitante: varchar("nome_solicitante", { length: 150 }), // Nome Solicitante
+  
+  // Dados de Internação
+  acomodacaoInternacao: varchar("acomodacao_internacao", { length: 50 }), // Acomodação da Internação
+  dataInicioInternacao: timestamp("data_inicio_internacao"), // Data Inicio Faturamento Internação
+  dataFimInternacao: timestamp("data_fim_internacao"), // Data Fim Faturamento Internação
   
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),

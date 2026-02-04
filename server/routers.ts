@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { storagePut, storageGet } from "./storage";
 import { parseFile, toProcedimentoInsert } from "./parsers";
+import { parseExcelRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 
@@ -5457,6 +5458,88 @@ export const appRouter = router({
       .input(z.object({ estabelecimentoId: z.number() }))
       .query(async ({ input }) => {
         return db.getOpcoesFiltroBi(input.estabelecimentoId);
+      }),
+  }),
+
+  // ============ RECEBIMENTO TISS ============
+  recebimentoTiss: router({
+    // Importar dados de Excel para recebimento_tiss
+    importarExcel: protectedProcedure
+      .input(z.object({
+        arquivoId: z.number(),
+        estabelecimentoId: z.number(),
+        conteudo: z.string(), // Base64 encoded
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const buffer = Buffer.from(input.conteudo, "base64");
+          
+          const result = await parseExcelRecebimentoTiss(
+            buffer,
+            input.arquivoId,
+            input.estabelecimentoId
+          );
+          
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error,
+              totalImportados: 0,
+            };
+          }
+          
+          // Inserir itens no banco de dados
+          const totalImportados = await db.insertRecebimentoTiss(result.items);
+          
+          return {
+            success: true,
+            totalImportados,
+            totalLinhas: result.totalRows,
+          };
+        } catch (error) {
+          console.error("[recebimentoTiss.importarExcel] Erro:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Erro ao importar arquivo",
+            totalImportados: 0,
+          };
+        }
+      }),
+    
+    // Listar itens de recebimento_tiss
+    list: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        arquivoId: z.number().optional(),
+        numeroProtocolo: z.string().optional(),
+        numeroGuia: z.string().optional(),
+        beneficiario: z.string().optional(),
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+        situacaoItem: z.string().optional(),
+        page: z.number().optional(),
+        pageSize: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getRecebimentoTiss(input);
+      }),
+    
+    // Estatísticas de recebimento
+    stats: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        arquivoId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getRecebimentoTissStats(input);
+      }),
+    
+    // Excluir itens por arquivo
+    excluirPorArquivo: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .mutation(async ({ input }) => {
+        const deleted = await db.deleteRecebimentoTissByArquivo(input.arquivoId);
+        return { success: true, deleted };
       }),
   }),
 });

@@ -1109,3 +1109,5 @@
 - [x] Corrigir mapeamento dos campos conselho e numeroConselhoProfissional na tabela faturamento_tiss (conselho_prof agora armazena apenas o número do CRM, ex: 11382)
 
 - [x] Integrar tabela recebimento_tiss com o ORM Drizzle (adicionar definição no schema)
+
+- [x] Criar mapeamento e importador de Excel para a tabela recebimento_tiss (colunas: Data Pagto, Processado, Protocolo TISS, Lote Prestador, Número Guia, Beneficiário, Data Execução, Item, Valor Pagamento, Erro TISS, Situação Item, etc.)
