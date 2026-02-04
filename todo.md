@@ -1119,3 +1119,5 @@
 - [x] Adicionar suporte para importar arquivos XML de retorno (demonstrativos) para a tabela recebimento_tiss automaticamente
 
 - [x] Alterar telas Contas Demonstrativo e Demonstrativo para buscar dados da tabela recebimento_tiss em vez de procedimentos
+
+- [x] Alterar tela Conta Convênio para buscar dados da tabela faturamento_tiss em vez de procedimentos

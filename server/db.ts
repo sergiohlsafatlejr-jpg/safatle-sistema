@@ -92,6 +92,8 @@ import {
   InsertDetalheItemConciliacaoTasy,
   recebimentoTiss,
   InsertRecebimentoTiss,
+  faturamentoTiss,
+  InsertFaturamentoTiss,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -16120,6 +16122,179 @@ export async function deleteRecebimentoTissByArquivo(arquivoId: number): Promise
   const result = await db
     .delete(recebimentoTiss)
     .where(eq(recebimentoTiss.arquivoId, arquivoId));
+
+  return result[0]?.affectedRows || 0;
+}
+
+
+// ==================== FATURAMENTO TISS ====================
+
+/**
+ * Busca itens de faturamento_tiss com filtros e paginação
+ */
+export async function getFaturamentoTiss(params: {
+  estabelecimentoId?: number;
+  convenioId?: number;
+  arquivoId?: number;
+  search?: string;
+  mesReferencia?: number;
+  anoReferencia?: number;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: any[]; total: number; resumo: any }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const { estabelecimentoId, convenioId, arquivoId, search, mesReferencia, anoReferencia, page = 1, pageSize = 50 } = params;
+
+  const conditions: SQL[] = [];
+
+  if (estabelecimentoId) {
+    conditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
+  }
+
+  if (arquivoId) {
+    conditions.push(eq(faturamentoTiss.arquivoId, arquivoId));
+  }
+
+  // Filtro por convênio através do arquivo
+  if (convenioId) {
+    conditions.push(
+      inArray(
+        faturamentoTiss.arquivoId,
+        db.select({ id: arquivos.id }).from(arquivos).where(eq(arquivos.convenioId, convenioId))
+      )
+    );
+  }
+
+  // Filtro por mês/ano de referência (baseado na data de execução)
+  if (mesReferencia && anoReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+  } else if (mesReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+  } else if (anoReferencia) {
+    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+  }
+
+  // Busca textual
+  if (search) {
+    const searchPattern = `%${search}%`;
+    conditions.push(
+      or(
+        like(faturamentoTiss.numeroGuiaPrestador, searchPattern),
+        like(faturamentoTiss.codigoItem, searchPattern),
+        like(faturamentoTiss.descricaoItem, searchPattern),
+        like(faturamentoTiss.carteiraBeneficiario, searchPattern),
+        like(faturamentoTiss.nomeProf, searchPattern)
+      )!
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Buscar total
+  const countResult = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(faturamentoTiss)
+    .where(whereClause);
+
+  const total = countResult[0]?.count || 0;
+
+  // Buscar itens com paginação
+  const offset = (page - 1) * pageSize;
+  
+  let query = db
+    .select()
+    .from(faturamentoTiss)
+    .orderBy(desc(faturamentoTiss.dataExecucao), desc(faturamentoTiss.id))
+    .limit(pageSize)
+    .offset(offset);
+
+  if (whereClause) {
+    query = query.where(whereClause) as typeof query;
+  }
+
+  const items = await query;
+
+  // Buscar resumo
+  const resumoResult = await db
+    .select({
+      totalItens: sql<number>`COUNT(*)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorTotalItem} AS DECIMAL(15,2))), 0)`,
+      totalGuias: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroGuiaPrestador})`,
+    })
+    .from(faturamentoTiss)
+    .where(whereClause);
+
+  const resumo = resumoResult[0] || { totalItens: 0, valorTotal: 0, totalGuias: 0 };
+
+  return { items, total, resumo };
+}
+
+/**
+ * Busca resumo de faturamento_tiss
+ */
+export async function getFaturamentoTissResumo(params: {
+  estabelecimentoId?: number;
+  convenioId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+}): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const { estabelecimentoId, convenioId, mesReferencia, anoReferencia } = params;
+
+  const conditions: SQL[] = [];
+
+  if (estabelecimentoId) {
+    conditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
+  }
+
+  if (convenioId) {
+    conditions.push(
+      inArray(
+        faturamentoTiss.arquivoId,
+        db.select({ id: arquivos.id }).from(arquivos).where(eq(arquivos.convenioId, convenioId))
+      )
+    );
+  }
+
+  if (mesReferencia && anoReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+  } else if (mesReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+  } else if (anoReferencia) {
+    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const result = await db
+    .select({
+      totalItens: sql<number>`COUNT(*)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorTotalItem} AS DECIMAL(15,2))), 0)`,
+      totalGuias: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroGuiaPrestador})`,
+      totalLotes: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroLote})`,
+    })
+    .from(faturamentoTiss)
+    .where(whereClause);
+
+  return result[0] || null;
+}
+
+/**
+ * Exclui itens de faturamento_tiss por arquivo
+ */
+export async function deleteFaturamentoTissByArquivo(arquivoId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .delete(faturamentoTiss)
+    .where(eq(faturamentoTiss.arquivoId, arquivoId));
 
   return result[0]?.affectedRows || 0;
 }

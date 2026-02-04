@@ -5589,6 +5589,45 @@ export const appRouter = router({
         return { success: true, deleted };
       }),
   }),
+
+  // ============ FATURAMENTO TISS ============
+  faturamentoTiss: router({
+    // Listar itens de faturamento_tiss com filtros e paginação
+    list: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        convenioId: z.number().optional(),
+        arquivoId: z.number().optional(),
+        search: z.string().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        page: z.number().optional(),
+        pageSize: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getFaturamentoTiss(input || {});
+      }),
+    
+    // Resumo de faturamento
+    resumo: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        convenioId: z.number().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getFaturamentoTissResumo(input || {});
+      }),
+    
+    // Excluir itens por arquivo
+    excluirPorArquivo: protectedProcedure
+      .input(z.object({ arquivoId: z.number() }))
+      .mutation(async ({ input }) => {
+        const deleted = await db.deleteFaturamentoTissByArquivo(input.arquivoId);
+        return { success: true, deleted };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
