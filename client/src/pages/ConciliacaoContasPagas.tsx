@@ -327,7 +327,8 @@ export default function ConciliacaoContasPagas() {
                 atendimento: contaInfo?.atendimento || '-',
                 protocolo: contaInfo?.protocolo || '-',
                 setor: contaInfo?.setor || '-',
-                profissional: contaInfo?.profExec || '-',
+                profissionalConta: contaInfo?.profExec || '-',
+                profissionalItem: item.profExec || '-',
                 ...item
               }));
             }
@@ -359,7 +360,7 @@ export default function ConciliacaoContasPagas() {
           'Atendimento': item.atendimento || '-',
           'Protocolo': item.protocolo || '-',
           'Setor': item.setor || '-',
-          'Profissional': item.profissional || '-',
+          'Prof. Executante': item.profissionalItem || item.profissionalConta || '-',
           'Tipo': item.tipoItem || '-',
           'Código': item.cdItem || '-',
           'Código TUSS': item.cdItemTuss || '-',

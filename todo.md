@@ -1097,3 +1097,5 @@
 - [x] Corrigir cálculo de valores no Relatório BI para usar mesma lógica da tela Demonstrativo (somar valorTotal apenas onde valorGlosado = 0) - Recebido agora mostra R$ 72.227,52 corretamente
 
 - [x] Adicionar campo ProfExec (Profissional Executante) no modal de itens da tela Conciliação Contas Pagas
+
+- [x] Adicionar coluna Prof. Executante no relatório Excel de itens detalhados da tela Conciliação Contas Pagas
