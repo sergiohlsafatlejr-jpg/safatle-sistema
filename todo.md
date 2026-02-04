@@ -1113,3 +1113,5 @@
 - [x] Criar mapeamento e importador de Excel para a tabela recebimento_tiss (colunas: Data Pagto, Processado, Protocolo TISS, Lote Prestador, Número Guia, Beneficiário, Data Execução, Item, Valor Pagamento, Erro TISS, Situação Item, etc.)
 
 - [x] Criar script de importação para popular tabela recebimento_tiss a partir de arquivos XML e Excel de retorno das operadoras (15 arquivos, 97.415 itens, R$ 8.124.574,95)
+
+- [x] Alterar fluxo de upload de arquivos de retorno para popular automaticamente a tabela recebimento_tiss com mapeamento específico Unimed

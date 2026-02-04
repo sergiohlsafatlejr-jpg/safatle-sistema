@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { InsertRecebimentoTiss } from "../drizzle/schema";
 
 // Mapeamento de colunas do Excel para campos da tabela recebimento_tiss
+// Mapeamento específico para Excel Unimed (nomes exatos das colunas)
 const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImportacao'>, string[]> = {
   // Referência ao arquivo de origem e estabelecimento (preenchidos externamente)
   arquivoId: [],
@@ -14,14 +15,14 @@ const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImpo
   
   // Dados do Demonstrativo/Pagamento
   numeroDemonstrativo: ["numero_demonstrativo", "demonstrativo"],
-  nomeOperadora: ["nome_operadora", "operadora"],
+  nomeOperadora: ["Nome Prestador", "nome_operadora", "operadora"], // Unimed: "Nome Prestador"
   cnpjOperadora: ["cnpj_operadora", "cnpj"],
-  dataEmissao: ["data_emissao", "emissao"],
-  dataPagamento: ["data_pagto", "datapagto", "data_pagamento", "datapagamento", "dt_pagto", "dtpagto"],
+  dataEmissao: ["Data Pagto", "data_emissao", "emissao"], // Unimed: "Data Pagto"
+  dataPagamento: ["Data Pagto", "data_pagto", "datapagto", "data_pagamento", "datapagamento", "dt_pagto", "dtpagto"],
   
   // Dados do Lote e Protocolo
-  numeroLotePrestador: ["lote_prestador", "loteprestador", "lote", "numero_lote"],
-  numeroProtocolo: ["protocolo_tiss", "protocolotiss", "protocolo", "numero_protocolo"],
+  numeroLotePrestador: ["Lote Prestador", "lote_prestador", "loteprestador", "lote", "numero_lote"], // Unimed: "Lote Prestador"
+  numeroProtocolo: ["Protocolo TISS", "protocolo_tiss", "protocolotiss", "protocolo", "numero_protocolo"], // Unimed: "Protocolo TISS"
   situacaoProtocolo: ["situacao_protocolo", "situacaoprotocolo"],
   
   // Dados do Prestador
@@ -31,30 +32,30 @@ const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImpo
   nomePrestadorExecutante: ["nome_prestador", "nomeprestador", "nome_prestador_executante", "nomeprestadorexecutante", "prestador_executante_nome"],
   
   // Dados da Guia
-  numeroGuiaPrestador: ["numero_guia", "numeroguia", "guia", "num_guia"],
+  numeroGuiaPrestador: ["Número Guia", "Numero Guia", "numero_guia", "numeroguia", "guia", "num_guia"], // Unimed: "Número Guia"
   numeroGuiaOperadora: ["guia_operadora", "guiaoperadora"],
   senha: ["senha", "autorizacao"],
-  numeroCarteira: ["beneficiario", "beneficiário", "carteira", "numero_carteira", "carteirinha"],
-  nomeBeneficiario: ["nome_beneficiario", "nomebeneficiario", "nome_beneficiário", "paciente"],
+  numeroCarteira: ["Beneficiário", "Beneficiario", "beneficiario", "beneficiário", "carteira", "numero_carteira", "carteirinha"], // Unimed: "Beneficiário"
+  nomeBeneficiario: ["Nome Beneficiário", "Nome Beneficiario", "nome_beneficiario", "nomebeneficiario", "nome_beneficiário", "paciente"], // Unimed: "Nome Beneficiário"
   situacaoGuia: ["situacao_guia", "situacaoguia"],
   
   // Dados do Item
   sequencialItem: ["seq", "sequencial", "sequencial_item", "sequencialitem"],
-  dataRealizacao: ["data_execucao", "dataexecucao", "data_execução", "dt_execucao", "data_realizacao"],
+  dataRealizacao: ["Data Execução", "Data Execucao", "data_execucao", "dataexecucao", "data_execução", "dt_execucao", "data_realizacao"], // Unimed: "Data Execução"
   horaExecucao: ["hora_execucao", "horaexecucao", "hora_execução", "hr_execucao"],
   codigoTabela: ["codigo_tabela", "codigotabela", "tabela"],
-  codigoProcedimento: ["item", "codigo", "cod", "codigo_procedimento", "codigoprocedimento"],
-  descricaoProcedimento: ["item_desc", "itemdesc", "descricao", "descrição", "descricao_item"],
+  codigoProcedimento: ["Item", "item", "codigo", "cod", "codigo_procedimento", "codigoprocedimento"], // Unimed: "Item"
+  descricaoProcedimento: ["Item Desc", "item_desc", "itemdesc", "descricao", "descrição", "descricao_item"], // Unimed: "Item Desc"
   tipoLancamento: ["tipo_lancamento", "tipolancamento", "tipo_lançamento", "tipo"],
   
   // Valores
   valorInformado: ["valor_informado", "valorinformado", "vl_informado"],
   valorProcessado: ["processado", "valor_processado", "valorprocessado", "vl_processado"],
-  valorLiberado: ["valor_pagamento", "valorpagamento", "valor_pago", "valorpago", "valor_liberado", "valorliberado"],
-  qtdExecutada: ["quantidade", "qtd", "qtde", "quant"],
+  valorLiberado: ["Valor Pagamento", "valor_pagamento", "valorpagamento", "valor_pago", "valorpago", "valor_liberado", "valorliberado"], // Unimed: "Valor Pagamento"
+  qtdExecutada: ["Quantidade", "quantidade", "qtd", "qtde", "quant"], // Unimed: "Quantidade"
   
   // Dados de Glosa
-  codigoGlosa: ["erro_tiss", "errotiss", "codigo_glosa", "codigoglosa", "cod_glosa"],
+  codigoGlosa: ["Erro TISS", "erro_tiss", "errotiss", "codigo_glosa", "codigoglosa", "cod_glosa"], // Unimed: "Erro TISS"
   descricaoGlosa: ["descricao_glosa", "descricaoglosa", "motivo_glosa", "motivoglosa"],
   situacaoItem: ["situacao_item", "situacaoitem", "situação_item", "status"],
   

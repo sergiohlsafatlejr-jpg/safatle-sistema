@@ -675,6 +675,37 @@ export const appRouter = router({
                   console.error('[Upload] Erro ao gerar insights de IA:', iaError);
                 }
               }
+              
+              // Processar arquivos de retorno Excel para recebimento_tiss automaticamente
+              if (input.direcao === "retornado" && input.tipoArquivo === "excel") {
+                try {
+                  console.log('[Upload] Processando arquivo de retorno Excel para recebimento_tiss:', arquivoId);
+                  
+                  // Excluir dados antigos deste arquivo se for reimportação
+                  if (isReimportacao) {
+                    await db.deleteRecebimentoTissByArquivo(arquivoId);
+                    console.log('[Upload] Dados antigos de recebimento_tiss excluídos para reimportação');
+                  }
+                  
+                  const recebimentoResult = await parseExcelRecebimentoTiss(
+                    buffer,
+                    arquivoId,
+                    input.estabelecimentoId
+                  );
+                  
+                  if (recebimentoResult.success && recebimentoResult.items.length > 0) {
+                    const totalImportados = await db.insertRecebimentoTiss(recebimentoResult.items);
+                    console.log('[Upload] Recebimento TISS importado:', totalImportados, 'itens de', recebimentoResult.totalRows, 'linhas');
+                  } else if (!recebimentoResult.success) {
+                    console.error('[Upload] Erro ao processar recebimento_tiss:', recebimentoResult.error);
+                  } else {
+                    console.log('[Upload] Nenhum item de recebimento_tiss encontrado no arquivo');
+                  }
+                } catch (recebimentoError) {
+                  // Não falhar o upload se a importação de recebimento falhar
+                  console.error('[Upload] Erro ao importar recebimento_tiss:', recebimentoError);
+                }
+              }
             } else if (!parseResult.success) {
               await db.updateArquivoStatus(arquivoId, "erro");
             } else {
