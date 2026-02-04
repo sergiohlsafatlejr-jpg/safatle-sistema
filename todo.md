@@ -1103,3 +1103,5 @@
 - [x] Criar tabela faturamento_tiss no schema do banco de dados para armazenar dados de faturamento TISS
 
 - [x] Processar todos os arquivos XML enviados da tabela arquivos e popular a tabela faturamento_tiss (796 arquivos, 13.795 itens, R$ 1.117.402,67)
+
+- [x] Reprocessar todos os arquivos XML e popular tabela faturamento_tiss com todos os campos corretamente preenchidos (796 arquivos, 23.311 itens, R$ 1.886.387,52)
