@@ -1246,3 +1246,22 @@
 ## Ajustes Solicitados 05/02/2026
 
 - [x] Ajustar filtro de data na tela Contas Demonstrativo para usar formato MM/AAAA
+
+
+## Correção Agrupamento de Guias (Altas Administrativas) - 05/02/2026
+
+- [ ] Modificar tela Conta Convênio para usar chave composta: guiaNumero + numeroLote + Protocolo TISS + Data Execução + Código Item
+- [ ] Modificar tela Contas Demonstrativo para usar chave composta similar
+- [ ] Separar guias com mesmo número mas lotes diferentes (altas administrativas)
+- [ ] Testar com guia 67752681 que tem múltiplos lotes de envio XML
+- [ ] Corrigir valores totais das guias que estão incorretos
+
+
+## Correções 05/02/2026 - Agrupamento de Guias (Altas Administrativas)
+
+- [x] Modificar tela Conta Convênio para usar chave composta: guia + lote + data de execução
+- [x] Separar guias com mesmo número mas lotes diferentes (altas administrativas)
+- [x] Exibir número do lote em cada card de conta
+- [x] Implementar agrupamento no backend para paginação correta
+- [x] Corrigir query SQL para usar GROUP BY com MIN/MAX para campos agregados
+- [x] Testar com guia 67752681 que tem múltiplos lotes (86910, 86792, 86399)

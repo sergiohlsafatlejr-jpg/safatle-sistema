@@ -75,9 +75,11 @@ const formatDate = (date: Date | string | null | undefined) => {
   return d.toLocaleDateString("pt-BR");
 };
 
-// Interface para conta agrupada
+// Interface para conta agrupada (usando chave composta para separar altas administrativas)
 interface ContaAgrupada {
   numeroGuia: string;
+  numeroLote: string;
+  protocolo: string;
   carteirinha: string;
   paciente: string;
   dataExecucao: Date | null;
@@ -87,6 +89,8 @@ interface ContaAgrupada {
   arquivoId: number;
   convenioId: number;
   tipoItem: string;
+  // Chave composta para identificar altas administrativas
+  chaveComposta: string;
 }
 
 export default function ContaConvenio() {
@@ -137,36 +141,33 @@ export default function ContaConvenio() {
     }
   );
 
-  // Agrupar itens por guia
+  // Os dados já vem agrupados do backend por chave composta (guia + lote + data execução)
+  // Isso separa as altas administrativas (mesma guia, lotes diferentes)
   const contasAgrupadas = useMemo(() => {
     if (!faturamentoData?.items) return [];
     
-    const grouped = new Map<string, ContaAgrupada>();
-    
-    faturamentoData.items.forEach((item: any) => {
-      const key = item.numeroGuiaPrestador || `sem-guia-${item.id}`;
+    return faturamentoData.items.map((item: any) => {
+      const guia = item.numeroGuiaPrestador || "";
+      const lote = item.numeroLote || "";
+      const dataExec = item.dataExecucao ? new Date(item.dataExecucao).toISOString().split("T")[0] : "";
+      const key = `${guia}|${lote}|${dataExec}`;
       
-      if (grouped.has(key)) {
-        const existing = grouped.get(key)!;
-        existing.totalItens += 1;
-        existing.valorTotal += parseFloat(item.valorFaturado || "0");
-      } else {
-        grouped.set(key, {
-          numeroGuia: item.numeroGuiaPrestador || "-",
-          carteirinha: item.carteiraBeneficiario || "-",
-          paciente: item.nomeProf || "-",
-          dataExecucao: item.dataExecucao,
-          dataReferencia: item.dataReferencia,
-          totalItens: 1,
-          valorTotal: parseFloat(item.valorFaturado || "0"),
-          arquivoId: item.arquivoId,
-          convenioId: item.convenioId,
-          tipoItem: item.tipoItem || "-",
-        });
-      }
+      return {
+        numeroGuia: guia || "-",
+        numeroLote: lote || "-",
+        protocolo: "-",
+        carteirinha: item.carteiraBeneficiario || "-",
+        paciente: item.nomeProf || "-",
+        dataExecucao: item.dataExecucao,
+        dataReferencia: item.dataReferencia,
+        totalItens: item.totalItens || 1,
+        valorTotal: parseFloat(item.valorFaturado || "0"),
+        arquivoId: item.arquivoId,
+        convenioId: item.convenioId,
+        tipoItem: item.tipoItem || "-",
+        chaveComposta: key,
+      } as ContaAgrupada;
     });
-    
-    return Array.from(grouped.values());
   }, [faturamentoData?.items]);
 
   // Calcular totais
@@ -182,6 +183,8 @@ export default function ContaConvenio() {
   const handleVerDetalhes = (conta: ContaAgrupada) => {
     const params = new URLSearchParams({
       guia: conta.numeroGuia,
+      lote: conta.numeroLote,
+      protocolo: conta.protocolo,
       arquivoId: String(conta.arquivoId),
       convenioId: String(conta.convenioId || convenioId),
       origem: "faturamento",
@@ -195,6 +198,8 @@ export default function ContaConvenio() {
 
     const data = contasAgrupadas.map(conta => ({
       "Guia": conta.numeroGuia,
+      "Nº Lote": conta.numeroLote,
+      "Protocolo": conta.protocolo,
       "Carteirinha": conta.carteirinha,
       "Paciente": conta.paciente,
       "Data Execução": formatDate(conta.dataExecucao),
@@ -490,16 +495,18 @@ export default function ContaConvenio() {
                         </div>
                       </div>
 
-                      {/* Carteirinha */}
+                      {/* Carteirinha e Lote */}
                       <div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <CreditCard className="h-3 w-3" />
                           <span>Carteirinha</span>
                         </div>
                         <p className="font-medium">{conta.carteirinha}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Tipo: {conta.tipoItem}
-                        </p>
+                        {conta.numeroLote && conta.numeroLote !== "-" && (
+                          <p className="text-sm text-blue-600 mt-1">
+                            Lote: {conta.numeroLote}
+                          </p>
+                        )}
                       </div>
 
                       {/* Datas */}

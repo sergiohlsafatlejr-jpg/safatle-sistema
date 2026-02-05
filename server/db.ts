@@ -16117,7 +16117,7 @@ export async function getFaturamentoTiss(params: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const { estabelecimentoId, convenioId, arquivoId, search, mesReferencia, anoReferencia, page = 1, pageSize = 50 } = params;
+  const { estabelecimentoId, convenioId, arquivoId, search, mesReferencia, anoReferencia, page = 1, pageSize = 20 } = params;
 
   const conditions: SQL[] = [];
 
@@ -16160,32 +16160,72 @@ export async function getFaturamentoTiss(params: {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // Buscar total
+  // Buscar contas agrupadas por chave composta (guia + lote + data execução)
+  // Isso separa as altas administrativas (mesma guia, lotes diferentes)
+  const offset = (page - 1) * pageSize;
+  
+  console.log('[getFaturamentoTiss] Buscando items agrupados, offset:', offset, 'pageSize:', pageSize);
+  console.log('[getFaturamentoTiss] whereClause:', whereClause ? 'definido' : 'undefined', 'conditions:', conditions.length);
+  let items: any[] = [];
+  try {
+    items = await db
+    .select({
+      numeroGuiaPrestador: faturamentoTiss.numeroGuiaPrestador,
+      numeroLote: faturamentoTiss.numeroLote,
+      dataExecucao: sql<Date>`MIN(DATE(${faturamentoTiss.dataExecucao}))`,
+      dataReferencia: sql<Date>`MAX(${faturamentoTiss.dataReferencia})`,
+      carteiraBeneficiario: sql<string>`MAX(${faturamentoTiss.carteiraBeneficiario})`,
+      nomeProf: sql<string>`MAX(${faturamentoTiss.nomeProf})`,
+      convenioId: sql<number>`MAX(${faturamentoTiss.convenioId})`,
+      arquivoId: sql<number>`MAX(${faturamentoTiss.arquivoId})`,
+      tipoItem: sql<string>`'MISTO'`,
+      totalItens: sql<number>`COUNT(*)`,
+      valorFaturado: sql<string>`SUM(CAST(COALESCE(${faturamentoTiss.valorFaturado}, 0) AS DECIMAL(15,2)))`,
+    })
+    .from(faturamentoTiss)
+    .where(whereClause)
+    .groupBy(
+      faturamentoTiss.numeroGuiaPrestador,
+      faturamentoTiss.numeroLote,
+      sql`DATE(${faturamentoTiss.dataExecucao})`
+    )
+    .orderBy(desc(sql`DATE(${faturamentoTiss.dataExecucao})`))
+    .limit(pageSize)
+    .offset(offset);
+  } catch (error) {
+    console.error('[getFaturamentoTiss] Erro na query de items:', error);
+    items = [];
+  }
+
+  console.log('[getFaturamentoTiss] Items encontrados:', items.length);
+  if (items.length > 0) {
+    console.log('[getFaturamentoTiss] Primeiro item:', JSON.stringify(items[0]));
+  }
+
+  // Contar total de contas agrupadas (usando chave composta)
   const countResult = await db
-    .select({ count: sql<number>`COUNT(*)` })
+    .select({ 
+      count: sql<number>`COUNT(DISTINCT CONCAT(
+        COALESCE(${faturamentoTiss.numeroGuiaPrestador}, ''), '-',
+        COALESCE(${faturamentoTiss.numeroLote}, ''), '-',
+        COALESCE(DATE(${faturamentoTiss.dataExecucao}), '')
+      ))` 
+    })
     .from(faturamentoTiss)
     .where(whereClause);
 
   const total = countResult[0]?.count || 0;
 
-  // Buscar itens com paginação
-  const offset = (page - 1) * pageSize;
-  
-  // Construir query com where antes de orderBy/limit/offset
-  const items = await db
-    .select()
-    .from(faturamentoTiss)
-    .where(whereClause)
-    .orderBy(desc(faturamentoTiss.dataExecucao), desc(faturamentoTiss.id))
-    .limit(pageSize)
-    .offset(offset);
-
-  // Buscar resumo
+  // Buscar resumo total (sem paginação)
   const resumoResult = await db
     .select({
       totalItens: sql<number>`COUNT(*)`,
       valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(15,2))), 0)`,
-      totalGuias: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroGuiaPrestador})`,
+      totalGuias: sql<number>`COUNT(DISTINCT CONCAT(
+        COALESCE(${faturamentoTiss.numeroGuiaPrestador}, ''), '-',
+        COALESCE(${faturamentoTiss.numeroLote}, ''), '-',
+        COALESCE(DATE(${faturamentoTiss.dataExecucao}), '')
+      ))`,
     })
     .from(faturamentoTiss)
     .where(whereClause);
@@ -16628,7 +16668,8 @@ export async function getDemonstrativoContas(params: {
   const pageSize = params.pageSize || 20;
   const offset = (page - 1) * pageSize;
 
-  // Buscar contas agrupadas por guia
+  // Buscar contas agrupadas por chave composta (guia + lote + protocolo + data execução)
+  // Isso permite separar altas administrativas (mesma guia, lotes diferentes)
   const contasQuery = db
     .select({
       numeroGuia: demonstrativo.numeroGuia,
@@ -16637,6 +16678,7 @@ export async function getDemonstrativoContas(params: {
       carteiraBeneficiario: demonstrativo.carteiraBeneficiario,
       nomeBeneficiario: demonstrativo.nomeBeneficiario,
       dataPagamento: demonstrativo.dataPagamento,
+      dataExecucao: demonstrativo.dataExecucao,
       dataReferencia: demonstrativo.dataReferencia,
       convenioId: demonstrativo.convenioId,
       arquivoId: demonstrativo.arquivoId,
@@ -16653,6 +16695,7 @@ export async function getDemonstrativoContas(params: {
       demonstrativo.numeroGuia,
       demonstrativo.protocolo,
       demonstrativo.lotePrestador,
+      demonstrativo.dataExecucao,
       demonstrativo.carteiraBeneficiario,
       demonstrativo.nomeBeneficiario,
       demonstrativo.dataPagamento,
@@ -16665,10 +16708,15 @@ export async function getDemonstrativoContas(params: {
     .limit(pageSize)
     .offset(offset);
 
-  // Contar total de contas (guias únicas)
+  // Contar total de contas (usando chave composta: guia + lote + protocolo + data execução)
   const countQuery = db
     .select({ 
-      count: sql<number>`COUNT(DISTINCT CONCAT(COALESCE(${demonstrativo.numeroGuia}, ''), '-', COALESCE(${demonstrativo.protocolo}, '')))` 
+      count: sql<number>`COUNT(DISTINCT CONCAT(
+        COALESCE(${demonstrativo.numeroGuia}, ''), '-', 
+        COALESCE(${demonstrativo.lotePrestador}, ''), '-',
+        COALESCE(${demonstrativo.protocolo}, ''), '-',
+        COALESCE(DATE(${demonstrativo.dataExecucao}), '')
+      ))` 
     })
     .from(demonstrativo)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
