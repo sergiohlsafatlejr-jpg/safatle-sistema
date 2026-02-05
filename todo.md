@@ -1150,3 +1150,7 @@
 - [x] Criar tabela Demonstrativo no schema e banco de dados
 - [x] Criar funções de inserção e consulta para Demonstrativo
 - [x] Atualizar parsers para popular a tabela Demonstrativo
+
+
+## Correção do Fluxo de Upload
+- [x] Reverter fluxo de upload para salvar Excel em recebimentos_excel e XML em recebimento_tiss
