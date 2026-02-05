@@ -15,6 +15,7 @@ import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import ContaConvenio from "./pages/ContaConvenio";
 import ContasDemonstrativo from "./pages/ContasDemonstrativo";
+import ContaDetalhesDemonstrativo from "./pages/ContaDetalhesDemonstrativo";
 import Conciliacao from "./pages/Conciliacao";
 import Faturamento from "./pages/Faturamento";
 import AnaliseGlosa from "./pages/AnaliseGlosa";
@@ -74,6 +75,7 @@ function Router() {
       <Route path={"/configuracoes"} component={Configuracoes} />
       <Route path={"/conta-convenio"} component={ContaConvenio} />
       <Route path={"/contas-demonstrativo"} component={ContasDemonstrativo} />
+      <Route path={"/conta-detalhes"} component={ContaDetalhesDemonstrativo} />
       <Route path={"/contas/:guiaNumero"} component={ContaDetalhes} />
       <Route path={"/conciliacao"} component={Conciliacao} />
       <Route path={"/conciliacao/:convenioId/:guiaNumero"} component={ConciliacaoDetalhes} />

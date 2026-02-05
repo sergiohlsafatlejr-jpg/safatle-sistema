@@ -5685,6 +5685,63 @@ export const appRouter = router({
   }),
 
   // ============ RECEBIMENTOS EXCEL ============
+  // ============ DEMONSTRATIVO ============
+  demonstrativo: router({
+    // Listar contas do demonstrativo (agrupadas por guia)
+    contas: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        arquivoId: z.number().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        search: z.string().optional(),
+        statusGlosa: z.enum(["todos", "pago", "glosado", "parcial"]).optional(),
+        page: z.number().optional(),
+        pageSize: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getDemonstrativoContas(input || {});
+      }),
+    
+    // Buscar itens de uma conta específica
+    itensPorGuia: protectedProcedure
+      .input(z.object({
+        numeroGuia: z.string(),
+        protocolo: z.string().optional(),
+        convenioId: z.number().optional(),
+        arquivoId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getDemonstrativoItensPorGuia(input);
+      }),
+    
+    // Buscar itens glosados para recurso
+    itensGlosados: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        arquivoId: z.number().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        search: z.string().optional(),
+        page: z.number().optional(),
+        pageSize: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getDemonstrativoItensGlosados(input || {});
+      }),
+    
+    // Resumo do demonstrativo
+    resumo: protectedProcedure
+      .input(z.object({
+        convenioId: z.number().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getDemonstrativoResumo(input || {});
+      }),
+  }),
+
   recebimentosExcel: router({
     // Importar dados de Excel para recebimentos_excel
     importarExcel: protectedProcedure

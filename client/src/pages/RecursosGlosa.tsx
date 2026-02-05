@@ -41,6 +41,7 @@ import {
   Zap
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
 import { 
   GLOSAS_TISS, 
@@ -114,6 +115,15 @@ export default function RecursosGlosa() {
     valorRecuperado: "",
   });
   const [novoComentario, setNovoComentario] = useState("");
+  
+  // Estados para aba de itens glosados do demonstrativo
+  const [abaAtiva, setAbaAtiva] = useState<"recursos" | "itensGlosados">("recursos");
+  const [pageItensGlosados, setPageItensGlosados] = useState(1);
+  const [buscaItensGlosados, setBuscaItensGlosados] = useState("");
+  const [convenioFiltroItens, setConvenioFiltroItens] = useState<string>("todos");
+  const [mesReferenciaItens, setMesReferenciaItens] = useState<number | undefined>(undefined);
+  const [anoReferenciaItens, setAnoReferenciaItens] = useState<number | undefined>(undefined);
+  const { estabelecimentoAtual } = useEstabelecimento();
 
   // Queries
   const { data: recursosData, isLoading, refetch } = trpc.recursos.list.useQuery({
@@ -126,6 +136,16 @@ export default function RecursosGlosa() {
   });
 
   const { data: estatisticas } = trpc.recursos.estatisticas.useQuery();
+  
+  // Query para itens glosados do demonstrativo
+  const { data: itensGlosadosData, isLoading: loadingItensGlosados, refetch: refetchItensGlosados } = trpc.demonstrativo.itensGlosados.useQuery({
+    convenioId: convenioFiltroItens !== "todos" ? parseInt(convenioFiltroItens) : undefined,
+    mesReferencia: mesReferenciaItens,
+    anoReferencia: anoReferenciaItens,
+    search: buscaItensGlosados || undefined,
+    page: pageItensGlosados,
+    pageSize: 20,
+  });
   const { data: convenios } = trpc.convenios.list.useQuery({ ativo: "sim" });
   const { data: recursoDetalhes, refetch: refetchDetalhes } = trpc.recursos.byId.useQuery(
     { id: recursoSelecionado! },
@@ -537,6 +557,7 @@ export default function RecursosGlosa() {
   };
 
   const totalPages = Math.ceil((recursosData?.total || 0) / 15);
+  const totalPagesItensGlosados = Math.ceil((itensGlosadosData?.total || 0) / 20);
 
   // Lista de códigos de glosa para autocomplete
   const codigosGlosa = Object.keys(GLOSAS_TISS);
@@ -942,6 +963,20 @@ export default function RecursosGlosa() {
           </div>
         </div>
 
+        {/* Abas principais */}
+        <Tabs value={abaAtiva} onValueChange={(v) => setAbaAtiva(v as "recursos" | "itensGlosados")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="recursos" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Recursos Criados
+            </TabsTrigger>
+            <TabsTrigger value="itensGlosados" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Itens Glosados (Demonstrativo)
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="recursos" className="space-y-6">
         {/* Cards de Estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
@@ -1169,6 +1204,236 @@ export default function RecursosGlosa() {
             )}
           </CardContent>
         </Card>
+
+          </TabsContent>
+          
+          {/* Aba de Itens Glosados do Demonstrativo */}
+          <TabsContent value="itensGlosados" className="space-y-6">
+            {/* Filtros para Itens Glosados */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por guia, paciente, código..."
+                        value={buscaItensGlosados}
+                        onChange={(e) => setBuscaItensGlosados(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  <Select value={convenioFiltroItens} onValueChange={setConvenioFiltroItens}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Convênio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos Convênios</SelectItem>
+                      {convenios?.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={mesReferenciaItens?.toString() || "todos"} 
+                    onValueChange={(v) => setMesReferenciaItens(v === "todos" ? undefined : parseInt(v))}
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos Meses</SelectItem>
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => (
+                        <SelectItem key={m} value={String(m)}>
+                          {new Date(2000, m-1).toLocaleString('pt-BR', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={anoReferenciaItens?.toString() || "todos"} 
+                    onValueChange={(v) => setAnoReferenciaItens(v === "todos" ? undefined : parseInt(v))}
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos Anos</SelectItem>
+                      {[2024, 2025, 2026].map((a) => (
+                        <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" onClick={() => refetchItensGlosados()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Resumo de Itens Glosados */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total de Itens Glosados</p>
+                      <p className="text-2xl font-bold">{itensGlosadosData?.total || 0}</p>
+                    </div>
+                    <AlertCircle className="h-8 w-8 text-red-500 opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Valor Total Glosado</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        {formatCurrency(itensGlosadosData?.items?.reduce((sum: number, item: any) => sum + parseFloat(item.valorGlosa || '0'), 0) || 0)}
+                      </p>
+                    </div>
+                    <XCircle className="h-8 w-8 text-red-500 opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Itens na Página</p>
+                      <p className="text-2xl font-bold">{itensGlosadosData?.items?.length || 0}</p>
+                    </div>
+                    <FileText className="h-8 w-8 text-blue-500 opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Tabela de Itens Glosados */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Itens Glosados do Demonstrativo</CardTitle>
+                <CardDescription>
+                  Itens com glosa identificados nos arquivos de retorno dos convênios. Clique em "Criar Recurso" para contestar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingItensGlosados ? (
+                  <div className="space-y-4">
+                    {[...Array(5)].map((_, i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Guia</TableHead>
+                          <TableHead>Paciente</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead className="text-right">Valor Glosa</TableHead>
+                          <TableHead>Cód. Glosa</TableHead>
+                          <TableHead>Situação</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itensGlosadosData?.items?.map((item: any) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.numeroGuia || '-'}</TableCell>
+                            <TableCell className="max-w-[150px] truncate">{item.nomeBeneficiario || '-'}</TableCell>
+                            <TableCell>{item.codigoItem || '-'}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{item.descricaoItem || '-'}</TableCell>
+                            <TableCell className="text-right font-medium text-red-600">
+                              {formatCurrency(item.valorGlosa)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {item.codigoGlosa || '-'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-red-100 text-red-800">
+                                {item.situacaoItem || 'Glosado'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // Preencher formulário de novo recurso com dados do item
+                                  setNovoRecurso({
+                                    convenioId: item.convenioId?.toString() || "",
+                                    codigoProcedimento: item.codigoItem || "",
+                                    descricaoProcedimento: item.descricaoItem || "",
+                                    guiaNumero: item.numeroGuia || "",
+                                    pacienteNome: item.nomeBeneficiario || "",
+                                    valorCobrado: item.valorInformado?.toString() || "",
+                                    valorGlosado: item.valorGlosa?.toString() || "",
+                                    codigoGlosa: item.codigoGlosa || "",
+                                    motivoGlosaConvenio: item.codigoGlosa ? `${item.codigoGlosa} - ${traduzirCodigoGlosa(item.codigoGlosa)}` : "",
+                                    justificativaRecurso: "",
+                                    prioridade: "media",
+                                  });
+                                  setShowNovoRecurso(true);
+                                }}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Criar Recurso
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {(!itensGlosadosData?.items || itensGlosadosData.items.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              Nenhum item glosado encontrado com os filtros selecionados.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                    
+                    {/* Paginação */}
+                    {totalPagesItensGlosados > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <p className="text-sm text-muted-foreground">
+                          Mostrando {((pageItensGlosados - 1) * 20) + 1} a {Math.min(pageItensGlosados * 20, itensGlosadosData?.total || 0)} de {itensGlosadosData?.total || 0} itens
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPageItensGlosados(p => Math.max(1, p - 1))}
+                            disabled={pageItensGlosados === 1}
+                          >
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPageItensGlosados(p => Math.min(totalPagesItensGlosados, p + 1))}
+                            disabled={pageItensGlosados === totalPagesItensGlosados}
+                          >
+                            Próximo
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Modal de Detalhes */}
         <Dialog open={showDetalhes} onOpenChange={setShowDetalhes}>

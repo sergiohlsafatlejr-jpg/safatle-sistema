@@ -1160,3 +1160,10 @@
 - [x] Criar função de sincronização para popular tabela demonstrativo com união de recebimentos_excel e recebimento_tiss
 - [x] Integrar sincronização automática no fluxo de upload
 - [x] Testar importação e verificar dados na tabela demonstrativo
+
+
+## Melhorias nas Telas de Demonstrativo e Recursos de Glosa
+- [x] Criar procedure tRPC para buscar dados da tabela demonstrativo
+- [x] Redesenhar tela Contas Demonstrativo com layout melhorado e visão por conta
+- [x] Criar tela de detalhes da conta com itens
+- [x] Alterar tela de Recursos de Glosa para buscar dados da tabela demonstrativo

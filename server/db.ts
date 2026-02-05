@@ -1,4 +1,4 @@
-import { eq, and, desc, like, sql, gte, lte, lt, or, inArray, count } from "drizzle-orm";
+import { eq, and, desc, like, sql, gte, lte, lt, gt, or, inArray, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { isNull, isNotNull } from "drizzle-orm";
 import {
@@ -16576,4 +16576,318 @@ export async function countDemonstrativoByArquivo(arquivoId: number): Promise<nu
     .where(eq(demonstrativo.arquivoId, arquivoId));
 
   return result[0]?.count || 0;
+}
+
+
+// ============ DEMONSTRATIVO - Funções de Consulta ============
+
+/**
+ * Lista demonstrativos com filtros e paginação, agrupados por conta (guia)
+ */
+export async function getDemonstrativoContas(params: {
+  convenioId?: number;
+  arquivoId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+  search?: string;
+  statusGlosa?: "todos" | "pago" | "glosado" | "parcial";
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0, page: 1, totalPages: 0 };
+
+  const conditions: SQL[] = [];
+  
+  if (params.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, params.convenioId));
+  }
+  
+  if (params.arquivoId) {
+    conditions.push(eq(demonstrativo.arquivoId, params.arquivoId));
+  }
+  
+  // Filtro por mês/ano de referência
+  if (params.mesReferencia && params.anoReferencia) {
+    const dataInicio = new Date(params.anoReferencia, params.mesReferencia - 1, 1);
+    const dataFim = new Date(params.anoReferencia, params.mesReferencia, 0);
+    const dataInicioStr = dataInicio.toISOString().split('T')[0];
+    const dataFimStr = dataFim.toISOString().split('T')[0];
+    conditions.push(
+      sql`${demonstrativo.dataReferencia} >= ${dataInicioStr} AND ${demonstrativo.dataReferencia} <= ${dataFimStr}`
+    );
+  }
+  
+  // Filtro de busca
+  if (params.search) {
+    conditions.push(
+      or(
+        like(demonstrativo.numeroGuia, `%${params.search}%`),
+        like(demonstrativo.nomeBeneficiario, `%${params.search}%`),
+        like(demonstrativo.carteiraBeneficiario, `%${params.search}%`),
+        like(demonstrativo.protocolo, `%${params.search}%`)
+      )!
+    );
+  }
+
+  const page = params.page || 1;
+  const pageSize = params.pageSize || 20;
+  const offset = (page - 1) * pageSize;
+
+  // Buscar contas agrupadas por guia
+  const contasQuery = db
+    .select({
+      numeroGuia: demonstrativo.numeroGuia,
+      protocolo: demonstrativo.protocolo,
+      lotePrestador: demonstrativo.lotePrestador,
+      carteiraBeneficiario: demonstrativo.carteiraBeneficiario,
+      nomeBeneficiario: demonstrativo.nomeBeneficiario,
+      dataPagamento: demonstrativo.dataPagamento,
+      dataReferencia: demonstrativo.dataReferencia,
+      convenioId: demonstrativo.convenioId,
+      arquivoId: demonstrativo.arquivoId,
+      origemTipo: demonstrativo.origemTipo,
+      totalItens: sql<number>`COUNT(*)`,
+      valorTotal: sql<string>`SUM(COALESCE(${demonstrativo.valorPago}, 0))`,
+      valorGlosado: sql<string>`SUM(COALESCE(${demonstrativo.valorGlosa}, 0))`,
+      valorInformado: sql<string>`SUM(COALESCE(${demonstrativo.valorInformado}, 0))`,
+      itensGlosados: sql<number>`SUM(CASE WHEN COALESCE(${demonstrativo.valorGlosa}, 0) > 0 THEN 1 ELSE 0 END)`,
+    })
+    .from(demonstrativo)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(
+      demonstrativo.numeroGuia,
+      demonstrativo.protocolo,
+      demonstrativo.lotePrestador,
+      demonstrativo.carteiraBeneficiario,
+      demonstrativo.nomeBeneficiario,
+      demonstrativo.dataPagamento,
+      demonstrativo.dataReferencia,
+      demonstrativo.convenioId,
+      demonstrativo.arquivoId,
+      demonstrativo.origemTipo
+    )
+    .orderBy(desc(demonstrativo.dataPagamento))
+    .limit(pageSize)
+    .offset(offset);
+
+  // Contar total de contas (guias únicas)
+  const countQuery = db
+    .select({ 
+      count: sql<number>`COUNT(DISTINCT CONCAT(COALESCE(${demonstrativo.numeroGuia}, ''), '-', COALESCE(${demonstrativo.protocolo}, '')))` 
+    })
+    .from(demonstrativo)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  const [contas, countResult] = await Promise.all([contasQuery, countQuery]);
+
+  // Filtrar por status de glosa se necessário
+  let filteredContas = contas;
+  if (params.statusGlosa && params.statusGlosa !== "todos") {
+    filteredContas = contas.filter(conta => {
+      const valorGlosa = parseFloat(conta.valorGlosado || "0");
+      const valorPago = parseFloat(conta.valorTotal || "0");
+      
+      if (params.statusGlosa === "pago") {
+        return valorGlosa === 0 && valorPago > 0;
+      } else if (params.statusGlosa === "glosado") {
+        return valorGlosa > 0 && valorPago === 0;
+      } else if (params.statusGlosa === "parcial") {
+        return valorGlosa > 0 && valorPago > 0;
+      }
+      return true;
+    });
+  }
+
+  const total = countResult[0]?.count || 0;
+
+  return {
+    items: filteredContas,
+    total,
+    page,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+/**
+ * Busca itens de uma conta específica (por guia)
+ */
+export async function getDemonstrativoItensPorGuia(params: {
+  numeroGuia: string;
+  protocolo?: string;
+  convenioId?: number;
+  arquivoId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(demonstrativo.numeroGuia, params.numeroGuia)];
+  
+  if (params.protocolo) {
+    conditions.push(eq(demonstrativo.protocolo, params.protocolo));
+  }
+  
+  if (params.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, params.convenioId));
+  }
+  
+  if (params.arquivoId) {
+    conditions.push(eq(demonstrativo.arquivoId, params.arquivoId));
+  }
+
+  return db
+    .select()
+    .from(demonstrativo)
+    .where(and(...conditions))
+    .orderBy(demonstrativo.sequencialItem);
+}
+
+/**
+ * Busca itens glosados para recurso de glosa
+ */
+export async function getDemonstrativoItensGlosados(params: {
+  convenioId?: number;
+  arquivoId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0, page: 1, totalPages: 0 };
+
+  const conditions: SQL[] = [
+    // Apenas itens com glosa > 0
+    gt(sql`COALESCE(${demonstrativo.valorGlosa}, 0)`, 0)
+  ];
+  
+  if (params.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, params.convenioId));
+  }
+  
+  if (params.arquivoId) {
+    conditions.push(eq(demonstrativo.arquivoId, params.arquivoId));
+  }
+  
+  // Filtro por mês/ano de referência
+  if (params.mesReferencia && params.anoReferencia) {
+    const dataInicio = new Date(params.anoReferencia, params.mesReferencia - 1, 1);
+    const dataFim = new Date(params.anoReferencia, params.mesReferencia, 0);
+    const dataInicioStr = dataInicio.toISOString().split('T')[0];
+    const dataFimStr = dataFim.toISOString().split('T')[0];
+    conditions.push(
+      sql`${demonstrativo.dataReferencia} >= ${dataInicioStr} AND ${demonstrativo.dataReferencia} <= ${dataFimStr}`
+    );
+  }
+  
+  // Filtro de busca
+  if (params.search) {
+    conditions.push(
+      or(
+        like(demonstrativo.numeroGuia, `%${params.search}%`),
+        like(demonstrativo.nomeBeneficiario, `%${params.search}%`),
+        like(demonstrativo.codigoGlosa, `%${params.search}%`),
+        like(demonstrativo.codigoItem, `%${params.search}%`)
+      )!
+    );
+  }
+
+  const page = params.page || 1;
+  const pageSize = params.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+
+  const [items, countResult] = await Promise.all([
+    db
+      .select({
+        id: demonstrativo.id,
+        arquivoId: demonstrativo.arquivoId,
+        origemTipo: demonstrativo.origemTipo,
+        convenioId: demonstrativo.convenioId,
+        numeroGuia: demonstrativo.numeroGuia,
+        protocolo: demonstrativo.protocolo,
+        carteiraBeneficiario: demonstrativo.carteiraBeneficiario,
+        nomeBeneficiario: demonstrativo.nomeBeneficiario,
+        dataPagamento: demonstrativo.dataPagamento,
+        dataReferencia: demonstrativo.dataReferencia,
+        sequencialItem: demonstrativo.sequencialItem,
+        codigoItem: demonstrativo.codigoItem,
+        descricaoItem: demonstrativo.descricaoItem,
+        dataExecucao: demonstrativo.dataExecucao,
+        quantidade: demonstrativo.quantidade,
+        valorInformado: demonstrativo.valorInformado,
+        valorPago: demonstrativo.valorPago,
+        valorGlosa: demonstrativo.valorGlosa,
+        codigoGlosa: demonstrativo.codigoGlosa,
+        situacaoItem: demonstrativo.situacaoItem,
+        tipoLancamento: demonstrativo.tipoLancamento,
+        erroTiss: demonstrativo.erroTiss,
+      })
+      .from(demonstrativo)
+      .where(and(...conditions))
+      .orderBy(desc(demonstrativo.dataPagamento), demonstrativo.numeroGuia)
+      .limit(pageSize)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(demonstrativo)
+      .where(and(...conditions)),
+  ]);
+
+  const total = countResult[0]?.count || 0;
+
+  return {
+    items,
+    total,
+    page,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+/**
+ * Resumo de demonstrativo por convênio
+ */
+export async function getDemonstrativoResumo(params: {
+  convenioId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { totalContas: 0, totalItens: 0, valorTotal: 0, valorGlosado: 0, valorPago: 0 };
+
+  const conditions: SQL[] = [];
+  
+  if (params.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, params.convenioId));
+  }
+  
+  // Filtro por mês/ano de referência
+  if (params.mesReferencia && params.anoReferencia) {
+    const dataInicio = new Date(params.anoReferencia, params.mesReferencia - 1, 1);
+    const dataFim = new Date(params.anoReferencia, params.mesReferencia, 0);
+    const dataInicioStr = dataInicio.toISOString().split('T')[0];
+    const dataFimStr = dataFim.toISOString().split('T')[0];
+    conditions.push(
+      sql`${demonstrativo.dataReferencia} >= ${dataInicioStr} AND ${demonstrativo.dataReferencia} <= ${dataFimStr}`
+    );
+  }
+
+  const result = await db
+    .select({
+      totalContas: sql<number>`COUNT(DISTINCT CONCAT(COALESCE(${demonstrativo.numeroGuia}, ''), '-', COALESCE(${demonstrativo.protocolo}, '')))`,
+      totalItens: sql<number>`COUNT(*)`,
+      valorTotal: sql<string>`SUM(COALESCE(${demonstrativo.valorInformado}, 0))`,
+      valorGlosado: sql<string>`SUM(COALESCE(${demonstrativo.valorGlosa}, 0))`,
+      valorPago: sql<string>`SUM(COALESCE(${demonstrativo.valorPago}, 0))`,
+    })
+    .from(demonstrativo)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  return {
+    totalContas: result[0]?.totalContas || 0,
+    totalItens: result[0]?.totalItens || 0,
+    valorTotal: parseFloat(result[0]?.valorTotal || "0"),
+    valorGlosado: parseFloat(result[0]?.valorGlosado || "0"),
+    valorPago: parseFloat(result[0]?.valorPago || "0"),
+  };
 }
