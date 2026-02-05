@@ -1133,3 +1133,9 @@
 - [x] Atualizar fluxo de upload para popular convenioId, dataReferencia e dataPagamento nas tabelas específicas
 - [x] Separar importação: recebimentos_excel para Excel de retorno, recebimento_tiss para XML de retorno
 - [x] Atualizar registros existentes de faturamento_tiss com convenioId e arquivoId (23.082 de 23.311 registros - 99%)
+
+
+## Separação de Tabelas de Retorno (Excel vs XML)
+- [x] Alterar fluxo de upload para salvar Excel de retorno na tabela recebimentos_excel
+- [x] Manter recebimento_tiss apenas para arquivos XML de retorno
+- [x] Migrar dados existentes de Excel da tabela recebimento_tiss para recebimentos_excel
