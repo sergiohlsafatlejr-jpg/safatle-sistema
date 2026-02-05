@@ -1,11 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -24,32 +24,13 @@ import {
   User,
   DollarSign,
   FileText,
-  ChevronDown,
-  ChevronUp,
-  Search,
-  Loader2
+  Receipt,
+  ExternalLink,
+  Package
 } from "lucide-react";
-import React, { useState, useMemo, useEffect } from "react";
-import { useLocation, useSearch } from "wouter";
+import React, { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
-
-// Interface para conta agrupada (Master)
-interface ContaAgrupada {
-  chave: string;
-  guiaNumero: string;
-  numeroLote: string;
-  sequencialTransacao: string;
-  senha: string;
-  carteirinha: string;
-  dataConta: Date | null;
-  valorTotal: number;
-  pacienteNome: string;
-  convenioNome: string;
-  arquivoNome: string;
-  arquivoId: number;
-  itens: any[];
-  quantidadeItens: number;
-}
 
 // Lista de meses em português
 const MESES = [
@@ -77,54 +58,47 @@ const getAnos = () => {
   return anos;
 };
 
+// Formatar valor em reais
+const formatCurrency = (value: number | string | null | undefined) => {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (num === null || num === undefined || isNaN(num)) return "R$ 0,00";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(num);
+};
+
+// Formatar data
+const formatDate = (date: Date | string | null | undefined) => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("pt-BR");
+};
+
+// Interface para conta agrupada
+interface ContaAgrupada {
+  numeroGuia: string;
+  carteirinha: string;
+  paciente: string;
+  dataExecucao: Date | null;
+  dataReferencia: Date | null;
+  totalItens: number;
+  valorTotal: number;
+  arquivoId: number;
+  convenioId: number;
+  tipoItem: string;
+}
+
 export default function ContaConvenio() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
   const [mesReferencia, setMesReferencia] = useState<string>("");
   const [anoReferencia, setAnoReferencia] = useState<string>("");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
-  const searchString = useSearch();
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [filtrosRestaurados, setFiltrosRestaurados] = useState(false);
-  const pageSize = 50;
-
-  const anos = useMemo(() => getAnos(), []);
-
-  // Debounce da busca
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearchDebounced(searchTerm);
-      setPage(1);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Restaurar filtros da URL ao carregar a página
-  useEffect(() => {
-    if (filtrosRestaurados) return;
-    
-    const params = new URLSearchParams(searchString);
-    const convenioIdUrl = params.get('convenioId');
-    const mesReferenciaUrl = params.get('mesReferencia');
-    const anoReferenciaUrl = params.get('anoReferencia');
-    const searchTermUrl = params.get('searchTerm');
-    
-    if (convenioIdUrl) setConvenioId(convenioIdUrl);
-    if (mesReferenciaUrl) setMesReferencia(mesReferenciaUrl);
-    if (anoReferenciaUrl) setAnoReferencia(anoReferenciaUrl);
-    if (searchTermUrl) setSearchTerm(searchTermUrl);
-    
-    setFiltrosRestaurados(true);
-  }, [searchString, filtrosRestaurados]);
-
-  // Resetar página quando filtros mudam
-  useEffect(() => {
-    setPage(1);
-  }, [convenioId, mesReferencia, anoReferencia]);
+  const pageSize = 20;
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
@@ -132,223 +106,150 @@ export default function ContaConvenio() {
   // Buscar dados de faturamento_tiss
   const { data: faturamentoData, isLoading, refetch } = trpc.faturamentoTiss.list.useQuery(
     {
-      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
       estabelecimentoId: estabelecimentoAtual?.id,
-      search: searchDebounced || undefined,
+      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
       mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
-      page: 1,
-      pageSize: 10000, // Buscar todos para agrupar no frontend
+      search: searchTerm || undefined,
+      page,
+      pageSize,
     },
-    { enabled: !!estabelecimentoAtual }
+    { enabled: !!estabelecimentoAtual?.id }
   );
 
-  const itens = faturamentoData?.items || [];
+  // Buscar resumo total (sem paginação)
+  const { data: resumoTotal } = trpc.faturamentoTiss.resumo.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id,
+      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
+      mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
+      anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
+    },
+    { enabled: !!estabelecimentoAtual?.id }
+  );
 
-  // Agrupar itens por guia (chave composta)
+  // Agrupar itens por guia
   const contasAgrupadas = useMemo(() => {
-    const grupos: Record<string, ContaAgrupada> = {};
+    if (!faturamentoData?.items) return [];
     
-    itens.forEach((item: any) => {
-      const loteValido = item.numeroLote && item.numeroLote !== 'null' && String(item.numeroLote).trim() !== '';
-      const seqValido = item.sequencialTransacao && item.sequencialTransacao !== 'null' && String(item.sequencialTransacao).trim() !== '';
+    const grouped = new Map<string, ContaAgrupada>();
+    
+    faturamentoData.items.forEach((item: any) => {
+      const key = item.numeroGuiaPrestador || `sem-guia-${item.id}`;
       
-      let chave: string;
-      if (loteValido && seqValido) {
-        chave = `${item.numeroGuiaPrestador || 'sem_guia'}_${item.numeroLote}_${item.sequencialTransacao}`;
-      } else if (loteValido) {
-        chave = `${item.numeroGuiaPrestador || 'sem_guia'}_${item.numeroLote}_sem_seq`;
+      if (grouped.has(key)) {
+        const existing = grouped.get(key)!;
+        existing.totalItens += 1;
+        existing.valorTotal += parseFloat(item.valorTotalItem || item.valorFaturado || "0");
       } else {
-        chave = `${item.numeroGuiaPrestador || 'sem_guia'}_arquivo_${item.arquivoId}`;  
-      }
-      
-      if (!grupos[chave]) {
-        grupos[chave] = {
-          chave,
-          guiaNumero: item.numeroGuiaPrestador || "-",
-          numeroLote: item.numeroLote || "-",
-          sequencialTransacao: item.sequencialTransacao || "-",
-          senha: item.senha || "-",
+        grouped.set(key, {
+          numeroGuia: item.numeroGuiaPrestador || "-",
           carteirinha: item.carteiraBeneficiario || "-",
-          dataConta: item.dataExecucao ? new Date(item.dataExecucao) : null,
-          valorTotal: 0,
-          pacienteNome: "-",
-          convenioNome: "-",
-          arquivoNome: "-",
+          paciente: item.nomeProf || "-",
+          dataExecucao: item.dataExecucao,
+          dataReferencia: item.dataReferencia,
+          totalItens: 1,
+          valorTotal: parseFloat(item.valorTotalItem || item.valorFaturado || "0"),
           arquivoId: item.arquivoId,
-          itens: [],
-          quantidadeItens: 0,
-        };
-      }
-      
-      // Acumular valores e itens
-      grupos[chave].valorTotal += parseFloat(item.valorTotalItem || "0");
-      grupos[chave].itens.push(item);
-      grupos[chave].quantidadeItens++;
-      
-      // Usar a data mais antiga como data da conta
-      if (item.dataExecucao) {
-        const dataItem = new Date(item.dataExecucao);
-        const currentDate = grupos[chave].dataConta;
-        if (!currentDate || dataItem < currentDate) {
-          grupos[chave].dataConta = dataItem;
-        }
-      }
-      
-      // Preencher dados que podem estar vazios
-      if (item.carteiraBeneficiario && grupos[chave].carteirinha === "-") {
-        grupos[chave].carteirinha = item.carteiraBeneficiario;
-      }
-      if (item.senha && grupos[chave].senha === "-") {
-        grupos[chave].senha = item.senha;
+          convenioId: item.convenioId,
+          tipoItem: item.tipoItem || "-",
+        });
       }
     });
     
-    // Converter para array e ordenar por data (mais recente primeiro)
-    return Object.values(grupos).sort((a, b) => {
-      if (!a.dataConta) return 1;
-      if (!b.dataConta) return -1;
-      return b.dataConta.getTime() - a.dataConta.getTime();
+    return Array.from(grouped.values());
+  }, [faturamentoData?.items]);
+
+  // Calcular totais
+  const totalContas = resumoTotal?.totalGuias || 0;
+  const totalItens = resumoTotal?.totalItens || 0;
+  const valorTotalGeral = resumoTotal?.valorTotal || 0;
+  const totalPages = Math.ceil((faturamentoData?.total || 0) / pageSize);
+
+  // Obter nome do convênio selecionado
+  const convenioSelecionado = convenios?.find(c => c.id === parseInt(convenioId));
+
+  // Navegar para detalhes da conta
+  const handleVerDetalhes = (conta: ContaAgrupada) => {
+    const params = new URLSearchParams({
+      guia: conta.numeroGuia,
+      arquivoId: String(conta.arquivoId),
+      convenioId: String(conta.convenioId || convenioId),
+      origem: "faturamento",
     });
-  }, [itens]);
-
-  // Paginação das contas
-  const totalContas = contasAgrupadas.length;
-  const totalPages = Math.ceil(totalContas / pageSize);
-  const contasPaginadas = contasAgrupadas.slice((page - 1) * pageSize, page * pageSize);
-
-  // Totais
-  const valorTotalGeral = contasAgrupadas.reduce((acc, c) => acc + c.valorTotal, 0);
-  const totalItens = contasAgrupadas.reduce((acc, c) => acc + c.quantidadeItens, 0);
-
-  // Toggle expansão de linha
-  const toggleExpand = (chave: string) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(chave)) {
-        newSet.delete(chave);
-      } else {
-        newSet.add(chave);
-      }
-      return newSet;
-    });
+    setLocation(`/conta-convenio-detalhes?${params.toString()}`);
   };
 
+  // Exportar para Excel
   const handleExportExcel = () => {
     if (!contasAgrupadas.length) return;
 
-    const excelData = contasAgrupadas.map((c) => ({
-      "Guia": c.guiaNumero,
-      "Nº Lote": c.numeroLote,
-      "Seq. Transação": c.sequencialTransacao,
-      "Senha": c.senha,
-      "Carteirinha": c.carteirinha,
-      "Data Conta": c.dataConta ? c.dataConta.toLocaleDateString("pt-BR") : "-",
-      "Valor Total": c.valorTotal,
-      "Qtd Itens": c.quantidadeItens,
+    const data = contasAgrupadas.map(conta => ({
+      "Guia": conta.numeroGuia,
+      "Carteirinha": conta.carteirinha,
+      "Paciente": conta.paciente,
+      "Data Execução": formatDate(conta.dataExecucao),
+      "Data Referência": formatDate(conta.dataReferencia),
+      "Qtd Itens": conta.totalItens,
+      "Valor Total": conta.valorTotal,
     }));
 
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-
-    ws["!cols"] = [
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
-      { wch: 15 }, { wch: 15 }, { wch: 10 },
-    ];
-
     XLSX.utils.book_append_sheet(wb, ws, "Contas");
     
-    const convenioSelecionado = convenios?.find((c: any) => String(c.id) === convenioId);
-    const nomeConvenio = convenioSelecionado ? `_${convenioSelecionado.nome.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
-    XLSX.writeFile(wb, `contas_faturamento${nomeConvenio}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const nomeArquivo = convenioSelecionado?.nome || "faturamento";
+    XLSX.writeFile(wb, `contas_faturamento_${nomeArquivo}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  // Exportar itens detalhados
   const handleExportExcelItens = () => {
-    if (!contasAgrupadas.length) return;
+    if (!faturamentoData?.items?.length) return;
 
-    const itensData: any[] = [];
-    
-    contasAgrupadas.forEach((conta) => {
-      conta.itens.forEach((item: any) => {
-        itensData.push({
-          "Guia": conta.guiaNumero,
-          "Nº Lote": conta.numeroLote,
-          "Seq. Transação": conta.sequencialTransacao,
-          "Senha": conta.senha,
-          "Carteirinha": conta.carteirinha,
-          "Data Execução": item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-",
-          "Código": item.codigoItem || "-",
-          "Descrição": item.descricaoItem || "-",
-          "Tipo": item.tipoItem || "-",
-          "Quantidade": parseFloat(item.quantidade || 1),
-          "Valor Unitário": parseFloat(item.valorUnitario || 0),
-          "Valor Total": parseFloat(item.valorTotalItem || 0),
-          "Médico": item.nomeProf || "-",
-          "CRM": item.conselhoProf || "-",
-        });
-      });
-    });
-
-    const wb = XLSX.utils.book_new();
-    
-    // Aba 1: Resumo por Conta
-    const resumoData = contasAgrupadas.map((c) => ({
-      "Guia": c.guiaNumero,
-      "Nº Lote": c.numeroLote,
-      "Seq. Transação": c.sequencialTransacao,
-      "Senha": c.senha,
-      "Carteirinha": c.carteirinha,
-      "Data Conta": c.dataConta ? c.dataConta.toLocaleDateString("pt-BR") : "-",
-      "Valor Total": c.valorTotal,
-      "Qtd Itens": c.quantidadeItens,
+    const data = faturamentoData.items.map((item: any) => ({
+      "Guia": item.numeroGuiaPrestador || "-",
+      "Nº Lote": item.numeroLote || "-",
+      "Seq. Transação": item.sequencialTransacao || "-",
+      "Senha": item.senha || "-",
+      "Carteirinha": item.carteiraBeneficiario || "-",
+      "Tipo Item": item.tipoItem || "-",
+      "Seq. Item": item.sequencialItem || "-",
+      "Código": item.codigoItem || "-",
+      "Descrição": item.descricaoItem || "-",
+      "Data Execução": formatDate(item.dataExecucao),
+      "Quantidade": item.quantidade || 0,
+      "Valor Unitário": parseFloat(item.valorUnitario || "0"),
+      "Valor Faturado": parseFloat(item.valorFaturado || "0"),
+      "Valor Total": parseFloat(item.valorTotalItem || "0"),
     }));
-    const wsResumo = XLSX.utils.json_to_sheet(resumoData);
-    XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo Contas");
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Itens");
     
-    // Aba 2: Itens Detalhados
-    const wsItens = XLSX.utils.json_to_sheet(itensData);
-    XLSX.utils.book_append_sheet(wb, wsItens, "Itens Detalhados");
-
-    const convenioSelecionado = convenios?.find((c: any) => String(c.id) === convenioId);
-    const nomeConvenio = convenioSelecionado ? `_${convenioSelecionado.nome.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
-    XLSX.writeFile(wb, `relatorio_itens_faturamento${nomeConvenio}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const nomeArquivo = convenioSelecionado?.nome || "faturamento";
+    XLSX.writeFile(wb, `itens_faturamento_${nomeArquivo}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return "-";
-    return date.toLocaleDateString("pt-BR");
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  };
-
-  const handleVerDetalhes = (conta: ContaAgrupada) => {
-    const params = new URLSearchParams();
-    params.set('origem', 'conta-convenio');
-    params.set('chave', conta.chave);
-    params.set('arquivoId', String(conta.arquivoId));
-    if (convenioId) params.set('convenioId', convenioId);
-    if (mesReferencia) params.set('mesReferencia', mesReferencia);
-    if (anoReferencia) params.set('anoReferencia', anoReferencia);
-    if (searchTerm) params.set('searchTerm', searchTerm);
-    setLocation(`/contas/${encodeURIComponent(conta.chave)}?${params.toString()}`);
-  };
-
+  // Limpar filtros
   const handleLimparFiltros = () => {
     setConvenioId("");
     setMesReferencia("");
     setAnoReferencia("");
     setSearchTerm("");
+    setPage(1);
   };
 
-  // Verificar se há filtros ativos
-  const temFiltrosAtivos = (convenioId && convenioId !== "all") || (mesReferencia && mesReferencia !== "all") || (anoReferencia && anoReferencia !== "all") || searchTerm;
+  const temFiltrosAtivos = (convenioId && convenioId !== "all") || 
+    (mesReferencia && mesReferencia !== "all") || 
+    (anoReferencia && anoReferencia !== "all") || 
+    searchTerm;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Conta Convênio</h1>
             <p className="text-muted-foreground">
@@ -356,16 +257,25 @@ export default function ContaConvenio() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
               Atualizar
             </Button>
-            <Button variant="outline" onClick={handleExportExcel} disabled={!contasAgrupadas.length}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportExcel}
+              disabled={!contasAgrupadas.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
               Excel Resumo
             </Button>
-            <Button onClick={handleExportExcelItens} disabled={!contasAgrupadas.length}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            <Button 
+              size="sm" 
+              onClick={handleExportExcelItens}
+              disabled={!faturamentoData?.items?.length}
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel Itens
             </Button>
           </div>
@@ -373,43 +283,42 @@ export default function ContaConvenio() {
 
         {/* Filtros */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filtros
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Convênio */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId} onValueChange={setConvenioId}>
+                <Select value={convenioId} onValueChange={(v) => { setConvenioId(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os convênios</SelectItem>
-                    {convenios?.map((convenio: any) => (
-                      <SelectItem key={convenio.id} value={String(convenio.id)}>
-                        {convenio.nome} ({convenio.codigo})
+                    {convenios?.map(conv => (
+                      <SelectItem key={conv.id} value={String(conv.id)}>
+                        {conv.nome} ({conv.codigo})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Mês */}
               <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  Mês
-                </label>
-                <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                <label className="text-sm font-medium">Mês Referência</label>
+                <Select value={mesReferencia} onValueChange={(v) => { setMesReferencia(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os meses</SelectItem>
-                    {MESES.map((mes) => (
+                    {MESES.map(mes => (
                       <SelectItem key={mes.value} value={mes.value}>
                         {mes.label}
                       </SelectItem>
@@ -418,18 +327,16 @@ export default function ContaConvenio() {
                 </Select>
               </div>
 
+              {/* Ano */}
               <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  Ano
-                </label>
-                <Select value={anoReferencia} onValueChange={setAnoReferencia}>
+                <label className="text-sm font-medium">Ano Referência</label>
+                <Select value={anoReferencia} onValueChange={(v) => { setAnoReferencia(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os anos</SelectItem>
-                    {anos.map((ano) => (
+                    {getAnos().map(ano => (
                       <SelectItem key={ano.value} value={ano.value}>
                         {ano.label}
                       </SelectItem>
@@ -438,19 +345,21 @@ export default function ContaConvenio() {
                 </Select>
               </div>
 
+              {/* Busca */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Busca</label>
+                <label className="text-sm font-medium">Buscar</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
+                  <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
                     placeholder="Guia, código, carteirinha..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
+                    onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                    className="pl-10"
                   />
                 </div>
               </div>
 
+              {/* Limpar Filtros */}
               <div className="space-y-2 flex items-end">
                 {temFiltrosAtivos && (
                   <Button variant="outline" onClick={handleLimparFiltros} className="w-full">
@@ -462,213 +371,201 @@ export default function ContaConvenio() {
           </CardContent>
         </Card>
 
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Resumo - KPIs com totais de TODAS as contas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Contas</p>
+                  <p className="text-sm text-muted-foreground">Total Guias</p>
                   <p className="text-2xl font-bold">{totalContas.toLocaleString("pt-BR")}</p>
                 </div>
+                <Receipt className="h-8 w-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Hash className="h-5 w-5 text-purple-600" />
+              <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Itens</p>
                   <p className="text-2xl font-bold">{totalItens.toLocaleString("pt-BR")}</p>
                 </div>
+                <FileText className="h-8 w-8 text-purple-500" />
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-emerald-600" />
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Valor Total</p>
-                  <p className="text-xl font-bold text-emerald-600">{formatCurrency(valorTotalGeral)}</p>
+                  <p className="text-sm text-muted-foreground">Valor Total Faturado</p>
+                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(valorTotalGeral)}</p>
                 </div>
+                <DollarSign className="h-8 w-8 text-emerald-500" />
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-orange-600" />
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Média por Conta</p>
-                  <p className="text-xl font-bold text-orange-600">
-                    {totalContas > 0 ? formatCurrency(valorTotalGeral / totalContas) : "R$ 0,00"}
+                  <p className="text-sm text-muted-foreground">Média por Guia</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(totalContas > 0 ? valorTotalGeral / totalContas : 0)}
                   </p>
                 </div>
+                <Package className="h-8 w-8 text-orange-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabela de contas */}
-        <Card>
-          <CardContent className="pt-6">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : contasPaginadas.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma conta encontrada</p>
-                <p className="text-sm">Ajuste os filtros ou importe arquivos XML</p>
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10"></TableHead>
-                      <TableHead>Guia</TableHead>
-                      <TableHead>Nº Lote</TableHead>
-                      <TableHead>Senha</TableHead>
-                      <TableHead>Carteirinha</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead className="text-right">Valor Total</TableHead>
-                      <TableHead className="text-center">Itens</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contasPaginadas.map((conta) => (
-                      <React.Fragment key={conta.chave}>
-                        <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(conta.chave)}>
-                          <TableCell>
-                            {expandedRows.has(conta.chave) ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </TableCell>
-                          <TableCell className="font-mono">{conta.guiaNumero}</TableCell>
-                          <TableCell className="font-mono">{conta.numeroLote}</TableCell>
-                          <TableCell className="font-mono">{conta.senha}</TableCell>
-                          <TableCell className="font-mono">{conta.carteirinha}</TableCell>
-                          <TableCell>{formatDate(conta.dataConta)}</TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
-                            {formatCurrency(conta.valorTotal)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline">{conta.quantidadeItens}</Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerDetalhes(conta);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        
-                        {/* Linha expandida com itens */}
-                        {expandedRows.has(conta.chave) && (
-                          <TableRow>
-                            <TableCell colSpan={9} className="bg-muted/30 p-4">
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-sm">Itens da Conta</h4>
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Código</TableHead>
-                                      <TableHead>Descrição</TableHead>
-                                      <TableHead>Tipo</TableHead>
-                                      <TableHead>Data Exec.</TableHead>
-                                      <TableHead className="text-right">Qtd</TableHead>
-                                      <TableHead className="text-right">Valor Unit.</TableHead>
-                                      <TableHead className="text-right">Valor Total</TableHead>
-                                      <TableHead>Profissional</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {conta.itens.map((item: any, idx: number) => (
-                                      <TableRow key={idx}>
-                                        <TableCell className="font-mono">{item.codigoItem || "-"}</TableCell>
-                                        <TableCell className="max-w-[200px] truncate">{item.descricaoItem || "-"}</TableCell>
-                                        <TableCell>
-                                          <Badge variant="outline">{item.tipoItem || "-"}</Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                          {item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-"}
-                                        </TableCell>
-                                        <TableCell className="text-right">{parseFloat(item.quantidade || 1)}</TableCell>
-                                        <TableCell className="text-right font-mono">
-                                          {formatCurrency(parseFloat(item.valorUnitario || 0))}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-semibold">
-                                          {formatCurrency(parseFloat(item.valorTotalItem || 0))}
-                                        </TableCell>
-                                        <TableCell>
-                                          {item.nomeProf ? (
-                                            <span className="text-sm">
-                                              {item.nomeProf}
-                                              {item.conselhoProf && <span className="text-muted-foreground ml-1">({item.conselhoProf})</span>}
-                                            </span>
-                                          ) : "-"}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {/* Paginação */}
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalContas)} de {totalContas} contas
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm">
-                      Página {page} de {totalPages || 1}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      disabled={page >= totalPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+        {/* Lista de Contas */}
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map(i => (
+              <Card key={i}>
+                <CardContent className="py-4">
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <Skeleton className="h-8 w-24" />
                   </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : contasAgrupadas.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <FileSearch className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhuma conta encontrada</h3>
+              <p className="text-muted-foreground">
+                Ajuste os filtros ou importe arquivos XML
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {contasAgrupadas.map((conta, index) => (
+              <Card 
+                key={`${conta.numeroGuia}-${index}`}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleVerDetalhes(conta)}
+              >
+                <CardContent className="py-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    {/* Ícone */}
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-full bg-blue-100 text-blue-800">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                    </div>
+
+                    {/* Informações principais */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Guia e Paciente */}
+                      <div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Hash className="h-3 w-3" />
+                          <span>Guia</span>
+                        </div>
+                        <p className="font-semibold">{conta.numeroGuia}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                          <User className="h-3 w-3" />
+                          <span className="truncate">{conta.paciente}</span>
+                        </div>
+                      </div>
+
+                      {/* Carteirinha */}
+                      <div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CreditCard className="h-3 w-3" />
+                          <span>Carteirinha</span>
+                        </div>
+                        <p className="font-medium">{conta.carteirinha}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Tipo: {conta.tipoItem}
+                        </p>
+                      </div>
+
+                      {/* Datas */}
+                      <div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span>Data Execução</span>
+                        </div>
+                        <p className="font-medium">{formatDate(conta.dataExecucao)}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Ref: {formatDate(conta.dataReferencia)}
+                        </p>
+                      </div>
+
+                      {/* Valores */}
+                      <div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <DollarSign className="h-3 w-3" />
+                          <span>Valor Total</span>
+                        </div>
+                        <p className="font-semibold text-emerald-600">
+                          {formatCurrency(conta.valorTotal)}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {conta.totalItens} {conta.totalItens === 1 ? "item" : "itens"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Ações */}
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="hidden md:flex">
+                        {conta.totalItens} {conta.totalItens === 1 ? "item" : "itens"}
+                      </Badge>
+                      <Button variant="ghost" size="sm">
+                        <Eye className="h-4 w-4 mr-1" />
+                        Ver
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Paginação */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Página {page} de {totalPages} ({faturamentoData?.total || 0} itens)
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Próxima
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

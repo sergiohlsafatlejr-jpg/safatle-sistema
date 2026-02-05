@@ -52,6 +52,7 @@ import HistoricoConciliacaoTasy from "./pages/HistoricoConciliacaoTasy";
 import FaturadoTasy from "./pages/FaturadoTasy";
 import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
 import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
+import ContaConvenioDetalhes from "./pages/ContaConvenioDetalhes";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -74,6 +75,7 @@ function Router() {
       <Route path={"/relatorios"} component={Relatorios} />
       <Route path={"/configuracoes"} component={Configuracoes} />
       <Route path={"/conta-convenio"} component={ContaConvenio} />
+      <Route path={"/conta-convenio-detalhes"} component={ContaConvenioDetalhes} />
       <Route path={"/contas-demonstrativo"} component={ContasDemonstrativo} />
       <Route path={"/conta-detalhes"} component={ContaDetalhesDemonstrativo} />
       <Route path={"/contas/:guiaNumero"} component={ContaDetalhes} />

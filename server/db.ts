@@ -16129,24 +16129,19 @@ export async function getFaturamentoTiss(params: {
     conditions.push(eq(faturamentoTiss.arquivoId, arquivoId));
   }
 
-  // Filtro por convênio através do arquivo
+  // Filtro por convênio direto na tabela faturamento_tiss
   if (convenioId) {
-    conditions.push(
-      inArray(
-        faturamentoTiss.arquivoId,
-        db.select({ id: arquivos.id }).from(arquivos).where(eq(arquivos.convenioId, convenioId))
-      )
-    );
+    conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
 
-  // Filtro por mês/ano de referência (baseado na data de execução)
+  // Filtro por mês/ano de referência (baseado na data de referência)
   if (mesReferencia && anoReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
-    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
   } else if (mesReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
   } else if (anoReferencia) {
-    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
   }
 
   // Busca textual
@@ -16224,22 +16219,19 @@ export async function getFaturamentoTissResumo(params: {
     conditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
   }
 
+  // Filtro por convênio direto na tabela faturamento_tiss
   if (convenioId) {
-    conditions.push(
-      inArray(
-        faturamentoTiss.arquivoId,
-        db.select({ id: arquivos.id }).from(arquivos).where(eq(arquivos.convenioId, convenioId))
-      )
-    );
+    conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
 
+  // Filtro por mês/ano de referência (baseado na data de referência)
   if (mesReferencia && anoReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
-    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
   } else if (mesReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataExecucao}) = ${mesReferencia}`);
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
   } else if (anoReferencia) {
-    conditions.push(sql`YEAR(${faturamentoTiss.dataExecucao}) = ${anoReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

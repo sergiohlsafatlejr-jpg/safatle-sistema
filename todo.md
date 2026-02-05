@@ -1175,3 +1175,11 @@
 - [x] Adicionar campo estabelecimentoId na tabela recebimentos_excel
 - [x] Criar script para popular estabelecimentoId com base nos arquivos importados
 - [x] Atualizar fluxo de upload para incluir estabelecimentoId
+
+
+## Correção da Tela Conta Convênio (faturamento_tiss)
+- [x] Corrigir query para carregar dados da tabela faturamento_tiss
+- [x] Aplicar layout igual a tela Conta Demonstrativo (cards de contas agrupadas)
+- [x] KPIs com totais de todas as contas (não apenas da página atual)
+- [x] Adicionar paginação para navegar entre todas as contas
+- [x] Criar tela de detalhes da conta com KPIs por tipo de procedimento
