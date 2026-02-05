@@ -16160,7 +16160,7 @@ export async function getFaturamentoTiss(params: {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // Buscar contas agrupadas por chave composta (guia + lote + data execução)
+  // Buscar contas agrupadas por chave composta (guia + lote)
   // Isso separa as altas administrativas (mesma guia, lotes diferentes)
   const offset = (page - 1) * pageSize;
   
@@ -16186,10 +16186,9 @@ export async function getFaturamentoTiss(params: {
     .where(whereClause)
     .groupBy(
       faturamentoTiss.numeroGuiaPrestador,
-      faturamentoTiss.numeroLote,
-      sql`DATE(${faturamentoTiss.dataExecucao})`
+      faturamentoTiss.numeroLote
     )
-    .orderBy(desc(sql`DATE(${faturamentoTiss.dataExecucao})`))
+    .orderBy(desc(sql`MAX(DATE(${faturamentoTiss.dataExecucao}))`))
     .limit(pageSize)
     .offset(offset);
   } catch (error) {
@@ -16207,8 +16206,7 @@ export async function getFaturamentoTiss(params: {
     .select({ 
       count: sql<number>`COUNT(DISTINCT CONCAT(
         COALESCE(${faturamentoTiss.numeroGuiaPrestador}, ''), '-',
-        COALESCE(${faturamentoTiss.numeroLote}, ''), '-',
-        COALESCE(DATE(${faturamentoTiss.dataExecucao}), '')
+        COALESCE(${faturamentoTiss.numeroLote}, '')
       ))` 
     })
     .from(faturamentoTiss)
@@ -16223,8 +16221,7 @@ export async function getFaturamentoTiss(params: {
       valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(15,2))), 0)`,
       totalGuias: sql<number>`COUNT(DISTINCT CONCAT(
         COALESCE(${faturamentoTiss.numeroGuiaPrestador}, ''), '-',
-        COALESCE(${faturamentoTiss.numeroLote}, ''), '-',
-        COALESCE(DATE(${faturamentoTiss.dataExecucao}), '')
+        COALESCE(${faturamentoTiss.numeroLote}, '')
       ))`,
     })
     .from(faturamentoTiss)

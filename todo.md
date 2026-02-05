@@ -1265,3 +1265,8 @@
 - [x] Implementar agrupamento no backend para paginação correta
 - [x] Corrigir query SQL para usar GROUP BY com MIN/MAX para campos agregados
 - [x] Testar com guia 67752681 que tem múltiplos lotes (86910, 86792, 86399)
+
+
+## Correção 05/02/2026 - Ajuste Agrupamento Conta Convênio
+
+- [x] Corrigir agrupamento na tela Conta Convênio para usar apenas guia + lote (remover data de execução)

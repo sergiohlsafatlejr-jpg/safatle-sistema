@@ -141,7 +141,7 @@ export default function ContaConvenio() {
     }
   );
 
-  // Os dados já vem agrupados do backend por chave composta (guia + lote + data execução)
+  // Os dados já vem agrupados do backend por chave composta (guia + lote)
   // Isso separa as altas administrativas (mesma guia, lotes diferentes)
   const contasAgrupadas = useMemo(() => {
     if (!faturamentoData?.items) return [];
@@ -149,8 +149,7 @@ export default function ContaConvenio() {
     return faturamentoData.items.map((item: any) => {
       const guia = item.numeroGuiaPrestador || "";
       const lote = item.numeroLote || "";
-      const dataExec = item.dataExecucao ? new Date(item.dataExecucao).toISOString().split("T")[0] : "";
-      const key = `${guia}|${lote}|${dataExec}`;
+      const key = `${guia}|${lote}`;
       
       return {
         numeroGuia: guia || "-",
