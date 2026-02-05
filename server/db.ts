@@ -16573,6 +16573,7 @@ export async function countDemonstrativoByArquivo(arquivoId: number): Promise<nu
  * Lista demonstrativos com filtros e paginação, agrupados por conta (guia)
  */
 export async function getDemonstrativoContas(params: {
+  estabelecimentoId?: number;
   convenioId?: number;
   arquivoId?: number;
   mesReferencia?: number;
@@ -16586,6 +16587,11 @@ export async function getDemonstrativoContas(params: {
   if (!db) return { items: [], total: 0, page: 1, totalPages: 0 };
 
   const conditions: SQL[] = [];
+  
+  // Filtro por estabelecimento
+  if (params.estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, params.estabelecimentoId));
+  }
   
   if (params.convenioId) {
     conditions.push(eq(demonstrativo.convenioId, params.convenioId));
@@ -16836,6 +16842,7 @@ export async function getDemonstrativoItensGlosados(params: {
  * Resumo de demonstrativo por convênio
  */
 export async function getDemonstrativoResumo(params: {
+  estabelecimentoId?: number;
   convenioId?: number;
   mesReferencia?: number;
   anoReferencia?: number;
@@ -16844,6 +16851,11 @@ export async function getDemonstrativoResumo(params: {
   if (!db) return { totalContas: 0, totalItens: 0, valorTotal: 0, valorGlosado: 0, valorPago: 0 };
 
   const conditions: SQL[] = [];
+  
+  // Filtro por estabelecimento
+  if (params.estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, params.estabelecimentoId));
+  }
   
   if (params.convenioId) {
     conditions.push(eq(demonstrativo.convenioId, params.convenioId));

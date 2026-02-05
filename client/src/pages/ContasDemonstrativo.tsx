@@ -107,6 +107,7 @@ export default function ContasDemonstrativo() {
   // Buscar contas do demonstrativo
   const { data: contasData, isLoading, refetch } = trpc.demonstrativo.contas.useQuery(
     {
+      estabelecimentoId: estabelecimentoAtual?.id,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
@@ -115,17 +116,18 @@ export default function ContasDemonstrativo() {
       page,
       pageSize: 20,
     },
-    { enabled: !!convenioId }
+    { enabled: !!convenioId && !!estabelecimentoAtual?.id }
   );
 
   // Buscar resumo
   const { data: resumo } = trpc.demonstrativo.resumo.useQuery(
     {
+      estabelecimentoId: estabelecimentoAtual?.id,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
       mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
     },
-    { enabled: !!convenioId }
+    { enabled: !!convenioId && !!estabelecimentoAtual?.id }
   );
 
   // Obter nome do convênio selecionado

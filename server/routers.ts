@@ -5692,6 +5692,7 @@ export const appRouter = router({
     // Listar contas do demonstrativo (agrupadas por guia)
     contas: protectedProcedure
       .input(z.object({
+        estabelecimentoId: z.number().optional(),
         convenioId: z.number().optional(),
         arquivoId: z.number().optional(),
         mesReferencia: z.number().min(1).max(12).optional(),
@@ -5735,6 +5736,7 @@ export const appRouter = router({
     // Resumo do demonstrativo
     resumo: protectedProcedure
       .input(z.object({
+        estabelecimentoId: z.number().optional(),
         convenioId: z.number().optional(),
         mesReferencia: z.number().min(1).max(12).optional(),
         anoReferencia: z.number().min(2000).max(2100).optional(),

@@ -1208,3 +1208,17 @@
 - [x] Corrigir tela Contas Demonstrativo - inicialização de filtros para mês anterior
 - [x] Corrigir query de items no backend - ordem das operações (where antes de orderBy/limit/offset)
 - [x] Remover logs de debug do backend e frontend
+
+## Bugs Reportados 05/02/2026
+
+- [x] Filtro de estabelecimento não funciona na tela Contas Demonstrativo (dados do Ox UTI aparecem no PSI)
+- [x] Adicionar estabelecimentoId ao input das procedures demonstrativo.contas e demonstrativo.resumo
+- [x] Adicionar filtro por estabelecimentoId na função getDemonstrativoContas e getDemonstrativoResumo
+- [x] Passar estabelecimentoId do frontend para o backend nas queries
+- [x] Valor Glosado = R$ 0,00 (verificado: dados importados para Unimed/Janeiro/2026 não contêm glosas)
+
+## Bugs Reportados 05/02/2026 (anteriores) - Contas Demonstrativo
+
+- [x] Filtro por estabelecimento não funciona - dados do Ox UTI aparecem na tela do PSI (CORRIGIDO)
+- [x] Itens glosados não aparecem - Valor Glosado mostra R$ 0,00 (VERIFICADO: dados não contêm glosas)
+- [x] Organizar filtros para aplicar corretamente por estabelecimento em todas as telas (CORRIGIDO)
