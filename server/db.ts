@@ -16171,24 +16171,20 @@ export async function getFaturamentoTiss(params: {
   // Buscar itens com paginação
   const offset = (page - 1) * pageSize;
   
-  let query = db
+  // Construir query com where antes de orderBy/limit/offset
+  const items = await db
     .select()
     .from(faturamentoTiss)
+    .where(whereClause)
     .orderBy(desc(faturamentoTiss.dataExecucao), desc(faturamentoTiss.id))
     .limit(pageSize)
     .offset(offset);
-
-  if (whereClause) {
-    query = query.where(whereClause) as typeof query;
-  }
-
-  const items = await query;
 
   // Buscar resumo
   const resumoResult = await db
     .select({
       totalItens: sql<number>`COUNT(*)`,
-      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorTotalItem} AS DECIMAL(15,2))), 0)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(15,2))), 0)`,
       totalGuias: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroGuiaPrestador})`,
     })
     .from(faturamentoTiss)
@@ -16239,7 +16235,7 @@ export async function getFaturamentoTissResumo(params: {
   const result = await db
     .select({
       totalItens: sql<number>`COUNT(*)`,
-      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorTotalItem} AS DECIMAL(15,2))), 0)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(15,2))), 0)`,
       totalGuias: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroGuiaPrestador})`,
       totalLotes: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroLote})`,
     })

@@ -1189,3 +1189,22 @@
 - [x] Corrigir filtros da tela Conta Convênio (inicializar mês/ano com valores atuais, remover dependência de estabelecimento)
 - [x] Ajustar KPIs da tela Conta Demonstrativo para trazer totais de todas as contas filtradas no mês/ano
 - [x] Adicionar paginação na tela Conta Demonstrativo (já existia)
+
+
+## Correção de Processamento de Arquivos Grandes
+- [ ] Otimizar parser de Excel para processar arquivos com mais de 25.000 linhas
+- [ ] Resetar arquivo travado (ID: 660001) para reprocessamento
+
+
+## Correção de Filtros e Paginação nas Telas (05/02/2026)
+- [ ] Corrigir filtros da tela Conta Convênio (não está retornando dados)
+- [ ] Corrigir paginação da tela Contas Demonstrativo (mostrando apenas 4 contas)
+- [ ] Verificar queries no banco de dados para identificar problemas
+
+## Correções 05/02/2026
+
+- [x] Corrigir tela Conta Convênio - dados não apareciam (coluna valor_total_item não existe, renomeada para valor_faturado)
+- [x] Corrigir inicialização de filtros de mês - alterar para mês anterior ao invés do mês atual
+- [x] Corrigir tela Contas Demonstrativo - inicialização de filtros para mês anterior
+- [x] Corrigir query de items no backend - ordem das operações (where antes de orderBy/limit/offset)
+- [x] Remover logs de debug do backend e frontend

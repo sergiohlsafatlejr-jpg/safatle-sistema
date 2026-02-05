@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN data_referencia IS NULL THEN 1 ELSE 0 END) as null_count,\n  SUM(CASE WHEN data_referencia IS NOT NULL THEN 1 ELSE 0 END) as not_null_count\nFROM faturamento_tiss \nWHERE estabelecimento_id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  COUNT(*) as total,\n  SUM(CASE WHEN data_referencia IS NULL THEN 1 ELSE 0 END) as null_count,\n  SUM(CASE WHEN data_referencia IS NOT NULL THEN 1 ELSE 0 END) as not_null_count\nFROM faturamento_tiss \nWHERE estabelecimento_id = 1;",
+  "rows": [
+    {
+      "total": "11908",
+      "null_count": "0",
+      "not_null_count": "11908"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tnull_count\tnot_null_count\n11908\t0\t11908\n",
+  "stderr": "",
+  "execution_time_ms": 122
+}

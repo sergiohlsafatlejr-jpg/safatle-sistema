@@ -5661,7 +5661,8 @@ export const appRouter = router({
         pageSize: z.number().optional(),
       }).optional())
       .query(async ({ input }) => {
-        return db.getFaturamentoTiss(input || {});
+        const result = await db.getFaturamentoTiss(input || {});
+        return result;
       }),
     
     // Resumo de faturamento

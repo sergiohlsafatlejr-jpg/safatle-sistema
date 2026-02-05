@@ -2160,7 +2160,7 @@ export const faturamentoTiss = mysqlTable("faturamento_tiss", {
   descricaoItem: varchar("descricao_item", { length: 255 }),
   quantidade: decimal("quantidade", { precision: 10, scale: 3 }),
   valorUnitario: decimal("valor_unitario", { precision: 12, scale: 2 }),
-  valorTotalItem: decimal("valor_total_item", { precision: 12, scale: 2 }),
+  valorFaturado: decimal("valor_faturado", { precision: 12, scale: 2 }),
   
   // Dados do Profissional (se houver)
   nomeProf: varchar("nome_prof", { length: 150 }),

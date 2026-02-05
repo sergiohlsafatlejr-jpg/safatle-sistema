@@ -94,9 +94,19 @@ export default function ContaConvenio() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
-  // Inicializar com mês e ano atual
-  const [mesReferencia, setMesReferencia] = useState<string>(String(new Date().getMonth() + 1));
-  const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
+  // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
+  const getMesAnterior = () => {
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth(); // 0-11
+    if (mesAtual === 0) {
+      // Se janeiro, volta para dezembro do ano anterior
+      return { mes: "12", ano: String(hoje.getFullYear() - 1) };
+    }
+    return { mes: String(mesAtual), ano: String(hoje.getFullYear()) };
+  };
+  const mesAnoInicial = getMesAnterior();
+  const [mesReferencia, setMesReferencia] = useState<string>(mesAnoInicial.mes);
+  const [anoReferencia, setAnoReferencia] = useState<string>(mesAnoInicial.ano);
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
   const pageSize = 20;
@@ -139,7 +149,7 @@ export default function ContaConvenio() {
       if (grouped.has(key)) {
         const existing = grouped.get(key)!;
         existing.totalItens += 1;
-        existing.valorTotal += parseFloat(item.valorTotalItem || item.valorFaturado || "0");
+        existing.valorTotal += parseFloat(item.valorFaturado || "0");
       } else {
         grouped.set(key, {
           numeroGuia: item.numeroGuiaPrestador || "-",
@@ -148,7 +158,7 @@ export default function ContaConvenio() {
           dataExecucao: item.dataExecucao,
           dataReferencia: item.dataReferencia,
           totalItens: 1,
-          valorTotal: parseFloat(item.valorTotalItem || item.valorFaturado || "0"),
+          valorTotal: parseFloat(item.valorFaturado || "0"),
           arquivoId: item.arquivoId,
           convenioId: item.convenioId,
           tipoItem: item.tipoItem || "-",
@@ -219,7 +229,7 @@ export default function ContaConvenio() {
       "Quantidade": item.quantidade || 0,
       "Valor Unitário": parseFloat(item.valorUnitario || "0"),
       "Valor Faturado": parseFloat(item.valorFaturado || "0"),
-      "Valor Total": parseFloat(item.valorTotalItem || "0"),
+      "Valor Total": parseFloat(item.valorFaturado || "0"),
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
