@@ -1241,3 +1241,8 @@
 - [x] Quando situacaoItem = GLOSADO, mover valor de valorPago para valorGlosa
 - [x] Ressincronizar tabela demonstrativo com a correção de glosas
 - [x] Resultado: Valor Glosado agora exibe R$ 29.711,42 (antes mostrava R$ 0,00)
+
+
+## Ajustes Solicitados 05/02/2026
+
+- [x] Ajustar filtro de data na tela Contas Demonstrativo para usar formato MM/AAAA

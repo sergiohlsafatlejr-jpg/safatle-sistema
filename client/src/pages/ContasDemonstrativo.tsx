@@ -37,30 +37,31 @@ import React, { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
-// Lista de meses em português
-const MESES = [
-  { value: "1", label: "Janeiro" },
-  { value: "2", label: "Fevereiro" },
-  { value: "3", label: "Março" },
-  { value: "4", label: "Abril" },
-  { value: "5", label: "Maio" },
-  { value: "6", label: "Junho" },
-  { value: "7", label: "Julho" },
-  { value: "8", label: "Agosto" },
-  { value: "9", label: "Setembro" },
-  { value: "10", label: "Outubro" },
-  { value: "11", label: "Novembro" },
-  { value: "12", label: "Dezembro" },
-];
-
-// Gerar lista de anos
-const getAnos = () => {
-  const anoAtual = new Date().getFullYear();
-  const anos = [];
-  for (let i = anoAtual; i >= anoAtual - 5; i--) {
-    anos.push({ value: String(i), label: String(i) });
+// Gerar lista de competências no formato MM/AAAA
+const getCompetencias = () => {
+  const competencias = [];
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  
+  // Gerar últimos 24 meses
+  for (let i = 0; i < 24; i++) {
+    let mes = mesAtual - i;
+    let ano = anoAtual;
+    
+    while (mes <= 0) {
+      mes += 12;
+      ano -= 1;
+    }
+    
+    const mesStr = String(mes).padStart(2, '0');
+    const value = `${mes}-${ano}`; // formato interno: mes-ano
+    const label = `${mesStr}/${ano}`; // formato exibição: MM/AAAA
+    
+    competencias.push({ value, label, mes, ano });
   }
-  return anos;
+  
+  return competencias;
 };
 
 // Formatar valor em reais
@@ -80,26 +81,47 @@ const formatDate = (date: Date | string | null | undefined) => {
   return d.toLocaleDateString("pt-BR");
 };
 
+// Formatar data de referência como MM/AAAA
+const formatDataReferencia = (date: Date | string | null | undefined) => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const ano = d.getFullYear();
+  return `${mes}/${ano}`;
+};
+
 export default function ContasDemonstrativo() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  
   // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
-  const getMesAnterior = () => {
+  const getCompetenciaInicial = () => {
     const hoje = new Date();
     const mesAtual = hoje.getMonth() + 1;
     if (mesAtual === 1) {
-      return { mes: 12, ano: hoje.getFullYear() - 1 };
+      return `12-${hoje.getFullYear() - 1}`;
     }
-    return { mes: mesAtual - 1, ano: hoje.getFullYear() };
+    return `${mesAtual - 1}-${hoje.getFullYear()}`;
   };
-  const { mes: mesInicial, ano: anoInicial } = getMesAnterior();
-  const [mesReferencia, setMesReferencia] = useState<string>(String(mesInicial));
-  const [anoReferencia, setAnoReferencia] = useState<string>(String(anoInicial));
+  
+  const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
   const [statusGlosa, setStatusGlosa] = useState<string>("todos");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
+
+  // Extrair mês e ano da competência selecionada
+  const { mesReferencia, anoReferencia } = useMemo(() => {
+    if (!competencia || competencia === "all") {
+      return { mesReferencia: undefined, anoReferencia: undefined };
+    }
+    const [mes, ano] = competencia.split("-").map(Number);
+    return { mesReferencia: mes, anoReferencia: ano };
+  }, [competencia]);
+
+  // Lista de competências
+  const competencias = useMemo(() => getCompetencias(), []);
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
@@ -109,8 +131,8 @@ export default function ContasDemonstrativo() {
     {
       estabelecimentoId: estabelecimentoAtual?.id,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
+      mesReferencia,
+      anoReferencia,
       search: searchTerm || undefined,
       statusGlosa: statusGlosa as "todos" | "pago" | "glosado" | "parcial",
       page,
@@ -124,14 +146,17 @@ export default function ContasDemonstrativo() {
     {
       estabelecimentoId: estabelecimentoAtual?.id,
       convenioId: convenioId ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
+      mesReferencia,
+      anoReferencia,
     },
     { enabled: !!convenioId && !!estabelecimentoAtual?.id }
   );
 
   // Obter nome do convênio selecionado
   const convenioSelecionado = convenios?.find(c => c.id === parseInt(convenioId));
+
+  // Obter label da competência selecionada
+  const competenciaSelecionada = competencias.find(c => c.value === competencia);
 
   // Determinar status da conta
   const getStatusConta = (conta: any) => {
@@ -169,7 +194,7 @@ export default function ContasDemonstrativo() {
       "Carteirinha": conta.carteiraBeneficiario || "",
       "Paciente": conta.nomeBeneficiario || "",
       "Data Pagamento": formatDate(conta.dataPagamento),
-      "Data Referência": formatDate(conta.dataReferencia),
+      "Competência": formatDataReferencia(conta.dataReferencia),
       "Qtd Itens": conta.totalItens || 0,
       "Itens Glosados": conta.itensGlosados || 0,
       "Valor Informado": parseFloat(conta.valorInformado || "0"),
@@ -183,7 +208,8 @@ export default function ContasDemonstrativo() {
     XLSX.utils.book_append_sheet(wb, ws, "Contas");
     
     const nomeArquivo = convenioSelecionado?.nome || "demonstrativo";
-    XLSX.writeFile(wb, `contas_demonstrativo_${nomeArquivo}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const competenciaLabel = competenciaSelecionada?.label?.replace("/", "-") || "";
+    XLSX.writeFile(wb, `contas_demonstrativo_${nomeArquivo}_${competenciaLabel}.xlsx`);
   };
 
   return (
@@ -241,36 +267,18 @@ export default function ContasDemonstrativo() {
                 </Select>
               </div>
 
-              {/* Mês */}
+              {/* Competência (MM/AAAA) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Mês Referência</label>
-                <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                <label className="text-sm font-medium">Competência (MM/AAAA)</label>
+                <Select value={competencia} onValueChange={setCompetencia}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {MESES.map(mes => (
-                      <SelectItem key={mes.value} value={mes.value}>
-                        {mes.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Ano */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Ano Referência</label>
-                <Select value={anoReferencia} onValueChange={setAnoReferencia}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {getAnos().map(ano => (
-                      <SelectItem key={ano.value} value={ano.value}>
-                        {ano.label}
+                    {competencias.map(comp => (
+                      <SelectItem key={comp.value} value={comp.value}>
+                        {comp.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -294,7 +302,7 @@ export default function ContasDemonstrativo() {
               </div>
 
               {/* Busca */}
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <label className="text-sm font-medium">Buscar</label>
                 <div className="relative">
                   <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -470,7 +478,7 @@ export default function ContasDemonstrativo() {
                           </div>
                           <p className="font-medium">{formatDate(conta.dataPagamento)}</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Ref: {formatDate(conta.dataReferencia)}
+                            Comp: {formatDataReferencia(conta.dataReferencia)}
                           </p>
                         </div>
 
@@ -507,7 +515,7 @@ export default function ContasDemonstrativo() {
                         <Badge variant="outline" className={`hidden md:flex ${status.color}`}>
                           {status.label}
                         </Badge>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" className="hidden md:flex">
                           <Eye className="h-4 w-4 mr-1" />
                           Ver
                           <ExternalLink className="h-3 w-3 ml-1" />
@@ -518,35 +526,35 @@ export default function ContasDemonstrativo() {
                 </Card>
               );
             })}
-          </div>
-        )}
 
-        {/* Paginação */}
-        {contasData && contasData.totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Página {contasData.page} de {contasData.totalPages} ({contasData.total} contas)
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.min(contasData.totalPages, p + 1))}
-                disabled={page === contasData.totalPages}
-              >
-                Próxima
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
+            {/* Paginação */}
+            {contasData && contasData.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Página {contasData.page} de {contasData.totalPages} ({contasData.total} contas)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(contasData.totalPages, p + 1))}
+                    disabled={page >= contasData.totalPages}
+                  >
+                    Próxima
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
