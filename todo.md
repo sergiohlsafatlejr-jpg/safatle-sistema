@@ -1154,3 +1154,9 @@
 
 ## Correção do Fluxo de Upload
 - [x] Reverter fluxo de upload para salvar Excel em recebimentos_excel e XML em recebimento_tiss
+
+
+## Sincronização Automática da Tabela Demonstrativo
+- [x] Criar função de sincronização para popular tabela demonstrativo com união de recebimentos_excel e recebimento_tiss
+- [x] Integrar sincronização automática no fluxo de upload
+- [x] Testar importação e verificar dados na tabela demonstrativo

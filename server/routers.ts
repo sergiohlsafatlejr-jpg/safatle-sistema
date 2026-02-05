@@ -706,6 +706,19 @@ export const appRouter = router({
                       if (recordsExcel.length > 0) {
                         const totalExcel = await db.insertRecebimentosExcelBatch(recordsExcel);
                         console.log('[Upload] Recebimentos Excel importado:', totalExcel, 'itens');
+                        
+                        // SINCRONIZAÇÃO AUTOMÁTICA: Popular tabela demonstrativo
+                        try {
+                          const { syncDemonstrativoByArquivo } = await import('./syncDemonstrativo');
+                          const syncResult = await syncDemonstrativoByArquivo(arquivoId, 'excel');
+                          if (syncResult.success) {
+                            console.log('[Upload] Demonstrativo sincronizado:', syncResult.total, 'itens');
+                          } else {
+                            console.error('[Upload] Erro ao sincronizar demonstrativo:', syncResult.error);
+                          }
+                        } catch (syncError) {
+                          console.error('[Upload] Erro ao sincronizar demonstrativo:', syncError);
+                        }
                       } else {
                         console.log('[Upload] Nenhum item de recebimentos_excel encontrado no arquivo');
                       }
@@ -734,6 +747,19 @@ export const appRouter = router({
                     if (recebimentoResult && recebimentoResult.success && recebimentoResult.items.length > 0) {
                       const totalImportados = await db.insertRecebimentoTiss(recebimentoResult.items);
                       console.log('[Upload] Recebimento TISS importado:', totalImportados, 'itens de', recebimentoResult.totalRows, 'linhas');
+                      
+                      // SINCRONIZAÇÃO AUTOMÁTICA: Popular tabela demonstrativo
+                      try {
+                        const { syncDemonstrativoByArquivo } = await import('./syncDemonstrativo');
+                        const syncResult = await syncDemonstrativoByArquivo(arquivoId, 'xml');
+                        if (syncResult.success) {
+                          console.log('[Upload] Demonstrativo sincronizado:', syncResult.total, 'itens');
+                        } else {
+                          console.error('[Upload] Erro ao sincronizar demonstrativo:', syncResult.error);
+                        }
+                      } catch (syncError) {
+                        console.error('[Upload] Erro ao sincronizar demonstrativo:', syncError);
+                      }
                     } else if (recebimentoResult && !recebimentoResult.success) {
                       console.error('[Upload] Erro ao processar recebimento_tiss:', recebimentoResult.error);
                     } else if (recebimentoResult) {
