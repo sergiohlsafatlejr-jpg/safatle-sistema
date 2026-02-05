@@ -2243,6 +2243,9 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   convenioId: int("convenio_id"),
   dataReferencia: date("data_referencia"),
   dataPagamento: date("data_pagamento"),
+  
+  // Estabelecimento
+  estabelecimentoId: int("estabelecimento_id"),
 });
 
 export type RecebimentoTiss = typeof recebimentoTiss.$inferSelect;
@@ -2345,6 +2348,9 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   convenioId: int("convenio_id"),
   dataReferencia: date("data_referencia"),
   dataPagamentoUpload: date("data_pagamento"),
+  
+  // Estabelecimento
+  estabelecimentoId: int("estabelecimento_id"),
   
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
@@ -2451,6 +2457,9 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   
   // Data de referência do arquivo
   dataReferencia: date("data_referencia"),
+  
+  // Estabelecimento
+  estabelecimentoId: int("estabelecimento_id"),
   
   // Auditoria
   dataImportacaoSistema: timestamp("data_importacao_sistema").defaultNow().notNull(),

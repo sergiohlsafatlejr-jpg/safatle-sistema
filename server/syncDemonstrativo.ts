@@ -46,6 +46,7 @@ export async function syncDemonstrativoByArquivo(
         arquivoId: item.arquivoId,
         origemTipo: 'excel' as const,
         convenioId: item.convenioId,
+        estabelecimentoId: item.estabelecimentoId,
         
         // Identificação
         numeroGuia: item.numeroGuia,
@@ -90,6 +91,7 @@ export async function syncDemonstrativoByArquivo(
         arquivoId: item.arquivoId,
         origemTipo: 'xml' as const,
         convenioId: item.convenioId,
+        estabelecimentoId: item.estabelecimentoId,
         
         // Identificação
         numeroGuia: item.numeroGuiaPrestador,

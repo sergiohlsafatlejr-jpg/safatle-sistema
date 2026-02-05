@@ -54,6 +54,7 @@ const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImpo
   convenioId: [],
   dataReferencia: [],
   dataPagamento: [],
+  estabelecimentoId: [],
 };
 
 /**
@@ -270,7 +271,7 @@ export async function parseExcelRecebimentoTiss(
 export async function parseXmlRecebimentoTiss(
   content: Buffer,
   arquivoId: number,
-  _estabelecimentoId: number,
+  estabelecimentoId: number,
   convenioId?: number,
   dataReferencia?: Date,
   dataPagamento?: Date
@@ -375,6 +376,7 @@ export async function parseXmlRecebimentoTiss(
             convenioId,
             dataReferencia,
             dataPagamento,
+            estabelecimentoId,
           });
         }
       }

@@ -1167,3 +1167,11 @@
 - [x] Redesenhar tela Contas Demonstrativo com layout melhorado e visão por conta
 - [x] Criar tela de detalhes da conta com itens
 - [x] Alterar tela de Recursos de Glosa para buscar dados da tabela demonstrativo
+
+
+## Adicionar estabelecimentoId nas Tabelas de Recebimento
+- [x] Adicionar campo estabelecimentoId na tabela demonstrativo
+- [x] Adicionar campo estabelecimentoId na tabela recebimento_tiss
+- [x] Adicionar campo estabelecimentoId na tabela recebimentos_excel
+- [x] Criar script para popular estabelecimentoId com base nos arquivos importados
+- [x] Atualizar fluxo de upload para incluir estabelecimentoId

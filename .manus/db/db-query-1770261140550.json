@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE demonstrativo ADD COLUMN estabelecimento_id INT NULL;\nALTER TABLE recebimento_tiss ADD COLUMN estabelecimento_id INT NULL;\nALTER TABLE recebimentos_excel ADD COLUMN estabelecimento_id INT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute ALTER TABLE demonstrativo ADD COLUMN estabelecimento_id INT NULL;\nALTER TABLE recebimento_tiss ADD COLUMN estabelecimento_id INT NULL;\nALTER TABLE recebimentos_excel ADD COLUMN estabelecimento_id INT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1221
+}

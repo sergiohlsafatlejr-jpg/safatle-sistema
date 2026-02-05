@@ -701,7 +701,8 @@ export const appRouter = router({
                         arquivoId,
                         input.convenioId,
                         dataReferenciaUpload,
-                        dataPagamentoUpload
+                        dataPagamentoUpload,
+                        input.estabelecimentoId
                       );
                       if (recordsExcel.length > 0) {
                         const totalExcel = await db.insertRecebimentosExcelBatch(recordsExcel);
