@@ -137,10 +137,16 @@ function parseInt2(value: unknown): number | null {
  */
 export function extractRecebimentoExcelFromRow(
   row: Record<string, unknown>,
-  arquivoId: number
+  arquivoId: number,
+  convenioId?: number,
+  dataReferencia?: Date,
+  dataPagamento?: Date
 ): InsertRecebimentoExcel {
   const record: InsertRecebimentoExcel = {
     arquivoId,
+    convenioId,
+    dataReferencia,
+    dataPagamentoUpload: dataPagamento,
   };
   
   // Mapear cada coluna do Excel para o campo correspondente
@@ -197,7 +203,10 @@ export function extractRecebimentoExcelFromRow(
  */
 export function parseExcelRecebimentosExcel(
   buffer: Buffer,
-  arquivoId: number
+  arquivoId: number,
+  convenioId?: number,
+  dataReferencia?: Date,
+  dataPagamento?: Date
 ): InsertRecebimentoExcel[] {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -216,7 +225,7 @@ export function parseExcelRecebimentosExcel(
     const hasData = row['Número Guia'] || row['Beneficiário'] || row['Item'];
     if (!hasData) continue;
     
-    const record = extractRecebimentoExcelFromRow(row, arquivoId);
+    const record = extractRecebimentoExcelFromRow(row, arquivoId, convenioId, dataReferencia, dataPagamento);
     records.push(record);
   }
   

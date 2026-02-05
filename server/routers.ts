@@ -689,17 +689,27 @@ export const appRouter = router({
                   
                   let recebimentoResult;
                   
+                  // Converter datas do input
+                  const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
+                  const dataPagamentoUpload = input.dataPagamento ? new Date(input.dataPagamento) : undefined;
+                  
                   if (input.tipoArquivo === "excel") {
                     recebimentoResult = await parseExcelRecebimentoTiss(
                       buffer,
                       arquivoId,
-                      input.estabelecimentoId
+                      input.estabelecimentoId,
+                      input.convenioId,
+                      dataReferenciaUpload,
+                      dataPagamentoUpload
                     );
                   } else if (input.tipoArquivo === "xml") {
                     recebimentoResult = await parseXmlRecebimentoTiss(
                       buffer,
                       arquivoId,
-                      input.estabelecimentoId
+                      input.estabelecimentoId,
+                      input.convenioId,
+                      dataReferenciaUpload,
+                      dataPagamentoUpload
                     );
                   }
                   
@@ -716,7 +726,13 @@ export const appRouter = router({
                   if (input.tipoArquivo === "excel") {
                     try {
                       const { parseExcelRecebimentosExcel } = await import('./recebimentosExcelParser');
-                      const recordsExcel = parseExcelRecebimentosExcel(buffer, arquivoId);
+                      const recordsExcel = parseExcelRecebimentosExcel(
+                        buffer,
+                        arquivoId,
+                        input.convenioId,
+                        dataReferenciaUpload,
+                        dataPagamentoUpload
+                      );
                       if (recordsExcel.length > 0) {
                         const totalExcel = await db.insertRecebimentosExcelBatch(recordsExcel);
                         console.log('[Upload] Recebimentos Excel importado:', totalExcel, 'itens');

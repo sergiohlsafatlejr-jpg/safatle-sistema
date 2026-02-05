@@ -1,0 +1,16 @@
+{
+  "query": "SELECT \n  'faturamento_tiss' as tabela,\n  COUNT(*) as total,\n  SUM(CASE WHEN convenio_id IS NOT NULL THEN 1 ELSE 0 END) as com_convenio_id,\n  SUM(CASE WHEN data_referencia IS NOT NULL THEN 1 ELSE 0 END) as com_data_referencia\nFROM faturamento_tiss;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  'faturamento_tiss' as tabela,\n  COUNT(*) as total,\n  SUM(CASE WHEN convenio_id IS NOT NULL THEN 1 ELSE 0 END) as com_convenio_id,\n  SUM(CASE WHEN data_referencia IS NOT NULL THEN 1 ELSE 0 END) as com_data_referencia\nFROM faturamento_tiss;",
+  "rows": [
+    {
+      "tabela": "faturamento_tiss",
+      "total": "23311",
+      "com_convenio_id": "0",
+      "com_data_referencia": "23311"
+    }
+  ],
+  "messages": [],
+  "stdout": "tabela\ttotal\tcom_convenio_id\tcom_data_referencia\nfaturamento_tiss\t23311\t0\t23311\n",
+  "stderr": "",
+  "execution_time_ms": 75
+}

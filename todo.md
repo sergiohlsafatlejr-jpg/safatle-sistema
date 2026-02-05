@@ -1125,3 +1125,11 @@
 - [x] Criar nova tabela recebimentos_excel no banco de dados com campos: Data Pagto, Processado, Protocolo TISS, Lote Prestador, Código Prestador, Nome Prestador, Número Guia, Seq, Beneficiário, Nome Beneficiário, Data Execução, Hora Execução, Item, Item Desc, Quantidade, Valor Pagamento, Tipo Lançamento, Erro TISS, Situação Item, Código Solicitante, Nome Solicitante, Acomodação da Internação, Data Inicio/Fim Faturamento Internação, Prestador Executante
 
 - [x] Apagar dados de recebimento_tiss e criar nova tabela com estrutura unificada para XML e Excel (campos: arquivo_id, numero_demonstrativo, nome_operadora, cnpj_operadora, data_emissao, numero_lote_prestador, numero_protocolo, situacao_protocolo, numero_guia_prestador, numero_guia_operadora, senha, numero_carteira, nome_beneficiario, situacao_guia, sequencial_item, data_realizacao, codigo_tabela, codigo_item, descricao_item, quantidade_executada, valor_informado, valor_processado, valor_liberado, valor_glosado, codigo_glosa, descricao_glosa, origem_dado, data_importacao)
+
+
+## Integração de Campos convenioId e dataReferencia nas Tabelas TISS
+- [x] Adicionar campos convenioId e dataReferencia na tabela faturamento_tiss (arquivos XML enviados)
+- [x] Adicionar campos convenioId, dataReferencia e dataPagamento nas tabelas recebimento_tiss (XML) e recebimentos_excel (Excel)
+- [x] Atualizar fluxo de upload para popular convenioId, dataReferencia e dataPagamento nas tabelas específicas
+- [x] Separar importação: recebimentos_excel para Excel de retorno, recebimento_tiss para XML de retorno
+- [x] Atualizar registros existentes de faturamento_tiss com convenioId e arquivoId (23.082 de 23.311 registros - 99%)

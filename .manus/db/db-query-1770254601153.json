@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN arquivo_id IS NOT NULL THEN 1 ELSE 0 END) as com_arquivo_id FROM faturamento_tiss;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, SUM(CASE WHEN arquivo_id IS NOT NULL THEN 1 ELSE 0 END) as com_arquivo_id FROM faturamento_tiss;",
+  "rows": [
+    {
+      "total": "23311",
+      "com_arquivo_id": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tcom_arquivo_id\n23311\t0\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

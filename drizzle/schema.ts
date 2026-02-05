@@ -2175,6 +2175,10 @@ export const faturamentoTiss = mysqlTable("faturamento_tiss", {
   // Referência ao arquivo de origem
   arquivoId: int("arquivo_id"),
   
+  // Convênio e Data de Referência (informados no upload)
+  convenioId: int("convenio_id"),
+  dataReferencia: date("data_referencia"),
+  
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
 });
@@ -2234,6 +2238,11 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   // Metadados
   origemDado: mysqlEnum("origem_dado", ["xml", "excel"]).notNull(),
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
+  
+  // Convênio, Data de Referência e Data de Pagamento (informados no upload)
+  convenioId: int("convenio_id"),
+  dataReferencia: date("data_referencia"),
+  dataPagamento: date("data_pagamento"),
 });
 
 export type RecebimentoTiss = typeof recebimentoTiss.$inferSelect;
@@ -2331,6 +2340,11 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   
   // Nome Prestador Executante
   nomePrestadorExecutante: varchar("nome_prestador_executante", { length: 255 }),
+  
+  // Convênio, Data de Referência e Data de Pagamento (informados no upload)
+  convenioId: int("convenio_id"),
+  dataReferencia: date("data_referencia"),
+  dataPagamentoUpload: date("data_pagamento"),
   
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),

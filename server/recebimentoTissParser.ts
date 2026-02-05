@@ -49,6 +49,11 @@ const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImpo
   
   // Metadados
   origemDado: [], // Preenchido programaticamente
+  
+  // Campos do upload (preenchidos externamente)
+  convenioId: [],
+  dataReferencia: [],
+  dataPagamento: [],
 };
 
 /**
@@ -136,7 +141,10 @@ export interface RecebimentoTissParseResult {
 export async function parseExcelRecebimentoTiss(
   content: Buffer,
   arquivoId: number,
-  _estabelecimentoId: number
+  _estabelecimentoId: number,
+  convenioId?: number,
+  dataReferencia?: Date,
+  dataPagamento?: Date
 ): Promise<RecebimentoTissParseResult> {
   try {
     console.log(`[RecebimentoTiss Excel Parser] Starting parse, buffer size: ${(content.length / 1024).toFixed(1)} KB`);
@@ -228,6 +236,11 @@ export async function parseExcelRecebimentoTiss(
         
         // Metadados
         origemDado: 'excel',
+        
+        // Campos do upload
+        convenioId,
+        dataReferencia,
+        dataPagamento,
       };
       
       items.push(item);
@@ -257,7 +270,10 @@ export async function parseExcelRecebimentoTiss(
 export async function parseXmlRecebimentoTiss(
   content: Buffer,
   arquivoId: number,
-  _estabelecimentoId: number
+  _estabelecimentoId: number,
+  convenioId?: number,
+  dataReferencia?: Date,
+  dataPagamento?: Date
 ): Promise<RecebimentoTissParseResult> {
   try {
     console.log(`[RecebimentoTiss XML Parser] Starting parse, buffer size: ${(content.length / 1024).toFixed(1)} KB`);
@@ -356,6 +372,9 @@ export async function parseXmlRecebimentoTiss(
             codigoGlosa,
             descricaoGlosa,
             origemDado: 'xml',
+            convenioId,
+            dataReferencia,
+            dataPagamento,
           });
         }
       }
