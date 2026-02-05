@@ -85,8 +85,9 @@ export default function ContasDemonstrativo() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [mesReferencia, setMesReferencia] = useState<string>("");
-  const [anoReferencia, setAnoReferencia] = useState<string>("");
+  // Inicializar com mês e ano atual
+  const [mesReferencia, setMesReferencia] = useState<string>(String(new Date().getMonth() + 1));
+  const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
   const [statusGlosa, setStatusGlosa] = useState<string>("todos");
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();

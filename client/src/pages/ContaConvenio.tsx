@@ -94,8 +94,9 @@ export default function ContaConvenio() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [mesReferencia, setMesReferencia] = useState<string>("");
-  const [anoReferencia, setAnoReferencia] = useState<string>("");
+  // Inicializar com mês e ano atual
+  const [mesReferencia, setMesReferencia] = useState<string>(String(new Date().getMonth() + 1));
+  const [anoReferencia, setAnoReferencia] = useState<string>(String(new Date().getFullYear()));
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
   const pageSize = 20;
@@ -106,26 +107,24 @@ export default function ContaConvenio() {
   // Buscar dados de faturamento_tiss
   const { data: faturamentoData, isLoading, refetch } = trpc.faturamentoTiss.list.useQuery(
     {
-      estabelecimentoId: estabelecimentoAtual?.id,
+      estabelecimentoId: estabelecimentoAtual?.id || undefined,
       convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
       mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
       search: searchTerm || undefined,
       page,
       pageSize,
-    },
-    { enabled: !!estabelecimentoAtual?.id }
+    }
   );
 
   // Buscar resumo total (sem paginação)
   const { data: resumoTotal } = trpc.faturamentoTiss.resumo.useQuery(
     {
-      estabelecimentoId: estabelecimentoAtual?.id,
+      estabelecimentoId: estabelecimentoAtual?.id || undefined,
       convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
       mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
       anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
-    },
-    { enabled: !!estabelecimentoAtual?.id }
+    }
   );
 
   // Agrupar itens por guia

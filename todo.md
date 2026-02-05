@@ -1183,3 +1183,9 @@
 - [x] KPIs com totais de todas as contas (não apenas da página atual)
 - [x] Adicionar paginação para navegar entre todas as contas
 - [x] Criar tela de detalhes da conta com KPIs por tipo de procedimento
+
+
+## Correções nas Telas Conta Convênio e Conta Demonstrativo
+- [x] Corrigir filtros da tela Conta Convênio (inicializar mês/ano com valores atuais, remover dependência de estabelecimento)
+- [x] Ajustar KPIs da tela Conta Demonstrativo para trazer totais de todas as contas filtradas no mês/ano
+- [x] Adicionar paginação na tela Conta Demonstrativo (já existia)
