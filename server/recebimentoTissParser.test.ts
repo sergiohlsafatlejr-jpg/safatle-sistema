@@ -42,10 +42,10 @@ describe("recebimentoTissParser", () => {
     expect(item.numeroLotePrestador).toBe("LOTE001");
     expect(item.numeroCarteira).toBe("999888777");
     expect(item.nomeBeneficiario).toBe("João da Silva");
-    expect(item.codigoProcedimento).toBe("10101012");
-    expect(item.descricaoProcedimento).toBe("Consulta médica");
-    expect(item.qtdExecutada).toBe(1);
-    expect(item.valorLiberado).toBe("15000"); // "150.00" é parseado como 15000 (remove pontos)
+    expect(item.codigoItem).toBe("10101012");
+    expect(item.descricaoItem).toBe("Consulta médica");
+    expect(item.quantidadeExecutada).toBe("1");
+    expect(item.valorLiberado).toBe("15000"); // "150.00" é parseado como 15000 (centavos)
     expect(item.nomeOperadora).toBe("Hospital Teste");
   });
 
@@ -134,7 +134,7 @@ describe("recebimentoTissParser", () => {
     expect(result.success).toBe(true);
     expect(result.items.length).toBe(1);
     expect(result.items[0].arquivoId).toBe(42);
-    expect(result.items[0].estabelecimentoId).toBe(7);
+    // A nova estrutura não tem estabelecimentoId
   });
 
   it("deve retornar lista vazia para buffer inválido (xlsx tenta parsear)", async () => {
@@ -317,12 +317,12 @@ describe("parseXmlRecebimentoTiss", () => {
     expect(item.numeroProtocolo).toBe('67118167');
     expect(item.numeroGuiaPrestador).toBe('2107559');
     expect(item.numeroCarteira).toBe('75596');
-    expect(item.codigoProcedimento).toBe('40803139');
-    expect(item.descricaoProcedimento).toBe('RX MAOS E PUNHOS PARA IDADE OSSEA');
+    expect(item.codigoItem).toBe('40803139');
+    expect(item.descricaoItem).toBe('RX MAOS E PUNHOS PARA IDADE OSSEA');
     expect(item.valorInformado).toBe('43.89');
     expect(item.valorLiberado).toBe('30.72');
     expect(item.codigoGlosa).toBe('1705');
-    expect(item.situacaoItem).toBe('parcial'); // Valor liberado < informado
+    // A nova estrutura não tem situacaoItem
   });
 
   it("deve extrair múltiplos itens de múltiplas guias", async () => {
@@ -350,9 +350,9 @@ describe("parseXmlRecebimentoTiss", () => {
 
     expect(result.success).toBe(true);
     expect(result.items.length).toBe(3);
-    expect(result.items[0].codigoProcedimento).toBe('PROC001');
-    expect(result.items[1].codigoProcedimento).toBe('PROC002');
-    expect(result.items[2].codigoProcedimento).toBe('PROC003');
+    expect(result.items[0].codigoItem).toBe('PROC001');
+    expect(result.items[1].codigoItem).toBe('PROC002');
+    expect(result.items[2].codigoItem).toBe('PROC003');
   });
 
   it("deve identificar itens glosados corretamente", async () => {
@@ -373,7 +373,7 @@ describe("parseXmlRecebimentoTiss", () => {
 
     expect(result.success).toBe(true);
     expect(result.items.length).toBe(1);
-    expect(result.items[0].situacaoItem).toBe('glosado');
+    // A nova estrutura não tem situacaoItem, verificamos pelo codigoGlosa
     expect(result.items[0].codigoGlosa).toBe('A001');
   });
 
@@ -390,7 +390,7 @@ describe("parseXmlRecebimentoTiss", () => {
 
     expect(result.success).toBe(true);
     expect(result.items[0].arquivoId).toBe(99);
-    expect(result.items[0].estabelecimentoId).toBe(55);
+    // A nova estrutura não tem estabelecimentoId
   });
 
   it("deve retornar lista vazia para XML sem protocolos", async () => {

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -2184,72 +2184,55 @@ export type InsertFaturamentoTiss = typeof faturamentoTiss.$inferInsert;
 
 
 /**
- * Tabela de Recebimento TISS
+ * Tabela de Recebimento TISS Unificada
  * Armazena dados dos arquivos de retorno das operadoras (demonstrativos de pagamento - XML ou Excel)
+ * Estrutura unificada para facilitar conciliação e relatórios
  */
 export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Referência ao arquivo de origem e estabelecimento
-  arquivoId: int("arquivo_id"),
-  estabelecimentoId: int("estabelecimento_id"),
+  // Vínculo com a tabela 'arquivos'
+  arquivoId: int("arquivo_id").notNull(),
   
-  // Dados do Demonstrativo/Pagamento
-  numeroDemonstrativo: varchar("numero_demonstrativo", { length: 20 }),
+  // Identificação da Operadora/Demonstrativo
+  numeroDemonstrativo: varchar("numero_demonstrativo", { length: 50 }),
   nomeOperadora: varchar("nome_operadora", { length: 150 }),
   cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
-  dataEmissao: timestamp("data_emissao"),
-  dataPagamento: timestamp("data_pagamento"), // Data Pagto do Excel
+  dataEmissao: date("data_emissao"),
   
-  // Dados do Lote e Protocolo
-  numeroLotePrestador: varchar("numero_lote_prestador", { length: 20 }), // Lote Prestador
-  numeroProtocolo: varchar("numero_protocolo", { length: 20 }), // Protocolo TISS
-  situacaoProtocolo: varchar("situacao_protocolo", { length: 5 }),
+  // Dados do Protocolo/Lote
+  numeroLotePrestador: varchar("numero_lote_prestador", { length: 50 }),
+  numeroProtocolo: varchar("numero_protocolo", { length: 50 }),
+  situacaoProtocolo: varchar("situacao_protocolo", { length: 10 }),
   
-  // Dados do Prestador
-  codigoPrestadorPagamento: varchar("codigo_prestador_pagamento", { length: 20 }), // Código Prestador Pagamento
-  nomePrestadorPagamento: varchar("nome_prestador_pagamento", { length: 150 }), // Nome Prestador Pagamento
-  codigoPrestadorExecutante: varchar("codigo_prestador_executante", { length: 20 }), // Código Prestador Executante
-  nomePrestadorExecutante: varchar("nome_prestador_executante", { length: 150 }), // Nome Prestador Executante
+  // Dados da Guia e Beneficiário
+  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 50 }),
+  numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 50 }),
+  senha: varchar("senha", { length: 50 }),
+  numeroCarteira: varchar("numero_carteira", { length: 50 }),
+  nomeBeneficiario: varchar("nome_beneficiario", { length: 150 }),
+  situacaoGuia: varchar("situacao_guia", { length: 10 }),
   
-  // Dados da Guia
-  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }), // Número Guia
-  numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 20 }),
-  senha: varchar("senha", { length: 20 }),
-  numeroCarteira: varchar("numero_carteira", { length: 20 }), // Beneficiário
-  nomeBeneficiario: varchar("nome_beneficiario", { length: 150 }), // Nome Beneficiário
-  situacaoGuia: varchar("situacao_guia", { length: 5 }),
+  // Detalhes do Item (Procedimento/Insumo)
+  sequencialItem: int("sequencial_item"),
+  dataRealizacao: date("data_realizacao"),
+  codigoTabela: varchar("codigo_tabela", { length: 10 }),
+  codigoItem: varchar("codigo_item", { length: 20 }),
+  descricaoItem: varchar("descricao_item", { length: 255 }),
   
-  // Dados do Item
-  sequencialItem: int("sequencial_item"), // Seq
-  dataRealizacao: timestamp("data_realizacao"), // Data Execução
-  horaExecucao: varchar("hora_execucao", { length: 10 }), // Hora Execução
-  codigoTabela: varchar("codigo_tabela", { length: 5 }),
-  codigoProcedimento: varchar("codigo_procedimento", { length: 15 }), // Item
-  descricaoProcedimento: varchar("descricao_procedimento", { length: 255 }), // Item Desc
-  tipoLancamento: varchar("tipo_lancamento", { length: 50 }), // Tipo Lançamento
-  
-  // Valores
+  // Valores de Conciliação
+  quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 3 }),
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
-  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }), // Processado
-  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }), // Valor Pagamento
-  qtdExecutada: int("qtd_executada"), // Quantidade
+  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
+  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
+  // valor_glosado é calculado automaticamente pelo banco (GENERATED ALWAYS AS valor_informado - valor_liberado)
   
-  // Dados de Glosa
-  codigoGlosa: varchar("codigo_glosa", { length: 10 }), // Erro TISS
+  // Motivos de Glosa
+  codigoGlosa: varchar("codigo_glosa", { length: 20 }),
   descricaoGlosa: text("descricao_glosa"),
-  situacaoItem: varchar("situacao_item", { length: 20 }), // Situação Item (PAGO/GLOSADO)
   
-  // Dados do Solicitante
-  codigoSolicitante: varchar("codigo_solicitante", { length: 20 }), // Código Solicitante
-  nomeSolicitante: varchar("nome_solicitante", { length: 150 }), // Nome Solicitante
-  
-  // Dados de Internação
-  acomodacaoInternacao: varchar("acomodacao_internacao", { length: 50 }), // Acomodação da Internação
-  dataInicioInternacao: timestamp("data_inicio_internacao"), // Data Inicio Faturamento Internação
-  dataFimInternacao: timestamp("data_fim_internacao"), // Data Fim Faturamento Internação
-  
-  // Data de importação
+  // Metadados
+  origemDado: mysqlEnum("origem_dado", ["xml", "excel"]).notNull(),
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
 });
 
@@ -2355,3 +2338,58 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
 
 export type RecebimentoExcel = typeof recebimentosExcel.$inferSelect;
 export type InsertRecebimentoExcel = typeof recebimentosExcel.$inferInsert;
+
+
+/**
+ * Retorno TISS Unificado - Tabela unificada para dados de retorno de XML e Excel
+ */
+export const retornoTissUnificado = mysqlTable("retorno_tiss_unificado", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Vínculo com a tabela 'arquivos'
+  arquivoId: int("arquivo_id").notNull(),
+  
+  // Identificação da Operadora/Demonstrativo
+  numeroDemonstrativo: varchar("numero_demonstrativo", { length: 50 }),
+  nomeOperadora: varchar("nome_operadora", { length: 150 }),
+  cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
+  dataEmissao: date("data_emissao"),
+  
+  // Dados do Protocolo/Lote
+  numeroLotePrestador: varchar("numero_lote_prestador", { length: 50 }),
+  numeroProtocolo: varchar("numero_protocolo", { length: 50 }),
+  situacaoProtocolo: varchar("situacao_protocolo", { length: 10 }),
+  
+  // Dados da Guia e Beneficiário
+  numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 50 }),
+  numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 50 }),
+  senha: varchar("senha", { length: 50 }),
+  numeroCarteira: varchar("numero_carteira", { length: 50 }),
+  nomeBeneficiario: varchar("nome_beneficiario", { length: 150 }),
+  situacaoGuia: varchar("situacao_guia", { length: 10 }),
+  
+  // Detalhes do Item (Procedimento/Insumo)
+  sequencialItem: int("sequencial_item"),
+  dataRealizacao: date("data_realizacao"),
+  codigoTabela: varchar("codigo_tabela", { length: 10 }),
+  codigoItem: varchar("codigo_item", { length: 20 }),
+  descricaoItem: varchar("descricao_item", { length: 255 }),
+  
+  // Valores de Conciliação
+  quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 3 }),
+  valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
+  valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
+  valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
+  // valor_glosado é calculado automaticamente pelo banco (GENERATED ALWAYS AS)
+  
+  // Motivos de Glosa
+  codigoGlosa: varchar("codigo_glosa", { length: 20 }),
+  descricaoGlosa: text("descricao_glosa"),
+  
+  // Metadados
+  origemDado: mysqlEnum("origem_dado", ["xml", "excel"]).notNull(),
+  dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
+});
+
+export type RetornoTissUnificado = typeof retornoTissUnificado.$inferSelect;
+export type InsertRetornoTissUnificado = typeof retornoTissUnificado.$inferInsert;

@@ -1123,3 +1123,5 @@
 - [x] Alterar tela Conta Convênio para buscar dados da tabela faturamento_tiss em vez de procedimentos
 
 - [x] Criar nova tabela recebimentos_excel no banco de dados com campos: Data Pagto, Processado, Protocolo TISS, Lote Prestador, Código Prestador, Nome Prestador, Número Guia, Seq, Beneficiário, Nome Beneficiário, Data Execução, Hora Execução, Item, Item Desc, Quantidade, Valor Pagamento, Tipo Lançamento, Erro TISS, Situação Item, Código Solicitante, Nome Solicitante, Acomodação da Internação, Data Inicio/Fim Faturamento Internação, Prestador Executante
+
+- [x] Apagar dados de recebimento_tiss e criar nova tabela com estrutura unificada para XML e Excel (campos: arquivo_id, numero_demonstrativo, nome_operadora, cnpj_operadora, data_emissao, numero_lote_prestador, numero_protocolo, situacao_protocolo, numero_guia_prestador, numero_guia_operadora, senha, numero_carteira, nome_beneficiario, situacao_guia, sequencial_item, data_realizacao, codigo_tabela, codigo_item, descricao_item, quantidade_executada, valor_informado, valor_processado, valor_liberado, valor_glosado, codigo_glosa, descricao_glosa, origem_dado, data_importacao)
