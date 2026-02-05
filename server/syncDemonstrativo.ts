@@ -42,40 +42,54 @@ export async function syncDemonstrativoByArquivo(
       console.log(`[SyncDemonstrativo] Encontrados ${excelData.length} registros em recebimentos_excel`);
 
       // Mapear para formato demonstrativo
-      records = excelData.map((item: any) => ({
-        arquivoId: item.arquivoId,
-        origemTipo: 'excel' as const,
-        convenioId: item.convenioId,
-        estabelecimentoId: item.estabelecimentoId,
+      records = excelData.map((item: any) => {
+        // CORREÇÃO: Quando situacaoItem = GLOSADO, o valorPagamento é na verdade o valor glosado
+        const situacao = (item.situacaoItem || '').toString().toUpperCase();
+        const isGlosado = situacao === 'GLOSADO' || situacao.includes('GLOS');
         
-        // Identificação
-        numeroGuia: item.numeroGuia,
-        protocolo: item.protocoloTiss,
-        lotePrestador: item.lotePrestador,
-        dataPagamento: item.dataPagto || item.dataPagamentoUpload || item.dataPagamento,
+        // Se é glosado, o valor vai para valorGlosa e valorPago = 0
+        // Se não é glosado, o valor vai para valorPago
+        const valorOriginal = item.valorPagamento;
+        const valorPago = isGlosado ? '0' : valorOriginal;
+        const valorGlosa = isGlosado ? valorOriginal : null;
         
-        // Beneficiário
-        carteiraBeneficiario: item.beneficiario,
-        nomeBeneficiario: item.nomeBeneficiario,
-        
-        // Detalhes do Item
-        sequencialItem: item.seq,
-        codigoItem: item.item,
-        descricaoItem: item.itemDesc,
-        dataExecucao: item.dataExecucao,
-        quantidade: item.quantidade ? String(item.quantidade) : null,
-        
-        // Valores
-        valorPago: item.valorPagamento,
-        
-        // Status
-        tipoLancamento: item.tipoLancamento,
-        erroTiss: item.erroTiss,
-        situacaoItem: item.situacaoItem,
-        
-        // Data de referência
-        dataReferencia: item.dataReferencia,
-      }));
+        return {
+          arquivoId: item.arquivoId,
+          origemTipo: 'excel' as const,
+          convenioId: item.convenioId,
+          estabelecimentoId: item.estabelecimentoId,
+          
+          // Identificação
+          numeroGuia: item.numeroGuia,
+          protocolo: item.protocoloTiss,
+          lotePrestador: item.lotePrestador,
+          dataPagamento: item.dataPagto || item.dataPagamentoUpload || item.dataPagamento,
+          
+          // Beneficiário
+          carteiraBeneficiario: item.beneficiario,
+          nomeBeneficiario: item.nomeBeneficiario,
+          
+          // Detalhes do Item
+          sequencialItem: item.seq,
+          codigoItem: item.item,
+          descricaoItem: item.itemDesc,
+          dataExecucao: item.dataExecucao,
+          quantidade: item.quantidade ? String(item.quantidade) : null,
+          
+          // Valores - CORRIGIDO: separar pago vs glosado
+          valorPago,
+          valorGlosa,
+          
+          // Status
+          tipoLancamento: item.tipoLancamento,
+          erroTiss: item.erroTiss,
+          situacaoItem: item.situacaoItem,
+          codigoGlosa: isGlosado ? item.erroTiss : null, // Erro TISS é o código da glosa
+          
+          // Data de referência
+          dataReferencia: item.dataReferencia,
+        };
+      });
 
     } else if (origemTipo === 'xml') {
       // Buscar dados de recebimento_tiss

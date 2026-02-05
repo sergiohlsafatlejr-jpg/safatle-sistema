@@ -1222,3 +1222,22 @@
 - [x] Filtro por estabelecimento não funciona - dados do Ox UTI aparecem na tela do PSI (CORRIGIDO)
 - [x] Itens glosados não aparecem - Valor Glosado mostra R$ 0,00 (VERIFICADO: dados não contêm glosas)
 - [x] Organizar filtros para aplicar corretamente por estabelecimento em todas as telas (CORRIGIDO)
+
+
+## Bug Parser Demonstrativo Unimed - 05/02/2026
+
+- [ ] Parser do demonstrativo Unimed não está extraindo valores de glosa corretamente
+- [ ] Todos os arquivos têm glosas mas aparecem R$ 0,00 no sistema
+- [ ] Investigar estrutura dos arquivos Excel/XML da Unimed
+- [ ] Corrigir extração dos campos valor_glosa e codigo_glosa
+- [ ] Reprocessar arquivos existentes após correção
+
+
+## Correções 05/02/2026 - Parser Demonstrativo Unimed
+
+- [x] Corrigir filtro de estabelecimento na tela Contas Demonstrativo (dados do Ox UTI apareciam no PSI)
+- [x] Adicionar estabelecimentoId ao input das procedures demonstrativo.contas e demonstrativo.resumo
+- [x] Corrigir parser de demonstrativo Unimed para extrair valores de glosa corretamente
+- [x] Quando situacaoItem = GLOSADO, mover valor de valorPago para valorGlosa
+- [x] Ressincronizar tabela demonstrativo com a correção de glosas
+- [x] Resultado: Valor Glosado agora exibe R$ 29.711,42 (antes mostrava R$ 0,00)

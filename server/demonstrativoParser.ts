@@ -189,6 +189,17 @@ export function parseExcelToDemonstrativo(
       record.dataPagamento = dataPagamento;
     }
     
+    // CORREÇÃO: Quando situacaoItem = GLOSADO, o valor da coluna "Valor Pagamento" é o valor glosado
+    // Nesse caso, valorPago deve ser 0 e valorGlosa deve receber o valor
+    const situacao = record.situacaoItem?.toString().toUpperCase() || '';
+    if (situacao === 'GLOSADO' || situacao.includes('GLOS')) {
+      // O valor que veio como valorPago é na verdade o valor glosado
+      if (record.valorPago && !record.valorGlosa) {
+        record.valorGlosa = record.valorPago;
+        record.valorPago = '0';
+      }
+    }
+    
     records.push(record);
   }
   
