@@ -895,21 +895,70 @@ function tipoLancamentoParaTipoDespesa(tipoLancamento?: string): ParsedProcedime
 }
 
 /**
- * Extract procedimento from servicosExecutados node
+ * Extract procedimento from servicosExecutados node (outrasDespesas)
+ * 
+ * Estrutura XSD TISS (ct_procedimentoExecutadoOutras):
+ *   servicosExecutados
+ *     ├── dataExecucao
+ *     ├── horaInicial [opcional]
+ *     ├── horaFinal [opcional]
+ *     ├── procedimento (ct_procedimentoDados)
+ *     │   ├── codigoTabela
+ *     │   ├── codigoProcedimento
+ *     │   └── descricaoProcedimento
+ *     ├── quantidadeExecutada
+ *     ├── unidadeMedida
+ *     ├── reducaoAcrescimo
+ *     ├── valorUnitario
+ *     ├── valorTotal
+ *     ├── descricaoProcedimento [opcional - fallback]
+ *     ├── registroANVISA [opcional]
+ *     ├── codigoRefFabricante [opcional]
+ *     └── autorizacaoFuncionamento [opcional]
  */
 function extractServicoFromNode(node: unknown, codigoDespesa?: string): ParsedProcedimento | null {
   if (!node || typeof node !== "object") return null;
   
   const record = node as Record<string, unknown>;
   
-  const codigo = getTextValue(record["codigoProcedimento"]) || getTextValue(record["codigo"]);
+  // Conforme XSD TISS, codigoProcedimento e descricaoProcedimento ficam
+  // aninhados dentro do nó "procedimento" (ct_procedimentoDados)
+  const procedimentoNode = record["procedimento"] as Record<string, unknown> | undefined;
+  
+  let codigo: string | undefined;
+  let descricao: string | undefined;
+  let codigoTabela: string | undefined;
+  
+  if (procedimentoNode) {
+    codigo = getTextValue(procedimentoNode["codigoProcedimento"]);
+    descricao = getTextValue(procedimentoNode["descricaoProcedimento"]);
+    codigoTabela = getTextValue(procedimentoNode["codigoTabela"]);
+  }
+  
+  // Fallback: tentar buscar diretamente no nó (XMLs não-padrão)
+  if (!codigo) {
+    codigo = getTextValue(record["codigoProcedimento"]) || getTextValue(record["codigo"]);
+  }
+  if (!descricao) {
+    descricao = getTextValue(record["descricaoProcedimento"]) || getTextValue(record["descricao"]);
+  }
+  if (!codigoTabela) {
+    codigoTabela = getTextValue(record["codigoTabela"]);
+  }
+  
   if (!codigo) return null;
   
-  const descricao = getTextValue(record["descricaoProcedimento"]) || getTextValue(record["descricao"]);
   const quantidade = parseNumber(record["quantidadeExecutada"]) || parseNumber(record["quantidade"]) || 1;
   const valorUnitario = parseNumber(record["valorUnitario"]);
   const valorTotal = parseNumber(record["valorTotal"]);
   const dataExecucao = parseDate(record["dataExecucao"]);
+  
+  // Campos adicionais de outrasDespesas
+  const unidadeMedida = getTextValue(record["unidadeMedida"]);
+  const reducaoAcrescimo = parseNumber(record["reducaoAcrescimo"]);
+  const registroANVISA = getTextValue(record["registroANVISA"]);
+  const codigoRefFabricante = getTextValue(record["codigoRefFabricante"]);
+  const autorizacaoFuncionamento = getTextValue(record["autorizacaoFuncionamento"]);
   
   // Extrair codigoDespesa do próprio nó se não foi passado
   const despesaCodigo = codigoDespesa || getTextValue(record["codigoDespesa"]);
@@ -924,7 +973,15 @@ function extractServicoFromNode(node: unknown, codigoDespesa?: string): ParsedPr
     dataExecucao,
     codigoDespesa: despesaCodigo,
     tipoDespesa,
-    dadosExtras: record,
+    dadosExtras: {
+      ...record,
+      codigoTabela,
+      unidadeMedida,
+      reducaoAcrescimo,
+      registroANVISA,
+      codigoRefFabricante,
+      autorizacaoFuncionamento,
+    },
   };
 }
 

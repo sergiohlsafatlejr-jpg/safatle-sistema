@@ -1331,4 +1331,13 @@
 - [x] Corrigir tela detalhes da guia: mostra 1 item MISTO em vez dos itens individuais
 - [x] Verificar se procedure itensGuia está sendo chamada corretamente no frontend
 - [x] Corrigir parser XML para extrair registroAns, senha, numeroGuiaOperadora (funciona em novas importações)
-- [ ] Salvar checkpoint e entregar nova versão
+- [x] Salvar checkpoint e entregar nova versão (f094a266)
+
+
+## Correção Parser Outras Despesas - 06/02/2026
+
+- [x] Analisar parser atual de outrasDespesas e comparar com estrutura XSD oficial TISS
+- [x] Identificar campos que não estão sendo extraídos corretamente (codigoDespesa, servicosExecutados)
+- [x] Corrigir extração de outrasDespesas no parser XML
+- [x] Testar com XML real para validar a correção (4 testes vitest passaram)
+- [x] Verificar mapeamento para faturamento_tiss
