@@ -50,6 +50,23 @@ function sanitizeFilename(filename: string): string {
   return sanitized + ext;
 }
 
+/**
+ * Mapeia tipoDespesa do parser para tipoItem legível na tabela faturamento_tiss
+ * Conforme padrão TISS ANS: codigoDespesa 1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa
+ */
+function mapTipoDespesaParaTipoItem(tipoDespesa?: string): string {
+  switch (tipoDespesa) {
+    case 'gas': return 'GÁS MEDICINAL';
+    case 'medicamento': return 'MEDICAMENTO';
+    case 'material': return 'MATERIAL';
+    case 'diaria': return 'DIÁRIA';
+    case 'taxa': return 'TAXA/ALUGUÉIS';
+    case 'procedimento': return 'PROCEDIMENTO';
+    case 'outros': return 'OUTROS';
+    default: return 'PROCEDIMENTO';
+  }
+}
+
 export const appRouter = router({
   system: systemRouter,
   
@@ -658,7 +675,7 @@ export const appRouter = router({
                         numeroGuiaOperadora: proc.numeroGuiaOperadora || undefined,
                         senha: proc.senha || undefined,
                         carteiraBeneficiario: proc.pacienteCarteirinha || undefined,
-                        tipoItem: proc.tipoDespesa === 'procedimento' || !proc.tipoDespesa ? 'PROCEDIMENTO' : 'DESPESA',
+                        tipoItem: mapTipoDespesaParaTipoItem(proc.tipoDespesa),
                         sequencialItem: seqItem,
                         dataExecucao: proc.dataExecucao || undefined,
                         codigoTabela: proc.codigoDespesa || undefined,

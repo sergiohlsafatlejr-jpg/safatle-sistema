@@ -1350,3 +1350,20 @@
 - [x] Sincronizar snapshot do drizzle com o estado correto do banco
 - [x] Restaurar schema.ts original e reiniciar servidor (0 erros TypeScript)
 - [x] Executar testes e validar correção (427 testes passaram, incluindo iaAnalise.test.ts)
+
+
+## Limpeza de Dados - Todas as Tabelas TISS - 06/02/2026
+
+- [x] Limpar tabela faturamento_tiss (todos os estabelecimentos) - 18.922 registros removidos
+- [x] Limpar tabela demonstrativo (todos os estabelecimentos) - 48.849 registros removidos
+- [x] Limpar tabela recebimentos_excel (todos os estabelecimentos) - 35.672 registros removidos
+- [x] Limpar tabela recebimento_tiss (todos os estabelecimentos) - 169 registros removidos
+- [x] Verificar limpeza completa - todas as tabelas com 0 registros
+
+
+## Correção Tipo de Despesa (outrasDespesas) - 06/02/2026
+
+- [x] Analisar como codigoDespesa é extraído do XML e mapeado para faturamento_tiss (parser já extrai corretamente)
+- [x] Mapear codigoDespesa para tipos específicos: 1=GÁS MEDICINAL, 2=MEDICAMENTO, 3=MATERIAL, 5=DIÁRIA, 7=TAXA/ALUGUÉIS
+- [x] Corrigir routers.ts: função mapTipoDespesaParaTipoItem substitui mapeamento binário PROCEDIMENTO/DESPESA
+- [x] Testar: 427 testes passaram, correção validada
