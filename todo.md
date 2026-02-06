@@ -1274,3 +1274,15 @@
 ## Implementações 05/02/2026 - Contas Demonstrativo e Indicador Alta Administrativa
 
 - [ ] Implementar chave composta na tela Contas Demonstrativo (guiaNumero + numeroLote + Protocolo TISS + Data Execução + Código- [x] Adicionar indicador visual de alta administrativa (badge/ícone) para guias com múltiplos lotesdge/ícone especial)
+
+
+## Padronização Telas Conta Convênio e Contas Demonstrativo - 05/02/2026
+
+- [x] Analisar estado atual das duas telas e identificar diferenças
+- [x] Padronizar filtro de competência MM/AAAA em ambas as telas
+- [x] Padronizar agrupamento por chave composta (guia + lote) em ambas as telas
+- [x] Garantir filtro por estabelecimento funcionando em ambas as telas
+- [x] Adicionar indicador de alta administrativa na tela Conta Convênio
+- [x] Criar procedure guiasMultiplosLotes no backend para identificar guias com múltiplos lotes
+- [x] Testar em todos os estabelecimentos do sistema (PSI e Ox UTI)
+- [x] Badge "Alta Adm (X lotes)" exibido corretamente para guias com múltiplos lotes

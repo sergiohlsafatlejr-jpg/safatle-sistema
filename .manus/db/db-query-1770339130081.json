@@ -1,0 +1,28 @@
+{
+  "query": "SELECT DISTINCT numero_guia_prestador, numero_lote, MONTH(data_referencia) as mes, YEAR(data_referencia) as ano \nFROM faturamento_tiss \nWHERE numero_guia_prestador = '67752681' \nORDER BY ano DESC, mes DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT DISTINCT numero_guia_prestador, numero_lote, MONTH(data_referencia) as mes, YEAR(data_referencia) as ano \nFROM faturamento_tiss \nWHERE numero_guia_prestador = '67752681' \nORDER BY ano DESC, mes DESC;",
+  "rows": [
+    {
+      "numero_guia_prestador": "67752681",
+      "numero_lote": "86910",
+      "mes": "1",
+      "ano": "2026"
+    },
+    {
+      "numero_guia_prestador": "67752681",
+      "numero_lote": "86399",
+      "mes": "1",
+      "ano": "2026"
+    },
+    {
+      "numero_guia_prestador": "67752681",
+      "numero_lote": "86792",
+      "mes": "1",
+      "ano": "2026"
+    }
+  ],
+  "messages": [],
+  "stdout": "numero_guia_prestador\tnumero_lote\tmes\tano\n67752681\t86910\t1\t2026\n67752681\t86399\t1\t2026\n67752681\t86792\t1\t2026\n",
+  "stderr": "",
+  "execution_time_ms": 93
+}

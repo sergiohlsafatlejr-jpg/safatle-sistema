@@ -5677,6 +5677,18 @@ export const appRouter = router({
         return db.getFaturamentoTissResumo(input || {});
       }),
     
+    // Buscar guias com múltiplos lotes (altas administrativas)
+    guiasMultiplosLotes: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        convenioId: z.number().optional(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getGuiasMultiplosLotes(input || {});
+      }),
+    
     // Excluir itens por arquivo
     excluirPorArquivo: protectedProcedure
       .input(z.object({ arquivoId: z.number() }))

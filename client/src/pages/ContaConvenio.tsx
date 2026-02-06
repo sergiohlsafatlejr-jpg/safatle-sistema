@@ -26,36 +26,38 @@ import {
   FileText,
   Receipt,
   ExternalLink,
-  Package
+  Package,
+  Layers2
 } from "lucide-react";
 import React, { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 
-// Lista de meses em português
-const MESES = [
-  { value: "1", label: "Janeiro" },
-  { value: "2", label: "Fevereiro" },
-  { value: "3", label: "Março" },
-  { value: "4", label: "Abril" },
-  { value: "5", label: "Maio" },
-  { value: "6", label: "Junho" },
-  { value: "7", label: "Julho" },
-  { value: "8", label: "Agosto" },
-  { value: "9", label: "Setembro" },
-  { value: "10", label: "Outubro" },
-  { value: "11", label: "Novembro" },
-  { value: "12", label: "Dezembro" },
-];
-
-// Gerar lista de anos
-const getAnos = () => {
-  const anoAtual = new Date().getFullYear();
-  const anos = [];
-  for (let i = anoAtual; i >= anoAtual - 5; i--) {
-    anos.push({ value: String(i), label: String(i) });
+// Gerar lista de competências no formato MM/AAAA
+const getCompetencias = () => {
+  const competencias = [];
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  
+  // Gerar últimos 24 meses
+  for (let i = 0; i < 24; i++) {
+    let mes = mesAtual - i;
+    let ano = anoAtual;
+    
+    while (mes <= 0) {
+      mes += 12;
+      ano -= 1;
+    }
+    
+    const mesStr = String(mes).padStart(2, '0');
+    const value = `${mes}-${ano}`; // formato interno: mes-ano
+    const label = `${mesStr}/${ano}`; // formato exibição: MM/AAAA
+    
+    competencias.push({ value, label, mes, ano });
   }
-  return anos;
+  
+  return competencias;
 };
 
 // Formatar valor em reais
@@ -75,6 +77,15 @@ const formatDate = (date: Date | string | null | undefined) => {
   return d.toLocaleDateString("pt-BR");
 };
 
+// Formatar data de referência como MM/AAAA
+const formatDataReferencia = (date: Date | string | null | undefined) => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const ano = d.getFullYear();
+  return `${mes}/${ano}`;
+};
+
 // Interface para conta agrupada (usando chave composta para separar altas administrativas)
 interface ContaAgrupada {
   numeroGuia: string;
@@ -91,6 +102,9 @@ interface ContaAgrupada {
   tipoItem: string;
   // Chave composta para identificar altas administrativas
   chaveComposta: string;
+  // Flag para indicar se é alta administrativa
+  isAltaAdministrativa?: boolean;
+  totalLotes?: number;
 }
 
 export default function ContaConvenio() {
@@ -98,22 +112,33 @@ export default function ContaConvenio() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const [convenioId, setConvenioId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  
   // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
-  const getMesAnterior = () => {
+  const getCompetenciaInicial = () => {
     const hoje = new Date();
-    const mesAtual = hoje.getMonth(); // 0-11
-    if (mesAtual === 0) {
-      // Se janeiro, volta para dezembro do ano anterior
-      return { mes: "12", ano: String(hoje.getFullYear() - 1) };
+    const mesAtual = hoje.getMonth() + 1;
+    if (mesAtual === 1) {
+      return `12-${hoje.getFullYear() - 1}`;
     }
-    return { mes: String(mesAtual), ano: String(hoje.getFullYear()) };
+    return `${mesAtual - 1}-${hoje.getFullYear()}`;
   };
-  const mesAnoInicial = getMesAnterior();
-  const [mesReferencia, setMesReferencia] = useState<string>(mesAnoInicial.mes);
-  const [anoReferencia, setAnoReferencia] = useState<string>(mesAnoInicial.ano);
+  
+  const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
   const [page, setPage] = useState(1);
   const [, setLocation] = useLocation();
   const pageSize = 20;
+
+  // Extrair mês e ano da competência selecionada
+  const { mesReferencia, anoReferencia } = useMemo(() => {
+    if (!competencia || competencia === "all") {
+      return { mesReferencia: undefined, anoReferencia: undefined };
+    }
+    const [mes, ano] = competencia.split("-").map(Number);
+    return { mesReferencia: mes, anoReferencia: ano };
+  }, [competencia]);
+
+  // Lista de competências
+  const competencias = useMemo(() => getCompetencias(), []);
 
   // Buscar convênios
   const { data: convenios } = trpc.convenios.list.useQuery({});
@@ -123,8 +148,8 @@ export default function ContaConvenio() {
     {
       estabelecimentoId: estabelecimentoAtual?.id || undefined,
       convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
+      mesReferencia: mesReferencia,
+      anoReferencia: anoReferencia,
       search: searchTerm || undefined,
       page,
       pageSize,
@@ -136,10 +161,32 @@ export default function ContaConvenio() {
     {
       estabelecimentoId: estabelecimentoAtual?.id || undefined,
       convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia && mesReferencia !== "all" ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia && anoReferencia !== "all" ? parseInt(anoReferencia) : undefined,
+      mesReferencia: mesReferencia,
+      anoReferencia: anoReferencia,
     }
   );
+
+  // Buscar guias com múltiplos lotes (altas administrativas)
+  const { data: guiasMultiplosLotes } = trpc.faturamentoTiss.guiasMultiplosLotes?.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id || undefined,
+      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
+      mesReferencia: mesReferencia,
+      anoReferencia: anoReferencia,
+    },
+    { enabled: !!estabelecimentoAtual?.id }
+  ) || { data: [] };
+
+  // Criar mapa de guias com múltiplos lotes
+  const guiasAltaAdmMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (guiasMultiplosLotes && Array.isArray(guiasMultiplosLotes)) {
+      guiasMultiplosLotes.forEach((g: any) => {
+        map.set(g.numeroGuia, g.totalLotes);
+      });
+    }
+    return map;
+  }, [guiasMultiplosLotes]);
 
   // Os dados já vem agrupados do backend por chave composta (guia + lote)
   // Isso separa as altas administrativas (mesma guia, lotes diferentes)
@@ -150,6 +197,7 @@ export default function ContaConvenio() {
       const guia = item.numeroGuiaPrestador || "";
       const lote = item.numeroLote || "";
       const key = `${guia}|${lote}`;
+      const totalLotes = guiasAltaAdmMap.get(guia);
       
       return {
         numeroGuia: guia || "-",
@@ -165,9 +213,11 @@ export default function ContaConvenio() {
         convenioId: item.convenioId,
         tipoItem: item.tipoItem || "-",
         chaveComposta: key,
+        isAltaAdministrativa: totalLotes ? totalLotes > 1 : false,
+        totalLotes: totalLotes || 1,
       } as ContaAgrupada;
     });
-  }, [faturamentoData?.items]);
+  }, [faturamentoData?.items, guiasAltaAdmMap]);
 
   // Calcular totais
   const totalContas = resumoTotal?.totalGuias || 0;
@@ -177,6 +227,9 @@ export default function ContaConvenio() {
 
   // Obter nome do convênio selecionado
   const convenioSelecionado = convenios?.find(c => c.id === parseInt(convenioId));
+
+  // Obter label da competência selecionada
+  const competenciaSelecionada = competencias.find(c => c.value === competencia);
 
   // Navegar para detalhes da conta
   const handleVerDetalhes = (conta: ContaAgrupada) => {
@@ -198,11 +251,12 @@ export default function ContaConvenio() {
     const data = contasAgrupadas.map(conta => ({
       "Guia": conta.numeroGuia,
       "Nº Lote": conta.numeroLote,
+      "Alta Administrativa": conta.isAltaAdministrativa ? "Sim" : "Não",
       "Protocolo": conta.protocolo,
       "Carteirinha": conta.carteirinha,
       "Paciente": conta.paciente,
       "Data Execução": formatDate(conta.dataExecucao),
-      "Data Referência": formatDate(conta.dataReferencia),
+      "Competência": formatDataReferencia(conta.dataReferencia),
       "Qtd Itens": conta.totalItens,
       "Valor Total": conta.valorTotal,
     }));
@@ -212,7 +266,8 @@ export default function ContaConvenio() {
     XLSX.utils.book_append_sheet(wb, ws, "Contas");
     
     const nomeArquivo = convenioSelecionado?.nome || "faturamento";
-    XLSX.writeFile(wb, `contas_faturamento_${nomeArquivo}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const competenciaLabel = competenciaSelecionada?.label?.replace("/", "-") || "";
+    XLSX.writeFile(wb, `contas_faturamento_${nomeArquivo}_${competenciaLabel}.xlsx`);
   };
 
   // Exportar itens detalhados
@@ -241,21 +296,20 @@ export default function ContaConvenio() {
     XLSX.utils.book_append_sheet(wb, ws, "Itens");
     
     const nomeArquivo = convenioSelecionado?.nome || "faturamento";
-    XLSX.writeFile(wb, `itens_faturamento_${nomeArquivo}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const competenciaLabel = competenciaSelecionada?.label?.replace("/", "-") || "";
+    XLSX.writeFile(wb, `itens_faturamento_${nomeArquivo}_${competenciaLabel}.xlsx`);
   };
 
   // Limpar filtros
   const handleLimparFiltros = () => {
     setConvenioId("");
-    setMesReferencia("");
-    setAnoReferencia("");
+    setCompetencia(getCompetenciaInicial());
     setSearchTerm("");
     setPage(1);
   };
 
   const temFiltrosAtivos = (convenioId && convenioId !== "all") || 
-    (mesReferencia && mesReferencia !== "all") || 
-    (anoReferencia && anoReferencia !== "all") || 
+    (competencia && competencia !== "all") || 
     searchTerm;
 
   return (
@@ -303,7 +357,7 @@ export default function ContaConvenio() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Convênio */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
@@ -312,46 +366,28 @@ export default function ContaConvenio() {
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os convênios</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {convenios?.map(conv => (
                       <SelectItem key={conv.id} value={String(conv.id)}>
-                        {conv.nome} ({conv.codigo})
+                        {conv.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Mês */}
+              {/* Competência (MM/AAAA) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Mês Referência</label>
-                <Select value={mesReferencia} onValueChange={(v) => { setMesReferencia(v); setPage(1); }}>
+                <label className="text-sm font-medium">Competência (MM/AAAA)</label>
+                <Select value={competencia} onValueChange={(v) => { setCompetencia(v); setPage(1); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os meses</SelectItem>
-                    {MESES.map(mes => (
-                      <SelectItem key={mes.value} value={mes.value}>
-                        {mes.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Ano */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Ano Referência</label>
-                <Select value={anoReferencia} onValueChange={(v) => { setAnoReferencia(v); setPage(1); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os anos</SelectItem>
-                    {getAnos().map(ano => (
-                      <SelectItem key={ano.value} value={ano.value}>
-                        {ano.label}
+                    <SelectItem value="all">Todos</SelectItem>
+                    {competencias.map(comp => (
+                      <SelectItem key={comp.value} value={comp.value}>
+                        {comp.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -362,9 +398,9 @@ export default function ContaConvenio() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Buscar</label>
                 <div className="relative">
-                  <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FileSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Guia, código, carteirinha..."
+                    placeholder="Guia, paciente, carteirinha..."
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                     className="pl-10"
@@ -372,22 +408,26 @@ export default function ContaConvenio() {
                 </div>
               </div>
 
-              {/* Limpar Filtros */}
-              <div className="space-y-2 flex items-end">
-                {temFiltrosAtivos && (
-                  <Button variant="outline" onClick={handleLimparFiltros} className="w-full">
-                    Limpar Filtros
-                  </Button>
-                )}
+              {/* Botão Limpar */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">&nbsp;</label>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleLimparFiltros}
+                  disabled={!temFiltrosAtivos}
+                >
+                  Limpar Filtros
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Resumo - KPIs com totais de TODAS as contas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
+        {/* Cards de Resumo */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="border-2">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Guias</p>
@@ -397,8 +437,9 @@ export default function ContaConvenio() {
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
+
+          <Card className="border-2">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Itens</p>
@@ -408,139 +449,139 @@ export default function ContaConvenio() {
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
+
+          <Card className="border-2">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Valor Total Faturado</p>
-                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(valorTotalGeral)}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(valorTotalGeral)}</p>
                 </div>
-                <DollarSign className="h-8 w-8 text-emerald-500" />
+                <DollarSign className="h-8 w-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
+
+          <Card className="border-2">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Média por Guia</p>
-                  <p className="text-2xl font-bold text-orange-600">
+                  <p className="text-2xl font-bold text-blue-600">
                     {formatCurrency(totalContas > 0 ? valorTotalGeral / totalContas : 0)}
                   </p>
                 </div>
-                <Package className="h-8 w-8 text-orange-500" />
+                <CreditCard className="h-8 w-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Lista de Contas */}
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Card key={i}>
-                <CardContent className="py-4">
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="h-12 w-12 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-1/3" />
-                      <Skeleton className="h-3 w-1/2" />
-                    </div>
-                    <Skeleton className="h-8 w-24" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : contasAgrupadas.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <FileSearch className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhuma conta encontrada</h3>
-              <p className="text-muted-foreground">
-                Ajuste os filtros ou importe arquivos XML
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {contasAgrupadas.map((conta, index) => (
-              <Card 
-                key={`${conta.numeroGuia}-${index}`}
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => handleVerDetalhes(conta)}
-              >
-                <CardContent className="py-4">
-                  <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    {/* Ícone */}
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 rounded-full bg-blue-100 text-blue-800">
-                        <FileText className="h-5 w-5" />
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : contasAgrupadas.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <FileSearch className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Nenhuma conta encontrada</h3>
+                <p className="text-muted-foreground">
+                  Ajuste os filtros ou selecione outro período
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            contasAgrupadas.map((conta, index) => (
+              <Card key={`${conta.chaveComposta}-${index}`} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* Informações da Guia */}
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <Receipt className="h-6 w-6 text-blue-600" />
                       </div>
-                    </div>
-
-                    {/* Informações principais */}
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {/* Guia e Paciente */}
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Hash className="h-3 w-3" />
-                          <span>Guia</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-muted-foreground"># Guia</span>
+                          <span className="font-semibold">{conta.numeroGuia}</span>
+                          {/* Badge de Alta Administrativa */}
+                          {conta.isAltaAdministrativa && (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                              <Layers2 className="h-3 w-3 mr-1" />
+                              Alta Adm ({conta.totalLotes} lotes)
+                            </Badge>
+                          )}
                         </div>
-                        <p className="font-semibold">{conta.numeroGuia}</p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                          <User className="h-3 w-3" />
+                          <User className="h-4 w-4" />
                           <span className="truncate">{conta.paciente}</span>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Carteirinha e Lote */}
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CreditCard className="h-3 w-3" />
-                          <span>Carteirinha</span>
-                        </div>
-                        <p className="font-medium">{conta.carteirinha}</p>
-                        {conta.numeroLote && conta.numeroLote !== "-" && (
-                          <p className="text-sm text-blue-600 mt-1">
-                            Lote: {conta.numeroLote}
-                          </p>
-                        )}
+                    {/* Carteirinha e Lote */}
+                    <div className="flex flex-col gap-1 min-w-[180px]">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        <span>{conta.carteirinha}</span>
                       </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Package className="h-4 w-4" />
+                        <span>Lote: {conta.numeroLote}</span>
+                      </div>
+                    </div>
 
-                      {/* Datas */}
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>Data Execução</span>
-                        </div>
-                        <p className="font-medium">{formatDate(conta.dataExecucao)}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Ref: {formatDate(conta.dataReferencia)}
-                        </p>
+                    {/* Data Execução */}
+                    <div className="flex flex-col gap-1 min-w-[120px]">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Data Execução</span>
                       </div>
+                      <span className="text-sm">{formatDate(conta.dataExecucao)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Comp: {formatDataReferencia(conta.dataReferencia)}
+                      </span>
+                    </div>
 
-                      {/* Valores */}
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <DollarSign className="h-3 w-3" />
-                          <span>Valor Total</span>
-                        </div>
-                        <p className="font-semibold text-emerald-600">
-                          {formatCurrency(conta.valorTotal)}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {conta.totalItens} {conta.totalItens === 1 ? "item" : "itens"}
-                        </p>
+                    {/* Valores */}
+                    <div className="flex flex-col gap-1 min-w-[120px]">
+                      <div className="flex items-center gap-2 text-sm">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Valores</span>
                       </div>
+                      <span className="text-lg font-bold text-green-600">
+                        {formatCurrency(conta.valorTotal)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {conta.totalItens} itens
+                      </span>
                     </div>
 
                     {/* Ações */}
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="hidden md:flex">
-                        {conta.totalItens} {conta.totalItens === 1 ? "item" : "itens"}
+                      <Badge variant="secondary" className="whitespace-nowrap">
+                        {conta.totalItens} itens
                       </Badge>
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleExportExcel()}
+                      >
+                        Excel
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => handleVerDetalhes(conta)}
+                      >
                         <Eye className="h-4 w-4 mr-1" />
                         Ver
                         <ExternalLink className="h-3 w-3 ml-1" />
@@ -549,9 +590,9 @@ export default function ContaConvenio() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
 
         {/* Paginação */}
         {totalPages > 1 && (

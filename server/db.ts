@@ -16296,6 +16296,56 @@ export async function deleteFaturamentoTissByArquivo(arquivoId: number): Promise
   return result[0]?.affectedRows || 0;
 }
 
+/**
+ * Busca guias que possuem múltiplos lotes (altas administrativas)
+ * Retorna lista de objetos com número da guia e quantidade de lotes
+ */
+export async function getGuiasMultiplosLotes(params: {
+  estabelecimentoId?: number;
+  convenioId?: number;
+  mesReferencia?: number;
+  anoReferencia?: number;
+}): Promise<{ numeroGuia: string; totalLotes: number }[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const { estabelecimentoId, convenioId, mesReferencia, anoReferencia } = params;
+
+  const conditions: SQL[] = [];
+
+  if (estabelecimentoId) {
+    conditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
+  }
+
+  if (convenioId) {
+    conditions.push(eq(faturamentoTiss.convenioId, convenioId));
+  }
+
+  if (mesReferencia && anoReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
+  } else if (mesReferencia) {
+    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+  } else if (anoReferencia) {
+    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Busca guias que têm mais de um lote distinto
+  const result = await db
+    .select({
+      numeroGuia: faturamentoTiss.numeroGuiaPrestador,
+      totalLotes: sql<number>`COUNT(DISTINCT ${faturamentoTiss.numeroLote})`,
+    })
+    .from(faturamentoTiss)
+    .where(whereClause)
+    .groupBy(faturamentoTiss.numeroGuiaPrestador)
+    .having(sql`COUNT(DISTINCT ${faturamentoTiss.numeroLote}) > 1`);
+
+  return result.map(r => ({ numeroGuia: r.numeroGuia || '', totalLotes: Number(r.totalLotes) || 0 }));
+}
+
 
 // ==========================================
 // RECEBIMENTOS EXCEL
