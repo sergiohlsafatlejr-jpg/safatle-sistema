@@ -1286,3 +1286,24 @@
 - [x] Criar procedure guiasMultiplosLotes no backend para identificar guias com múltiplos lotes
 - [x] Testar em todos os estabelecimentos do sistema (PSI e Ox UTI)
 - [x] Badge "Alta Adm (X lotes)" exibido corretamente para guias com múltiplos lotes
+
+
+## Limpeza de Dados - Estabelecimento 3 - 06/02/2026
+
+- [x] Identificar estabelecimento 3 (Ox Uti) e tabelas associadas
+- [x] Limpar faturamento_tiss do estabelecimento 3 (10.598 registros)
+- [x] Limpar recebimentos_excel do estabelecimento 3 (2.000 registros)
+- [x] Limpar demonstrativo do estabelecimento 3 (2.000 registros)
+- [x] Verificar limpeza completa
+- [x] Limpar procedimentos do estabelecimento 3 (via arquivoId) - 44.119 removidos
+- [x] Limpar arquivos do estabelecimento 3 - 78 removidos
+- [x] Limpar alertasDivergencia do estabelecimento 3 (via arquivoId) - 9 removidos
+
+## Correção Schema + Fluxo Importação XML - 06/02/2026
+
+- [x] Corrigir mismatch de colunas no schema Drizzle (estabelecimentoId, convenioId) para alinhar com banco
+- [x] Alterar fluxo de importação XML enviados: popular faturamento_tiss diretamente (sem passar por procedimentos)
+- [x] Criar função insertFaturamentoTissBatch no db.ts
+- [x] Alterar routers.ts para chamar nova função no upload de XML enviados
+- [x] Migrar dados existentes de procedimentos para faturamento_tiss (estab 3: 6.209 registros via SQL)
+- [x] Verificar migração: faturamento_tiss agora tem 6.209 registros para estab 3

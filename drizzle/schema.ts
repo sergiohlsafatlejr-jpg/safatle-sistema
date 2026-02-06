@@ -2170,14 +2170,14 @@ export const faturamentoTiss = mysqlTable("faturamento_tiss", {
   valorTotalGeralGuia: decimal("valor_total_geral_guia", { precision: 12, scale: 2 }),
   
   // Chave de estabelecimento para segregação de dados
-  estabelecimentoId: int("estabelecimento_id"),
+  estabelecimentoId: int("estabelecimentoId"),
   
   // Referência ao arquivo de origem
   arquivoId: int("arquivo_id"),
   
   // Convênio e Data de Referência (informados no upload)
-  convenioId: int("convenio_id"),
-  dataReferencia: date("data_referencia"),
+  convenioId: int("convenioId"),
+  dataReferencia: timestamp("data_referencia"),
   
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
@@ -2240,12 +2240,12 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
   
   // Convênio, Data de Referência e Data de Pagamento (informados no upload)
-  convenioId: int("convenio_id"),
+  convenioId: int("convenioId"),
   dataReferencia: date("data_referencia"),
   dataPagamento: date("data_pagamento"),
   
   // Estabelecimento
-  estabelecimentoId: int("estabelecimento_id"),
+  estabelecimentoId: int("estabelecimentoId"),
 });
 
 export type RecebimentoTiss = typeof recebimentoTiss.$inferSelect;
@@ -2345,12 +2345,12 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   nomePrestadorExecutante: varchar("nome_prestador_executante", { length: 255 }),
   
   // Convênio, Data de Referência e Data de Pagamento (informados no upload)
-  convenioId: int("convenio_id"),
+  convenioId: int("convenioId"),
   dataReferencia: date("data_referencia"),
   dataPagamentoUpload: date("data_pagamento"),
   
   // Estabelecimento
-  estabelecimentoId: int("estabelecimento_id"),
+  estabelecimentoId: int("estabelecimentoId"),
   
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
@@ -2459,7 +2459,7 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   dataReferencia: date("data_referencia"),
   
   // Estabelecimento
-  estabelecimentoId: int("estabelecimento_id"),
+  estabelecimentoId: int("estabelecimentoId"),
   
   // Auditoria
   dataImportacaoSistema: timestamp("data_importacao_sistema").defaultNow().notNull(),

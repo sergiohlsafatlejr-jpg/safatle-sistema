@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { storagePut, storageGet } from "./storage";
 import { parseFile, toProcedimentoInsert } from "./parsers";
+import type { InsertFaturamentoTiss } from "../drizzle/schema";
 import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
@@ -487,6 +488,8 @@ export const appRouter = router({
           
           // Excluir procedimentos antigos
           await db.deleteProcedimentosByArquivoId(arquivoId);
+          // Excluir faturamento_tiss antigo (para reimportação de XML enviado)
+          await db.deleteFaturamentoTissByArquivo(arquivoId);
           
           // Atualizar registro do arquivo
           await db.updateArquivo(arquivoId, {
@@ -591,14 +594,12 @@ export const appRouter = router({
               for (const codigoPrestador of prestadoresKeys) {
                 const procs = procedimentosPorPrestador[codigoPrestador];
                 if (codigoPrestador === 'SEM_PRESTADOR') {
-                  // Procedimentos sem prestador vão para o estabelecimento do arquivo
                   prestadoresComEstabelecimento.push({
                     codigoPrestador,
                     estabelecimentoId: input.estabelecimentoId,
                     procedimentos: procs,
                   });
                 } else {
-                  // Buscar estabelecimento associado ao prestador
                   const prestadorCadastrado = await db.getPrestadorPorCodigo(codigoPrestador, input.convenioId);
                   if (prestadorCadastrado) {
                     prestadoresComEstabelecimento.push({
@@ -608,7 +609,6 @@ export const appRouter = router({
                     });
                     console.log(`[Upload] Prestador ${codigoPrestador} associado ao estabelecimento ${prestadorCadastrado.estabelecimentoNome}`);
                   } else {
-                    // Prestador não cadastrado - usar estabelecimento do arquivo
                     prestadoresComEstabelecimento.push({
                       codigoPrestador,
                       estabelecimentoId: input.estabelecimentoId,
@@ -619,24 +619,13 @@ export const appRouter = router({
                 }
               }
               
-              // Converter todos os procedimentos para inserção
+              // Converter todos os procedimentos para inserção na tabela procedimentos (mantém compatibilidade)
               const procedimentosToInsert = parseResult.procedimentos.map((p) =>
                 toProcedimentoInsert(p, arquivoId)
               );
               
               // Update total items to process
               await db.updateArquivoProgresso(arquivoId, 0, 0, procedimentosToInsert.length);
-              
-              // Log procedimentos com médico
-              const comMedico = procedimentosToInsert.filter(p => p.nomeMedico);
-              console.log('[Upload] Procedimentos com médico a inserir:', comMedico.length);
-              if (comMedico.length > 0) {
-                console.log('[Upload] Primeiro com médico:', {
-                  codigo: comMedico[0].codigo,
-                  nomeMedico: comMedico[0].nomeMedico,
-                  crmMedico: comMedico[0].crmMedico
-                });
-              }
               
               // Create procedimentos with progress callback
               await db.createProcedimentos(
@@ -647,8 +636,55 @@ export const appRouter = router({
                 }
               );
               
-              // Salvar informações sobre prestadores encontrados no arquivo
-              // Isso permite filtrar na tela de Contas
+              // === NOVO FLUXO: Popular faturamento_tiss diretamente do XML enviado ===
+              if (input.direcao === "enviado" && input.tipoArquivo === "xml") {
+                try {
+                  console.log('[Upload] Populando faturamento_tiss diretamente do XML enviado...');
+                  const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
+                  
+                  // Mapear procedimentos para registros de faturamento_tiss
+                  // Usar prestadoresComEstabelecimento para atribuir o estabelecimentoId correto por prestador
+                  const faturamentoRecords: InsertFaturamentoTiss[] = [];
+                  let seqItem = 0;
+                  
+                  for (const grupo of prestadoresComEstabelecimento) {
+                    for (const proc of grupo.procedimentos) {
+                      seqItem++;
+                      faturamentoRecords.push({
+                        numeroLote: proc.numeroLote || undefined,
+                        sequencialTransacao: proc.sequencialTransacao || undefined,
+                        numeroGuiaPrestador: proc.guiaNumero || undefined,
+                        senha: proc.senha || undefined,
+                        carteiraBeneficiario: proc.pacienteCarteirinha || undefined,
+                        tipoItem: proc.tipoDespesa === 'procedimento' || !proc.tipoDespesa ? 'PROCEDIMENTO' : 'DESPESA',
+                        sequencialItem: seqItem,
+                        dataExecucao: proc.dataExecucao || undefined,
+                        codigoTabela: proc.codigoDespesa || undefined,
+                        codigoItem: proc.codigo,
+                        descricaoItem: proc.descricao || undefined,
+                        quantidade: proc.quantidade ? String(proc.quantidade) : '1',
+                        valorUnitario: proc.valorUnitario ? String(proc.valorUnitario) : undefined,
+                        valorFaturado: proc.valorTotal ? String(proc.valorTotal) : undefined,
+                        nomeProf: proc.nomeMedico || undefined,
+                        conselhoProf: proc.crmMedico || undefined,
+                        estabelecimentoId: grupo.estabelecimentoId,
+                        arquivoId: arquivoId,
+                        convenioId: input.convenioId,
+                        dataReferencia: dataReferenciaUpload || undefined,
+                      });
+                    }
+                  }
+                  
+                  if (faturamentoRecords.length > 0) {
+                    const totalFat = await db.insertFaturamentoTissBatch(faturamentoRecords);
+                    console.log(`[Upload] faturamento_tiss populado: ${totalFat} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
+                  }
+                } catch (fatError) {
+                  console.error('[Upload] Erro ao popular faturamento_tiss:', fatError);
+                  // Não falhar o upload se a inserção no faturamento_tiss falhar
+                }
+              }
+              
               if (prestadoresComEstabelecimento.length > 1) {
                 console.log(`[Upload] Arquivo contém ${prestadoresComEstabelecimento.length} prestadores diferentes`);
               }

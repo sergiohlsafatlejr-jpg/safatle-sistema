@@ -16347,6 +16347,50 @@ export async function getGuiasMultiplosLotes(params: {
 }
 
 
+/**
+ * Insere múltiplos registros de faturamento_tiss em lote
+ * Usado para popular diretamente a partir dos dados do XML TISS enviado
+ */
+export async function insertFaturamentoTissBatch(
+  records: InsertFaturamentoTiss[],
+  onProgress?: (progresso: number, itensProcessados: number, totalItens: number) => Promise<void>
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+  if (records.length === 0) return 0;
+
+  const BATCH_SIZE = 5000;
+  let inserted = 0;
+  const totalItens = records.length;
+  const startTime = Date.now();
+
+  console.log(`[DB] Inserindo ${totalItens} registros em faturamento_tiss...`);
+
+  const batches: InsertFaturamentoTiss[][] = [];
+  for (let i = 0; i < records.length; i += BATCH_SIZE) {
+    batches.push(records.slice(i, i + BATCH_SIZE));
+  }
+
+  const PARALLEL_BATCHES = 3;
+  for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
+    const batchGroup = batches.slice(i, i + PARALLEL_BATCHES);
+    await Promise.all(
+      batchGroup.map(batch => db.insert(faturamentoTiss).values(batch))
+    );
+    inserted += batchGroup.reduce((sum, b) => sum + b.length, 0);
+    const progresso = Math.round((inserted / totalItens) * 100);
+    if (onProgress) {
+      await onProgress(progresso, inserted, totalItens);
+    }
+    const elapsed = (Date.now() - startTime) / 1000;
+    const rate = elapsed > 0 ? inserted / elapsed : 0;
+    console.log(`[DB] faturamento_tiss: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec`);
+  }
+
+  console.log(`[DB] Inserção faturamento_tiss concluída: ${inserted} registros em ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+  return inserted;
+}
+
 // ==========================================
 // RECEBIMENTOS EXCEL
 // ==========================================

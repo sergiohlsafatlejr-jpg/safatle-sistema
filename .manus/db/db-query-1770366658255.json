@@ -1,0 +1,82 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'arquivos' AND TABLE_SCHEMA = DATABASE() ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'arquivos' AND TABLE_SCHEMA = DATABASE() ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "nome",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "tipoArquivo",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "direcao",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "convenioId",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "userId",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "s3Key",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "s3Url",
+      "DATA_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "tamanho",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "dataReferencia",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "estabelecimento_id",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "progresso",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "totalItens",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "itensProcessados",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "dataPagamento",
+      "DATA_TYPE": "timestamp"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\nid\tint\nnome\tvarchar\ntipoArquivo\tenum\ndirecao\tenum\nconvenioId\tint\nuserId\tint\ns3Key\tvarchar\ns3Url\ttext\ntamanho\tint\nstatus\tenum\ndataReferencia\ttimestamp\ncreatedAt\ttimestamp\nupdatedAt\ttimestamp\nestabelecimento_id\tint\nprogresso\tint\ntotalItens\tint\nitensProcessados\tint\ndataPagamento\ttimestamp\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

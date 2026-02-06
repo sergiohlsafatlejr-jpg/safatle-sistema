@@ -1,0 +1,14 @@
+{
+  "query": "SELECT id, nome FROM estabelecimentos WHERE id = 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome FROM estabelecimentos WHERE id = 3;",
+  "rows": [
+    {
+      "id": "3",
+      "nome": "Ox Uti"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\n3\tOx Uti\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}
