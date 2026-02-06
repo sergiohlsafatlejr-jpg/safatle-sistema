@@ -1341,3 +1341,12 @@
 - [x] Corrigir extração de outrasDespesas no parser XML
 - [x] Testar com XML real para validar a correção (4 testes vitest passaram)
 - [x] Verificar mapeamento para faturamento_tiss
+
+## Correção estabelecimentoId na tabela regrasIA - 06/02/2026
+
+- [x] Analisar schema da tabela regrasIA e identificar coluna estabelecimentoId ausente (coluna existia no schema mas banco tinha nome diferente)
+- [x] Corrigir mismatch de nomes: banco tinha `estabelecimento_id` (snake_case), schema esperava `estabelecimentoId` (camelCase)
+- [x] Renomear coluna no banco via ALTER TABLE para `estabelecimentoId` em regrasIA e recursosGlosa
+- [x] Sincronizar snapshot do drizzle com o estado correto do banco
+- [x] Restaurar schema.ts original e reiniciar servidor (0 erros TypeScript)
+- [x] Executar testes e validar correção (427 testes passaram, incluindo iaAnalise.test.ts)
