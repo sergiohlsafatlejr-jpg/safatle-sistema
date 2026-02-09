@@ -1,0 +1,15 @@
+{
+  "query": "SELECT MONTH(data_referencia) as mes, YEAR(data_referencia) as ano, COUNT(*) as total FROM demonstrativo WHERE data_referencia IS NOT NULL AND estabelecimentoId = 1 GROUP BY YEAR(data_referencia), MONTH(data_referencia) ORDER BY YEAR(data_referencia) DESC, MONTH(data_referencia) DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT MONTH(data_referencia) as mes, YEAR(data_referencia) as ano, COUNT(*) as total FROM demonstrativo WHERE data_referencia IS NOT NULL AND estabelecimentoId = 1 GROUP BY YEAR(data_referencia), MONTH(data_referencia) ORDER BY YEAR(data_referencia) DESC, MONTH(data_referencia) DESC LIMIT 5;",
+  "rows": [
+    {
+      "mes": "11",
+      "ano": "2025",
+      "total": "24500"
+    }
+  ],
+  "messages": [],
+  "stdout": "mes\tano\ttotal\n11\t2025\t24500\n",
+  "stderr": "",
+  "execution_time_ms": 116
+}

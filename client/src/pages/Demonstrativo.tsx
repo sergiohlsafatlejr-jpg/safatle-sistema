@@ -38,31 +38,7 @@ import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
-// Gerar lista de competências no formato MM/AAAA
-const getCompetencias = () => {
-  const competencias = [];
-  const hoje = new Date();
-  const anoAtual = hoje.getFullYear();
-  const mesAtual = hoje.getMonth() + 1;
-  
-  for (let i = 0; i < 24; i++) {
-    let mes = mesAtual - i;
-    let ano = anoAtual;
-    
-    while (mes <= 0) {
-      mes += 12;
-      ano -= 1;
-    }
-    
-    const mesStr = String(mes).padStart(2, '0');
-    const value = `${mes}-${ano}`;
-    const label = `${mesStr}/${ano}`;
-    
-    competencias.push({ value, label, mes, ano });
-  }
-  
-  return competencias;
-};
+
 
 export default function Demonstrativo() {
   const { user } = useAuth();
@@ -75,17 +51,9 @@ export default function Demonstrativo() {
   const [itemDetalhe, setItemDetalhe] = useState<any>(null);
   const pageSize = 50;
 
-  // Inicializar com mês anterior
-  const getCompetenciaInicial = () => {
-    const hoje = new Date();
-    const mesAtual = hoje.getMonth() + 1;
-    if (mesAtual === 1) {
-      return `12-${hoje.getFullYear() - 1}`;
-    }
-    return `${mesAtual - 1}-${hoje.getFullYear()}`;
-  };
-
-  const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
+  // Competência inicializada como vazia - será definida quando as competências do banco carregarem
+  const [competencia, setCompetencia] = useState<string>("");
+  const [competenciaInicializada, setCompetenciaInicializada] = useState(false);
 
   // Extrair mês e ano da competência selecionada
   const { mesReferencia, anoReferencia } = useMemo(() => {
@@ -96,8 +64,25 @@ export default function Demonstrativo() {
     return { mesReferencia: mes, anoReferencia: ano };
   }, [competencia]);
 
-  // Memoize competências
-  const competencias = useMemo(() => getCompetencias(), []);
+  // Buscar competências disponíveis do banco de dados (datas de referência do upload)
+  const { data: competenciasData } = trpc.demonstrativo.competencias.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id,
+      convenioId: convenioId ? parseInt(convenioId) : undefined,
+    },
+    { enabled: !!estabelecimentoAtual }
+  );
+
+  // Inicializar filtro com a competência mais recente disponível
+  useEffect(() => {
+    if (competenciasData && competenciasData.length > 0 && !competenciaInicializada) {
+      setCompetencia(competenciasData[0].value);
+      setCompetenciaInicializada(true);
+    }
+  }, [competenciasData, competenciaInicializada]);
+
+  // Memoize competências do banco
+  const competencias = useMemo(() => competenciasData || [], [competenciasData]);
 
   // Debounce da busca
   useEffect(() => {
@@ -212,7 +197,7 @@ export default function Demonstrativo() {
     
     const convenio = convenios?.find((c: any) => c.id === parseInt(convenioId));
     const nomeArquivo = convenio?.nome || "demonstrativo";
-    const competenciaLabel = competencias.find(c => c.value === competencia)?.label?.replace("/", "-") || "";
+    const competenciaLabel = competencias.find((c: any) => c.value === competencia)?.label?.replace("/", "-") || "";
     XLSX.writeFile(wb, `${nomeArquivo}_demonstrativo_${competenciaLabel}.xlsx`);
     toast.success("Arquivo exportado com sucesso!");
   };
@@ -253,7 +238,7 @@ export default function Demonstrativo() {
   const temFiltrosAtivos = (competencia && competencia !== "all") || filtroStatus !== "todos" || busca || convenioId;
 
   // Competência selecionada label
-  const competenciaSelecionada = competencias.find(c => c.value === competencia);
+  const competenciaSelecionada = competencias.find((c: any) => c.value === competencia);
 
   return (
     <DashboardLayout>
@@ -309,9 +294,9 @@ export default function Demonstrativo() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os períodos</SelectItem>
-                    {competencias.map((comp) => (
+                    {competencias.map((comp: any) => (
                       <SelectItem key={comp.value} value={comp.value}>
-                        {comp.label}
+                        {comp.label} ({comp.total?.toLocaleString("pt-BR")} itens)
                       </SelectItem>
                     ))}
                   </SelectContent>

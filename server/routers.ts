@@ -5823,6 +5823,16 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getDemonstrativoResumo(input || {});
       }),
+
+    // Competências disponíveis (datas de referência do upload)
+    competencias: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        convenioId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getDemonstrativoCompetencias(input || {});
+      }),
   }),
 
   recebimentosExcel: router({

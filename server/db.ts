@@ -17141,3 +17141,52 @@ export async function getDemonstrativoResumo(params: {
     valorPago: parseFloat(result[0]?.valorPago || "0"),
   };
 }
+
+/**
+ * Busca competências (mês/ano) disponíveis na tabela demonstrativo
+ * Retorna lista de {mes, ano, label, total} ordenada do mais recente ao mais antigo
+ */
+export async function getDemonstrativoCompetencias(params: {
+  estabelecimentoId?: number;
+  convenioId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [
+    sql`${demonstrativo.dataReferencia} IS NOT NULL`
+  ];
+  
+  if (params.estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, params.estabelecimentoId));
+  }
+  
+  if (params.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, params.convenioId));
+  }
+
+  const result = await db
+    .select({
+      mes: sql<number>`MONTH(${demonstrativo.dataReferencia})`.as('mes_ref'),
+      ano: sql<number>`YEAR(${demonstrativo.dataReferencia})`.as('ano_ref'),
+      total: sql<number>`COUNT(*)`.as('total'),
+    })
+    .from(demonstrativo)
+    .where(and(...conditions))
+    .groupBy(
+      sql`mes_ref`,
+      sql`ano_ref`
+    )
+    .orderBy(
+      desc(sql`ano_ref`),
+      desc(sql`mes_ref`)
+    );
+
+  return result.map(r => ({
+    mes: r.mes,
+    ano: r.ano,
+    label: `${String(r.mes).padStart(2, '0')}/${r.ano}`,
+    value: `${r.mes}-${r.ano}`,
+    total: r.total,
+  }));
+}

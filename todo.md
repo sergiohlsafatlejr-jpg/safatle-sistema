@@ -1399,4 +1399,13 @@
 - [x] Adaptar campos do frontend para os campos da tabela demonstrativo (tipoLancamento, valorPago, valorGlosa, etc.)
 - [x] Manter dialog de detalhes com informações relevantes dos itens (busca itens via trpc.demonstrativo.itensPorGuia)
 - [x] Testar visualização dos dados do arquivo Demostrativo Psi-12-2025.xlsx (4.674 contas, 24.500 itens, R$ 866.804,71 pago)
+- [x] Salvar checkpoint (versão 03d20746)
+
+
+## Ajuste Filtro de Competência - Data de Referência do Upload - 09/02/2026
+- [x] Investigar como a data de referência é salva no upload e como o filtro funciona no backend (getDemonstrativoContas)
+- [x] Buscar as competências disponíveis no banco (datas de referência distintas) via trpc.demonstrativo.competencias
+- [x] Ajustar filtro de competência no Demonstrativo.tsx para usar as datas reais do banco em vez de gerar lista fixa de 24 meses
+- [x] Inicializar o filtro com a competência mais recente disponível (11/2025 com 24.500 itens)
+- [x] Corrigir erro SQL only_full_group_by na query getDemonstrativoCompetencias (usando aliases)
 - [ ] Salvar checkpoint
