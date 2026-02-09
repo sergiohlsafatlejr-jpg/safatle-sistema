@@ -1367,3 +1367,20 @@
 - [x] Mapear codigoDespesa para tipos específicos: 1=GÁS MEDICINAL, 2=MEDICAMENTO, 3=MATERIAL, 5=DIÁRIA, 7=TAXA/ALUGUÉIS
 - [x] Corrigir routers.ts: função mapTipoDespesaParaTipoItem substitui mapeamento binário PROCEDIMENTO/DESPESA
 - [x] Testar: 427 testes passaram, correção validada
+
+
+## Bug: Tipos de Despesa não aplicados após reimportação - 06/02/2026
+
+- [x] Investigar por que mapTipoDespesaParaTipoItem não está sendo aplicado no servidor (site publicado rodava versão antiga)
+- [x] Corrigir o problema (precisa republicar para aplicar o código novo)
+- [x] Testar e validar (testes passaram, código correto no dev)
+- [x] Liberar versão nova (checkpoint salvo, aguardando publicação pelo usuário)
+
+
+## Alinhar Tabelas de Recebimento com Padrão TISS ANS - 09/02/2026
+- [x] Pesquisar estrutura XML TISS de retorno da operadora (demonstrativoAnaliseConta e demonstrativoPagamento)
+- [x] Comparar campos TISS com tabelas atuais recebimento_tiss e recebimentos_excel
+- [x] Identificar 30 campos faltantes e adicionar ao schema (registroANS, CNES, totais por guia/protocolo/geral, etc.)
+- [x] Atualizar schema Drizzle e migrar banco de dados (63 colunas em recebimento_tiss, 40 em recebimentos_excel)
+- [x] Atualizar parser de recebimento XML para extrair todos os novos campos TISS
+- [x] Testar e validar as alterações (427 testes passaram, 0 erros TypeScript)

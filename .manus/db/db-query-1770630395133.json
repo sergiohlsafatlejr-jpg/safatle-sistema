@@ -1,0 +1,9 @@
+{
+  "query": "\nALTER TABLE recebimento_tiss \n  MODIFY COLUMN quantidade_executada DECIMAL(10,4) NULL,\n  MODIFY COLUMN numero_lote_prestador VARCHAR(50) NULL,\n  MODIFY COLUMN numero_protocolo VARCHAR(50) NULL,\n  MODIFY COLUMN numero_guia_prestador VARCHAR(50) NULL,\n  MODIFY COLUMN numero_guia_operadora VARCHAR(50) NULL,\n  MODIFY COLUMN senha VARCHAR(50) NULL,\n  MODIFY COLUMN numero_carteira VARCHAR(50) NULL,\n  MODIFY COLUMN situacao_protocolo VARCHAR(10) NULL,\n  MODIFY COLUMN situacao_guia VARCHAR(10) NULL,\n  MODIFY COLUMN codigo_tabela VARCHAR(10) NULL,\n  MODIFY COLUMN codigo_item VARCHAR(20) NULL,\n  MODIFY COLUMN codigo_glosa VARCHAR(20) NULL\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute \nALTER TABLE recebimento_tiss \n  MODIFY COLUMN quantidade_executada DECIMAL(10,4) NULL,\n  MODIFY COLUMN numero_lote_prestador VARCHAR(50) NULL,\n  MODIFY COLUMN numero_protocolo VARCHAR(50) NULL,\n  MODIFY COLUMN numero_guia_prestador VARCHAR(50) NULL,\n  MODIFY COLUMN numero_guia_operadora VARCHAR(50) NULL,\n  MODIFY COLUMN senha VARCHAR(50) NULL,\n  MODIFY COLUMN numero_carteira VARCHAR(50) NULL,\n  MODIFY COLUMN situacao_protocolo VARCHAR(10) NULL,\n  MODIFY COLUMN situacao_guia VARCHAR(10) NULL,\n  MODIFY COLUMN codigo_tabela VARCHAR(10) NULL,\n  MODIFY COLUMN codigo_item VARCHAR(20) NULL,\n  MODIFY COLUMN codigo_glosa VARCHAR(20) NULL\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 939
+}

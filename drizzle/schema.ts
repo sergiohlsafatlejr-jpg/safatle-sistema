@@ -2198,51 +2198,93 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   // Vínculo com a tabela 'arquivos'
   arquivoId: int("arquivo_id").notNull(),
   
-  // Identificação da Operadora/Demonstrativo
+  // ========== CABEÇALHO DO DEMONSTRATIVO (ct_demonstrativoCabecalho) ==========
+  registroANS: varchar("registro_ans", { length: 6 }),
   numeroDemonstrativo: varchar("numero_demonstrativo", { length: 50 }),
   nomeOperadora: varchar("nome_operadora", { length: 150 }),
   cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
   dataEmissao: date("data_emissao"),
   
-  // Dados do Protocolo/Lote
+  // ========== DADOS DO PRESTADOR ==========
+  cnes: varchar("cnes", { length: 7 }),
+  codigoPrestadorOperadora: varchar("codigo_prestador_operadora", { length: 14 }),
+  nomeContratado: varchar("nome_contratado", { length: 70 }),
+  
+  // ========== DADOS DO PROTOCOLO/LOTE (ct_contaMedicaResumo) ==========
   numeroLotePrestador: varchar("numero_lote_prestador", { length: 50 }),
   numeroProtocolo: varchar("numero_protocolo", { length: 50 }),
+  dataProtocolo: date("data_protocolo"),
+  valorProtocolo: decimal("valor_protocolo", { precision: 12, scale: 2 }),
+  valorGlosaProtocolo: decimal("valor_glosa_protocolo", { precision: 12, scale: 2 }),
+  glosaProtocoloCodigo: varchar("glosa_protocolo_codigo", { length: 20 }),
+  glosaProtocoloDescricao: text("glosa_protocolo_descricao"),
   situacaoProtocolo: varchar("situacao_protocolo", { length: 10 }),
   
-  // Dados da Guia e Beneficiário
+  // Totais do Protocolo
+  valorInformadoProtocolo: decimal("valor_informado_protocolo", { precision: 12, scale: 2 }),
+  valorProcessadoProtocolo: decimal("valor_processado_protocolo", { precision: 12, scale: 2 }),
+  valorLiberadoProtocolo: decimal("valor_liberado_protocolo", { precision: 12, scale: 2 }),
+  valorGlosaProtocoloTotal: decimal("valor_glosa_protocolo_total", { precision: 12, scale: 2 }),
+  
+  // ========== DADOS DA GUIA (relacaoGuias) ==========
   numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 50 }),
   numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 50 }),
   senha: varchar("senha", { length: 50 }),
   numeroCarteira: varchar("numero_carteira", { length: 50 }),
   nomeBeneficiario: varchar("nome_beneficiario", { length: 150 }),
+  dataInicioFat: date("data_inicio_fat"),
+  dataFimFat: date("data_fim_fat"),
   situacaoGuia: varchar("situacao_guia", { length: 10 }),
   
-  // Detalhes do Item (Procedimento/Insumo)
+  // Glosa da Guia
+  motivoGlosaGuiaCodigo: varchar("motivo_glosa_guia_codigo", { length: 20 }),
+  motivoGlosaGuiaDescricao: text("motivo_glosa_guia_descricao"),
+  
+  // Totais da Guia
+  valorInformadoGuia: decimal("valor_informado_guia", { precision: 12, scale: 2 }),
+  valorProcessadoGuia: decimal("valor_processado_guia", { precision: 12, scale: 2 }),
+  valorLiberadoGuia: decimal("valor_liberado_guia", { precision: 12, scale: 2 }),
+  valorGlosaGuia: decimal("valor_glosa_guia", { precision: 12, scale: 2 }),
+  
+  // ========== DETALHES DO ITEM (detalhesGuia) ==========
   sequencialItem: int("sequencial_item"),
   dataRealizacao: date("data_realizacao"),
   codigoTabela: varchar("codigo_tabela", { length: 10 }),
   codigoItem: varchar("codigo_item", { length: 20 }),
   descricaoItem: varchar("descricao_item", { length: 255 }),
+  grauParticipacao: varchar("grau_participacao", { length: 5 }),
   
-  // Valores de Conciliação
-  quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 3 }),
+  // Valores do Item (Conciliação)
+  quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 4 }),
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
   valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
-  // valor_glosado é calculado automaticamente pelo banco (GENERATED ALWAYS AS valor_informado - valor_liberado)
+  valorGlosado: decimal("valor_glosado", { precision: 12, scale: 2 }),
   
-  // Motivos de Glosa
+  // Motivos de Glosa do Item (relacaoGlosa)
   codigoGlosa: varchar("codigo_glosa", { length: 20 }),
   descricaoGlosa: text("descricao_glosa"),
   
-  // Metadados
+  // ========== DADOS DE PAGAMENTO (ctm_demonstrativoPagamento) ==========
+  dataPagamento: date("data_pagamento"),
+  formaPagamento: varchar("forma_pagamento", { length: 20 }),
+  banco: varchar("banco", { length: 4 }),
+  agencia: varchar("agencia", { length: 7 }),
+  
+  // Totais Gerais do Demonstrativo
+  valorInformadoGeral: decimal("valor_informado_geral", { precision: 12, scale: 2 }),
+  valorProcessadoGeral: decimal("valor_processado_geral", { precision: 12, scale: 2 }),
+  valorLiberadoGeral: decimal("valor_liberado_geral", { precision: 12, scale: 2 }),
+  valorGlosaGeral: decimal("valor_glosa_geral", { precision: 12, scale: 2 }),
+  valorFinalReceber: decimal("valor_final_receber", { precision: 12, scale: 2 }),
+  
+  // ========== METADADOS ==========
   origemDado: mysqlEnum("origem_dado", ["xml", "excel"]).notNull(),
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
   
-  // Convênio, Data de Referência e Data de Pagamento (informados no upload)
+  // Convênio e Data de Referência (informados no upload)
   convenioId: int("convenioId"),
   dataReferencia: date("data_referencia"),
-  dataPagamento: date("data_pagamento"),
   
   // Estabelecimento
   estabelecimentoId: int("estabelecimentoId"),
@@ -2316,6 +2358,18 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   
   // Situação Item (PAGO/GLOSADO/etc)
   situacaoItem: varchar("situacao_item", { length: 50 }),
+  
+  // Tipo de Item (PROCEDIMENTO, MEDICAMENTO, MATERIAL, DIÁRIA, TAXA, GÁS MEDICINAL)
+  tipoItem: varchar("tipo_item", { length: 30 }),
+  
+  // Valor Glosa (específico)
+  valorGlosa: decimal("valor_glosa", { precision: 12, scale: 2 }),
+  
+  // Código Glosa TISS
+  codigoGlosa: varchar("codigo_glosa", { length: 20 }),
+  
+  // Valor Informado (valor cobrado original)
+  valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   
   // Código Solicitante
   codigoSolicitante: varchar("codigo_solicitante", { length: 50 }),
