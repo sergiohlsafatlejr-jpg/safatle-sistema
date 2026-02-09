@@ -128,11 +128,11 @@ export async function syncDemonstrativoByArquivo(
 
       // Mapear para formato demonstrativo
       records = xmlData.map((item: any) => {
-        // Detectar glosa: valor_glosado é VIRTUAL GENERATED (valor_informado - valor_liberado)
-        const valorInf = parseFloat(String(item.valorInformado || 0));
-        const valorLib = parseFloat(String(item.valorLiberado || 0));
-        const valorGlosadoCalc = valorInf - valorLib;
-        const hasGlosa = valorGlosadoCalc > 0.01 || (item.codigoGlosa && item.codigoGlosa !== '');
+        // CORREÇÃO: Usar o valorGlosado já calculado corretamente pelo parser
+        // NÃO recalcular pela diferença valorInformado - valorLiberado
+        const valorGlosadoStr = item.valorGlosado ? String(item.valorGlosado) : null;
+        const valorGlosadoNum = parseFloat(valorGlosadoStr || '0');
+        const hasGlosa = valorGlosadoNum > 0.01 || (item.codigoGlosa && item.codigoGlosa !== '');
         
         // Traduzir situação TISS: "3" = processado
         // Se tem glosa, marcar como GLOSADO; senão, PAGO
@@ -169,10 +169,10 @@ export async function syncDemonstrativoByArquivo(
           // Valores
           valorInformado: item.valorInformado,
           valorPago: hasGlosa ? '0' : item.valorLiberado,
-          valorGlosa: hasGlosa ? String(valorGlosadoCalc.toFixed(2)) : null,
+          valorGlosa: hasGlosa ? String(valorGlosadoNum.toFixed(2)) : null,
           
           // Status
-          codigoGlosa: item.codigoGlosa || (hasGlosa ? `Glosa: ${valorGlosadoCalc.toFixed(2)}` : null),
+          codigoGlosa: item.codigoGlosa || (hasGlosa ? `Glosa: ${valorGlosadoNum.toFixed(2)}` : null),
           situacaoItem: situacao,
           erroTiss: item.codigoGlosa ? `${item.codigoGlosa}${item.descricaoGlosa ? ' - ' + item.descricaoGlosa : ''}` : null,
           

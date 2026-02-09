@@ -358,9 +358,15 @@ function extractProcedimentosFromDemonstrativo(demonstrativo: unknown): ParsedPr
           motivoGlosa = motivosGlosaGuia.join("; ");
         }
         
-        // Calculate glosa from difference if not explicit
+        // CORREÇÃO: Só calcular glosa pela diferença se houver motivo de glosa explícito
+        // (motivoGlosaGuia ou relacaoGlosa). Diferença entre valorInformado e valorLiberado
+        // sem motivo de glosa pode ser apenas ajuste de processamento do convênio.
         if (valorGlosado === 0 && valorInformado && valorLiberado !== undefined) {
-          valorGlosado = Math.max(0, valorInformado - valorLiberado);
+          const diff = Math.max(0, valorInformado - valorLiberado);
+          // Só considerar glosa se houver motivo explícito E valorLiberado for 0
+          if (diff > 0 && (motivoGlosa || (valorLiberado === 0 && motivosGlosaGuia.length > 0))) {
+            valorGlosado = diff;
+          }
         }
         
         // Extrair código de glosa do relacaoGlosa

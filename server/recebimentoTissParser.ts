@@ -458,13 +458,19 @@ export async function parseXmlRecebimentoTiss(
           const valorLiberado = itemXml.match(/<(?:ans:)?valorLiberado>([^<]+)<\/(?:ans:)?valorLiberado>/)?.[1];
           
           // Calcular valor glosado do item
+          // CORREÇÃO: Só marcar como glosado se houver tag <relacaoGlosa> explícita no item
+          // OU se a guia tiver <motivoGlosaGuia> E o valorLiberado for 0
+          // NÃO calcular glosa pela diferença valorInformado - valorLiberado, pois
+          // o convênio pode processar valores diferentes sem ser glosa
           let valorGlosado: string | undefined;
+          const relacaoGlosaMatch = itemXml.match(/<(?:ans:)?relacaoGlosa>[\s\S]*?<\/(?:ans:)?relacaoGlosa>/);
           const valorGlosaItem = itemXml.match(/<(?:ans:)?valorGlosa>([^<]+)<\/(?:ans:)?valorGlosa>/)?.[1];
-          if (valorGlosaItem) {
+          if (relacaoGlosaMatch && valorGlosaItem) {
+            // Glosa explícita no item via <relacaoGlosa>
             valorGlosado = valorGlosaItem;
-          } else if (valorInformado && valorLiberado) {
-            const diff = parseFloat(valorInformado) - parseFloat(valorLiberado);
-            if (diff > 0) valorGlosado = diff.toFixed(2);
+          } else if (motivoGlosaGuiaCodigo && valorLiberado && parseFloat(valorLiberado) === 0 && valorInformado) {
+            // Guia tem motivo de glosa E o item tem valorLiberado = 0 → item glosado
+            valorGlosado = valorInformado;
           }
           
           // Glosa do item (relacaoGlosa)

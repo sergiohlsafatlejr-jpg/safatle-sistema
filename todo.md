@@ -1462,9 +1462,22 @@
 - [x] Verificar Análise de Glosa no navegador com dados dos XMLs (3.122 itens, R$ 34.378,71, 3 convênios, abas Categoria/Convênio/Tendência OK)
 - [x] Reprocessar arquivo Excel 870001: 22.177 itens (20.971 pagos R$ 730.594,43 + 1.206 glosados R$ 14.855,71)
 - [x] Aplicar filtro dinâmico de competência na tela Contas Demonstrativo (trpc.demonstrativo.competencias em vez de lista fixa de 24 meses)
-- [ ] Salvar checkpoint final
+- [x] Salvar checkpoint final (versão e865d280)
 - [x] Criar tela "Recebimentos XML" com upload e listagem de XMLs de retorno
 - [x] Criar tela "Recebimentos Excel" com upload e listagem de Excel de retorno
 - [x] Ajustar Demonstrativo para ser consolidação automática dos Recebimentos XML + Excel
 - [x] Atualizar navegação/menu lateral com as novas telas
 - [x] Testar fluxo completo: telas Recebimentos XML (720 itens, 90 glosados) e Recebimentos Excel (48.791 itens, 3.032 glosados) funcionando
+
+
+## Limpeza de Dados de Retorno - PSI e Ox Uti - 09/02/2026
+- [x] Identificar IDs dos estabelecimentos PSI (ID 1) e Ox Uti (ID 3)
+- [x] Excluir dados da tabela recebimento_tiss (720 registros removidos)
+- [x] Excluir dados da tabela recebimentos_excel (48.791 registros removidos)
+- [x] Excluir dados da tabela demonstrativo (49.511 registros removidos)
+- [x] Verificar limpeza completa (todas as tabelas com 0 registros para PSI e Ox Uti)
+- [x] Excluir registros de arquivos retornados da tabela arquivos (13 arquivos removidos - 2 Excel + 11 XML)
+- [x] Investigar e corrigir erro na apresentação de glosa ao importar XML 223742387.xml via Recebimentos XML
+  - Bug: sistema calculava glosa pela diferença valorInformado - valorLiberado mesmo sem glosa real
+  - Fix: só marcar como glosado se houver <relacaoGlosa> explícita ou motivoGlosaGuia + valorLiberado=0
+  - Corrigido em: recebimentoTissParser.ts, syncDemonstrativo.ts, parsers.ts
