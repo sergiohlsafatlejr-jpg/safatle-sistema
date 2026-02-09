@@ -1,0 +1,8 @@
+{
+  "query": "SELECT a.id, a.nome_arquivo, a.status, a.total_itens, rt.cnt as itens_recebimento FROM arquivos a LEFT JOIN (SELECT arquivo_id, COUNT(*) as cnt FROM recebimento_tiss GROUP BY arquivo_id) rt ON rt.arquivo_id = a.id WHERE a.direcao = 'retornado' ORDER BY a.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome_arquivo, a.status, a.total_itens, rt.cnt as itens_recebimento FROM arquivos a LEFT JOIN (SELECT arquivo_id, COUNT(*) as cnt FROM recebimento_tiss GROUP BY arquivo_id) rt ON rt.arquivo_id = a.id WHERE a.direcao = 'retornado' ORDER BY a.id;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'a.nome_arquivo' in 'field list'"
+  ]
+}

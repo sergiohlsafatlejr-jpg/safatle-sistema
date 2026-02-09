@@ -1496,3 +1496,19 @@
   - Bug: bloco de processamento de retornado estava DENTRO do if(procedimentos.length > 0)
   - XMLs de retorno não têm procedimentos, então o bloco nunca executava
   - Fix: mover processamento de retornado para FORA do if, executa independente do parseFile()
+
+## Simplificação da Arquitetura (Remoção de Tabela Intermediária)
+
+- [x] Upload de XML enviados salva diretamente em faturamento_tiss (sem tabela procedimentos intermediária)
+- [x] Fluxo de reprocessamento atualizado para usar faturamento_tiss
+- [x] Comparador atualizado para aceitar campos de faturamento_tiss (codigoItem, valorFaturado, carteiraBeneficiario, numeroGuiaPrestador)
+- [x] Função de análise de padrões de cobrança (IA) atualizada para usar faturamento_tiss
+- [x] Função de geração de insights (IA) atualizada para usar faturamento_tiss
+- [x] Rota de comparação atualizada para buscar de faturamento_tiss via getFaturamentoTissByArquivo
+- [x] Rota de procedimentos do arquivo atualizada para buscar de faturamento_tiss
+- [x] Removido import de toProcedimentoInsert (não mais necessário)
+- [x] Removida inserção em tabela procedimentos no fluxo de upload
+- [x] Removida chamada a deleteProcedimentosByArquivoId no fluxo de delete/reprocessar
+- [x] Testes unitários do comparador atualizados (8 testes passando)
+- [x] Todos os 435 testes do projeto passando (36 arquivos de teste)
+- [ ] Migração completa das 211 referências restantes à tabela procedimentos no db.ts (funções legadas mantidas para compatibilidade)

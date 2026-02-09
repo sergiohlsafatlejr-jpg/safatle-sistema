@@ -480,11 +480,11 @@ export default function Arquivos() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {procedimentos?.map((proc) => (
+                  {procedimentos?.map((proc: any) => (
                     <TableRow key={proc.id}>
-                      <TableCell className="font-mono text-sm">{proc.codigo}</TableCell>
+                      <TableCell className="font-mono text-sm">{proc.codigoItem || proc.codigo}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
-                        {proc.descricao || "-"}
+                        {proc.descricaoItem || proc.descricao || "-"}
                       </TableCell>
                       <TableCell className="text-right">{proc.quantidade || 1}</TableCell>
                       <TableCell className="text-right">
@@ -494,8 +494,8 @@ export default function Arquivos() {
                         }
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {proc.valorTotal 
-                          ? `R$ ${parseFloat(proc.valorTotal).toFixed(2)}`
+                        {(proc.valorFaturado || proc.valorTotal)
+                          ? `R$ ${parseFloat(proc.valorFaturado || proc.valorTotal).toFixed(2)}`
                           : "-"
                         }
                       </TableCell>

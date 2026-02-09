@@ -8330,16 +8330,16 @@ export async function analisarPadroesCobranca(params: {
 
   const arquivoIds = arquivosEnviados.map(a => a.id);
 
-  // Buscar todos os procedimentos
+  // Buscar todos os itens faturados (de faturamento_tiss)
   const procs = await db
     .select()
-    .from(procedimentos)
-    .where(inArray(procedimentos.arquivoId, arquivoIds));
+    .from(faturamentoTiss)
+    .where(inArray(faturamentoTiss.arquivoId, arquivoIds));
 
   // Agrupar por guia (conta)
   const contasPorGuia = new Map<string, typeof procs>();
   for (const proc of procs) {
-    const guia = proc.guiaNumero || `arquivo_${proc.arquivoId}`;
+    const guia = proc.numeroGuiaPrestador || `arquivo_${proc.arquivoId}`;
     if (!contasPorGuia.has(guia)) {
       contasPorGuia.set(guia, []);
     }
@@ -8367,14 +8367,15 @@ export async function analisarPadroesCobranca(params: {
   }>();
 
   for (const [guia, procsGuia] of Array.from(contasPorGuia.entries())) {
-    const codigosNaGuia = new Set(procsGuia.map(p => p.codigo));
+    const codigosNaGuia = new Set(procsGuia.map(p => p.codigoItem || ''));
 
     for (const proc of procsGuia) {
-      if (!padroesPorCodigo.has(proc.codigo)) {
-        padroesPorCodigo.set(proc.codigo, {
-          codigo: proc.codigo,
-          descricao: proc.descricao || "",
-          tipo: proc.codigoDespesa || "procedimento",
+      const codigo = proc.codigoItem || '';
+      if (!padroesPorCodigo.has(codigo)) {
+        padroesPorCodigo.set(codigo, {
+          codigo: codigo,
+          descricao: proc.descricaoItem || "",
+          tipo: proc.codigoTabela || "procedimento",
           ocorrencias: 0,
           quantidadeTotal: 0,
           valorTotal: 0,
@@ -8383,24 +8384,24 @@ export async function analisarPadroesCobranca(params: {
         });
       }
 
-      const padrao = padroesPorCodigo.get(proc.codigo)!;
+      const padrao = padroesPorCodigo.get(codigo)!;
       padrao.ocorrencias++;
       padrao.quantidadeTotal += parseFloat(String(proc.quantidade || "1"));
-      padrao.valorTotal += parseFloat(proc.valorTotal || "0");
+      padrao.valorTotal += parseFloat(proc.valorFaturado || "0");
       padrao.contasComItem.add(guia);
 
       // Registrar itens associados (outros itens na mesma conta)
       for (const outroCodigo of Array.from(codigosNaGuia)) {
-        if (outroCodigo === proc.codigo) continue;
+        if (outroCodigo === codigo) continue;
 
-        const outroProc = procsGuia.find(p => p.codigo === outroCodigo);
+        const outroProc = procsGuia.find(p => (p.codigoItem || '') === outroCodigo);
         if (!outroProc) continue;
 
         if (!padrao.itensAssociados.has(outroCodigo)) {
           padrao.itensAssociados.set(outroCodigo, {
             codigo: outroCodigo,
-            descricao: outroProc.descricao || "",
-            tipo: outroProc.codigoDespesa || "procedimento",
+            descricao: outroProc.descricaoItem || "",
+            tipo: outroProc.codigoTabela || "procedimento",
             ocorrencias: 0,
             quantidadeTotal: 0,
           });
@@ -8622,11 +8623,11 @@ export async function gerarInsightsContaIA(params: {
   const db = await getDb();
   if (!db) return [];
 
-  // Buscar procedimentos do arquivo
+  // Buscar itens faturados do arquivo (de faturamento_tiss)
   const procsArquivo = await db
     .select()
-    .from(procedimentos)
-    .where(eq(procedimentos.arquivoId, params.arquivoId));
+    .from(faturamentoTiss)
+    .where(eq(faturamentoTiss.arquivoId, params.arquivoId));
 
   if (procsArquivo.length === 0) return [];
 
@@ -8684,18 +8685,19 @@ export async function gerarInsightsContaIA(params: {
   }>();
 
   for (const proc of procsArquivo) {
+    const codigo = proc.codigoItem || '';
     const qtd = parseFloat(String(proc.quantidade || "1"));
-    const valor = parseFloat(proc.valorTotal || "0");
+    const valor = parseFloat(proc.valorFaturado || "0");
 
-    if (codigosPresentes.has(proc.codigo)) {
-      const atual = codigosPresentes.get(proc.codigo)!;
+    if (codigosPresentes.has(codigo)) {
+      const atual = codigosPresentes.get(codigo)!;
       atual.quantidade += qtd;
       atual.valor += valor;
     } else {
-      codigosPresentes.set(proc.codigo, {
+      codigosPresentes.set(codigo, {
         quantidade: qtd,
         valor,
-        descricao: proc.descricao || "",
+        descricao: proc.descricaoItem || "",
       });
     }
   }
@@ -16318,6 +16320,21 @@ export async function insertFaturamentoTissBatch(
 
   console.log(`[DB] Inserção faturamento_tiss concluída: ${inserted} registros em ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
   return inserted;
+}
+
+/**
+ * Busca registros de faturamento_tiss por arquivo
+ * Substitui a antiga getProcedimentosByArquivoId
+ */
+export async function getFaturamentoTissByArquivo(arquivoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(faturamentoTiss)
+    .where(eq(faturamentoTiss.arquivoId, arquivoId))
+    .orderBy(faturamentoTiss.sequencialItem);
 }
 
 // ==========================================

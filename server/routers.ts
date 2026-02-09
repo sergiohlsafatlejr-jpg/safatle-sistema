@@ -6,7 +6,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { storagePut, storageGet } from "./storage";
-import { parseFile, toProcedimentoInsert } from "./parsers";
+import { parseFile } from "./parsers";
 import type { InsertFaturamentoTiss } from "../drizzle/schema";
 import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
@@ -503,8 +503,6 @@ export const appRouter = router({
           const uploadResult = await storagePut(s3Key, buffer, contentType);
           url = uploadResult.url;
           
-          // Excluir procedimentos antigos
-          await db.deleteProcedimentosByArquivoId(arquivoId);
           // Excluir faturamento_tiss antigo (para reimportação de XML enviado)
           await db.deleteFaturamentoTissByArquivo(arquivoId);
           
@@ -636,24 +634,10 @@ export const appRouter = router({
                 }
               }
               
-              // Converter todos os procedimentos para inserção na tabela procedimentos (mantém compatibilidade)
-              const procedimentosToInsert = parseResult.procedimentos.map((p) =>
-                toProcedimentoInsert(p, arquivoId)
-              );
+              // === FLUXO SIMPLIFICADO: Popular faturamento_tiss diretamente do XML enviado (sem tabela procedimentos) ===
+              const totalItensToProcess = parseResult.procedimentos.length;
+              await db.updateArquivoProgresso(arquivoId, 0, 0, totalItensToProcess);
               
-              // Update total items to process
-              await db.updateArquivoProgresso(arquivoId, 0, 0, procedimentosToInsert.length);
-              
-              // Create procedimentos with progress callback
-              await db.createProcedimentos(
-                procedimentosToInsert,
-                arquivoId,
-                async (progresso, itensProcessados, totalItens) => {
-                  await db.updateArquivoProgresso(arquivoId, progresso, itensProcessados, totalItens);
-                }
-              );
-              
-              // === NOVO FLUXO: Popular faturamento_tiss diretamente do XML enviado ===
               if (input.direcao === "enviado" && input.tipoArquivo === "xml") {
                 try {
                   console.log('[Upload] Populando faturamento_tiss diretamente do XML enviado...');
@@ -695,8 +679,17 @@ export const appRouter = router({
                   }
                   
                   if (faturamentoRecords.length > 0) {
-                    const totalFat = await db.insertFaturamentoTissBatch(faturamentoRecords);
-                    console.log(`[Upload] faturamento_tiss populado: ${totalFat} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
+                    // Insert in batches with progress callback
+                    const BATCH_SIZE = 500;
+                    let processados = 0;
+                    for (let i = 0; i < faturamentoRecords.length; i += BATCH_SIZE) {
+                      const batch = faturamentoRecords.slice(i, i + BATCH_SIZE);
+                      await db.insertFaturamentoTissBatch(batch);
+                      processados += batch.length;
+                      const progresso = Math.round((processados / faturamentoRecords.length) * 90);
+                      await db.updateArquivoProgresso(arquivoId, progresso, processados, faturamentoRecords.length);
+                    }
+                    console.log(`[Upload] faturamento_tiss populado: ${faturamentoRecords.length} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
                   }
                 } catch (fatError) {
                   console.error('[Upload] Erro ao popular faturamento_tiss:', fatError);
@@ -709,7 +702,7 @@ export const appRouter = router({
               }
               
               await db.updateArquivoStatus(arquivoId, "processado");
-              await db.updateArquivoProgresso(arquivoId, 100, procedimentosToInsert.length, procedimentosToInsert.length);
+              await db.updateArquivoProgresso(arquivoId, 100, totalItensToProcess, totalItensToProcess);
               
               const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
               console.log(`[Upload] Background processing completed in ${totalTime}s:`, input.nome);
@@ -881,7 +874,8 @@ export const appRouter = router({
     procedimentos: protectedProcedure
       .input(z.object({ arquivoId: z.number() }))
       .query(async ({ input }) => {
-        return db.getProcedimentosByArquivoId(input.arquivoId);
+        // Buscar de faturamento_tiss em vez da tabela procedimentos (removida)
+        return db.getFaturamentoTissByArquivo(input.arquivoId);
       }),
 
     delete: protectedProcedure
@@ -895,9 +889,6 @@ export const appRouter = router({
         if (arquivo.userId !== ctx.user.id && ctx.user.role !== 'admin') {
           throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para excluir este arquivo" });
         }
-        
-        // Delete associated procedimentos
-        await db.deleteProcedimentosByArquivoId(input.id);
         
         // Delete associated faturamento_tiss
         await db.deleteFaturamentoTissByArquivo(input.id);
@@ -931,8 +922,8 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para reprocessar este arquivo" });
         }
         
-        // Delete existing procedimentos
-        await db.deleteProcedimentosByArquivoId(input.id);
+        // Delete existing faturamento_tiss
+        await db.deleteFaturamentoTissByArquivo(input.id);
         
         // Download file from S3
         const response = await fetch(arquivo.s3Url);
@@ -941,28 +932,50 @@ export const appRouter = router({
         }
         const buffer = Buffer.from(await response.arrayBuffer());
         
-        // Parse file and extract procedimentos
+        // Parse file and extract items - save directly to faturamento_tiss
         try {
           console.log('[Reprocessar] Parsing file:', arquivo.nome);
           const parseResult = await parseFile(buffer, arquivo.nome);
           
           console.log('[Reprocessar] Parse result:', {
             success: parseResult.success,
-            procedimentosCount: parseResult.procedimentos.length,
+            itensCount: parseResult.procedimentos.length,
           });
           
           if (parseResult.success && parseResult.procedimentos.length > 0) {
-            const procedimentosToInsert = parseResult.procedimentos.map((p) =>
-              toProcedimentoInsert(p, input.id)
-            );
+            // Salvar diretamente em faturamento_tiss (sem tabela procedimentos)
+            const faturamentoRecords: InsertFaturamentoTiss[] = parseResult.procedimentos.map((proc, idx) => ({
+              numeroLote: proc.numeroLote || undefined,
+              sequencialTransacao: proc.sequencialTransacao || undefined,
+              registroAns: proc.registroANS || undefined,
+              numeroGuiaPrestador: proc.guiaNumero || undefined,
+              numeroGuiaOperadora: proc.numeroGuiaOperadora || undefined,
+              senha: proc.senha || undefined,
+              carteiraBeneficiario: proc.pacienteCarteirinha || undefined,
+              tipoItem: mapTipoDespesaParaTipoItem(proc.tipoDespesa),
+              sequencialItem: idx + 1,
+              dataExecucao: proc.dataExecucao || undefined,
+              codigoTabela: proc.codigoDespesa || undefined,
+              codigoItem: proc.codigo,
+              descricaoItem: proc.descricao || undefined,
+              quantidade: proc.quantidade ? String(proc.quantidade) : '1',
+              valorUnitario: proc.valorUnitario ? String(proc.valorUnitario) : undefined,
+              valorFaturado: proc.valorTotal ? String(proc.valorTotal) : undefined,
+              nomeProf: proc.nomeMedico || undefined,
+              conselhoProf: proc.crmMedico || undefined,
+              estabelecimentoId: arquivo.estabelecimentoId || undefined,
+              arquivoId: input.id,
+              convenioId: arquivo.convenioId,
+              dataReferencia: arquivo.dataReferencia || undefined,
+            }));
             
-            await db.createProcedimentos(procedimentosToInsert);
+            await db.insertFaturamentoTissBatch(faturamentoRecords);
             await db.updateArquivoStatus(input.id, "processado");
             
             return { 
               success: true, 
-              procedimentosCount: procedimentosToInsert.length,
-              message: `Arquivo reprocessado com sucesso. ${procedimentosToInsert.length} procedimentos extraídos.`
+              procedimentosCount: faturamentoRecords.length,
+              message: `Arquivo reprocessado com sucesso. ${faturamentoRecords.length} itens extraídos.`
             };
           } else if (!parseResult.success) {
             await db.updateArquivoStatus(input.id, "erro");
@@ -972,7 +985,7 @@ export const appRouter = router({
             return { 
               success: true, 
               procedimentosCount: 0,
-              message: "Arquivo processado, mas nenhum procedimento encontrado."
+              message: "Arquivo processado, mas nenhum item encontrado."
             };
           }
         } catch (error) {
@@ -1088,10 +1101,10 @@ export const appRouter = router({
           status: "pendente",
         });
 
-        // Get procedimentos
+        // Get itens faturados (de faturamento_tiss)
         const [procEnviados, procRetornados] = await Promise.all([
-          db.getProcedimentosByArquivoId(input.arquivoEnviadoId),
-          db.getProcedimentosByArquivoId(input.arquivoRetornadoId),
+          db.getFaturamentoTissByArquivo(input.arquivoEnviadoId),
+          db.getFaturamentoTissByArquivo(input.arquivoRetornadoId),
         ]);
 
         // Run comparison

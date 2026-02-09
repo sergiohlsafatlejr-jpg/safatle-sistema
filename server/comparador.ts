@@ -23,12 +23,30 @@ export interface DivergenciaDetalhada {
 
 interface ProcedimentoComparavel {
   id: number;
-  codigo: string;
-  quantidade: number | null;
-  valorUnitario: string | null;
-  valorTotal: string | null;
-  pacienteCarteirinha: string | null;
-  guiaNumero: string | null;
+  // Campos da tabela procedimentos (legado) ou faturamento_tiss
+  codigo?: string;
+  codigoItem?: string | null;
+  quantidade?: number | string | null;
+  valorUnitario?: string | null;
+  valorTotal?: string | null;
+  valorFaturado?: string | null;
+  pacienteCarteirinha?: string | null;
+  carteiraBeneficiario?: string | null;
+  guiaNumero?: string | null;
+  numeroGuiaPrestador?: string | null;
+}
+
+/** Normaliza campos para comparação (suporta tanto procedimentos quanto faturamento_tiss) */
+function normalizarItem(p: ProcedimentoComparavel) {
+  return {
+    id: p.id,
+    codigo: p.codigo || p.codigoItem || '',
+    quantidade: typeof p.quantidade === 'string' ? parseFloat(p.quantidade) : (p.quantidade || 0),
+    valorTotal: p.valorTotal || p.valorFaturado || '0',
+    valorUnitario: p.valorUnitario || '0',
+    pacienteCarteirinha: p.pacienteCarteirinha || p.carteiraBeneficiario || '',
+    guiaNumero: p.guiaNumero || p.numeroGuiaPrestador || '',
+  };
 }
 
 /**
@@ -41,16 +59,21 @@ export function compararProcedimentos(
 ): ComparacaoResult {
   const divergencias: DivergenciaDetalhada[] = [];
   
+  // Normalizar itens para formato comum
+  type ItemNormalizado = ReturnType<typeof normalizarItem>;
+  const enviadosNorm = enviados.map(normalizarItem);
+  const retornadosNorm = retornados.map(normalizarItem);
+  
   // Criar mapas para busca eficiente
-  const enviadosMap = new Map<string, ProcedimentoComparavel[]>();
-  const retornadosMap = new Map<string, ProcedimentoComparavel[]>();
+  const enviadosMap = new Map<string, ItemNormalizado[]>();
+  const retornadosMap = new Map<string, ItemNormalizado[]>();
   
   // Agrupar por código + carteirinha + guia para matching mais preciso
-  const getChave = (p: ProcedimentoComparavel): string => {
+  const getChave = (p: ItemNormalizado): string => {
     return `${p.codigo}|${p.pacienteCarteirinha || ""}|${p.guiaNumero || ""}`;
   };
   
-  for (const env of enviados) {
+  for (const env of enviadosNorm) {
     const chave = getChave(env);
     if (!enviadosMap.has(chave)) {
       enviadosMap.set(chave, []);
@@ -58,7 +81,7 @@ export function compararProcedimentos(
     enviadosMap.get(chave)!.push(env);
   }
   
-  for (const ret of retornados) {
+  for (const ret of retornadosNorm) {
     const chave = getChave(ret);
     if (!retornadosMap.has(chave)) {
       retornadosMap.set(chave, []);
@@ -163,12 +186,12 @@ export function compararProcedimentos(
   }
   
   // Calcular totais
-  const valorTotalEnviado = enviados.reduce(
+  const valorTotalEnviado = enviadosNorm.reduce(
     (sum, p) => sum + parseFloat(p.valorTotal || "0"),
     0
   );
   
-  const valorTotalRetornado = retornados.reduce(
+  const valorTotalRetornado = retornadosNorm.reduce(
     (sum, p) => sum + parseFloat(p.valorTotal || "0"),
     0
   );
