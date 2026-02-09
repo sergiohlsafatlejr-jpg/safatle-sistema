@@ -15987,32 +15987,84 @@ export async function getRecebimentoTiss(filtros?: {
     .select({
       id: recebimentoTiss.id,
       arquivoId: recebimentoTiss.arquivoId,
+      
+      // Cabeçalho do Demonstrativo
+      registroANS: recebimentoTiss.registroANS,
       numeroDemonstrativo: recebimentoTiss.numeroDemonstrativo,
       nomeOperadora: recebimentoTiss.nomeOperadora,
       cnpjOperadora: recebimentoTiss.cnpjOperadora,
       dataEmissao: recebimentoTiss.dataEmissao,
+      
+      // Dados do Prestador
+      cnes: recebimentoTiss.cnes,
+      codigoPrestadorOperadora: recebimentoTiss.codigoPrestadorOperadora,
+      nomeContratado: recebimentoTiss.nomeContratado,
+      
+      // Dados do Protocolo/Lote
       numeroLotePrestador: recebimentoTiss.numeroLotePrestador,
       numeroProtocolo: recebimentoTiss.numeroProtocolo,
+      dataProtocolo: recebimentoTiss.dataProtocolo,
+      valorProtocolo: recebimentoTiss.valorProtocolo,
+      valorGlosaProtocolo: recebimentoTiss.valorGlosaProtocolo,
+      glosaProtocoloCodigo: recebimentoTiss.glosaProtocoloCodigo,
+      glosaProtocoloDescricao: recebimentoTiss.glosaProtocoloDescricao,
       situacaoProtocolo: recebimentoTiss.situacaoProtocolo,
+      valorInformadoProtocolo: recebimentoTiss.valorInformadoProtocolo,
+      valorProcessadoProtocolo: recebimentoTiss.valorProcessadoProtocolo,
+      valorLiberadoProtocolo: recebimentoTiss.valorLiberadoProtocolo,
+      valorGlosaProtocoloTotal: recebimentoTiss.valorGlosaProtocoloTotal,
+      
+      // Dados da Guia
       numeroGuiaPrestador: recebimentoTiss.numeroGuiaPrestador,
       numeroGuiaOperadora: recebimentoTiss.numeroGuiaOperadora,
       senha: recebimentoTiss.senha,
       numeroCarteira: recebimentoTiss.numeroCarteira,
       nomeBeneficiario: recebimentoTiss.nomeBeneficiario,
+      dataInicioFat: recebimentoTiss.dataInicioFat,
+      dataFimFat: recebimentoTiss.dataFimFat,
       situacaoGuia: recebimentoTiss.situacaoGuia,
+      motivoGlosaGuiaCodigo: recebimentoTiss.motivoGlosaGuiaCodigo,
+      motivoGlosaGuiaDescricao: recebimentoTiss.motivoGlosaGuiaDescricao,
+      valorInformadoGuia: recebimentoTiss.valorInformadoGuia,
+      valorProcessadoGuia: recebimentoTiss.valorProcessadoGuia,
+      valorLiberadoGuia: recebimentoTiss.valorLiberadoGuia,
+      valorGlosaGuia: recebimentoTiss.valorGlosaGuia,
+      
+      // Detalhes do Item
       sequencialItem: recebimentoTiss.sequencialItem,
       dataRealizacao: recebimentoTiss.dataRealizacao,
       codigoTabela: recebimentoTiss.codigoTabela,
       codigoItem: recebimentoTiss.codigoItem,
       descricaoItem: recebimentoTiss.descricaoItem,
+      grauParticipacao: recebimentoTiss.grauParticipacao,
       quantidadeExecutada: recebimentoTiss.quantidadeExecutada,
       valorInformado: recebimentoTiss.valorInformado,
       valorProcessado: recebimentoTiss.valorProcessado,
       valorLiberado: recebimentoTiss.valorLiberado,
+      valorGlosado: recebimentoTiss.valorGlosado,
       codigoGlosa: recebimentoTiss.codigoGlosa,
       descricaoGlosa: recebimentoTiss.descricaoGlosa,
+      
+      // Dados de Pagamento
+      dataPagamento: recebimentoTiss.dataPagamento,
+      formaPagamento: recebimentoTiss.formaPagamento,
+      banco: recebimentoTiss.banco,
+      agencia: recebimentoTiss.agencia,
+      
+      // Totais Gerais
+      valorInformadoGeral: recebimentoTiss.valorInformadoGeral,
+      valorProcessadoGeral: recebimentoTiss.valorProcessadoGeral,
+      valorLiberadoGeral: recebimentoTiss.valorLiberadoGeral,
+      valorGlosaGeral: recebimentoTiss.valorGlosaGeral,
+      valorFinalReceber: recebimentoTiss.valorFinalReceber,
+      
+      // Metadados
       origemDado: recebimentoTiss.origemDado,
       dataImportacao: recebimentoTiss.dataImportacao,
+      dataReferencia: recebimentoTiss.dataReferencia,
+      estabelecimentoId: recebimentoTiss.estabelecimentoId,
+      
+      // Joins
       convenioNome: convenios.nome,
       arquivoNome: arquivos.nome,
     })
@@ -16025,24 +16077,24 @@ export async function getRecebimentoTiss(filtros?: {
     .offset(offset);
 
   // Calcular resumo (totais)
+  const resumoSelect = {
+    totalItens: sql<number>`COUNT(*)`,
+    valorInformadoTotal: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorInformado} AS DECIMAL(15,2))), 0)`,
+    valorProcessadoTotal: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorProcessado} AS DECIMAL(15,2))), 0)`,
+    valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
+    valorGlosadoTotal: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorGlosado} AS DECIMAL(15,2))), 0)`,
+    itensPagos: sql<number>`SUM(CASE WHEN (${recebimentoTiss.codigoGlosa} IS NULL OR ${recebimentoTiss.codigoGlosa} = '') AND CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
+    itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.codigoGlosa} IS NOT NULL AND ${recebimentoTiss.codigoGlosa} != '' THEN 1 ELSE 0 END)`,
+  };
+
   const resumoQuery = filtros?.convenioId
     ? db
-        .select({
-          totalItens: sql<number>`COUNT(*)`,
-          valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
-          itensPagos: sql<number>`SUM(CASE WHEN (${recebimentoTiss.codigoGlosa} IS NULL OR ${recebimentoTiss.codigoGlosa} = '') AND CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
-          itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.codigoGlosa} IS NOT NULL AND ${recebimentoTiss.codigoGlosa} != '' THEN 1 ELSE 0 END)`,
-        })
+        .select(resumoSelect)
         .from(recebimentoTiss)
         .leftJoin(arquivos, eq(recebimentoTiss.arquivoId, arquivos.id))
         .where(whereClause)
     : db
-        .select({
-          totalItens: sql<number>`COUNT(*)`,
-          valorLiberado: sql<number>`COALESCE(SUM(CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2))), 0)`,
-          itensPagos: sql<number>`SUM(CASE WHEN (${recebimentoTiss.codigoGlosa} IS NULL OR ${recebimentoTiss.codigoGlosa} = '') AND CAST(${recebimentoTiss.valorLiberado} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
-          itensGlosados: sql<number>`SUM(CASE WHEN ${recebimentoTiss.codigoGlosa} IS NOT NULL AND ${recebimentoTiss.codigoGlosa} != '' THEN 1 ELSE 0 END)`,
-        })
+        .select(resumoSelect)
         .from(recebimentoTiss)
         .where(whereClause);
 

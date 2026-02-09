@@ -1384,3 +1384,11 @@
 - [x] Atualizar schema Drizzle e migrar banco de dados (63 colunas em recebimento_tiss, 40 em recebimentos_excel)
 - [x] Atualizar parser de recebimento XML para extrair todos os novos campos TISS
 - [x] Testar e validar as alterações (427 testes passaram, 0 erros TypeScript)
+
+
+## Atualizar Tela de Demonstrativo - Novos Campos TISS - 09/02/2026
+- [x] Analisar código atual da tela de Demonstrativo e routers relacionados
+- [x] Atualizar backend (db.ts) para retornar todos os 50+ campos TISS no select
+- [x] Atualizar frontend: 7 cards de resumo, colunas com Protocolo/Vl.Informado/Vl.Liberado/Vl.Glosado, dialog de detalhes com 5 seções
+- [x] Atualizar exportação Excel com 34 campos (incluindo glosas de protocolo e guia)
+- [x] Testar: 427 testes passaram, 0 erros TypeScript
