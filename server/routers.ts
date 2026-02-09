@@ -2070,44 +2070,36 @@ export const appRouter = router({
     classificarGlosa: protectedProcedure
       .input(
         z.object({
-          procedimentoId: z.number(),
+          procedimentoId: z.number(), // Na verdade é o demonstrativoId
           classificacao: z.enum(["aceitar", "recursar"]),
           motivo: z.string().optional(),
-          motivoAceite: z.string().optional(), // Motivo informado pelo funcionário ao aceitar
+          motivoAceite: z.string().optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // Registrar a decisão para aprendizado
-        const proc = await db.getProcedimentoById(input.procedimentoId);
-        if (!proc) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Procedimento não encontrado" });
+        // Buscar item do demonstrativo
+        const item = await db.getDemonstrativoById(input.procedimentoId);
+        if (!item) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Item não encontrado" });
         }
 
-        const extras = (proc.dadosExtras || {}) as Record<string, unknown>;
-        const motivoGlosa = (extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || "") as string;
-        const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
+        const codigoGlosa = (item.codigoGlosa || '').match(/^(\d+)/)?.[1] || "";
 
-        // Buscar arquivo para obter conveníoId
-        const arquivo = await db.getArquivoById(proc.arquivoId);
-        if (!arquivo) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Arquivo não encontrado" });
-        }
-
-        // Registrar decisão
+        // Registrar decisão para aprendizado
         await db.registrarDecisaoGlosa({
-          convenioId: arquivo.convenioId,
+          convenioId: item.convenioId || 0,
           codigoGlosa: codigoGlosa || "0000",
-          codigoProcedimento: proc.codigo,
-          tipoProcedimento: null,
+          codigoProcedimento: item.codigoItem || '',
+          tipoProcedimento: item.tipoLancamento || null,
           decisao: input.classificacao,
-          valorGlosado: proc.valorGlosado || undefined,
+          valorGlosado: item.valorGlosa || undefined,
           motivoDecisao: input.motivo || null,
           procedimentoId: input.procedimentoId,
           userId: ctx.user.id,
         });
 
-        // Atualizar classificação do procedimento (incluindo motivoAceite se for aceitar)
-        await db.atualizarClassificacaoProcedimento(
+        // Atualizar classificação na tabela demonstrativo
+        await db.atualizarClassificacaoDemonstrativo(
           input.procedimentoId,
           input.classificacao,
           100,

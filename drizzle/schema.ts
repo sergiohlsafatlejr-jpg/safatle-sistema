@@ -2515,6 +2515,27 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   // Estabelecimento
   estabelecimentoId: int("estabelecimentoId"),
   
+  // Classificação de Glosa
+  classificacaoGlosa: mysqlEnum("classificacao_glosa", [
+    "pendente",
+    "aceitar",
+    "recursar",
+    "auto_aceitar",
+    "auto_recursar"
+  ]).default("pendente"),
+  classificacaoConfianca: int("classificacao_confianca"),
+  classificacaoMotivo: text("classificacao_motivo"),
+  motivoAceite: text("motivo_aceite"),
+  dataAceite: timestamp("data_aceite"),
+  recursoStatus: mysqlEnum("recurso_status", [
+    "sem_recurso",
+    "recurso_criado",
+    "recurso_enviado",
+    "recurso_deferido",
+    "recurso_indeferido"
+  ]).default("sem_recurso"),
+  recursoId: int("recurso_id"),
+  
   // Auditoria
   dataImportacaoSistema: timestamp("data_importacao_sistema").defaultNow().notNull(),
 });

@@ -1431,3 +1431,17 @@
 - [x] Remover dados duplicados no banco (arquivo 840001 removido - era duplicata órfã sem registro na tabela arquivos)
 - [x] Corrigir valores dobrados: agora R$ 876.476,79 pago + R$ 17.665,94 glosado (26.614 itens, arquivo 840002)
 - [x] Botão "Voltar" no detalhe da guia preserva filtros via query params na URL (competência, convênio, status, página, busca)
+
+
+## Migrar Análise de Glosa para tabela demonstrativo - 09/02/2026
+- [x] Reescrever getGlosaPorConvenio para buscar da tabela demonstrativo
+- [x] Reescrever getGlosaPorProcedimento para buscar da tabela demonstrativo
+- [x] Reescrever getTendenciaGlosa para buscar da tabela demonstrativo
+- [x] Reescrever getResumoGlosa para buscar da tabela demonstrativo
+- [x] Reescrever getItensGlosados para buscar da tabela demonstrativo (situacao_item = 'GLOSADO')
+- [x] Reescrever getItensGlosadosAceitos para buscar da tabela demonstrativo
+- [x] Adicionar campos classificacaoGlosa, classificacaoConfianca, classificacaoMotivo, motivoAceite, dataAceite ao schema demonstrativo
+- [x] Ajustar router classificarGlosa para atualizar tabela demonstrativo em vez de procedimentos
+- [x] Criar função atualizarClassificacaoDemonstrativo e getDemonstrativoById no db.ts
+- [x] Testar tela Análise de Glosa: 1.826 itens glosados, R$ 17.665,94, 4 categorias, filtros funcionando
+- [ ] Salvar checkpoint

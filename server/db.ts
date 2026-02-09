@@ -1610,95 +1610,66 @@ export async function getGlosaPorConvenio(userId?: number, estabelecimentoId?: n
   const db = await getDb();
   if (!db) return [];
 
-  // Buscar todos os convênios ativos
-  const convConditions: any[] = [eq(convenios.ativo, "sim")];
+  // Buscar itens glosados da tabela demonstrativo agrupados por convênio
+  const conditions: SQL[] = [eq(demonstrativo.situacaoItem, 'GLOSADO')];
   if (estabelecimentoId) {
-    convConditions.push(eq(convenios.estabelecimentoId, estabelecimentoId));
+    conditions.push(eq(demonstrativo.estabelecimentoId, estabelecimentoId));
   }
   if (convenioId) {
-    convConditions.push(eq(convenios.id, convenioId));
+    conditions.push(eq(demonstrativo.convenioId, convenioId));
   }
-  const convList = await db.select().from(convenios).where(and(...convConditions));
+
+  const rows = await db
+    .select({
+      convenioId: demonstrativo.convenioId,
+      codigoGlosa: demonstrativo.codigoGlosa,
+      valorGlosa: demonstrativo.valorGlosa,
+    })
+    .from(demonstrativo)
+    .where(and(...conditions));
+
+  // Agrupar por convênio
+  const porConvenio: { [key: number]: { total: number; valor: number; motivos: { [key: string]: { quantidade: number; valor: number } } } } = {};
+  for (const row of rows) {
+    const cId = row.convenioId || 0;
+    if (!porConvenio[cId]) {
+      porConvenio[cId] = { total: 0, valor: 0, motivos: {} };
+    }
+    porConvenio[cId].total++;
+    const vg = parseFloat(String(row.valorGlosa || '0'));
+    porConvenio[cId].valor += vg;
+    const motivo = (row.codigoGlosa || 'Não informado').substring(0, 80);
+    if (!porConvenio[cId].motivos[motivo]) {
+      porConvenio[cId].motivos[motivo] = { quantidade: 0, valor: 0 };
+    }
+    porConvenio[cId].motivos[motivo].quantidade++;
+    porConvenio[cId].motivos[motivo].valor += vg;
+  }
+
+  // Buscar nomes dos convênios
+  const convenioIds = Object.keys(porConvenio).map(Number).filter(id => id > 0);
+  if (convenioIds.length === 0) return [];
+  const convList = await db.select().from(convenios).where(inArray(convenios.id, convenioIds));
+  const convMap = new Map(convList.map(c => [c.id, c.nome]));
+
   const resultado: GlosaPorConvenio[] = [];
-
-  for (const conv of convList) {
-    // Buscar comparações do convênio
-    const compConditions: any[] = [eq(comparacoes.convenioId, conv.id)];
-    if (userId) {
-      compConditions.push(eq(comparacoes.userId, userId));
-    }
-
-    const comps = await db
-      .select()
-      .from(comparacoes)
-      .where(and(...compConditions));
-
-    if (comps.length === 0) continue;
-
-    // Buscar divergências das comparações
-    let totalDivergencias = 0;
-    let valorGlosado = 0;
-    const motivosCount: { [key: string]: { quantidade: number; valor: number } } = {};
-
-    for (const comp of comps) {
-      const divs = await db
-        .select()
-        .from(divergencias)
-        .where(eq(divergencias.comparacaoId, comp.id));
-
-      for (const div of divs) {
-        totalDivergencias++;
-        const diferenca = parseFloat(div.diferenca || "0");
-        valorGlosado += Math.abs(diferenca);
-
-        // Determinar categoria baseada no tipo se não tiver categoria definida
-        let categoria = div.categoriaGlosa || "outros";
-        if (!div.categoriaGlosa) {
-          switch (div.tipo) {
-            case "valor":
-              categoria = "valor_divergente";
-              break;
-            case "quantidade":
-              categoria = "quantidade_excedente";
-              break;
-            case "ausente_retorno":
-              categoria = "procedimento_nao_autorizado";
-              break;
-            case "ausente_envio":
-              categoria = "outros";
-              break;
-            case "dados":
-              categoria = "documentacao_incompleta";
-              break;
-          }
-        }
-
-        if (!motivosCount[categoria]) {
-          motivosCount[categoria] = { quantidade: 0, valor: 0 };
-        }
-        motivosCount[categoria].quantidade++;
-        motivosCount[categoria].valor += Math.abs(diferenca);
-      }
-    }
-
-    if (totalDivergencias === 0) continue;
-
-    // Converter para array e calcular percentuais
-    const motivosPrincipais: GlosaPorMotivo[] = Object.entries(motivosCount)
-      .map(([cat, data]) => ({
-        categoriaGlosa: CATEGORIAS_GLOSA_LABELS[cat] || cat,
-        quantidade: data.quantidade,
-        valorTotal: data.valor,
-        percentual: (data.quantidade / totalDivergencias) * 100,
+  for (const [cIdStr, data] of Object.entries(porConvenio)) {
+    const cId = Number(cIdStr);
+    const motivosPrincipais: GlosaPorMotivo[] = Object.entries(data.motivos)
+      .map(([motivo, mData]) => ({
+        categoriaGlosa: motivo,
+        quantidade: mData.quantidade,
+        valorTotal: mData.valor,
+        percentual: data.total > 0 ? (mData.quantidade / data.total) * 100 : 0,
       }))
       .sort((a, b) => b.quantidade - a.quantidade)
       .slice(0, 5);
 
     resultado.push({
-      convenioId: conv.id,
-      convenioNome: conv.nome,
-      totalDivergencias,
-      valorGlosado,
+      convenioId: cId,
+      convenioNome: convMap.get(cId) || 'Desconhecido',
+      totalDivergencias: data.total,
+      valorGlosado: data.valor,
       motivosPrincipais,
     });
   }
@@ -1715,24 +1686,27 @@ export async function getGlosaPorProcedimento(
   const db = await getDb();
   if (!db) return [];
 
-  // Buscar comparações
-  const compConditions: any[] = [];
-  if (userId) {
-    compConditions.push(eq(comparacoes.userId, userId));
+  // Buscar itens glosados da tabela demonstrativo
+  const conditions: SQL[] = [eq(demonstrativo.situacaoItem, 'GLOSADO')];
+  if (estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, estabelecimentoId));
   }
   if (convenioId) {
-    compConditions.push(eq(comparacoes.convenioId, convenioId));
-  }
-  if (estabelecimentoId) {
-    compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
+    conditions.push(eq(demonstrativo.convenioId, convenioId));
   }
 
-  const comps = await db
-    .select()
-    .from(comparacoes)
-    .where(compConditions.length > 0 ? and(...compConditions) : undefined);
+  const rows = await db
+    .select({
+      codigoItem: demonstrativo.codigoItem,
+      descricaoItem: demonstrativo.descricaoItem,
+      valorGlosa: demonstrativo.valorGlosa,
+      codigoGlosa: demonstrativo.codigoGlosa,
+    })
+    .from(demonstrativo)
+    .where(and(...conditions));
 
-  const procedimentosGlosados: {
+  // Agrupar por código de procedimento
+  const procGlosados: {
     [key: string]: {
       codigo: string;
       descricao: string;
@@ -1742,59 +1716,33 @@ export async function getGlosaPorProcedimento(
     };
   } = {};
 
-  for (const comp of comps) {
-    const divs = await db
-      .select()
-      .from(divergencias)
-      .where(eq(divergencias.comparacaoId, comp.id));
-
-    for (const div of divs) {
-      if (!div.procedimentoEnviadoId) continue;
-
-      // Buscar procedimento
-      const proc = await db
-        .select()
-        .from(procedimentos)
-        .where(eq(procedimentos.id, div.procedimentoEnviadoId))
-        .limit(1);
-
-      if (proc.length === 0) continue;
-
-      const p = proc[0];
-      const key = p.codigo;
-      const diferenca = Math.abs(parseFloat(div.diferenca || "0"));
-
-      if (!procedimentosGlosados[key]) {
-        procedimentosGlosados[key] = {
-          codigo: p.codigo,
-          descricao: p.descricao || "",
-          quantidade: 0,
-          valor: 0,
-          motivos: {},
-        };
-      }
-
-      procedimentosGlosados[key].quantidade++;
-      procedimentosGlosados[key].valor += diferenca;
-
-      const categoria = div.categoriaGlosa || div.tipo || "outros";
-      procedimentosGlosados[key].motivos[categoria] =
-        (procedimentosGlosados[key].motivos[categoria] || 0) + 1;
+  for (const row of rows) {
+    const key = row.codigoItem || 'SEM_CODIGO';
+    const vg = parseFloat(String(row.valorGlosa || '0'));
+    if (!procGlosados[key]) {
+      procGlosados[key] = {
+        codigo: row.codigoItem || '',
+        descricao: row.descricaoItem || '',
+        quantidade: 0,
+        valor: 0,
+        motivos: {},
+      };
     }
+    procGlosados[key].quantidade++;
+    procGlosados[key].valor += vg;
+    const motivo = (row.codigoGlosa || 'Não informado').substring(0, 80);
+    procGlosados[key].motivos[motivo] = (procGlosados[key].motivos[motivo] || 0) + 1;
   }
 
-  // Converter para array e ordenar
-  return Object.values(procedimentosGlosados)
+  return Object.values(procGlosados)
     .map((p) => {
-      const motivoPrincipal = Object.entries(p.motivos).sort(
-        (a, b) => b[1] - a[1]
-      )[0];
+      const motivoPrincipal = Object.entries(p.motivos).sort((a, b) => b[1] - a[1])[0];
       return {
         codigo: p.codigo,
         descricao: p.descricao,
         quantidadeGlosas: p.quantidade,
         valorGlosado: p.valor,
-        motivoPrincipal: CATEGORIAS_GLOSA_LABELS[motivoPrincipal?.[0]] || motivoPrincipal?.[0] || "Outros",
+        motivoPrincipal: motivoPrincipal?.[0] || 'Outros',
       };
     })
     .sort((a, b) => b.valorGlosado - a.valorGlosado)
@@ -1810,127 +1758,97 @@ export async function getTendenciaGlosa(
   const db = await getDb();
   if (!db) return [];
 
-  const resultado: TendenciaGlosa[] = [];
-  const hoje = new Date();
-
-  for (let i = 0; i < meses; i++) {
-    const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const mes = data.toLocaleString("pt-BR", { month: "short" });
-    const ano = data.getFullYear();
-    const inicioMes = new Date(data.getFullYear(), data.getMonth(), 1);
-    const fimMes = new Date(data.getFullYear(), data.getMonth() + 1, 0, 23, 59, 59);
-
-    // Buscar comparações do mês
-    const compConditions: any[] = [
-      gte(comparacoes.createdAt, inicioMes),
-      lte(comparacoes.createdAt, fimMes),
-    ];
-
-    if (userId) {
-      compConditions.push(eq(comparacoes.userId, userId));
-    }
-    if (estabelecimentoId) {
-      compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
-    }
-    if (convenioId) {
-      compConditions.push(eq(comparacoes.convenioId, convenioId));
-    }
-
-    const compsMes = await db
-      .select()
-      .from(comparacoes)
-      .where(and(...compConditions));
-
-    let totalGlosas = 0;
-    let valorGlosado = 0;
-    const categorias: { [key: string]: number } = {};
-
-    for (const comp of compsMes) {
-      const divs = await db
-        .select()
-        .from(divergencias)
-        .where(eq(divergencias.comparacaoId, comp.id));
-
-      for (const div of divs) {
-        totalGlosas++;
-        valorGlosado += Math.abs(parseFloat(div.diferenca || "0"));
-
-        const categoria = div.categoriaGlosa || div.tipo || "outros";
-        categorias[categoria] = (categorias[categoria] || 0) + 1;
-      }
-    }
-
-    resultado.push({
-      mes: mes.charAt(0).toUpperCase() + mes.slice(1),
-      ano,
-      totalGlosas,
-      valorGlosado,
-      categorias,
-    });
+  // Buscar itens glosados da tabela demonstrativo com data de referência
+  const conditions: SQL[] = [eq(demonstrativo.situacaoItem, 'GLOSADO')];
+  if (estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, estabelecimentoId));
+  }
+  if (convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, convenioId));
   }
 
-  return resultado.reverse();
+  const rows = await db
+    .select({
+      dataReferencia: demonstrativo.dataReferencia,
+      valorGlosa: demonstrativo.valorGlosa,
+      tipoLancamento: demonstrativo.tipoLancamento,
+    })
+    .from(demonstrativo)
+    .where(and(...conditions));
+
+  // Agrupar por mês/ano da data de referência
+  const porMes: { [key: string]: { totalGlosas: number; valorGlosado: number; categorias: { [key: string]: number } } } = {};
+  for (const row of rows) {
+    if (!row.dataReferencia) continue;
+    const d = new Date(row.dataReferencia);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    if (!porMes[key]) {
+      porMes[key] = { totalGlosas: 0, valorGlosado: 0, categorias: {} };
+    }
+    porMes[key].totalGlosas++;
+    porMes[key].valorGlosado += parseFloat(String(row.valorGlosa || '0'));
+    const tipo = row.tipoLancamento || 'Outros';
+    porMes[key].categorias[tipo] = (porMes[key].categorias[tipo] || 0) + 1;
+  }
+
+  // Gerar resultado ordenado por data
+  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const resultado: TendenciaGlosa[] = Object.entries(porMes)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, data]) => {
+      const [anoStr, mesStr] = key.split('-');
+      return {
+        mes: mesesNomes[parseInt(mesStr) - 1],
+        ano: parseInt(anoStr),
+        totalGlosas: data.totalGlosas,
+        valorGlosado: data.valorGlosado,
+        categorias: data.categorias,
+      };
+    });
+
+  return resultado;
 }
 
 export async function getResumoGlosa(userId?: number, estabelecimentoId?: number, convenioId?: number) {
   const db = await getDb();
   if (!db) return null;
 
-  // Buscar todas as divergências
-  const compConditions: any[] = [];
-  if (userId) {
-    compConditions.push(eq(comparacoes.userId, userId));
-  }
+  // Buscar itens glosados da tabela demonstrativo
+  const conditions: SQL[] = [eq(demonstrativo.situacaoItem, 'GLOSADO')];
   if (estabelecimentoId) {
-    compConditions.push(eq(comparacoes.estabelecimentoId, estabelecimentoId));
+    conditions.push(eq(demonstrativo.estabelecimentoId, estabelecimentoId));
   }
   if (convenioId) {
-    compConditions.push(eq(comparacoes.convenioId, convenioId));
+    conditions.push(eq(demonstrativo.convenioId, convenioId));
   }
 
-  const comps = await db
-    .select()
-    .from(comparacoes)
-    .where(compConditions.length > 0 ? and(...compConditions) : undefined);
+  const rows = await db
+    .select({
+      valorGlosa: demonstrativo.valorGlosa,
+      codigoGlosa: demonstrativo.codigoGlosa,
+      tipoLancamento: demonstrativo.tipoLancamento,
+    })
+    .from(demonstrativo)
+    .where(and(...conditions));
 
   let totalDivergencias = 0;
   let valorTotalGlosado = 0;
   const categorias: { [key: string]: { quantidade: number; valor: number } } = {};
 
-  for (const comp of comps) {
-    const divs = await db
-      .select()
-      .from(divergencias)
-      .where(eq(divergencias.comparacaoId, comp.id));
+  for (const row of rows) {
+    totalDivergencias++;
+    const vg = parseFloat(String(row.valorGlosa || '0'));
+    valorTotalGlosado += vg;
 
-    for (const div of divs) {
-      totalDivergencias++;
-      const diferenca = Math.abs(parseFloat(div.diferenca || "0"));
-      valorTotalGlosado += diferenca;
+    // Usar código de glosa como categoria
+    const codigoMatch = (row.codigoGlosa || '').match(/^(\d+)/);
+    const categoria = codigoMatch ? codigoMatch[1] + '-' + (row.codigoGlosa || '').substring(codigoMatch[0].length + 1, codigoMatch[0].length + 51) : (row.codigoGlosa || 'Não informado').substring(0, 50);
 
-      let categoria = div.categoriaGlosa || "outros";
-      if (!div.categoriaGlosa) {
-        switch (div.tipo) {
-          case "valor":
-            categoria = "valor_divergente";
-            break;
-          case "quantidade":
-            categoria = "quantidade_excedente";
-            break;
-          case "ausente_retorno":
-            categoria = "procedimento_nao_autorizado";
-            break;
-          default:
-            categoria = "outros";
-        }
-      }
-
-      if (!categorias[categoria]) {
-        categorias[categoria] = { quantidade: 0, valor: 0 };
-      }
-      categorias[categoria].quantidade++;
-      categorias[categoria].valor += diferenca;
+    if (!categorias[categoria]) {
+      categorias[categoria] = { quantidade: 0, valor: 0 };
     }
+    categorias[categoria].quantidade++;
+    categorias[categoria].valor += vg;
   }
 
   // Encontrar categoria principal
@@ -1943,18 +1861,21 @@ export async function getResumoGlosa(userId?: number, estabelecimentoId?: number
     valorTotalGlosado,
     categoriaPrincipal: categoriaPrincipal
       ? {
-          nome: CATEGORIAS_GLOSA_LABELS[categoriaPrincipal[0]] || categoriaPrincipal[0],
+          nome: categoriaPrincipal[0],
           quantidade: categoriaPrincipal[1].quantidade,
           valor: categoriaPrincipal[1].valor,
-          percentual: (categoriaPrincipal[1].quantidade / totalDivergencias) * 100,
+          percentual: totalDivergencias > 0 ? (categoriaPrincipal[1].quantidade / totalDivergencias) * 100 : 0,
         }
       : null,
-    categorias: Object.entries(categorias).map(([cat, data]) => ({
-      categoria: CATEGORIAS_GLOSA_LABELS[cat] || cat,
-      quantidade: data.quantidade,
-      valor: data.valor,
-      percentual: totalDivergencias > 0 ? (data.quantidade / totalDivergencias) * 100 : 0,
-    })),
+    categorias: Object.entries(categorias)
+      .map(([cat, data]) => ({
+        categoria: cat,
+        quantidade: data.quantidade,
+        valor: data.valor,
+        percentual: totalDivergencias > 0 ? (data.quantidade / totalDivergencias) * 100 : 0,
+      }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 10),
   };
 }
 
@@ -4267,224 +4188,156 @@ export async function getItensGlosados(filters: {
   pageSize: number;
 }): Promise<{ items: ItemGlosado[]; total: number; resumo: ResumoItensGlosados; alertasPrazo: Array<{ convenio: string; convenioId: number; quantidade: number; valor: number; diasRestantes: number; dataLimite: Date }> }> {
   const db = await getDb();
-  if (!db) return { 
+  const emptyResult = { 
     items: [], 
     total: 0, 
-    resumo: { 
-      totalItens: 0, 
-      totalValorGlosado: 0, 
-      totalValorCobrado: 0,
-      percentualGlosa: 0,
-      porTipo: [], 
-      porMotivo: [] 
-    },
+    resumo: { totalItens: 0, totalValorGlosado: 0, totalValorCobrado: 0, percentualGlosa: 0, porTipo: [], porMotivo: [] },
     alertasPrazo: []
   };
+  if (!db) return emptyResult;
 
-  // Buscar arquivos retornados (que contêm glosas)
-  const arquivosConditions: any[] = [
-    eq(arquivos.direcao, "retornado"),
-    eq(arquivos.status, "processado"),
-  ];
-
-  // Filtrar por usuário apenas se especificado
-  if (filters.userId) {
-    arquivosConditions.push(eq(arquivos.userId, filters.userId));
-  }
-
-  if (filters.convenioId) {
-    arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
-  }
+  // Buscar itens glosados da tabela demonstrativo
+  const conditions: SQL[] = [eq(demonstrativo.situacaoItem, 'GLOSADO')];
   if (filters.estabelecimentoId) {
-    arquivosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+    conditions.push(eq(demonstrativo.estabelecimentoId, filters.estabelecimentoId));
   }
-
+  if (filters.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, filters.convenioId));
+  }
   if (filters.dataReferenciaInicio) {
-    arquivosConditions.push(gte(arquivos.dataReferencia, filters.dataReferenciaInicio));
+    conditions.push(gte(demonstrativo.dataReferencia, filters.dataReferenciaInicio));
   }
-
   if (filters.dataReferenciaFim) {
-    arquivosConditions.push(lte(arquivos.dataReferencia, filters.dataReferenciaFim));
+    conditions.push(lte(demonstrativo.dataReferencia, filters.dataReferenciaFim));
   }
-
-  const arquivosRetornados = await db
-    .select({
-      id: arquivos.id,
-      nome: arquivos.nome,
-      convenioId: arquivos.convenioId,
-      dataReferencia: arquivos.dataReferencia,
-      dataPagamento: arquivos.dataPagamento,
-    })
-    .from(arquivos)
-    .where(and(...arquivosConditions));
-
-  if (arquivosRetornados.length === 0) {
-    return { 
-      items: [], 
-      total: 0, 
-      resumo: { 
-        totalItens: 0, 
-        totalValorGlosado: 0, 
-        totalValorCobrado: 0,
-        percentualGlosa: 0,
-        porTipo: [], 
-        porMotivo: [] 
-      },
-      alertasPrazo: []
-    };
-  }
-
-  // Buscar nomes dos convênios
-  const convenioIds = Array.from(new Set(arquivosRetornados.map(a => a.convenioId)));
-  const conveniosList = await db
-    .select()
-    .from(convenios)
-    .where(inArray(convenios.id, convenioIds));
-  
-  const convenioMap = new Map(conveniosList.map(c => [c.id, c.nome]));
-
-  // Buscar procedimentos dos arquivos retornados
-  const arquivoIds = arquivosRetornados.map(a => a.id);
-  const arquivoMap = new Map(arquivosRetornados.map(a => [a.id, a]));
-
-  const procConditions: any[] = [
-    inArray(procedimentos.arquivoId, arquivoIds),
-  ];
-
   if (filters.search) {
-    procConditions.push(
+    conditions.push(
       or(
-        like(procedimentos.codigo, `%${filters.search}%`),
-        like(procedimentos.descricao, `%${filters.search}%`),
-        like(procedimentos.guiaNumero, `%${filters.search}%`),
-        like(procedimentos.pacienteNome, `%${filters.search}%`)
-      )
+        like(demonstrativo.codigoItem, `%${filters.search}%`),
+        like(demonstrativo.descricaoItem, `%${filters.search}%`),
+        like(demonstrativo.numeroGuia, `%${filters.search}%`),
+        like(demonstrativo.nomeBeneficiario, `%${filters.search}%`),
+        like(demonstrativo.codigoGlosa, `%${filters.search}%`)
+      ) as SQL
+    );
+  }
+  if (filters.classificacao && filters.classificacao !== "todos") {
+    if (filters.classificacao === "pendente") {
+      conditions.push(or(eq(demonstrativo.classificacaoGlosa, 'pendente'), isNull(demonstrativo.classificacaoGlosa)) as SQL);
+    } else if (filters.classificacao === "aceitar") {
+      conditions.push(or(eq(demonstrativo.classificacaoGlosa, 'aceitar'), eq(demonstrativo.classificacaoGlosa, 'auto_aceitar')) as SQL);
+    } else if (filters.classificacao === "recursar") {
+      conditions.push(or(eq(demonstrativo.classificacaoGlosa, 'recursar'), eq(demonstrativo.classificacaoGlosa, 'auto_recursar')) as SQL);
+    }
+  } else {
+    // Por padrão, excluir itens já aceitos
+    conditions.push(
+      or(
+        isNull(demonstrativo.classificacaoGlosa),
+        eq(demonstrativo.classificacaoGlosa, 'pendente'),
+        eq(demonstrativo.classificacaoGlosa, 'recursar'),
+        eq(demonstrativo.classificacaoGlosa, 'auto_recursar')
+      ) as SQL
     );
   }
 
-  const allProcs = await db
+  const allRows = await db
     .select()
-    .from(procedimentos)
-    .where(and(...procConditions))
-    .orderBy(desc(procedimentos.dataExecucao));
+    .from(demonstrativo)
+    .where(and(...conditions))
+    .orderBy(desc(demonstrativo.dataExecucao));
 
-  // Filtrar apenas itens com glosa
+  // Mapear tipo_lancamento do Excel para tipo interno
+  const TIPO_MAP: { [key: string]: "exame" | "mat_med" | "procedimento" | "taxa" | "diaria" | "outros" } = {
+    'EXA': 'exame', 'MAT': 'mat_med', 'MED': 'mat_med', 'CON': 'procedimento', 'HOS': 'diaria',
+    'PRO': 'procedimento', 'TAX': 'taxa', 'DIA': 'diaria',
+  };
+
+  // Buscar nomes dos convênios
+  const convenioIdsSet = new Set(allRows.map(r => r.convenioId).filter(Boolean) as number[]);
+  const convenioIds = Array.from(convenioIdsSet);
+  let convenioMap = new Map<number, string>();
+  if (convenioIds.length > 0) {
+    const convList = await db.select().from(convenios).where(inArray(convenios.id, convenioIds));
+    convenioMap = new Map(convList.map(c => [c.id, c.nome]));
+  }
+
+  // Buscar nomes dos arquivos
+  const arquivoIdsSet = new Set(allRows.map(r => r.arquivoId));
+  const arquivoIdsList = Array.from(arquivoIdsSet);
+  let arquivoMap = new Map<number, { nome: string; dataPagamento: Date | null }>(); 
+  if (arquivoIdsList.length > 0) {
+    const arqList = await db.select({ id: arquivos.id, nome: arquivos.nome, dataPagamento: arquivos.dataPagamento }).from(arquivos).where(inArray(arquivos.id, arquivoIdsList));
+    arquivoMap = new Map(arqList.map(a => [a.id, { nome: a.nome, dataPagamento: a.dataPagamento }]));
+  }
+
   const itensGlosados: ItemGlosado[] = [];
   const resumoPorTipo: { [key: string]: { quantidade: number; valorGlosado: number } } = {};
   const resumoPorMotivo: { [key: string]: { quantidade: number; valorGlosado: number } } = {};
   let totalValorGlosado = 0;
   let totalValorCobrado = 0;
 
-  for (const proc of allProcs) {
-    const extras = proc.dadosExtras ? 
-      (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-    
-    // Verificar se é glosado: por valorGlosado > 0 OU por situacaoItem = GLOSADO/NEGADO
-    // Vivacom usa 'VALOR GLOSA' e 'COD. GLOSA' em maiúsculas com espaço
-    const valorGlosadoNum = parseFloat(
-      proc.valorGlosado || 
-      extras.valorGlosado || 
-      extras.valor_glosa || 
-      extras['VALOR GLOSA'] || 
-      extras['Valor Glosa'] || 
-      "0"
-    );
-    const situacaoItem = (extras.situacaoItem || extras['Situação Item'] || extras.situacao || '').toString().toUpperCase();
-    const isGlosado = valorGlosadoNum > 0 || situacaoItem === 'GLOSADO' || situacaoItem === 'NEGADO' || situacaoItem.includes('GLOS');
-    
-    // Só incluir itens com glosa
-    if (!isGlosado) continue;
-
-    // Se não tem valorGlosado mas é glosado pelo status, usar o valorTotal como valor glosado
-    const valorCobrado = parseFloat(proc.valorTotal || "0");
-    const valorGlosado = valorGlosadoNum > 0 ? valorGlosadoNum : valorCobrado;
-    const valorPago = valorGlosadoNum > 0 ? (valorCobrado - valorGlosadoNum) : 0;
-    const tipo = determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-    
-    // Filtrar por tipo se especificado
+  for (const row of allRows) {
+    const tipo = TIPO_MAP[(row.tipoLancamento || '').toUpperCase()] || determinarTipoProcedimento(row.codigoItem || '', row.descricaoItem || undefined);
     if (filters.tipo && filters.tipo !== "todos" && tipo !== filters.tipo) continue;
 
-    const arquivo = arquivoMap.get(proc.arquivoId);
-    const convenioNome = convenioMap.get(arquivo?.convenioId || 0) || "Desconhecido";
-    // Buscar motivo de glosa em vários campos possíveis
-    // Vivacom usa 'COD. GLOSA' em maiúsculas com espaço e ponto
-    const motivoGlosa = extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || extras['Cod. Glosa'] || extras.observacao || "Não informado";
-    const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
+    const codigoGlosaStr = row.codigoGlosa || '';
+    const codigoGlosaNum = codigoGlosaStr.match(/^(\d+)/)?.[1] || '';
+    if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosaNum !== filters.codigoGlosa) continue;
 
-    // Filtrar por código de glosa se especificado
-    if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosa !== filters.codigoGlosa) continue;
-
-    // Filtrar por classificação se especificado
-    if (filters.classificacao && filters.classificacao !== "todos") {
-      if (filters.classificacao === "pendente" && proc.classificacaoGlosa && proc.classificacaoGlosa !== "pendente") continue;
-      if (filters.classificacao === "aceitar" && proc.classificacaoGlosa !== "aceitar" && proc.classificacaoGlosa !== "auto_aceitar") continue;
-      if (filters.classificacao === "recursar" && proc.classificacaoGlosa !== "recursar" && proc.classificacaoGlosa !== "auto_recursar") continue;
-    } else {
-      // Por padrão, excluir itens já aceitos (classificados como "aceitar") - eles aparecem apenas na aba Glosas Aceitas
-      if (proc.classificacaoGlosa === "aceitar" || proc.classificacaoGlosa === "auto_aceitar") continue;
-    }
+    const valorGlosa = parseFloat(String(row.valorGlosa || '0'));
+    const valorPago = parseFloat(String(row.valorPago || '0'));
+    const valorCobrado = valorGlosa + valorPago;
+    const arq = arquivoMap.get(row.arquivoId);
 
     itensGlosados.push({
-      id: proc.id,
-      codigo: proc.codigo,
-      descricao: proc.descricao || "",
+      id: row.id,
+      codigo: row.codigoItem || '',
+      descricao: row.descricaoItem || '',
       tipo,
-      pacienteNome: proc.pacienteNome || extras.paciente || "",
-      pacienteCarteirinha: proc.pacienteCarteirinha || extras.carteirinha || "",
-      guiaNumero: proc.guiaNumero || extras.guia || "",
-      dataExecucao: proc.dataExecucao,
+      pacienteNome: row.nomeBeneficiario || '',
+      pacienteCarteirinha: row.carteiraBeneficiario || '',
+      guiaNumero: row.numeroGuia || '',
+      dataExecucao: row.dataExecucao ? new Date(row.dataExecucao) : null,
       valorCobrado,
       valorPago,
-      valorGlosado,
-      motivoGlosa,
-      codigoGlosa,
-      convenioId: arquivo?.convenioId || 0,
-      convenioNome,
-      arquivoId: proc.arquivoId,
-      arquivoNome: arquivo?.nome || "",
-      dataReferencia: arquivo?.dataReferencia || null,
-      nomeMedico: proc.nomeMedico || "",
-      crmMedico: proc.crmMedico || "",
-      recursoStatus: proc.recursoStatus || "sem_recurso",
-      recursoId: proc.recursoId || null,
-      classificacaoGlosa: proc.classificacaoGlosa || "pendente",
-      classificacaoConfianca: proc.classificacaoConfianca || null,
-      classificacaoMotivo: proc.classificacaoMotivo || null,
+      valorGlosado: valorGlosa,
+      motivoGlosa: codigoGlosaStr || 'Não informado',
+      codigoGlosa: codigoGlosaNum,
+      convenioId: row.convenioId || 0,
+      convenioNome: convenioMap.get(row.convenioId || 0) || 'Desconhecido',
+      arquivoId: row.arquivoId,
+      arquivoNome: arq?.nome || '',
+      dataReferencia: row.dataReferencia ? new Date(row.dataReferencia) : null,
+      nomeMedico: '',
+      crmMedico: '',
+      recursoStatus: (row as any).recursoStatus || 'sem_recurso',
+      recursoId: (row as any).recursoId || null,
+      classificacaoGlosa: (row as any).classificacaoGlosa || 'pendente',
+      classificacaoConfianca: (row as any).classificacaoConfianca || null,
+      classificacaoMotivo: (row as any).classificacaoMotivo || null,
     });
 
-    // Acumular resumo
-    totalValorGlosado += valorGlosado;
+    totalValorGlosado += valorGlosa;
     totalValorCobrado += valorCobrado;
 
-    // Por tipo
-    if (!resumoPorTipo[tipo]) {
-      resumoPorTipo[tipo] = { quantidade: 0, valorGlosado: 0 };
-    }
+    if (!resumoPorTipo[tipo]) resumoPorTipo[tipo] = { quantidade: 0, valorGlosado: 0 };
     resumoPorTipo[tipo].quantidade++;
-    resumoPorTipo[tipo].valorGlosado += valorGlosado;
+    resumoPorTipo[tipo].valorGlosado += valorGlosa;
 
-    // Por motivo
-    const motivoKey = codigoGlosa || motivoGlosa.substring(0, 50);
-    if (!resumoPorMotivo[motivoKey]) {
-      resumoPorMotivo[motivoKey] = { quantidade: 0, valorGlosado: 0 };
-    }
+    const motivoKey = codigoGlosaNum || codigoGlosaStr.substring(0, 50);
+    if (!resumoPorMotivo[motivoKey]) resumoPorMotivo[motivoKey] = { quantidade: 0, valorGlosado: 0 };
     resumoPorMotivo[motivoKey].quantidade++;
-    resumoPorMotivo[motivoKey].valorGlosado += valorGlosado;
+    resumoPorMotivo[motivoKey].valorGlosado += valorGlosa;
   }
 
-  // Aplicar paginação
   const total = itensGlosados.length;
   const offset = (filters.page - 1) * filters.pageSize;
   const paginatedItems = itensGlosados.slice(offset, offset + filters.pageSize);
 
-  // Montar resumo
   const tipoLabels: { [key: string]: string } = {
-    exame: "Exames",
-    mat_med: "Mat/Med",
-    procedimento: "Procedimentos",
-    taxa: "Taxas",
-    diaria: "Diárias",
-    outros: "Outros",
+    exame: "Exames", mat_med: "Mat/Med", procedimento: "Procedimentos",
+    taxa: "Taxas", diaria: "Diárias", outros: "Outros",
   };
 
   const resumo: ResumoItensGlosados = {
@@ -4493,60 +4346,31 @@ export async function getItensGlosados(filters: {
     totalValorCobrado,
     percentualGlosa: totalValorCobrado > 0 ? (totalValorGlosado / totalValorCobrado) * 100 : 0,
     porTipo: Object.entries(resumoPorTipo)
-      .map(([tipo, data]) => ({
-        tipo: tipoLabels[tipo] || tipo,
-        quantidade: data.quantidade,
-        valorGlosado: data.valorGlosado,
-      }))
+      .map(([tipo, data]) => ({ tipo: tipoLabels[tipo] || tipo, quantidade: data.quantidade, valorGlosado: data.valorGlosado }))
       .sort((a, b) => b.valorGlosado - a.valorGlosado),
     porMotivo: Object.entries(resumoPorMotivo)
-      .map(([motivo, data]) => ({
-        motivo,
-        quantidade: data.quantidade,
-        valorGlosado: data.valorGlosado,
-      }))
+      .map(([motivo, data]) => ({ motivo, quantidade: data.quantidade, valorGlosado: data.valorGlosado }))
       .sort((a, b) => b.valorGlosado - a.valorGlosado)
-      .slice(0, 10), // Top 10 motivos
+      .slice(0, 10),
   };
 
   // Calcular alertas de prazo de recurso
-  const alertasPrazo: Array<{
-    convenio: string;
-    convenioId: number;
-    quantidade: number;
-    valor: number;
-    diasRestantes: number;
-    dataLimite: Date;
-  }> = [];
+  const alertasPrazo: Array<{ convenio: string; convenioId: number; quantidade: number; valor: number; diasRestantes: number; dataLimite: Date }> = [];
+  const itensPendentes = itensGlosados.filter(item => item.classificacaoGlosa === "pendente" || !item.classificacaoGlosa);
 
-  // Agrupar itens pendentes por convênio e verificar prazo
-  const itensPendentes = itensGlosados.filter(item => 
-    item.classificacaoGlosa === "pendente" || !item.classificacaoGlosa
-  );
+  let conveniosPrazoMap = new Map<number, number>();
+  if (convenioIds.length > 0) {
+    const conveniosComPrazo = await db.select().from(convenios).where(inArray(convenios.id, convenioIds));
+    conveniosPrazoMap = new Map(conveniosComPrazo.map(c => [c.id, c.prazoRecursoGlosa || 30]));
+  }
 
-  // Buscar prazos dos convênios
-  const conveniosComPrazo = await db
-    .select()
-    .from(convenios)
-    .where(inArray(convenios.id, convenioIds));
-
-  const conveniosPrazoMap = new Map(conveniosComPrazo.map(c => [c.id, c.prazoRecursoGlosa || 30]));
-
-  // Agrupar por convênio e calcular prazo
-  const alertasPorConvenio = new Map<number, {
-    convenio: string;
-    quantidade: number;
-    valor: number;
-    dataMaisAntiga: Date | null;
-  }>();
-
+  const alertasPorConvenio = new Map<number, { convenio: string; quantidade: number; valor: number; dataMaisAntiga: Date | null }>();
   for (const item of itensPendentes) {
-    const arquivo = arquivoMap.get(item.arquivoId);
-    if (!arquivo || !arquivo.convenioId) continue;
-
-    const existente = alertasPorConvenio.get(arquivo.convenioId);
-    // Usar dataPagamento se disponível, senão dataReferencia
-    const dataRef = arquivo.dataPagamento || arquivo.dataReferencia;
+    const cId = item.convenioId;
+    if (!cId) continue;
+    const existente = alertasPorConvenio.get(cId);
+    const arq = arquivoMap.get(item.arquivoId);
+    const dataRef = arq?.dataPagamento || item.dataReferencia;
 
     if (existente) {
       existente.quantidade++;
@@ -4555,8 +4379,8 @@ export async function getItensGlosados(filters: {
         existente.dataMaisAntiga = dataRef;
       }
     } else {
-      alertasPorConvenio.set(arquivo.convenioId, {
-        convenio: convenioMap.get(arquivo.convenioId) || "Desconhecido",
+      alertasPorConvenio.set(cId, {
+        convenio: convenioMap.get(cId) || "Desconhecido",
         quantidade: 1,
         valor: item.valorGlosado || 0,
         dataMaisAntiga: dataRef || null,
@@ -4651,6 +4475,54 @@ export async function atualizarClassificacaoProcedimento(
     console.error("[Database] Erro ao atualizar classificação:", error);
     return false;
   }
+}
+
+/**
+ * Atualiza classificação de glosa na tabela demonstrativo
+ */
+export async function atualizarClassificacaoDemonstrativo(
+  demonstrativoId: number,
+  classificacao: "pendente" | "aceitar" | "recursar" | "auto_aceitar" | "auto_recursar",
+  confianca?: number,
+  motivo?: string,
+  motivoAceite?: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    const updateData: any = {
+      classificacaoGlosa: classificacao,
+      classificacaoConfianca: confianca || null,
+      classificacaoMotivo: motivo || null,
+    };
+    
+    if (classificacao === "aceitar" || classificacao === "auto_aceitar") {
+      updateData.motivoAceite = motivoAceite || null;
+      updateData.dataAceite = new Date();
+    } else {
+      updateData.motivoAceite = null;
+      updateData.dataAceite = null;
+    }
+    
+    await db.update(demonstrativo)
+      .set(updateData)
+      .where(eq(demonstrativo.id, demonstrativoId));
+    return true;
+  } catch (error) {
+    console.error("[Database] Erro ao atualizar classificação demonstrativo:", error);
+    return false;
+  }
+}
+
+/**
+ * Busca um item do demonstrativo por ID
+ */
+export async function getDemonstrativoById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(demonstrativo).where(eq(demonstrativo.id, id)).limit(1);
+  return rows[0] || null;
 }
 
 /**
@@ -5448,7 +5320,7 @@ interface ItemGlosadoAceito {
 }
 
 /**
- * Busca itens glosados que foram aceitos (classificacaoGlosa = 'aceitar')
+ * Busca itens glosados que foram aceitos (classificacaoGlosa = 'aceitar') da tabela demonstrativo
  */
 export async function getItensGlosadosAceitos(filters: {
   userId?: number;
@@ -5463,133 +5335,94 @@ export async function getItensGlosadosAceitos(filters: {
   const db = await getDb();
   if (!db) return { items: [], total: 0, totalValorGlosado: 0 };
 
-  // Buscar arquivos retornados
-  const arquivosConditions: any[] = [
-    eq(arquivos.direcao, "retornado"),
-    eq(arquivos.status, "processado"),
+  // Buscar itens glosados aceitos da tabela demonstrativo
+  const conditions: SQL[] = [
+    eq(demonstrativo.situacaoItem, 'GLOSADO'),
+    or(eq(demonstrativo.classificacaoGlosa, 'aceitar'), eq(demonstrativo.classificacaoGlosa, 'auto_aceitar')) as SQL,
   ];
-
-  // Filtrar por usuário apenas se especificado
-  if (filters.userId) {
-    arquivosConditions.push(eq(arquivos.userId, filters.userId));
+  if (filters.estabelecimentoId) {
+    conditions.push(eq(demonstrativo.estabelecimentoId, filters.estabelecimentoId));
   }
   if (filters.convenioId) {
-    arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+    conditions.push(eq(demonstrativo.convenioId, filters.convenioId));
   }
-  if (filters.estabelecimentoId) {
-    arquivosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
-  }
-
   if (filters.dataReferenciaInicio) {
-    arquivosConditions.push(gte(arquivos.dataReferencia, filters.dataReferenciaInicio));
+    conditions.push(gte(demonstrativo.dataReferencia, filters.dataReferenciaInicio));
   }
-
   if (filters.dataReferenciaFim) {
-    arquivosConditions.push(lte(arquivos.dataReferencia, filters.dataReferenciaFim));
+    conditions.push(lte(demonstrativo.dataReferencia, filters.dataReferenciaFim));
   }
-
-  const arquivosRetornados = await db
-    .select({
-      id: arquivos.id,
-      nome: arquivos.nome,
-      convenioId: arquivos.convenioId,
-      dataReferencia: arquivos.dataReferencia,
-      dataPagamento: arquivos.dataPagamento,
-    })
-    .from(arquivos)
-    .where(and(...arquivosConditions));
-
-  if (arquivosRetornados.length === 0) {
-    return { items: [], total: 0, totalValorGlosado: 0 };
-  }
-
-  // Buscar nomes dos convênios
-  const convenioIds = Array.from(new Set(arquivosRetornados.map(a => a.convenioId)));
-  const conveniosList = await db
-    .select()
-    .from(convenios)
-    .where(inArray(convenios.id, convenioIds));
-  
-  const convenioMap = new Map(conveniosList.map(c => [c.id, c.nome]));
-
-  // Buscar procedimentos aceitos dos arquivos retornados
-  const arquivoIds = arquivosRetornados.map(a => a.id);
-  const arquivoMap = new Map(arquivosRetornados.map(a => [a.id, a]));
-
-  const procConditions: any[] = [
-    inArray(procedimentos.arquivoId, arquivoIds),
-    eq(procedimentos.classificacaoGlosa, "aceitar"),
-  ];
-
   if (filters.search) {
-    procConditions.push(
+    conditions.push(
       or(
-        like(procedimentos.codigo, `%${filters.search}%`),
-        like(procedimentos.descricao, `%${filters.search}%`),
-        like(procedimentos.guiaNumero, `%${filters.search}%`),
-        like(procedimentos.pacienteNome, `%${filters.search}%`)
-      )
+        like(demonstrativo.codigoItem, `%${filters.search}%`),
+        like(demonstrativo.descricaoItem, `%${filters.search}%`),
+        like(demonstrativo.numeroGuia, `%${filters.search}%`),
+        like(demonstrativo.nomeBeneficiario, `%${filters.search}%`)
+      ) as SQL
     );
   }
 
-  const allProcs = await db
+  const allRows = await db
     .select()
-    .from(procedimentos)
-    .where(and(...procConditions))
-    .orderBy(desc(procedimentos.dataAceite), desc(procedimentos.dataExecucao));
+    .from(demonstrativo)
+    .where(and(...conditions))
+    .orderBy(desc(demonstrativo.dataAceite), desc(demonstrativo.dataExecucao));
 
-  // Processar itens aceitos
+  // Buscar nomes dos convênios
+  const convenioIdsSet = new Set(allRows.map(r => r.convenioId).filter(Boolean) as number[]);
+  const cIds = Array.from(convenioIdsSet);
+  let convenioMap = new Map<number, string>();
+  if (cIds.length > 0) {
+    const convList = await db.select().from(convenios).where(inArray(convenios.id, cIds));
+    convenioMap = new Map(convList.map(c => [c.id, c.nome]));
+  }
+
+  // Buscar nomes dos arquivos
+  const arqIdsSet = new Set(allRows.map(r => r.arquivoId));
+  let arqMap = new Map<number, string>();
+  if (arqIdsSet.size > 0) {
+    const arqList = await db.select({ id: arquivos.id, nome: arquivos.nome }).from(arquivos).where(inArray(arquivos.id, Array.from(arqIdsSet)));
+    arqMap = new Map(arqList.map(a => [a.id, a.nome]));
+  }
+
+  const TIPO_MAP: { [key: string]: string } = {
+    'EXA': 'exame', 'MAT': 'mat_med', 'MED': 'mat_med', 'CON': 'procedimento', 'HOS': 'diaria',
+  };
+
   const itensAceitos: ItemGlosadoAceito[] = [];
   let totalValorGlosado = 0;
 
-  for (const proc of allProcs) {
-    const extras = proc.dadosExtras ? 
-      (typeof proc.dadosExtras === "string" ? JSON.parse(proc.dadosExtras) : proc.dadosExtras) : {};
-    
-    const valorGlosadoNum = parseFloat(
-      proc.valorGlosado || 
-      extras.valorGlosado || 
-      extras.valor_glosa || 
-      extras['VALOR GLOSA'] || 
-      extras['Valor Glosa'] || 
-      "0"
-    );
-    
-    const valorCobrado = parseFloat(proc.valorTotal || "0");
-    const valorGlosado = valorGlosadoNum > 0 ? valorGlosadoNum : valorCobrado;
-    const tipo = determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-    
-    const arquivo = arquivoMap.get(proc.arquivoId);
-    const convenioNome = convenioMap.get(arquivo?.convenioId || 0) || "Desconhecido";
-    const motivoGlosa = extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || extras['Cod. Glosa'] || extras.observacao || "Não informado";
-    const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
+  for (const row of allRows) {
+    const valorGlosa = parseFloat(String(row.valorGlosa || '0'));
+    const valorPago = parseFloat(String(row.valorPago || '0'));
+    const tipo = TIPO_MAP[(row.tipoLancamento || '').toUpperCase()] || determinarTipoProcedimento(row.codigoItem || '', row.descricaoItem || undefined);
 
     itensAceitos.push({
-      id: proc.id,
-      codigo: proc.codigo,
-      descricao: proc.descricao || "",
+      id: row.id,
+      codigo: row.codigoItem || '',
+      descricao: row.descricaoItem || '',
       tipo,
-      pacienteNome: proc.pacienteNome || extras.paciente || "",
-      pacienteCarteirinha: proc.pacienteCarteirinha || extras.carteirinha || "",
-      guiaNumero: proc.guiaNumero || extras.guia || "",
-      dataExecucao: proc.dataExecucao,
-      valorCobrado,
-      valorGlosado,
-      motivoGlosa,
-      codigoGlosa,
-      convenioId: arquivo?.convenioId || 0,
-      convenioNome,
-      arquivoId: proc.arquivoId,
-      arquivoNome: arquivo?.nome || "",
-      dataReferencia: arquivo?.dataReferencia || null,
-      motivoAceite: proc.motivoAceite || null,
-      dataAceite: proc.dataAceite || null,
+      pacienteNome: row.nomeBeneficiario || '',
+      pacienteCarteirinha: row.carteiraBeneficiario || '',
+      guiaNumero: row.numeroGuia || '',
+      dataExecucao: row.dataExecucao ? new Date(row.dataExecucao) : null,
+      valorCobrado: valorGlosa + valorPago,
+      valorGlosado: valorGlosa,
+      motivoGlosa: row.codigoGlosa || 'Não informado',
+      codigoGlosa: (row.codigoGlosa || '').match(/^(\d+)/)?.[1] || '',
+      convenioId: row.convenioId || 0,
+      convenioNome: convenioMap.get(row.convenioId || 0) || 'Desconhecido',
+      arquivoId: row.arquivoId,
+      arquivoNome: arqMap.get(row.arquivoId) || '',
+      dataReferencia: row.dataReferencia ? new Date(row.dataReferencia) : null,
+      motivoAceite: row.motivoAceite || null,
+      dataAceite: row.dataAceite || null,
     });
 
-    totalValorGlosado += valorGlosado;
+    totalValorGlosado += valorGlosa;
   }
 
-  // Aplicar paginação
   const total = itensAceitos.length;
   const offset = (filters.page - 1) * filters.pageSize;
   const paginatedItems = itensAceitos.slice(offset, offset + filters.pageSize);

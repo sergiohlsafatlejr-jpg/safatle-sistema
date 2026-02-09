@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE demonstrativo \n  ADD COLUMN classificacao_glosa ENUM('pendente','aceitar','recursar','auto_aceitar','auto_recursar') DEFAULT 'pendente',\n  ADD COLUMN classificacao_confianca INT DEFAULT NULL,\n  ADD COLUMN classificacao_motivo TEXT DEFAULT NULL,\n  ADD COLUMN motivo_aceite TEXT DEFAULT NULL,\n  ADD COLUMN data_aceite TIMESTAMP DEFAULT NULL,\n  ADD COLUMN recurso_status ENUM('sem_recurso','recurso_criado','recurso_enviado','recurso_deferido','recurso_indeferido') DEFAULT 'sem_recurso',\n  ADD COLUMN recurso_id INT DEFAULT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute ALTER TABLE demonstrativo \n  ADD COLUMN classificacao_glosa ENUM('pendente','aceitar','recursar','auto_aceitar','auto_recursar') DEFAULT 'pendente',\n  ADD COLUMN classificacao_confianca INT DEFAULT NULL,\n  ADD COLUMN classificacao_motivo TEXT DEFAULT NULL,\n  ADD COLUMN motivo_aceite TEXT DEFAULT NULL,\n  ADD COLUMN data_aceite TIMESTAMP DEFAULT NULL,\n  ADD COLUMN recurso_status ENUM('sem_recurso','recurso_criado','recurso_enviado','recurso_deferido','recurso_indeferido') DEFAULT 'sem_recurso',\n  ADD COLUMN recurso_id INT DEFAULT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4809
+}
