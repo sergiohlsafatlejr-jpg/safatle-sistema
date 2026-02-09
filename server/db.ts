@@ -1474,20 +1474,17 @@ export async function getResumoGeral(
 
   if (arquivosEnviados.length > 0) {
     const enviadosIds = arquivosEnviados.map(a => a.id);
-    const procEnviadosConditions: any[] = [inArray(procedimentos.arquivoId, enviadosIds)];
-    if (codigoPrestadorExecutante) {
-      procEnviadosConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
-    }
-    const procEnviadosStats = await db
+    const fatConditions: any[] = [inArray(faturamentoTiss.arquivoId, enviadosIds)];
+    const fatStats = await db
       .select({ 
         count: sql<number>`count(*)`,
-        valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
+        valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(15,2))), 0)`
       })
-      .from(procedimentos)
-      .where(and(...procEnviadosConditions));
+      .from(faturamentoTiss)
+      .where(and(...fatConditions));
     
-    valorTotalEnviado = Number(procEnviadosStats[0]?.valorTotal) || 0;
-    totalProcedimentosEnviados = Number(procEnviadosStats[0]?.count) || 0;
+    valorTotalEnviado = Number(fatStats[0]?.valorTotal) || 0;
+    totalProcedimentosEnviados = Number(fatStats[0]?.count) || 0;
   }
 
   // Total de procedimentos RETORNADOS (Excel)
@@ -1510,20 +1507,18 @@ export async function getResumoGeral(
 
   if (arquivosRetornados.length > 0) {
     const retornadosIds = arquivosRetornados.map(a => a.id);
-    const procRetornadosConditions: any[] = [inArray(procedimentos.arquivoId, retornadosIds)];
-    if (codigoPrestadorExecutante) {
-      procRetornadosConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
-    }
-    const procRetornadosStats = await db
+    const demoConditions: any[] = [inArray(demonstrativo.arquivoId, retornadosIds)];
+    const demoStats = await db
       .select({ 
         count: sql<number>`count(*)`,
-        valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(15,2))), 0)`
+        valorPago: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorPago} AS DECIMAL(15,2))), 0)`,
+        valorGlosa: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(15,2))), 0)`
       })
-      .from(procedimentos)
-      .where(and(...procRetornadosConditions));
+      .from(demonstrativo)
+      .where(and(...demoConditions));
     
-    valorTotalRetornado = Number(procRetornadosStats[0]?.valorTotal) || 0;
-    totalProcedimentosRetornados = Number(procRetornadosStats[0]?.count) || 0;
+    valorTotalRetornado = Number(demoStats[0]?.valorPago) || 0;
+    totalProcedimentosRetornados = Number(demoStats[0]?.count) || 0;
   }
 
   // Total de comparações e divergências
@@ -12385,24 +12380,24 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   const todosConvenios = await db.select().from(convenios);
   const convenioMap = new Map(todosConvenios.map(c => [c.id, c.nome]));
 
-  // Buscar procedimentos dos arquivos enviados
+  // Buscar dados de FATURAMENTO (faturamento_tiss) dos arquivos enviados
   const enviadosIds = arquivosEnviados.map(a => a.id);
-  let procedimentosEnviados: any[] = [];
+  let itensFaturados: any[] = [];
   if (enviadosIds.length > 0) {
-    procedimentosEnviados = await db
+    itensFaturados = await db
       .select()
-      .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, enviadosIds));
+      .from(faturamentoTiss)
+      .where(inArray(faturamentoTiss.arquivoId, enviadosIds));
   }
 
-  // Buscar procedimentos dos arquivos retornados
+  // Buscar dados de DEMONSTRATIVO (demonstrativo) dos arquivos retornados
   const retornadosIds = arquivosRetornados.map(a => a.id);
-  let procedimentosRetornados: any[] = [];
+  let itensRecebidos: any[] = [];
   if (retornadosIds.length > 0) {
-    procedimentosRetornados = await db
+    itensRecebidos = await db
       .select()
-      .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, retornadosIds));
+      .from(demonstrativo)
+      .where(inArray(demonstrativo.arquivoId, retornadosIds));
   }
 
   // Criar mapa de arquivo para convênio
@@ -12413,25 +12408,30 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     arquivoDataMap.set(arq.id, arq.dataReferencia);
   }
 
-  // Aplicar filtros adicionais
-  const filtrarProcedimento = (proc: any) => {
-    // Filtrar automaticamente por prestadores vinculados ao estabelecimento
-    if (prestadoresVinculados.length > 0 && proc.codigoPrestadorExecutante) {
-      if (!prestadoresVinculados.includes(proc.codigoPrestadorExecutante)) return false;
-    }
-    
+  // Aplicar filtros adicionais para itens faturados (faturamento_tiss)
+  const filtrarFaturado = (item: any) => {
     if (tipo && tipo !== "todos") {
-      const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-      if (tipoProcedimento !== tipo) return false;
+      const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+      if (tipoItem !== tipo) return false;
     }
-    if (paciente && paciente !== "todos" && proc.pacienteNome !== paciente) return false;
-    if (procedimento && procedimento !== "todos" && proc.codigo !== procedimento) return false;
-    if (codigoPrestadorExecutante && proc.codigoPrestadorExecutante !== codigoPrestadorExecutante) return false;
+    if (paciente && paciente !== "todos" && item.carteiraBeneficiario !== paciente) return false;
+    if (procedimento && procedimento !== "todos" && item.codigoItem !== procedimento) return false;
     return true;
   };
 
-  const procedimentosEnviadosFiltrados = procedimentosEnviados.filter(filtrarProcedimento);
-  const procedimentosRetornadosFiltrados = procedimentosRetornados.filter(filtrarProcedimento);
+  // Aplicar filtros adicionais para itens recebidos (demonstrativo)
+  const filtrarRecebido = (item: any) => {
+    if (tipo && tipo !== "todos") {
+      const tipoItem = item.tipoLancamento || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+      if (tipoItem !== tipo) return false;
+    }
+    if (paciente && paciente !== "todos" && item.nomeBeneficiario !== paciente && item.carteiraBeneficiario !== paciente) return false;
+    if (procedimento && procedimento !== "todos" && item.codigoItem !== procedimento) return false;
+    return true;
+  };
+
+  const itensFaturadosFiltrados = itensFaturados.filter(filtrarFaturado);
+  const itensRecebidosFiltrados = itensRecebidos.filter(filtrarRecebido);
 
   // Calcular resumo
   let totalFaturado = 0;
@@ -12444,27 +12444,23 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   const conveniosSet = new Set<number>();
   const guiasSet = new Set<string>(); // Para contar guias únicas
 
-  for (const proc of procedimentosEnviadosFiltrados) {
-    totalFaturado += parseFloat(proc.valorTotal || "0");
-    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-    if (tipoProcedimento === "material" || tipoProcedimento === "medicamento") totalMateriais++;
-    else if (tipoProcedimento === "procedimento") totalHonorarios++;
+  for (const item of itensFaturadosFiltrados) {
+    totalFaturado += parseFloat(item.valorFaturado || "0");
+    const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+    if (tipoItem === "material" || tipoItem === "medicamento" || tipoItem === "mat_med") totalMateriais++;
+    else if (tipoItem === "procedimento") totalHonorarios++;
     totalProcedimentos++;
-    if (proc.pacienteNome) pacientesSet.add(proc.pacienteNome);
-    if (proc.guiaNumero) guiasSet.add(proc.guiaNumero);
-    const convId = arquivoConvenioMap.get(proc.arquivoId);
+    if (item.carteiraBeneficiario) pacientesSet.add(item.carteiraBeneficiario);
+    if (item.numeroGuiaPrestador) guiasSet.add(item.numeroGuiaPrestador);
+    const convId = arquivoConvenioMap.get(item.arquivoId);
     if (convId) conveniosSet.add(convId);
   }
 
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const valorTotal = parseFloat(proc.valorTotal || "0");
-    const valorGlosado = parseFloat(proc.valorGlosado || "0");
-    // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-    // Para itens glosados, valorTotal = 0 e valorGlosado > 0
-    if (valorGlosado === 0) {
-      totalRecebido += valorTotal;
-    }
-    totalGlosado += valorGlosado;
+  for (const item of itensRecebidosFiltrados) {
+    const valorPago = parseFloat(item.valorPago || "0");
+    const valorGlosa = parseFloat(item.valorGlosa || "0");
+    totalRecebido += valorPago;
+    totalGlosado += valorGlosa;
   }
 
   const totalPendente = totalFaturado - totalRecebido - totalGlosado;
@@ -12478,156 +12474,160 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
 
   // Agrupar por convênio
   const porConvenioMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const convId = arquivoConvenioMap.get(proc.arquivoId);
+  for (const item of itensFaturadosFiltrados) {
+    const convId = arquivoConvenioMap.get(item.arquivoId) || item.convenioId;
     const chave = convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
       porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porConvenioMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porConvenioMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const convId = arquivoConvenioMap.get(proc.arquivoId);
+  for (const item of itensRecebidosFiltrados) {
+    const convId = item.convenioId;
     const chave = convenioMap.get(convId || 0) || "Sem Convênio";
-    if (porConvenioMap.has(chave)) {
-      const item = porConvenioMap.get(chave)!;
-      const valorTotal = parseFloat(proc.valorTotal || "0");
-      const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-      if (valorGlosado === 0) {
-        item.valorRecebido += valorTotal;
-      }
-      item.valorGlosado += valorGlosado;
+    if (!porConvenioMap.has(chave)) {
+      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
+    const entry = porConvenioMap.get(chave)!;
+    entry.valorRecebido += parseFloat(item.valorPago || "0");
+    entry.valorGlosado += parseFloat(item.valorGlosa || "0");
   }
-  // Calcular pendente
-  for (const item of Array.from(porConvenioMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porConvenioMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
   // Agrupar por tipo
   const porTipoMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-    const chave = tipoProcedimento;
+  for (const item of itensFaturadosFiltrados) {
+    const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+    const chave = tipoItem;
     if (!porTipoMap.has(chave)) {
       porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porTipoMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porTipoMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const tipoProcedimento = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
-    const chave = tipoProcedimento;
-    if (porTipoMap.has(chave)) {
-      const item = porTipoMap.get(chave)!;
-      const valorTotal = parseFloat(proc.valorTotal || "0");
-      const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-      if (valorGlosado === 0) {
-        item.valorRecebido += valorTotal;
-      }
-      item.valorGlosado += valorGlosado;
+  for (const item of itensRecebidosFiltrados) {
+    const tipoItem = item.tipoLancamento || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+    const chave = tipoItem;
+    if (!porTipoMap.has(chave)) {
+      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
+    const entry = porTipoMap.get(chave)!;
+    entry.valorRecebido += parseFloat(item.valorPago || "0");
+    entry.valorGlosado += parseFloat(item.valorGlosa || "0");
   }
-  for (const item of Array.from(porTipoMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porTipoMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
   // Agrupar por mês
   const porMesMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const dataRef = arquivoDataMap.get(proc.arquivoId);
+  for (const item of itensFaturadosFiltrados) {
+    const dataRef = arquivoDataMap.get(item.arquivoId);
     const chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
     if (!porMesMap.has(chave)) {
       porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porMesMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porMesMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const dataRef = arquivoDataMap.get(proc.arquivoId);
-    const chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
-    if (porMesMap.has(chave)) {
-      const item = porMesMap.get(chave)!;
-      const valorTotal = parseFloat(proc.valorTotal || "0");
-      const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-      if (valorGlosado === 0) {
-        item.valorRecebido += valorTotal;
-      }
-      item.valorGlosado += valorGlosado;
+  for (const item of itensRecebidosFiltrados) {
+    // Demonstrativo tem dataReferencia própria (string date)
+    const dataRefStr = item.dataReferencia;
+    let chave = 'Sem Data';
+    if (dataRefStr) {
+      const d = new Date(dataRefStr);
+      chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    } else {
+      const dataRef = arquivoDataMap.get(item.arquivoId);
+      chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
     }
+    if (!porMesMap.has(chave)) {
+      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const entry = porMesMap.get(chave)!;
+    entry.valorRecebido += parseFloat(item.valorPago || "0");
+    entry.valorGlosado += parseFloat(item.valorGlosa || "0");
   }
-  for (const item of Array.from(porMesMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porMesMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por médico
+  // Agrupar por médico/profissional
   const porMedicoMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const chave = proc.nomeMedico || 'Sem Médico';
+  for (const item of itensFaturadosFiltrados) {
+    const chave = item.nomeProf || 'Sem Médico';
     if (!porMedicoMap.has(chave)) {
       porMedicoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porMedicoMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porMedicoMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const item of Array.from(porMedicoMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porMedicoMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por paciente
+  // Agrupar por paciente/beneficiário
   const porPacienteMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const chave = proc.pacienteNome || 'Sem Paciente';
+  for (const item of itensFaturadosFiltrados) {
+    const chave = item.carteiraBeneficiario || 'Sem Paciente';
     if (!porPacienteMap.has(chave)) {
       porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porPacienteMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porPacienteMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const item of Array.from(porPacienteMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  // Adicionar dados de recebimento por paciente
+  for (const item of itensRecebidosFiltrados) {
+    const chave = item.nomeBeneficiario || item.carteiraBeneficiario || 'Sem Paciente';
+    if (!porPacienteMap.has(chave)) {
+      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+    }
+    const entry = porPacienteMap.get(chave)!;
+    entry.valorRecebido += parseFloat(item.valorPago || "0");
+    entry.valorGlosado += parseFloat(item.valorGlosa || "0");
+  }
+  for (const entry of Array.from(porPacienteMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
   // Agrupar por procedimento (código)
   const porProcedimentoMap = new Map<string, DadosBIAgrupado & { descricao?: string }>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const chave = proc.codigo || 'Sem Código';
+  for (const item of itensFaturadosFiltrados) {
+    const chave = item.codigoItem || 'Sem Código';
     if (!porProcedimentoMap.has(chave)) {
-      porProcedimentoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, descricao: proc.descricao });
+      porProcedimentoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, descricao: item.descricaoItem });
     }
-    const item = porProcedimentoMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porProcedimentoMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const item of Array.from(porProcedimentoMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porProcedimentoMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por descrição do item - combina dados de enviados E retornados
-  // Usa CÓDIGO DO PROCEDIMENTO como chave de agrupamento para garantir match correto
-  // mesmo quando as descrições têm variações de capitalização ou formatação
+  // Agrupar por descrição do item - combina dados de faturamento_tiss E demonstrativo
+  // Usa CÓDIGO DO ITEM como chave de agrupamento para garantir match correto
   const porDescricaoMap = new Map<string, DadosBIAgrupado & { codigo?: string }>();
-  const codigoDescricaoMap = new Map<string, string>(); // Mapeia código -> melhor descrição
+  const codigoDescricaoMap = new Map<string, string>();
   
-  // Primeiro, adicionar dados dos arquivos enviados (faturados)
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const codigo = proc.codigo || 'SEM_CODIGO';
-    const descOriginal = proc.descricao || 'Sem Descrição';
+  // Primeiro, adicionar dados dos arquivos enviados (faturamento_tiss)
+  for (const item of itensFaturadosFiltrados) {
+    const codigo = item.codigoItem || 'SEM_CODIGO';
+    const descOriginal = item.descricaoItem || 'Sem Descrição';
     
     if (!porDescricaoMap.has(codigo)) {
       porDescricaoMap.set(codigo, { 
@@ -12642,19 +12642,18 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       });
       codigoDescricaoMap.set(codigo, descOriginal);
     }
-    const item = porDescricaoMap.get(codigo)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porDescricaoMap.get(codigo)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
   
-  // Depois, adicionar dados dos arquivos retornados (demonstrativo) - criar novos itens se não existirem
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const codigo = proc.codigo || 'SEM_CODIGO';
-    const descOriginal = proc.descricao || 'Sem Descrição';
+  // Depois, adicionar dados dos demonstrativos - criar novos itens se não existirem
+  for (const item of itensRecebidosFiltrados) {
+    const codigo = item.codigoItem || 'SEM_CODIGO';
+    const descOriginal = item.descricaoItem || 'Sem Descrição';
     
     if (!porDescricaoMap.has(codigo)) {
-      // Criar novo item para códigos que só existem no demonstrativo
       porDescricaoMap.set(codigo, { 
         chave: descOriginal, 
         codigo: codigo,
@@ -12667,91 +12666,80 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       });
       codigoDescricaoMap.set(codigo, descOriginal);
     }
-    const item = porDescricaoMap.get(codigo)!;
-    const valorTotal = parseFloat(proc.valorTotal || "0");
-    const valorGlosado = parseFloat(proc.valorGlosado || "0");
-    // Se não tem valor faturado, usar o valor total do demonstrativo como referência
-    if (item.valorFaturado === 0) {
-      item.valorFaturado = valorTotal;
+    const entry = porDescricaoMap.get(codigo)!;
+    const valorPago = parseFloat(item.valorPago || "0");
+    const valorGlosa = parseFloat(item.valorGlosa || "0");
+    // Se não tem valor faturado, usar valorInformado do demonstrativo como referência
+    if (entry.valorFaturado === 0) {
+      entry.valorFaturado = parseFloat(item.valorInformado || "0");
     }
-    // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-    if (valorGlosado === 0) {
-      item.valorRecebido += valorTotal;
-    }
-    item.valorGlosado += valorGlosado;
-    // Incrementar registros se este item veio apenas do demonstrativo
-    if (item.registros === 0) {
-      item.quantidade += parseFloat(String(proc.quantidade || "1"));
-      item.registros++;
+    entry.valorRecebido += valorPago;
+    entry.valorGlosado += valorGlosa;
+    if (entry.registros === 0) {
+      entry.quantidade += parseFloat(String(item.quantidade || "1"));
+      entry.registros++;
     }
   }
   
   // Atualizar chave para mostrar código + descrição para melhor identificação
-  for (const item of Array.from(porDescricaoMap.values())) {
-    if (item.codigo && item.codigo !== 'SEM_CODIGO') {
-      item.chave = `${item.chave} (${item.codigo})`;
+  for (const entry of Array.from(porDescricaoMap.values())) {
+    if (entry.codigo && entry.codigo !== 'SEM_CODIGO') {
+      entry.chave = `${entry.chave} (${entry.codigo})`;
     }
-    item.valorPendente = Math.max(0, item.valorFaturado - item.valorRecebido - item.valorGlosado);
+    entry.valorPendente = Math.max(0, entry.valorFaturado - entry.valorRecebido - entry.valorGlosado);
   }
 
   // Agrupar por guia
   const porGuiaMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosEnviadosFiltrados) {
-    const chave = proc.numeroGuia || proc.guiaPrestador || 'Sem Guia';
+  for (const item of itensFaturadosFiltrados) {
+    const chave = item.numeroGuiaPrestador || 'Sem Guia';
     if (!porGuiaMap.has(chave)) {
       porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
-    const item = porGuiaMap.get(chave)!;
-    item.valorFaturado += parseFloat(proc.valorTotal || "0");
-    item.quantidade += parseFloat(String(proc.quantidade || "1"));
-    item.registros++;
+    const entry = porGuiaMap.get(chave)!;
+    entry.valorFaturado += parseFloat(item.valorFaturado || "0");
+    entry.quantidade += parseFloat(String(item.quantidade || "1"));
+    entry.registros++;
   }
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const chave = proc.numeroGuia || proc.guiaPrestador || 'Sem Guia';
-    if (porGuiaMap.has(chave)) {
-      const item = porGuiaMap.get(chave)!;
-      const valorTotal = parseFloat(proc.valorTotal || "0");
-      const valorGlosado = parseFloat(proc.valorGlosado || "0");
-      // Corrigido: somar valorTotal apenas quando valorGlosado = 0 (itens pagos)
-      if (valorGlosado === 0) {
-        item.valorRecebido += valorTotal;
-      }
-      item.valorGlosado += valorGlosado;
+  for (const item of itensRecebidosFiltrados) {
+    const chave = item.numeroGuia || item.numeroGuiaPrestador || 'Sem Guia';
+    if (!porGuiaMap.has(chave)) {
+      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
+    const entry = porGuiaMap.get(chave)!;
+    entry.valorRecebido += parseFloat(item.valorPago || "0");
+    entry.valorGlosado += parseFloat(item.valorGlosa || "0");
   }
-  for (const item of Array.from(porGuiaMap.values())) {
-    item.valorPendente = item.valorFaturado - item.valorRecebido - item.valorGlosado;
+  for (const entry of Array.from(porGuiaMap.values())) {
+    entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por motivo de glosa (do demonstrativo/retorno)
+  // Agrupar por motivo de glosa (do demonstrativo)
   const porMotivoGlosaMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const valorGlosado = parseFloat(proc.valorGlosado || "0");
-    if (valorGlosado > 0) {
-      const chave = proc.motivoGlosa || proc.codigoGlosa || 'Motivo Não Informado';
+  for (const item of itensRecebidosFiltrados) {
+    const valorGlosa = parseFloat(item.valorGlosa || "0");
+    if (valorGlosa > 0) {
+      const chave = item.codigoGlosa || 'Motivo Não Informado';
       if (!porMotivoGlosaMap.has(chave)) {
         porMotivoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
       }
-      const item = porMotivoGlosaMap.get(chave)!;
-      item.valorGlosado += valorGlosado;
-      item.valorFaturado += parseFloat(proc.valorTotal || "0");
-      // Corrigido: para itens glosados, valorRecebido = 0 (não usar valorTotal - valorGlosado)
-      // valorRecebido permanece 0 pois são itens glosados
-      item.quantidade += parseFloat(String(proc.quantidade || "1"));
-      item.registros++;
+      const entry = porMotivoGlosaMap.get(chave)!;
+      entry.valorGlosado += valorGlosa;
+      entry.valorFaturado += parseFloat(item.valorInformado || "0");
+      entry.quantidade += parseFloat(String(item.quantidade || "1"));
+      entry.registros++;
     }
   }
-  for (const item of Array.from(porMotivoGlosaMap.values())) {
-    item.valorPendente = 0; // Glosas já processadas
+  for (const entry of Array.from(porMotivoGlosaMap.values())) {
+    entry.valorPendente = 0;
   }
 
-  // Agrupar por status da glosa (Aceita/Recursada) - baseado na classificação dos procedimentos
+  // Agrupar por status da glosa (Aceita/Recursada) - baseado na classificação do demonstrativo
   const porStatusGlosaMap = new Map<string, DadosBIAgrupado>();
-  for (const proc of procedimentosRetornadosFiltrados) {
-    const valorGlosado = parseFloat(proc.valorGlosado || "0");
-    if (valorGlosado > 0) {
-      // Usar classificação de glosa se disponível
-      const chave = proc.classificacaoGlosa || 'pendente';
+  for (const item of itensRecebidosFiltrados) {
+    const valorGlosa = parseFloat(item.valorGlosa || "0");
+    if (valorGlosa > 0) {
+      const chave = item.classificacaoGlosa || 'pendente';
       const chaveFormatada = chave === 'aceitar' ? 'Glosa Aceita' 
         : chave === 'recursar' ? 'Glosa Recursada'
         : chave === 'auto_aceitar' ? 'Aceita (Auto)'
@@ -12760,10 +12748,10 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       if (!porStatusGlosaMap.has(chaveFormatada)) {
         porStatusGlosaMap.set(chaveFormatada, { chave: chaveFormatada, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
       }
-      const item = porStatusGlosaMap.get(chaveFormatada)!;
-      item.valorGlosado += valorGlosado;
-      item.valorFaturado += parseFloat(proc.valorTotal || "0");
-      item.registros++;
+      const entry = porStatusGlosaMap.get(chaveFormatada)!;
+      entry.valorGlosado += valorGlosa;
+      entry.valorFaturado += parseFloat(item.valorInformado || "0");
+      entry.registros++;
     }
   }
 
@@ -12816,7 +12804,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       totalRecebido,
       totalGlosado,
       totalPendente: Math.max(0, totalPendente),
-      totalItens: procedimentosEnviadosFiltrados.length,
+      totalItens: itensFaturadosFiltrados.length,
       totalMateriais,
       totalHonorarios,
       totalProcedimentos,
@@ -12881,32 +12869,53 @@ export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
 
   const arquivoIds = arquivosEstab.map(a => a.id);
 
-  // Buscar procedimentos únicos
+  // Buscar itens únicos de faturamento_tiss + demonstrativo
   let procedimentosUnicos: Array<{ codigo: string; descricao: string }> = [];
   let pacientesUnicos: string[] = [];
   let tiposUnicos: string[] = [];
 
   if (arquivoIds.length > 0) {
-    const procs = await db
+    // Buscar de faturamento_tiss (envios)
+    const itensFat = await db
       .select({
-        codigo: procedimentos.codigo,
-        descricao: procedimentos.descricao,
-        pacienteNome: procedimentos.pacienteNome,
-        tipoDespesa: procedimentos.tipoDespesa,
+        codigoItem: faturamentoTiss.codigoItem,
+        descricaoItem: faturamentoTiss.descricaoItem,
+        carteiraBeneficiario: faturamentoTiss.carteiraBeneficiario,
+        tipoItem: faturamentoTiss.tipoItem,
       })
-      .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, arquivoIds));
+      .from(faturamentoTiss)
+      .where(inArray(faturamentoTiss.arquivoId, arquivoIds));
+
+    // Buscar de demonstrativo (retornos)
+    const itensDemo = await db
+      .select({
+        codigoItem: demonstrativo.codigoItem,
+        descricaoItem: demonstrativo.descricaoItem,
+        nomeBeneficiario: demonstrativo.nomeBeneficiario,
+        tipoLancamento: demonstrativo.tipoLancamento,
+      })
+      .from(demonstrativo)
+      .where(inArray(demonstrativo.arquivoId, arquivoIds));
 
     const codigosSet = new Map<string, string>();
     const pacientesSet = new Set<string>();
     const tiposSet = new Set<string>();
 
-    for (const proc of procs) {
-      if (proc.codigo && !codigosSet.has(proc.codigo)) {
-        codigosSet.set(proc.codigo, proc.descricao || '');
+    for (const item of itensFat) {
+      if (item.codigoItem && !codigosSet.has(item.codigoItem)) {
+        codigosSet.set(item.codigoItem, item.descricaoItem || '');
       }
-      if (proc.pacienteNome) pacientesSet.add(proc.pacienteNome);
-      const tipo = proc.tipoDespesa || determinarTipoProcedimento(proc.codigo, proc.descricao || undefined);
+      if (item.carteiraBeneficiario) pacientesSet.add(item.carteiraBeneficiario);
+      const tipo = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+      tiposSet.add(tipo);
+    }
+
+    for (const item of itensDemo) {
+      if (item.codigoItem && !codigosSet.has(item.codigoItem)) {
+        codigosSet.set(item.codigoItem, item.descricaoItem || '');
+      }
+      if (item.nomeBeneficiario) pacientesSet.add(item.nomeBeneficiario);
+      const tipo = item.tipoLancamento || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
       tiposSet.add(tipo);
     }
 

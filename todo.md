@@ -1512,3 +1512,11 @@
 - [x] Testes unitários do comparador atualizados (8 testes passando)
 - [x] Todos os 435 testes do projeto passando (36 arquivos de teste)
 - [ ] Migração completa das 211 referências restantes à tabela procedimentos no db.ts (funções legadas mantidas para compatibilidade)
+
+## Relatórios BI: Integrar faturamento_tiss + demonstrativos
+
+- [x] Atualizar getDadosBI para buscar envios de faturamento_tiss e retornos de demonstrativo
+- [x] Atualizar getOpcoesFiltroBi para buscar filtros de faturamento_tiss + demonstrativo
+- [x] Atualizar getResumoGeral (dashboard) para usar faturamento_tiss (envios) e demonstrativo (retornos)
+- [x] Garantir que relatórios BI mostrem dados cruzados (faturado vs recebido)
+- [x] Executar testes e validar compilação (435 testes passando, 0 erros TypeScript)
