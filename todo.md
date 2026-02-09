@@ -1444,4 +1444,27 @@
 - [x] Ajustar router classificarGlosa para atualizar tabela demonstrativo em vez de procedimentos
 - [x] Criar função atualizarClassificacaoDemonstrativo e getDemonstrativoById no db.ts
 - [x] Testar tela Análise de Glosa: 1.826 itens glosados, R$ 17.665,94, 4 categorias, filtros funcionando
-- [ ] Salvar checkpoint
+- [x] Salvar checkpoint (versão 8597a7b6)
+
+
+## Erro importação XML retorno Affego demonstrativo_67118082 - 09/02/2026
+- [x] Investigar erro: campo valor_glosado é VIRTUAL GENERATED em recebimento_tiss, causava falha silenciosa na inserção
+- [x] Corrigir: remover valor_glosado do INSERT (campo é calculado automaticamente)
+- [x] Reprocessar todos os 11 XMLs retornados: 720 itens em recebimento_tiss e demonstrativo
+- [x] 90 itens GLOSADOS detectados corretamente (R$ 1.857,06)
+
+
+## Centralizar dados na tabela demonstrativo (parar de usar procedimentos) - 09/02/2026
+- [x] Investigar: parser funciona, problema era coluna VIRTUAL GENERATED valor_glosado em recebimento_tiss
+- [x] Corrigir syncDemonstrativo para traduzir situação TISS ("3" → PAGO/GLOSADO) e detectar glosas por valorGlosado > 0 ou codigoGlosa preenchido
+- [x] Reprocessar 9 XMLs faltantes: 720 itens, 90 glosados, R$ 1.857,06
+- [x] Totais gerais: 27.334 itens (26.614 Excel + 720 XML), 1.916 glosados, R$ 905.264,79 pago, R$ 19.523,00 glosado
+- [x] Verificar Análise de Glosa no navegador com dados dos XMLs (3.122 itens, R$ 34.378,71, 3 convênios, abas Categoria/Convênio/Tendência OK)
+- [x] Reprocessar arquivo Excel 870001: 22.177 itens (20.971 pagos R$ 730.594,43 + 1.206 glosados R$ 14.855,71)
+- [x] Aplicar filtro dinâmico de competência na tela Contas Demonstrativo (trpc.demonstrativo.competencias em vez de lista fixa de 24 meses)
+- [ ] Salvar checkpoint final
+- [x] Criar tela "Recebimentos XML" com upload e listagem de XMLs de retorno
+- [x] Criar tela "Recebimentos Excel" com upload e listagem de Excel de retorno
+- [x] Ajustar Demonstrativo para ser consolidação automática dos Recebimentos XML + Excel
+- [x] Atualizar navegação/menu lateral com as novas telas
+- [x] Testar fluxo completo: telas Recebimentos XML (720 itens, 90 glosados) e Recebimentos Excel (48.791 itens, 3.032 glosados) funcionando

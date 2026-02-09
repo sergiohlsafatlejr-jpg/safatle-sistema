@@ -56,7 +56,8 @@ import {
   Brain,
   Clock,
   Database,
-  ArrowLeftRight
+  ArrowLeftRight,
+  FileCode2
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -96,6 +97,10 @@ const menuItems: MenuItem[] = [
   { icon: BarChart3, label: "Faturamento", path: "/faturamento", modulo: "faturamento" },
   { icon: FileText, label: "Relatório de Contas", path: "/relatorio-contas", modulo: "faturamento" },
   { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "faturamento" },
+  
+  // Recebimentos (fontes de dados do Demonstrativo)
+  { icon: FileCode2, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "faturamento" },
+  { icon: FileSpreadsheet, label: "Recebimentos Excel", path: "/recebimentos-excel", modulo: "faturamento" },
   
   // Análise e Recursos de Glosa
   { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },

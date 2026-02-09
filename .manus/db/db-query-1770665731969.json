@@ -1,0 +1,15 @@
+{
+  "query": "SELECT DISTINCT MONTH(data_referencia) as mes, YEAR(data_referencia) as ano, COUNT(*) as total FROM demonstrativo GROUP BY MONTH(data_referencia), YEAR(data_referencia) ORDER BY ano DESC, mes DESC",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT DISTINCT MONTH(data_referencia) as mes, YEAR(data_referencia) as ano, COUNT(*) as total FROM demonstrativo GROUP BY MONTH(data_referencia), YEAR(data_referencia) ORDER BY ano DESC, mes DESC",
+  "rows": [
+    {
+      "mes": "12",
+      "ano": "2025",
+      "total": "49511"
+    }
+  ],
+  "messages": [],
+  "stdout": "mes\tano\ttotal\n12\t2025\t49511\n",
+  "stderr": "",
+  "execution_time_ms": 77
+}

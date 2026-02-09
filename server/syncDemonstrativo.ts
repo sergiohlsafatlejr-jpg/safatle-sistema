@@ -127,41 +127,59 @@ export async function syncDemonstrativoByArquivo(
       console.log(`[SyncDemonstrativo] Encontrados ${xmlData.length} registros em recebimento_tiss`);
 
       // Mapear para formato demonstrativo
-      records = xmlData.map((item: any) => ({
-        arquivoId: item.arquivoId,
-        origemTipo: 'xml' as const,
-        convenioId: item.convenioId,
-        estabelecimentoId: item.estabelecimentoId,
+      records = xmlData.map((item: any) => {
+        // Detectar glosa: valor_glosado é VIRTUAL GENERATED (valor_informado - valor_liberado)
+        const valorInf = parseFloat(String(item.valorInformado || 0));
+        const valorLib = parseFloat(String(item.valorLiberado || 0));
+        const valorGlosadoCalc = valorInf - valorLib;
+        const hasGlosa = valorGlosadoCalc > 0.01 || (item.codigoGlosa && item.codigoGlosa !== '');
         
-        // Identificação
-        numeroGuia: item.numeroGuiaPrestador,
-        protocolo: item.numeroProtocolo,
-        lotePrestador: item.numeroLotePrestador,
-        dataPagamento: item.dataPagamento,
+        // Traduzir situação TISS: "3" = processado
+        // Se tem glosa, marcar como GLOSADO; senão, PAGO
+        let situacao = item.situacaoGuia;
+        if (hasGlosa) {
+          situacao = 'GLOSADO';
+        } else if (situacao === '3' || situacao === '1' || situacao === '2') {
+          situacao = 'PAGO';
+        }
         
-        // Beneficiário
-        carteiraBeneficiario: item.numeroCarteira,
-        nomeBeneficiario: item.nomeBeneficiario,
-        
-        // Detalhes do Item
-        sequencialItem: item.sequencialItem ? parseInt(String(item.sequencialItem)) : null,
-        codigoItem: item.codigoItem,
-        descricaoItem: item.descricaoItem,
-        dataExecucao: item.dataRealizacao,
-        quantidade: item.quantidadeExecutada,
-        
-        // Valores
-        valorInformado: item.valorInformado,
-        valorPago: item.valorLiberado,
-        valorGlosa: item.valorGlosado,
-        
-        // Status
-        codigoGlosa: item.codigoGlosa,
-        situacaoItem: item.situacaoGuia,
-        
-        // Data de referência - normalizar para evitar problemas de fuso horário
-        dataReferencia: normalizeDateForDB(item.dataReferencia),
-      }));
+        return {
+          arquivoId: item.arquivoId,
+          origemTipo: 'xml' as const,
+          convenioId: item.convenioId,
+          estabelecimentoId: item.estabelecimentoId,
+          
+          // Identificação
+          numeroGuia: item.numeroGuiaPrestador,
+          protocolo: item.numeroProtocolo,
+          lotePrestador: item.numeroLotePrestador,
+          dataPagamento: item.dataPagamento,
+          
+          // Beneficiário
+          carteiraBeneficiario: item.numeroCarteira,
+          nomeBeneficiario: item.nomeBeneficiario,
+          
+          // Detalhes do Item
+          sequencialItem: item.sequencialItem ? parseInt(String(item.sequencialItem)) : null,
+          codigoItem: item.codigoItem,
+          descricaoItem: item.descricaoItem,
+          dataExecucao: item.dataRealizacao,
+          quantidade: item.quantidadeExecutada,
+          
+          // Valores
+          valorInformado: item.valorInformado,
+          valorPago: hasGlosa ? '0' : item.valorLiberado,
+          valorGlosa: hasGlosa ? String(valorGlosadoCalc.toFixed(2)) : null,
+          
+          // Status
+          codigoGlosa: item.codigoGlosa || (hasGlosa ? `Glosa: ${valorGlosadoCalc.toFixed(2)}` : null),
+          situacaoItem: situacao,
+          erroTiss: item.codigoGlosa ? `${item.codigoGlosa}${item.descricaoGlosa ? ' - ' + item.descricaoGlosa : ''}` : null,
+          
+          // Data de referência - normalizar para evitar problemas de fuso horário
+          dataReferencia: normalizeDateForDB(item.dataReferencia),
+        };
+      });
     }
 
     // Inserir registros na tabela demonstrativo em lotes

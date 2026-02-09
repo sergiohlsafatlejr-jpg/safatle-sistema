@@ -53,6 +53,8 @@ import FaturadoTasy from "./pages/FaturadoTasy";
 import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
 import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
 import ContaConvenioDetalhes from "./pages/ContaConvenioDetalhes";
+import RecebimentosXml from "./pages/RecebimentosXml";
+import RecebimentosExcel from "./pages/RecebimentosExcel";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -114,6 +116,8 @@ function Router() {
       <Route path={"/faturado-tasy"} component={FaturadoTasy} />
       <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
+      <Route path={"/recebimentos-xml"} component={RecebimentosXml} />
+      <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
