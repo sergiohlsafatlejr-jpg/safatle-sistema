@@ -1424,4 +1424,10 @@
 - [x] Investigar por que itens com situacao_item = GLOSADO não aparecem com valor de glosa (campo codigo_glosa VARCHAR(50) truncava erroTiss)
 - [x] Corrigir: aumentar codigo_glosa para VARCHAR(500), ressincronizar arquivos 840001 e 840002
 - [x] Testar: 53.228 itens, R$ 1.752.953,58 pago, R$ 35.331,88 glosado (2.0%), 1.826 itens glosados por arquivo
-- [ ] Salvar checkpoint
+- [x] Salvar checkpoint (versão 673438fc)
+
+
+## Bugs Demonstrativo - Duplicação e Filtros - 09/02/2026
+- [x] Remover dados duplicados no banco (arquivo 840001 removido - era duplicata órfã sem registro na tabela arquivos)
+- [x] Corrigir valores dobrados: agora R$ 876.476,79 pago + R$ 17.665,94 glosado (26.614 itens, arquivo 840002)
+- [x] Botão "Voltar" no detalhe da guia preserva filtros via query params na URL (competência, convênio, status, página, busca)

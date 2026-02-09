@@ -64,6 +64,24 @@ export default function ContaDetalhesDemonstrativo() {
     };
   }, [searchString]);
 
+  // Construir URL de volta preservando filtros
+  const voltarUrl = useMemo(() => {
+    const urlParams = new URLSearchParams(searchString);
+    const filtros = new URLSearchParams();
+    const comp = urlParams.get("_competencia");
+    const status = urlParams.get("_statusGlosa");
+    const pg = urlParams.get("_page");
+    const search = urlParams.get("_searchTerm");
+    const convId = urlParams.get("convenioId");
+    if (comp) filtros.set("competencia", comp);
+    if (status && status !== "todos") filtros.set("statusGlosa", status);
+    if (pg && pg !== "1") filtros.set("page", pg);
+    if (search) filtros.set("searchTerm", search);
+    if (convId) filtros.set("convenioId", convId);
+    const qs = filtros.toString();
+    return qs ? `/contas-demonstrativo?${qs}` : "/contas-demonstrativo";
+  }, [searchString]);
+
   // Buscar convênio
   const { data: convenios } = trpc.convenios.list.useQuery({});
   const convenio = convenios?.find(c => c.id === params.convenioId);
@@ -150,7 +168,7 @@ export default function ContaDetalhesDemonstrativo() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/contas-demonstrativo")}>
+            <Button variant="ghost" size="sm" onClick={() => setLocation(voltarUrl)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>

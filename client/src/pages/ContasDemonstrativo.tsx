@@ -36,7 +36,7 @@ import {
   Package
 } from "lucide-react";
 import React, { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 
 // Gerar lista de competências no formato MM/AAAA
@@ -95,11 +95,27 @@ const formatDataReferencia = (date: Date | string | null | undefined) => {
 export default function ContasDemonstrativo() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
-  const [convenioId, setConvenioId] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [, setLocation] = useLocation();
+  const searchString = useSearch();
+
+  // Restaurar filtros da URL (quando volta do detalhe)
+  const urlFiltros = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return {
+      competencia: p.get("competencia") || "",
+      statusGlosa: p.get("statusGlosa") || "",
+      page: p.get("page") ? parseInt(p.get("page")!) : 0,
+      searchTerm: p.get("searchTerm") || "",
+      convenioId: p.get("convenioId") || "",
+    };
+  }, [searchString]);
+
+  const [convenioId, setConvenioId] = useState<string>(urlFiltros.convenioId);
+  const [searchTerm, setSearchTerm] = useState(urlFiltros.searchTerm);
   
   // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
   const getCompetenciaInicial = () => {
+    if (urlFiltros.competencia) return urlFiltros.competencia;
     const hoje = new Date();
     const mesAtual = hoje.getMonth() + 1;
     if (mesAtual === 1) {
@@ -109,9 +125,8 @@ export default function ContasDemonstrativo() {
   };
   
   const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
-  const [statusGlosa, setStatusGlosa] = useState<string>("todos");
-  const [page, setPage] = useState(1);
-  const [, setLocation] = useLocation();
+  const [statusGlosa, setStatusGlosa] = useState<string>(urlFiltros.statusGlosa || "todos");
+  const [page, setPage] = useState(urlFiltros.page || 1);
 
   // Extrair mês e ano da competência selecionada
   const { mesReferencia, anoReferencia } = useMemo(() => {
@@ -175,13 +190,18 @@ export default function ContasDemonstrativo() {
     return { label: "Pendente", color: "bg-gray-100 text-gray-800", icon: Minus };
   };
 
-  // Navegar para detalhes da conta
+  // Navegar para detalhes da conta (preservando filtros atuais na URL)
   const handleVerDetalhes = (conta: any) => {
     const params = new URLSearchParams({
       guia: conta.numeroGuia || "",
       protocolo: conta.protocolo || "",
       convenioId: convenioId,
       arquivoId: String(conta.arquivoId || ""),
+      // Preservar filtros para restaurar ao voltar
+      _competencia: competencia || "",
+      _statusGlosa: statusGlosa || "todos",
+      _page: String(page),
+      _searchTerm: searchTerm || "",
     });
     setLocation(`/conta-detalhes?${params.toString()}`);
   };
