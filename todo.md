@@ -1417,3 +1417,11 @@
 - [x] Corrigir bug de fuso horário no syncDemonstrativo (data 2025-12-01 virava 2025-11-30) - função normalizeDateForDB com meio-dia UTC
 - [x] Atualizar status do arquivo de 'processando' para 'processado'
 - [x] Verificar dados na tela Demonstrativo com competência 12/2025 (4.674 contas, 24.500 itens, R$ 866.804,71)
+
+
+## Correções Demonstrativo - Vl. Informado e Glosas - 09/02/2026
+- [x] Manter Vl. Informado como R$ 0,00 (campo não existe no arquivo Excel, mantido zerado)
+- [x] Investigar por que itens com situacao_item = GLOSADO não aparecem com valor de glosa (campo codigo_glosa VARCHAR(50) truncava erroTiss)
+- [x] Corrigir: aumentar codigo_glosa para VARCHAR(500), ressincronizar arquivos 840001 e 840002
+- [x] Testar: 53.228 itens, R$ 1.752.953,58 pago, R$ 35.331,88 glosado (2.0%), 1.826 itens glosados por arquivo
+- [ ] Salvar checkpoint

@@ -2502,7 +2502,7 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   valorGlosa: decimal("valor_glosa", { precision: 12, scale: 2 }).default("0.00"),
   
   // Status e Motivos
-  codigoGlosa: varchar("codigo_glosa", { length: 50 }),
+  codigoGlosa: varchar("codigo_glosa", { length: 500 }),
   situacaoItem: varchar("situacao_item", { length: 100 }),
   
   // Campos extras do Excel
