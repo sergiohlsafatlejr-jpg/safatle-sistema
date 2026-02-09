@@ -1492,3 +1492,7 @@
 - [x] Analisar 6 XMLs de retorno e identificar problemas na importação de valores
 - [x] Corrigir parser de XML para importar valores corretamente (todos os 6 XMLs com valores corretos)
 - [ ] Testar fluxo completo de exclusão em cascata
+- [x] Investigar e corrigir valores errados na tela Recebimentos XML após reimportação
+  - Bug: bloco de processamento de retornado estava DENTRO do if(procedimentos.length > 0)
+  - XMLs de retorno não têm procedimentos, então o bloco nunca executava
+  - Fix: mover processamento de retornado para FORA do if, executa independente do parseFile()

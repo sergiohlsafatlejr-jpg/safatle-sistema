@@ -730,9 +730,16 @@ export const appRouter = router({
                   console.error('[Upload] Erro ao gerar insights de IA:', iaError);
                 }
               }
-              
-              // Processar arquivos de retorno: Excel -> recebimentos_excel, XML -> recebimento_tiss
-              if (input.direcao === "retornado") {
+            } else if (!parseResult.success) {
+              console.log('[Upload] Parse não encontrou procedimentos (pode ser arquivo de retorno):', input.nome);
+            } else {
+              console.log('[Upload] Arquivo sem procedimentos:', input.nome);
+            }
+            
+            // Processar arquivos de retorno: Excel -> recebimentos_excel, XML -> recebimento_tiss
+            // IMPORTANTE: Este bloco deve executar INDEPENDENTE do resultado do parseFile()
+            // porque XMLs de retorno têm estrutura diferente e o parser genérico não extrai procedimentos
+            if (input.direcao === "retornado") {
                 try {
                   // Converter datas do input
                   const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
@@ -826,12 +833,19 @@ export const appRouter = router({
                   // Não falhar o upload se a importação de recebimento falhar
                   console.error('[Upload] Erro ao importar recebimento:', recebimentoError);
                 }
-              }
-            } else if (!parseResult.success) {
-              await db.updateArquivoStatus(arquivoId, "erro");
+                
+                // Atualizar status do arquivo retornado para processado
+                await db.updateArquivoStatus(arquivoId, "processado");
+                const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                console.log(`[Upload] Arquivo retornado processado em ${totalTime}s:`, input.nome);
             } else {
-              await db.updateArquivoStatus(arquivoId, "processado");
-              await db.updateArquivoProgresso(arquivoId, 100, 0, 0);
+              // Arquivo enviado: atualizar status baseado no resultado do parse
+              if (!parseResult.success) {
+                await db.updateArquivoStatus(arquivoId, "erro");
+              } else if (parseResult.procedimentos.length === 0) {
+                await db.updateArquivoStatus(arquivoId, "processado");
+                await db.updateArquivoProgresso(arquivoId, 100, 0, 0);
+              }
             }
           } catch (error) {
             console.error("[Upload] Error in background processing:", error);

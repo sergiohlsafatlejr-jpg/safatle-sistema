@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CAST(valor_informado AS DECIMAL(10,2))) as total_informado, SUM(CAST(valor_liberado AS DECIMAL(10,2))) as total_liberado, SUM(CAST(valor_glosado AS DECIMAL(10,2))) as total_glosado FROM recebimento_tiss",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, SUM(CAST(valor_informado AS DECIMAL(10,2))) as total_informado, SUM(CAST(valor_liberado AS DECIMAL(10,2))) as total_liberado, SUM(CAST(valor_glosado AS DECIMAL(10,2))) as total_glosado FROM recebimento_tiss",
+  "rows": [
+    {
+      "total": "117",
+      "total_informado": "3620.71",
+      "total_liberado": "3620.71",
+      "total_glosado": "0.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\ttotal_informado\ttotal_liberado\ttotal_glosado\n117\t3620.71\t3620.71\t0.00\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}
