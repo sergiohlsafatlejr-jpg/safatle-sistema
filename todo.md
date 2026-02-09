@@ -1392,3 +1392,11 @@
 - [x] Atualizar frontend: 7 cards de resumo, colunas com Protocolo/Vl.Informado/Vl.Liberado/Vl.Glosado, dialog de detalhes com 5 seções
 - [x] Atualizar exportação Excel com 34 campos (incluindo glosas de protocolo e guia)
 - [x] Testar: 427 testes passaram, 0 erros TypeScript
+
+## Bug: Dados importados do Excel não aparecem na tela Demonstrativo - 09/02/2026
+- [x] Diagnosticar causa raiz: tela Demonstrativo.tsx usa trpc.recebimentoTiss.list (tabela recebimento_tiss vazia) ao invés de trpc.demonstrativo.contas (tabela demonstrativo com 24.500 registros)
+- [x] Reescrever Demonstrativo.tsx para usar trpc.demonstrativo.contas e trpc.demonstrativo.resumo
+- [x] Adaptar campos do frontend para os campos da tabela demonstrativo (tipoLancamento, valorPago, valorGlosa, etc.)
+- [x] Manter dialog de detalhes com informações relevantes dos itens (busca itens via trpc.demonstrativo.itensPorGuia)
+- [x] Testar visualização dos dados do arquivo Demostrativo Psi-12-2025.xlsx (4.674 contas, 24.500 itens, R$ 866.804,71 pago)
+- [ ] Salvar checkpoint

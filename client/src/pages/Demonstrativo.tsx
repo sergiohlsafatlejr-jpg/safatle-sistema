@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -25,40 +25,43 @@ import {
   ChevronRight,
   RefreshCw,
   Eye,
-  Building2,
   TrendingDown,
   TrendingUp,
   Info,
-  Banknote
+  Banknote,
+  Layers2,
+  Hash,
+  User,
+  CreditCard
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
-// Lista de meses em português
-const MESES = [
-  { value: "1", label: "Janeiro" },
-  { value: "2", label: "Fevereiro" },
-  { value: "3", label: "Março" },
-  { value: "4", label: "Abril" },
-  { value: "5", label: "Maio" },
-  { value: "6", label: "Junho" },
-  { value: "7", label: "Julho" },
-  { value: "8", label: "Agosto" },
-  { value: "9", label: "Setembro" },
-  { value: "10", label: "Outubro" },
-  { value: "11", label: "Novembro" },
-  { value: "12", label: "Dezembro" },
-];
-
-// Gerar lista de anos (últimos 5 anos + ano atual)
-const getAnos = () => {
-  const anoAtual = new Date().getFullYear();
-  const anos = [];
-  for (let i = anoAtual; i >= anoAtual - 5; i--) {
-    anos.push({ value: String(i), label: String(i) });
+// Gerar lista de competências no formato MM/AAAA
+const getCompetencias = () => {
+  const competencias = [];
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  
+  for (let i = 0; i < 24; i++) {
+    let mes = mesAtual - i;
+    let ano = anoAtual;
+    
+    while (mes <= 0) {
+      mes += 12;
+      ano -= 1;
+    }
+    
+    const mesStr = String(mes).padStart(2, '0');
+    const value = `${mes}-${ano}`;
+    const label = `${mesStr}/${ano}`;
+    
+    competencias.push({ value, label, mes, ano });
   }
-  return anos;
+  
+  return competencias;
 };
 
 export default function Demonstrativo() {
@@ -69,13 +72,32 @@ export default function Demonstrativo() {
   const [busca, setBusca] = useState<string>("");
   const [buscaDebounced, setBuscaDebounced] = useState<string>("");
   const [page, setPage] = useState(1);
-  const [mesReferencia, setMesReferencia] = useState<string>("");
-  const [anoReferencia, setAnoReferencia] = useState<string>("");
   const [itemDetalhe, setItemDetalhe] = useState<any>(null);
   const pageSize = 50;
 
-  // Memoize anos para evitar recriação a cada render
-  const anos = useMemo(() => getAnos(), []);
+  // Inicializar com mês anterior
+  const getCompetenciaInicial = () => {
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth() + 1;
+    if (mesAtual === 1) {
+      return `12-${hoje.getFullYear() - 1}`;
+    }
+    return `${mesAtual - 1}-${hoje.getFullYear()}`;
+  };
+
+  const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
+
+  // Extrair mês e ano da competência selecionada
+  const { mesReferencia, anoReferencia } = useMemo(() => {
+    if (!competencia || competencia === "all") {
+      return { mesReferencia: undefined, anoReferencia: undefined };
+    }
+    const [mes, ano] = competencia.split("-").map(Number);
+    return { mesReferencia: mes, anoReferencia: ano };
+  }, [competencia]);
+
+  // Memoize competências
+  const competencias = useMemo(() => getCompetencias(), []);
 
   // Debounce da busca
   useEffect(() => {
@@ -89,13 +111,13 @@ export default function Demonstrativo() {
   // Resetar página quando filtros mudam
   useEffect(() => {
     setPage(1);
-  }, [convenioId, filtroStatus, mesReferencia, anoReferencia]);
+  }, [convenioId, filtroStatus, competencia]);
 
   // Buscar convênios
-  const { data: convenios, isLoading: isLoadingConvenios } = trpc.convenios.list.useQuery();
+  const { data: convenios } = trpc.convenios.list.useQuery({});
 
-  // Buscar dados de recebimento_tiss
-  const { data: recebimentoData, isLoading: isLoadingRecebimento, refetch } = trpc.recebimentoTiss.list.useQuery(
+  // Buscar dados do demonstrativo (tabela demonstrativo - dados de Excel e XML)
+  const { data: contasData, isLoading: isLoadingContas, refetch } = trpc.demonstrativo.contas.useQuery(
     { 
       convenioId: convenioId ? parseInt(convenioId) : undefined, 
       estabelecimentoId: estabelecimentoAtual?.id,
@@ -103,122 +125,135 @@ export default function Demonstrativo() {
       pageSize,
       search: buscaDebounced || undefined,
       statusGlosa: filtroStatus !== "todos" ? filtroStatus as "pago" | "glosado" | "parcial" : undefined,
-      mesReferencia: mesReferencia ? parseInt(mesReferencia) : undefined,
-      anoReferencia: anoReferencia ? parseInt(anoReferencia) : undefined,
+      mesReferencia,
+      anoReferencia,
     },
     { enabled: !!estabelecimentoAtual }
   );
 
+  // Buscar resumo do demonstrativo
+  const { data: resumo } = trpc.demonstrativo.resumo.useQuery(
+    {
+      estabelecimentoId: estabelecimentoAtual?.id,
+      convenioId: convenioId ? parseInt(convenioId) : undefined,
+      mesReferencia,
+      anoReferencia,
+    },
+    { enabled: !!estabelecimentoAtual }
+  );
+
+  // Buscar itens de uma guia específica quando dialog está aberto
+  const { data: itensGuia, isLoading: isLoadingItens } = trpc.demonstrativo.itensPorGuia.useQuery(
+    {
+      numeroGuia: itemDetalhe?.numeroGuia || "",
+      protocolo: itemDetalhe?.protocolo || undefined,
+      convenioId: itemDetalhe?.convenioId || undefined,
+      arquivoId: itemDetalhe?.arquivoId || undefined,
+    },
+    { enabled: !!itemDetalhe?.numeroGuia }
+  );
+
   const formatCurrency = (value: number | string | null | undefined) => {
     const num = typeof value === "string" ? parseFloat(value) : (value || 0);
+    if (isNaN(num)) return "R$ 0,00";
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (dateStr: string | null | undefined) => {
+  const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "-";
     try {
-      return new Date(dateStr).toLocaleDateString("pt-BR");
+      const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+      return d.toLocaleDateString("pt-BR");
     } catch {
       return "-";
     }
   };
 
   const handleExportExcel = () => {
-    if (!recebimentoData?.items || recebimentoData.items.length === 0) {
+    if (!contasData?.items || contasData.items.length === 0) {
       toast.error("Nenhum dado para exportar");
       return;
     }
 
-    const excelData = (recebimentoData.items as any[]).map((item: any) => {
-      const valorLiberado = parseFloat(item.valorLiberado || "0");
-      const valorInformado = parseFloat(item.valorInformado || "0");
-      const valorProcessado = parseFloat(item.valorProcessado || "0");
-      const valorGlosado = parseFloat(item.valorGlosado || "0");
-      const temGlosa = item.codigoGlosa && item.codigoGlosa !== '';
+    const excelData = (contasData.items as any[]).map((conta: any) => {
+      const valorPago = parseFloat(conta.valorTotal || "0");
+      const valorGlosado = parseFloat(conta.valorGlosado || "0");
+      const valorInformado = parseFloat(conta.valorInformado || "0");
       
       let status = "Pago";
-      if (temGlosa && valorLiberado === 0) {
+      if (valorGlosado > 0 && valorPago === 0) {
         status = "Glosado";
-      } else if (temGlosa) {
+      } else if (valorGlosado > 0 && valorPago > 0) {
         status = "Parcial";
       }
 
       return {
-        "Registro ANS": item.registroANS || "",
-        "CNES": item.cnes || "",
-        "Nº Demonstrativo": item.numeroDemonstrativo || "",
-        "Data Emissão": formatDate(item.dataEmissao),
-        "Protocolo": item.numeroProtocolo || "",
-        "Data Protocolo": formatDate(item.dataProtocolo),
-        "Lote": item.numeroLotePrestador || "",
-        "Guia Prestador": item.numeroGuiaPrestador || "",
-        "Guia Operadora": item.numeroGuiaOperadora || "",
-        "Senha": item.senha || "",
-        "Beneficiário": item.nomeBeneficiario || "",
-        "Carteirinha": item.numeroCarteira || "",
-        "Data Execução": formatDate(item.dataRealizacao),
-        "Cód. Tabela": item.codigoTabela || "",
-        "Código Item": item.codigoItem || "",
-        "Descrição": item.descricaoItem || "",
-        "Qtd Executada": item.quantidadeExecutada || "",
+        "Guia": conta.numeroGuia || "",
+        "Protocolo": conta.protocolo || "",
+        "Lote": conta.lotePrestador || "",
+        "Carteirinha": conta.carteiraBeneficiario || "",
+        "Paciente": conta.nomeBeneficiario || "",
+        "Data Pagamento": formatDate(conta.dataPagamento),
+        "Competência": formatDate(conta.dataReferencia),
+        "Total Itens": conta.totalItens || 0,
+        "Itens Glosados": conta.itensGlosados || 0,
         "Valor Informado": valorInformado,
-        "Valor Processado": valorProcessado,
-        "Valor Liberado": valorLiberado,
+        "Valor Pago": valorPago,
         "Valor Glosado": valorGlosado,
-        "Código Glosa": item.codigoGlosa || "",
-        "Descrição Glosa": item.descricaoGlosa || "",
-        "Glosa Guia Código": item.motivoGlosaGuiaCodigo || "",
-        "Glosa Guia Descrição": item.motivoGlosaGuiaDescricao || "",
-        "Glosa Protocolo Código": item.glosaProtocoloCodigo || "",
-        "Glosa Protocolo Descrição": item.glosaProtocoloDescricao || "",
-        "Valor Informado Guia": item.valorInformadoGuia || "",
-        "Valor Processado Guia": item.valorProcessadoGuia || "",
-        "Valor Liberado Guia": item.valorLiberadoGuia || "",
-        "Valor Glosa Guia": item.valorGlosaGuia || "",
-        "Data Pagamento": formatDate(item.dataPagamento),
-        "Valor Final Receber": item.valorFinalReceber || "",
+        "Origem": conta.origemTipo === "excel" ? "Excel" : "XML",
         "Status": status,
       };
     });
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
-    ws["!cols"] = Array(34).fill({ wch: 18 });
+    ws["!cols"] = Array(14).fill({ wch: 18 });
     XLSX.utils.book_append_sheet(wb, ws, "Demonstrativo");
     
     const convenio = convenios?.find((c: any) => c.id === parseInt(convenioId));
     const nomeArquivo = convenio?.nome || "demonstrativo";
-    const periodoSuffix = mesReferencia && anoReferencia ? `_${mesReferencia}_${anoReferencia}` : "";
-    XLSX.writeFile(wb, `${nomeArquivo}_demonstrativo${periodoSuffix}.xlsx`);
+    const competenciaLabel = competencias.find(c => c.value === competencia)?.label?.replace("/", "-") || "";
+    XLSX.writeFile(wb, `${nomeArquivo}_demonstrativo_${competenciaLabel}.xlsx`);
     toast.success("Arquivo exportado com sucesso!");
   };
 
   const handleLimparFiltros = () => {
-    setMesReferencia("");
-    setAnoReferencia("");
+    setCompetencia("all");
     setFiltroStatus("todos");
     setBusca("");
     setConvenioId("");
   };
 
-  const getStatusBadge = (item: any) => {
-    const valorLiberado = parseFloat(item.valorLiberado || "0");
-    const temGlosa = item.codigoGlosa && item.codigoGlosa !== '';
+  const getStatusBadge = (conta: any) => {
+    const valorGlosa = parseFloat(conta.valorGlosado || "0");
+    const valorPago = parseFloat(conta.valorTotal || "0");
 
-    if (temGlosa && valorLiberado === 0) {
+    if (valorGlosa > 0 && valorPago === 0) {
       return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Glosado</Badge>;
-    } else if (temGlosa) {
+    } else if (valorGlosa > 0 && valorPago > 0) {
       return <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600"><AlertCircle className="h-3 w-3" /> Parcial</Badge>;
     }
     return <Badge variant="outline" className="gap-1 border-green-500 text-green-600"><CheckCircle2 className="h-3 w-3" /> Pago</Badge>;
   };
 
-  const resumo = recebimentoData?.resumo;
-  const totalPages = Math.ceil((recebimentoData?.total || 0) / pageSize);
-  const items = recebimentoData?.items || [];
+  const getItemStatusBadge = (item: any) => {
+    const valorGlosa = parseFloat(item.valorGlosa || "0");
+    const situacao = (item.situacaoItem || "").toUpperCase();
+
+    if (situacao.includes("GLOS") || valorGlosa > 0) {
+      return <Badge variant="destructive" className="text-xs">Glosado</Badge>;
+    }
+    return <Badge variant="outline" className="text-xs border-green-500 text-green-600">Pago</Badge>;
+  };
+
+  const totalPages = contasData?.totalPages || 1;
+  const items = contasData?.items || [];
 
   // Verificar se há filtros ativos
-  const temFiltrosAtivos = mesReferencia || anoReferencia || filtroStatus !== "todos" || busca || convenioId;
+  const temFiltrosAtivos = (competencia && competencia !== "all") || filtroStatus !== "todos" || busca || convenioId;
+
+  // Competência selecionada label
+  const competenciaSelecionada = competencias.find(c => c.value === competencia);
 
   return (
     <DashboardLayout>
@@ -227,7 +262,7 @@ export default function Demonstrativo() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Demonstrativo de Retorno</h1>
             <p className="text-muted-foreground">
-              Análise detalhada dos itens do demonstrativo TISS com status de pagamento, glosas e totais
+              Análise detalhada dos itens do demonstrativo com status de pagamento, glosas e totais
             </p>
           </div>
           <Button variant="outline" onClick={() => refetch()}>
@@ -245,7 +280,7 @@ export default function Demonstrativo() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
                 <Select value={convenioId} onValueChange={setConvenioId}>
@@ -266,37 +301,17 @@ export default function Demonstrativo() {
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  Mês
+                  Competência
                 </label>
-                <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                <Select value={competencia} onValueChange={setCompetencia}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os meses</SelectItem>
-                    {MESES.map((mes) => (
-                      <SelectItem key={mes.value} value={mes.value}>
-                        {mes.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  Ano
-                </label>
-                <Select value={anoReferencia} onValueChange={setAnoReferencia}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os anos</SelectItem>
-                    {anos.map((ano) => (
-                      <SelectItem key={ano.value} value={ano.value}>
-                        {ano.label}
+                    <SelectItem value="all">Todos os períodos</SelectItem>
+                    {competencias.map((comp) => (
+                      <SelectItem key={comp.value} value={comp.value}>
+                        {comp.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -323,7 +338,7 @@ export default function Demonstrativo() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Código, guia, paciente..."
+                    placeholder="Guia, paciente, carteirinha..."
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     className="pl-9"
@@ -345,20 +360,20 @@ export default function Demonstrativo() {
             </div>
 
             {/* Indicador de período selecionado */}
-            {(mesReferencia || anoReferencia) && (
+            {competenciaSelecionada && competencia !== "all" && (
               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  Filtrando por referência: {mesReferencia ? MESES.find(m => m.value === mesReferencia)?.label : "Todos os meses"} / {anoReferencia || "Todos os anos"}
+                  Filtrando por competência: {competenciaSelecionada.label}
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Cards de resumo - com novos campos TISS */}
+        {/* Cards de resumo */}
         {resumo && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <Card 
               className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "todos" ? "ring-2 ring-blue-500" : ""}`}
               onClick={() => setFiltroStatus("todos")}
@@ -367,38 +382,9 @@ export default function Demonstrativo() {
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5 text-blue-600 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Total Itens</p>
-                    <p className="text-xl font-bold">{Number(resumo.totalItens || 0).toLocaleString("pt-BR")}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "pago" ? "ring-2 ring-green-500" : ""}`}
-              onClick={() => setFiltroStatus("pago")}
-            >
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Pagos</p>
-                    <p className="text-xl font-bold text-green-600">{Number(resumo.itensPagos || 0).toLocaleString("pt-BR")}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "glosado" ? "ring-2 ring-red-500" : ""}`}
-              onClick={() => setFiltroStatus("glosado")}
-            >
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-5 w-5 text-red-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Glosados</p>
-                    <p className="text-xl font-bold text-red-600">{Number(resumo.itensGlosados || 0).toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">Total Contas</p>
+                    <p className="text-xl font-bold">{Number(resumo.totalContas || 0).toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">{Number(resumo.totalItens || 0).toLocaleString("pt-BR")} itens</p>
                   </div>
                 </div>
               </CardContent>
@@ -410,7 +396,37 @@ export default function Demonstrativo() {
                   <TrendingUp className="h-5 w-5 text-blue-600 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Vl. Informado</p>
-                    <p className="text-sm font-bold text-blue-600 truncate">{formatCurrency(resumo.valorInformadoTotal)}</p>
+                    <p className="text-sm font-bold text-blue-600 truncate">{formatCurrency(resumo.valorTotal)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "pago" ? "ring-2 ring-green-500" : ""}`}
+              onClick={() => setFiltroStatus("pago")}
+            >
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Vl. Pago</p>
+                    <p className="text-sm font-bold text-emerald-600 truncate">{formatCurrency(resumo.valorPago)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card 
+              className={`cursor-pointer transition-all hover:shadow-md ${filtroStatus === "glosado" ? "ring-2 ring-red-500" : ""}`}
+              onClick={() => setFiltroStatus("glosado")}
+            >
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-red-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Vl. Glosado</p>
+                    <p className="text-sm font-bold text-red-600 truncate">{formatCurrency(resumo.valorGlosado)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -421,32 +437,15 @@ export default function Demonstrativo() {
                 <div className="flex items-center gap-2">
                   <Banknote className="h-5 w-5 text-indigo-600 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Vl. Processado</p>
-                    <p className="text-sm font-bold text-indigo-600 truncate">{formatCurrency(resumo.valorProcessadoTotal)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-emerald-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Vl. Liberado</p>
-                    <p className="text-sm font-bold text-emerald-600 truncate">{formatCurrency(resumo.valorLiberado)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Vl. Glosado</p>
-                    <p className="text-sm font-bold text-red-600 truncate">{formatCurrency(resumo.valorGlosadoTotal)}</p>
+                    <p className="text-xs text-muted-foreground">% Glosa</p>
+                    <p className="text-sm font-bold text-indigo-600 truncate">
+                      {resumo.valorTotal > 0 
+                        ? `${((resumo.valorGlosado / resumo.valorTotal) * 100).toFixed(1)}%`
+                        : resumo.valorPago > 0 
+                          ? `${((resumo.valorGlosado / (resumo.valorPago + resumo.valorGlosado)) * 100).toFixed(1)}%`
+                          : "0%"
+                      }
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -454,18 +453,18 @@ export default function Demonstrativo() {
           </div>
         )}
 
-        {/* Tabela de itens - com novos campos TISS */}
+        {/* Tabela de contas agrupadas por guia */}
         <Card>
           <CardContent className="pt-6">
-            {isLoadingRecebimento ? (
+            {isLoadingContas ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : items.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhum item encontrado</p>
-                <p className="text-sm">Ajuste os filtros ou importe arquivos de retorno</p>
+                <p>Nenhuma conta encontrada</p>
+                <p className="text-sm">Ajuste os filtros ou importe arquivos de retorno (Excel ou XML)</p>
               </div>
             ) : (
               <>
@@ -476,31 +475,33 @@ export default function Demonstrativo() {
                         <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Guia</TableHead>
                         <TableHead>Protocolo</TableHead>
-                        <TableHead>Código</TableHead>
-                        <TableHead className="max-w-[200px]">Descrição</TableHead>
-                        <TableHead>Beneficiário</TableHead>
-                        <TableHead>Data Exec.</TableHead>
+                        <TableHead>Lote</TableHead>
+                        <TableHead className="max-w-[180px]">Paciente</TableHead>
+                        <TableHead>Carteirinha</TableHead>
+                        <TableHead>Dt. Pagamento</TableHead>
+                        <TableHead>Competência</TableHead>
+                        <TableHead className="text-center">Itens</TableHead>
                         <TableHead className="text-right">Vl. Informado</TableHead>
-                        <TableHead className="text-right">Vl. Liberado</TableHead>
+                        <TableHead className="text-right">Vl. Pago</TableHead>
                         <TableHead className="text-right">Vl. Glosado</TableHead>
-                        <TableHead>Cód. Glosa</TableHead>
+                        <TableHead>Origem</TableHead>
                         <TableHead className="text-center">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {items.map((item: any, idx: number) => {
-                        const temGlosa = item.codigoGlosa && item.codigoGlosa !== '';
+                      {items.map((conta: any, idx: number) => {
+                        const valorGlosa = parseFloat(conta.valorGlosado || "0");
                         return (
                           <TableRow 
-                            key={item.id || idx} 
-                            className={`${temGlosa ? "bg-red-50/50 dark:bg-red-950/20" : ""} cursor-pointer hover:bg-muted/50`}
-                            onClick={() => setItemDetalhe(item)}
+                            key={`${conta.numeroGuia}-${conta.protocolo}-${conta.lotePrestador}-${idx}`} 
+                            className={`${valorGlosa > 0 ? "bg-red-50/50 dark:bg-red-950/20" : ""} cursor-pointer hover:bg-muted/50`}
+                            onClick={() => setItemDetalhe(conta)}
                           >
                             <TableCell>
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setItemDetalhe(item); }}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setItemDetalhe(conta); }}>
                                       <Eye className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </TooltipTrigger>
@@ -508,34 +509,41 @@ export default function Demonstrativo() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            <TableCell className="font-mono text-sm">{item.numeroGuiaPrestador || "-"}</TableCell>
-                            <TableCell className="font-mono text-sm">{item.numeroProtocolo || "-"}</TableCell>
-                            <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
-                            <TableCell className="max-w-[200px] truncate text-sm">{item.descricaoItem || "-"}</TableCell>
-                            <TableCell className="max-w-[150px] truncate text-sm">{item.nomeBeneficiario || "-"}</TableCell>
-                            <TableCell className="text-sm">{formatDate(item.dataRealizacao)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm">{formatCurrency(item.valorInformado)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-emerald-600 font-semibold">{formatCurrency(item.valorLiberado)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-red-600">{formatCurrency(item.valorGlosado)}</TableCell>
-                            <TableCell className="text-sm">
-                              {temGlosa ? (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Badge variant="outline" className="text-xs border-red-300 text-red-600">
-                                        {item.codigoGlosa}
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-[300px]">
-                                      <p className="font-semibold">Glosa: {item.codigoGlosa}</p>
-                                      <p className="text-sm">{item.descricaoGlosa || "Sem descrição"}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ) : "-"}
+                            <TableCell className="font-mono text-sm">
+                              <div className="flex items-center gap-1">
+                                {conta.numeroGuia || "-"}
+                                {conta.isAltaAdministrativa && (
+                                  <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-[10px] px-1 py-0">
+                                    <Layers2 className="h-3 w-3 mr-0.5" />
+                                    {conta.totalLotesGuia}L
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{conta.protocolo || "-"}</TableCell>
+                            <TableCell className="font-mono text-sm">{conta.lotePrestador || "-"}</TableCell>
+                            <TableCell className="max-w-[180px] truncate text-sm">{conta.nomeBeneficiario || "-"}</TableCell>
+                            <TableCell className="font-mono text-sm">{conta.carteiraBeneficiario || "-"}</TableCell>
+                            <TableCell className="text-sm">{formatDate(conta.dataPagamento)}</TableCell>
+                            <TableCell className="text-sm">{formatDate(conta.dataReferencia)}</TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-sm font-medium">{conta.totalItens}</span>
+                                {conta.itensGlosados > 0 && (
+                                  <span className="text-[10px] text-red-500">{conta.itensGlosados} glos.</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">{formatCurrency(conta.valorInformado)}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-emerald-600 font-semibold">{formatCurrency(conta.valorTotal)}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-red-600">{formatCurrency(conta.valorGlosado)}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {conta.origemTipo === "excel" ? "Excel" : "XML"}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-center">
-                              {getStatusBadge(item)}
+                              {getStatusBadge(conta)}
                             </TableCell>
                           </TableRow>
                         );
@@ -547,7 +555,7 @@ export default function Demonstrativo() {
                 {/* Paginação */}
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, recebimentoData?.total || 0)} de {recebimentoData?.total || 0} itens
+                    Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, contasData?.total || 0)} de {contasData?.total || 0} contas
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -559,7 +567,7 @@ export default function Demonstrativo() {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm">
-                      Página {page} de {totalPages || 1}
+                      Página {page} de {totalPages}
                     </span>
                     <Button
                       variant="outline"
@@ -577,137 +585,149 @@ export default function Demonstrativo() {
         </Card>
       </div>
 
-      {/* Dialog de detalhes do item */}
+      {/* Dialog de detalhes da conta (itens da guia) */}
       <Dialog open={!!itemDetalhe} onOpenChange={(open) => !open && setItemDetalhe(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Info className="h-5 w-5" />
-              Detalhes do Item - Demonstrativo TISS
+              Detalhes da Conta - Guia {itemDetalhe?.numeroGuia || ""}
             </DialogTitle>
           </DialogHeader>
 
           {itemDetalhe && (
             <div className="space-y-6">
-              {/* Cabeçalho do Demonstrativo */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  CABEÇALHO DO DEMONSTRATIVO
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <DetailField label="Registro ANS" value={itemDetalhe.registroANS} />
-                  <DetailField label="Nº Demonstrativo" value={itemDetalhe.numeroDemonstrativo} />
-                  <DetailField label="Data Emissão" value={formatDate(itemDetalhe.dataEmissao)} />
-                  <DetailField label="CNES" value={itemDetalhe.cnes} />
-                  <DetailField label="Cód. Prestador" value={itemDetalhe.codigoPrestadorOperadora} />
-                  <DetailField label="Nome Contratado" value={itemDetalhe.nomeContratado} />
-                  <DetailField label="Operadora" value={itemDetalhe.nomeOperadora} />
-                  <DetailField label="CNPJ Operadora" value={itemDetalhe.cnpjOperadora} />
-                  <DetailField label="Convênio" value={itemDetalhe.convenioNome} />
-                </div>
-              </div>
-
-              {/* Dados do Protocolo */}
+              {/* Resumo da conta */}
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  PROTOCOLO / LOTE
+                  RESUMO DA CONTA
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <DetailField label="Protocolo" value={itemDetalhe.numeroProtocolo} />
-                  <DetailField label="Data Protocolo" value={formatDate(itemDetalhe.dataProtocolo)} />
-                  <DetailField label="Lote Prestador" value={itemDetalhe.numeroLotePrestador} />
-                  <DetailField label="Situação Protocolo" value={itemDetalhe.situacaoProtocolo} />
-                  <DetailField label="Vl. Informado Protocolo" value={formatCurrency(itemDetalhe.valorInformadoProtocolo)} highlight="blue" />
-                  <DetailField label="Vl. Processado Protocolo" value={formatCurrency(itemDetalhe.valorProcessadoProtocolo)} highlight="indigo" />
-                  <DetailField label="Vl. Liberado Protocolo" value={formatCurrency(itemDetalhe.valorLiberadoProtocolo)} highlight="green" />
-                  <DetailField label="Vl. Glosa Protocolo" value={formatCurrency(itemDetalhe.valorGlosaProtocoloTotal)} highlight="red" />
-                  {itemDetalhe.glosaProtocoloCodigo && (
-                    <>
-                      <DetailField label="Cód. Glosa Protocolo" value={itemDetalhe.glosaProtocoloCodigo} highlight="red" />
-                      <DetailField label="Desc. Glosa Protocolo" value={itemDetalhe.glosaProtocoloDescricao} highlight="red" />
-                    </>
-                  )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <DetailField label="Guia" value={itemDetalhe.numeroGuia} />
+                  <DetailField label="Protocolo" value={itemDetalhe.protocolo} />
+                  <DetailField label="Lote" value={itemDetalhe.lotePrestador} />
+                  <DetailField label="Origem" value={itemDetalhe.origemTipo === "excel" ? "Excel" : "XML"} />
+                  <DetailField label="Paciente" value={itemDetalhe.nomeBeneficiario} />
+                  <DetailField label="Carteirinha" value={itemDetalhe.carteiraBeneficiario} />
+                  <DetailField label="Data Pagamento" value={formatDate(itemDetalhe.dataPagamento)} />
+                  <DetailField label="Competência" value={formatDate(itemDetalhe.dataReferencia)} />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                  <DetailField label="Total Itens" value={itemDetalhe.totalItens} />
+                  <DetailField label="Vl. Informado" value={formatCurrency(itemDetalhe.valorInformado)} highlight="blue" />
+                  <DetailField label="Vl. Pago" value={formatCurrency(itemDetalhe.valorTotal)} highlight="green" />
+                  <DetailField label="Vl. Glosado" value={formatCurrency(itemDetalhe.valorGlosado)} highlight="red" />
                 </div>
               </div>
 
-              {/* Dados da Guia */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <FileSpreadsheet className="h-4 w-4" />
-                  DADOS DA GUIA
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <DetailField label="Guia Prestador" value={itemDetalhe.numeroGuiaPrestador} />
-                  <DetailField label="Guia Operadora" value={itemDetalhe.numeroGuiaOperadora} />
-                  <DetailField label="Senha" value={itemDetalhe.senha} />
-                  <DetailField label="Carteirinha" value={itemDetalhe.numeroCarteira} />
-                  <DetailField label="Beneficiário" value={itemDetalhe.nomeBeneficiario} />
-                  <DetailField label="Situação Guia" value={itemDetalhe.situacaoGuia} />
-                  <DetailField label="Início Faturamento" value={formatDate(itemDetalhe.dataInicioFat)} />
-                  <DetailField label="Fim Faturamento" value={formatDate(itemDetalhe.dataFimFat)} />
-                  <DetailField label="Vl. Informado Guia" value={formatCurrency(itemDetalhe.valorInformadoGuia)} highlight="blue" />
-                  <DetailField label="Vl. Processado Guia" value={formatCurrency(itemDetalhe.valorProcessadoGuia)} highlight="indigo" />
-                  <DetailField label="Vl. Liberado Guia" value={formatCurrency(itemDetalhe.valorLiberadoGuia)} highlight="green" />
-                  <DetailField label="Vl. Glosa Guia" value={formatCurrency(itemDetalhe.valorGlosaGuia)} highlight="red" />
-                  {itemDetalhe.motivoGlosaGuiaCodigo && (
-                    <>
-                      <DetailField label="Cód. Glosa Guia" value={itemDetalhe.motivoGlosaGuiaCodigo} highlight="red" />
-                      <DetailField label="Desc. Glosa Guia" value={itemDetalhe.motivoGlosaGuiaDescricao} highlight="red" />
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Detalhes do Item */}
+              {/* Itens da guia */}
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  DETALHES DO ITEM
+                  ITENS DA CONTA ({itensGuia?.length || 0} itens)
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <DetailField label="Seq. Item" value={itemDetalhe.sequencialItem} />
-                  <DetailField label="Data Execução" value={formatDate(itemDetalhe.dataRealizacao)} />
-                  <DetailField label="Cód. Tabela" value={itemDetalhe.codigoTabela} />
-                  <DetailField label="Código Item" value={itemDetalhe.codigoItem} />
-                  <div className="col-span-2">
-                    <DetailField label="Descrição" value={itemDetalhe.descricaoItem} />
+                {isLoadingItens ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                  <DetailField label="Grau Participação" value={itemDetalhe.grauParticipacao} />
-                  <DetailField label="Qtd. Executada" value={itemDetalhe.quantidadeExecutada} />
-                  <DetailField label="Vl. Informado" value={formatCurrency(itemDetalhe.valorInformado)} highlight="blue" />
-                  <DetailField label="Vl. Processado" value={formatCurrency(itemDetalhe.valorProcessado)} highlight="indigo" />
-                  <DetailField label="Vl. Liberado" value={formatCurrency(itemDetalhe.valorLiberado)} highlight="green" />
-                  <DetailField label="Vl. Glosado" value={formatCurrency(itemDetalhe.valorGlosado)} highlight="red" />
-                  {itemDetalhe.codigoGlosa && (
-                    <>
-                      <DetailField label="Cód. Glosa Item" value={itemDetalhe.codigoGlosa} highlight="red" />
-                      <div className="col-span-2">
-                        <DetailField label="Desc. Glosa Item" value={itemDetalhe.descricaoGlosa} highlight="red" />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+                ) : itensGuia && itensGuia.length > 0 ? (
+                  <div className="overflow-x-auto border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40px]">Seq</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead className="max-w-[200px]">Descrição</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Data Exec.</TableHead>
+                          <TableHead className="text-center">Qtd</TableHead>
+                          <TableHead className="text-right">Vl. Informado</TableHead>
+                          <TableHead className="text-right">Vl. Pago</TableHead>
+                          <TableHead className="text-right">Vl. Glosa</TableHead>
+                          <TableHead>Cód. Glosa</TableHead>
+                          <TableHead>Situação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itensGuia.map((item: any, idx: number) => {
+                          const temGlosa = parseFloat(item.valorGlosa || "0") > 0 || (item.situacaoItem || "").toUpperCase().includes("GLOS");
+                          return (
+                            <TableRow key={item.id || idx} className={temGlosa ? "bg-red-50/50 dark:bg-red-950/20" : ""}>
+                              <TableCell className="text-xs text-muted-foreground">{item.sequencialItem || idx + 1}</TableCell>
+                              <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
+                              <TableCell className="max-w-[200px] truncate text-sm">{item.descricaoItem || "-"}</TableCell>
+                              <TableCell>
+                                {item.tipoLancamento ? (
+                                  <Badge variant="secondary" className="text-xs">{item.tipoLancamento}</Badge>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell className="text-sm">{formatDate(item.dataExecucao)}</TableCell>
+                              <TableCell className="text-center text-sm">{item.quantidade || "-"}</TableCell>
+                              <TableCell className="text-right font-mono text-sm">{formatCurrency(item.valorInformado)}</TableCell>
+                              <TableCell className="text-right font-mono text-sm text-emerald-600 font-semibold">{formatCurrency(item.valorPago)}</TableCell>
+                              <TableCell className="text-right font-mono text-sm text-red-600">{formatCurrency(item.valorGlosa)}</TableCell>
+                              <TableCell className="text-sm">
+                                {item.codigoGlosa ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Badge variant="outline" className="text-xs border-red-300 text-red-600">
+                                          {item.codigoGlosa}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-[300px]">
+                                        <p className="font-semibold">Glosa: {item.codigoGlosa}</p>
+                                        <p className="text-sm">{item.erroTiss || "Sem descrição"}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {getItemStatusBadge(item)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    Nenhum item encontrado para esta guia
+                  </div>
+                )}
 
-              {/* Dados de Pagamento */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Banknote className="h-4 w-4" />
-                  PAGAMENTO E TOTAIS GERAIS
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <DetailField label="Data Pagamento" value={formatDate(itemDetalhe.dataPagamento)} />
-                  <DetailField label="Forma Pagamento" value={itemDetalhe.formaPagamento} />
-                  <DetailField label="Banco / Agência" value={itemDetalhe.banco ? `${itemDetalhe.banco} / ${itemDetalhe.agencia || ""}` : null} />
-                  <DetailField label="Vl. Informado Geral" value={formatCurrency(itemDetalhe.valorInformadoGeral)} highlight="blue" />
-                  <DetailField label="Vl. Processado Geral" value={formatCurrency(itemDetalhe.valorProcessadoGeral)} highlight="indigo" />
-                  <DetailField label="Vl. Liberado Geral" value={formatCurrency(itemDetalhe.valorLiberadoGeral)} highlight="green" />
-                  <DetailField label="Vl. Glosa Geral" value={formatCurrency(itemDetalhe.valorGlosaGeral)} highlight="red" />
-                  <DetailField label="Valor Final a Receber" value={formatCurrency(itemDetalhe.valorFinalReceber)} highlight="emerald" />
-                  <DetailField label="Origem" value={itemDetalhe.origemDado?.toUpperCase()} />
-                </div>
+                {/* Totais da guia */}
+                {itensGuia && itensGuia.length > 0 && (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Itens</p>
+                        <p className="text-lg font-bold">{itensGuia.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Informado</p>
+                        <p className="text-lg font-bold text-blue-600">
+                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorInformado || "0"), 0))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Pago</p>
+                        <p className="text-lg font-bold text-emerald-600">
+                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorPago || "0"), 0))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Glosado</p>
+                        <p className="text-lg font-bold text-red-600">
+                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorGlosa || "0"), 0))}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
