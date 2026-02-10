@@ -1531,3 +1531,11 @@
 - [x] Migrar funções de insights IA e alertas
 - [x] Limpar imports e referências residuais à tabela procedimentos (removido import, removido createProcedimentos)
 - [x] Verificar compilação e executar testes (0 erros TS no db.ts, 435 testes passando)
+
+## Remoção da Tabela Procedimentos do Schema e Banco
+
+- [x] Verificar referências residuais à tabela procedimentos em todo o codebase
+- [x] Remover definição da tabela procedimentos e tipos (InsertProcedimento, Procedimento) do schema Drizzle
+- [x] Limpar referências residuais: removido import de Procedimento no comparador.ts, removido InsertProcedimento e toProcedimentoInsert do parsers.ts
+- [x] Dropar a tabela procedimentos no banco de dados via SQL (DROP TABLE IF EXISTS procedimentos)
+- [x] Verificar compilação e executar testes (435 testes passando, 0 erros TS no db.ts)

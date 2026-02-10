@@ -97,70 +97,7 @@ export const arquivos = mysqlTable("arquivos", {
 export type Arquivo = typeof arquivos.$inferSelect;
 export type InsertArquivo = typeof arquivos.$inferInsert;
 
-/**
- * Procedimentos extraídos dos arquivos
- */
-export const procedimentos = mysqlTable("procedimentos", {
-  id: int("id").autoincrement().primaryKey(),
-  arquivoId: int("arquivoId").notNull(),
-  // Chave composta para identificar faturamento único (evita duplicação)
-  numeroLote: varchar("numeroLote", { length: 50 }), // Número do lote do cabeçalho TISS
-  sequencialTransacao: varchar("sequencialTransacao", { length: 50 }), // Sequencial da transação da guia
-  codigo: varchar("codigo", { length: 50 }).notNull(),
-  descricao: text("descricao"),
-  quantidade: int("quantidade").default(1),
-  valorUnitario: decimal("valorUnitario", { precision: 10, scale: 2 }),
-  valorTotal: decimal("valorTotal", { precision: 10, scale: 2 }),
-  valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
-  motivoGlosa: text("motivoGlosa"),
-  dataExecucao: timestamp("dataExecucao"),
-  pacienteNome: varchar("pacienteNome", { length: 255 }),
-  pacienteCarteirinha: varchar("pacienteCarteirinha", { length: 100 }),
-  guiaNumero: varchar("guiaNumero", { length: 100 }),
-  senha: varchar("senha", { length: 100 }), // Senha da autorização
-  nomeMedico: varchar("nomeMedico", { length: 255 }),
-  crmMedico: varchar("crmMedico", { length: 50 }),
-  // Código do prestador executante (CNPJ ou código na operadora)
-  codigoPrestadorExecutante: varchar("codigoPrestadorExecutante", { length: 50 }),
-  // Código de despesa ANS (define o tipo do item)
-  codigoDespesa: varchar("codigoDespesa", { length: 10 }),
-  // Tipo de despesa derivado do codigoDespesa (1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa, outros=procedimento)
-  tipoDespesa: mysqlEnum("tipoDespesa", [
-    "gas",
-    "medicamento",
-    "material",
-    "diaria",
-    "taxa",
-    "procedimento",
-    "outros"
-  ]).default("procedimento"),
-  dadosExtras: json("dadosExtras"),
-  // Status de recurso de glosa
-  recursoStatus: mysqlEnum("recursoStatus", [
-    "sem_recurso",      // Nenhum recurso criado
-    "recurso_criado",   // Recurso criado (rascunho ou pendente)
-    "recurso_enviado",  // Recurso enviado ao convênio
-    "recurso_deferido", // Recurso deferido
-    "recurso_indeferido" // Recurso indeferido
-  ]).default("sem_recurso"),
-  recursoId: int("recursoId"), // ID do recurso associado
-  // Classificação da glosa (aceita ou recursar)
-  classificacaoGlosa: mysqlEnum("classificacaoGlosa", [
-    "pendente",        // Ainda não classificada
-    "aceitar",         // Glosa aceita (sem recurso)
-    "recursar",        // Glosa deve ser recursada
-    "auto_aceitar",    // Aceita automaticamente pelo sistema (aprendizado)
-    "auto_recursar"    // Recursada automaticamente pelo sistema (aprendizado)
-  ]).default("pendente"),
-  classificacaoConfianca: int("classificacaoConfianca"), // Percentual de confiança (0-100) para classificações automáticas
-  classificacaoMotivo: text("classificacaoMotivo"), // Motivo da classificação (manual ou automática)
-  motivoAceite: text("motivoAceite"), // Motivo informado pelo funcionário ao aceitar a glosa
-  dataAceite: timestamp("dataAceite"), // Data em que a glosa foi aceita
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
-export type Procedimento = typeof procedimentos.$inferSelect;
-export type InsertProcedimento = typeof procedimentos.$inferInsert;
+// Tabela procedimentos REMOVIDA - dados agora são armazenados em faturamentoTiss (envios) e demonstrativo (retornos)
 
 /**
  * Comparações entre arquivos enviados e retornados

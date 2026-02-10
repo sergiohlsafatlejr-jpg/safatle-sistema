@@ -1,4 +1,4 @@
-import { Procedimento, InsertDivergencia } from "../drizzle/schema";
+import { InsertDivergencia } from "../drizzle/schema";
 
 export interface ComparacaoResult {
   totalItensEnviados: number;

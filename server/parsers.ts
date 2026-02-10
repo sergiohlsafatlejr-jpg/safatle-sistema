@@ -1,7 +1,6 @@
 import * as xml2js from "xml2js";
 import * as XLSX from "xlsx";
 // pdf-parse will be dynamically imported due to ESM compatibility issues
-import { InsertProcedimento } from "../drizzle/schema";
 import { traduzirMotivoGlosa } from "../shared/glossaryGlosas";
 
 export interface ParsedProcedimento {
@@ -1527,43 +1526,7 @@ function parseValorBR(valorStr: string): number {
   return parseFloat(valorStr.replace('.', '').replace(',', '.')) || 0;
 }
 
-/**
- * Convert ParsedProcedimento to InsertProcedimento for database
- */
-export function toProcedimentoInsert(
-  parsed: ParsedProcedimento,
-  arquivoId: number
-): InsertProcedimento {
-  return {
-    arquivoId,
-    codigo: parsed.codigo,
-    descricao: parsed.descricao,
-    quantidade: parsed.quantidade || 1,
-    valorUnitario: parsed.valorUnitario ? String(parsed.valorUnitario) : undefined,
-    valorTotal: parsed.valorTotal ? String(parsed.valorTotal) : undefined,
-    valorGlosado: parsed.valorGlosado ? String(parsed.valorGlosado) : undefined,
-    motivoGlosa: parsed.motivoGlosa,
-    dataExecucao: parsed.dataExecucao,
-    pacienteNome: parsed.pacienteNome,
-    pacienteCarteirinha: parsed.pacienteCarteirinha,
-    guiaNumero: parsed.guiaNumero,
-    senha: parsed.senha,
-    nomeMedico: parsed.nomeMedico,
-    crmMedico: parsed.crmMedico,
-    codigoPrestadorExecutante: parsed.codigoPrestadorExecutante,
-    codigoDespesa: parsed.codigoDespesa,
-    tipoDespesa: parsed.tipoDespesa,
-    dadosExtras: parsed.dadosExtras,
-    // Chave composta para identificar faturamento único
-    // Garantir que valores 'null' (string) ou vazios sejam convertidos para undefined (NULL real no banco)
-    numeroLote: (parsed.numeroLote && parsed.numeroLote !== 'null' && parsed.numeroLote.trim() !== '') 
-      ? parsed.numeroLote 
-      : undefined,
-    sequencialTransacao: (parsed.sequencialTransacao && parsed.sequencialTransacao !== 'null' && parsed.sequencialTransacao.trim() !== '') 
-      ? parsed.sequencialTransacao 
-      : undefined,
-  };
-}
+// Função toProcedimentoInsert REMOVIDA - dados agora são mapeados diretamente para faturamentoTiss no routers.ts
 
 /**
  * Determine file type and parse accordingly
