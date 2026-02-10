@@ -1593,3 +1593,8 @@
 ## Arquivo Travado em Processando - 10/02/2026
 - [x] Investigar arquivo demonstrativo-0284932.xlsx travado em status 'processando' (ID 1110264, 0 registros no banco)
 - [x] Corrigir status do arquivo e reprocessar (22.177 registros inseridos: 20.971 pagos + 1.206 glosados R$ 14.855,71, competência 12/2025)
+
+## Data Incorreta no Novo Upload demonstrativo-0284932.xlsx - 10/02/2026
+- [x] Reprocessar demonstrativo-0284932.xlsx (ID 1110266) travado em processando com 0 registros (22.177 registros inseridos, competência 01/2026)
+- [x] Reprocessar demonstrativo_servicos_1.xml (ID 1110265) travado em processando com 0 registros (24.004 registros inseridos, competência 01/2026)
+- [x] Investigar causa raiz do travamento: timeoutPromise criado mas nunca usado com Promise.race - corrigido para usar Promise.race([doProcess(), timeoutPromise])

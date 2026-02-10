@@ -567,6 +567,8 @@ export const appRouter = router({
             }, TIMEOUT_MS);
           });
           
+          // Função interna com a lógica real de processamento
+          const doProcess = async () => {
           try {
             console.log('[Upload] Starting background processing:', input.nome);
             
@@ -879,6 +881,19 @@ export const appRouter = router({
               await db.updateArquivoStatus(arquivoId, "erro");
             } catch (dbError) {
               console.error("[Upload] Failed to update status to erro:", dbError);
+            }
+          }
+          }; // end doProcess
+          
+          // Usar Promise.race para garantir que o timeout funcione
+          try {
+            await Promise.race([doProcess(), timeoutPromise]);
+          } catch (raceError: any) {
+            console.error('[Upload] Processamento falhou ou excedeu timeout:', raceError?.message || raceError);
+            try {
+              await db.updateArquivoStatus(arquivoId, "erro");
+            } catch (dbError) {
+              console.error('[Upload] Failed to update status to erro after timeout:', dbError);
             }
           } finally {
             // Limpar timeout se ainda estiver ativo
