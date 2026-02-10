@@ -1588,3 +1588,4 @@
 - [x] Remover aba Contas Demonstrativo e ContaDetalhesDemonstrativo do sistema
 - [x] Verificar reimportação do arquivo 'Demostrativo Psi-12-2025.xlsx' (26.614 registros processados + otimização: pular parseFile genérico para retornados)
 - [x] Corrigir tela Demonstrativo: filtro por convênio retorna 0 contas e competência fica vazia (26.614 registros tinham convenioId=NULL, corrigidos para Unimed)
+- [x] Corrigir bug de fuso horário no Demonstrativo: data_referencia 2025-12-01 aparece como competência 11/2025 em vez de 12/2025 (dados corrigidos no banco via SQL UPDATE, função normalizeDateForDB já estava correta com meio-dia UTC)
