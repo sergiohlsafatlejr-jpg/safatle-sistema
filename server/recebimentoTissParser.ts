@@ -67,7 +67,7 @@ const COLUMN_MAPPINGS: Record<keyof Omit<InsertRecebimentoTiss, 'id' | 'dataImpo
   valorInformado: ["valor_informado", "valorinformado", "vl_informado"],
   valorProcessado: ["processado", "valor_processado", "valorprocessado", "vl_processado"],
   valorLiberado: ["Valor Pagamento", "valor_pagamento", "valorpagamento", "valor_pago", "valor_liberado"],
-  valorGlosado: ["valor_glosado", "valorglosado", "vl_glosado"],
+  // valorGlosado removido - é VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
   
   // ========== GLOSA DO ITEM ==========
   codigoGlosa: ["Erro TISS", "erro_tiss", "errotiss", "codigo_glosa", "codigoglosa", "cod_glosa"],

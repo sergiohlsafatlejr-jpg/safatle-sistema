@@ -1570,3 +1570,10 @@
 - [x] Analisar e corrigir importação de XMLs de retorno AFFEGO - 5 arquivos importados mas sem dados no demonstrativo (mesmo bug do valorGlosado VIRTUAL GENERATED + 4 arquivos não estavam no banco)
 - [x] Acompanhar importação do arquivo 'Demostrativo Psi-12-2025.xlsx' e diagnosticar problemas (26.614 itens importados com sucesso)
 - [x] Implementar solução para processamento de arquivos muito grandes: progresso real com callbacks, inserção resiliente com fallback item-a-item, otimização de fluxo para retornados (pular parseFile genérico), endpoint reprocessar atualizado para retornados
+
+## Análise de Abas do Sistema - 10/02/2026
+- [ ] Analisar aba Divergentes: identificar tabelas e procedures utilizadas
+- [ ] Analisar aba Faturamento: identificar tabelas e procedures utilizadas
+- [ ] Analisar aba Relatório de Contas: identificar tabelas e procedures utilizadas
+- [ ] Analisar aba Histórico de Contestações: identificar tabelas e procedures utilizadas
+- [ ] Analisar aba Faturado Tasy: identificar tabelas e procedures utilizadas
