@@ -1568,3 +1568,5 @@
 - [x] Atualizar schema Drizzle para marcar valorGlosado como generatedAlwaysAs no recebimentoTiss
 - [x] Corrigir syncDemonstrativo para calcular valorGlosado localmente em vez de usar campo do parser
 - [x] Analisar e corrigir importação de XMLs de retorno AFFEGO - 5 arquivos importados mas sem dados no demonstrativo (mesmo bug do valorGlosado VIRTUAL GENERATED + 4 arquivos não estavam no banco)
+- [x] Acompanhar importação do arquivo 'Demostrativo Psi-12-2025.xlsx' e diagnosticar problemas (26.614 itens importados com sucesso)
+- [x] Implementar solução para processamento de arquivos muito grandes: progresso real com callbacks, inserção resiliente com fallback item-a-item, otimização de fluxo para retornados (pular parseFile genérico), endpoint reprocessar atualizado para retornados

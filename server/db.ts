@@ -15603,7 +15603,8 @@ export async function getCompetenciasFaturadoTasy(
  * Insere itens na tabela recebimento_tiss
  */
 export async function insertRecebimentoTiss(
-  items: Partial<InsertRecebimentoTiss>[]
+  items: Partial<InsertRecebimentoTiss>[],
+  onProgress?: (inserted: number, total: number) => void | Promise<void>
 ): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -15616,9 +15617,28 @@ export async function insertRecebimentoTiss(
 
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const batch = items.slice(i, i + BATCH_SIZE);
-    await db.insert(recebimentoTiss).values(batch as InsertRecebimentoTiss[]);
-    totalInserted += batch.length;
-    console.log(`[insertRecebimentoTiss] Inseridos ${totalInserted}/${items.length} itens`);
+    try {
+      await db.insert(recebimentoTiss).values(batch as InsertRecebimentoTiss[]);
+      totalInserted += batch.length;
+      console.log(`[insertRecebimentoTiss] Inseridos ${totalInserted}/${items.length} itens`);
+      if (onProgress) {
+        await onProgress(totalInserted, items.length);
+      }
+    } catch (err) {
+      console.error(`[insertRecebimentoTiss] Erro no lote ${i}-${i + batch.length}:`, err);
+      // Tentar inserir um a um para não perder todo o lote
+      for (const item of batch) {
+        try {
+          await db.insert(recebimentoTiss).values([item as InsertRecebimentoTiss]);
+          totalInserted++;
+        } catch (singleErr) {
+          console.error(`[insertRecebimentoTiss] Erro ao inserir item individual:`, singleErr);
+        }
+      }
+      if (onProgress) {
+        await onProgress(totalInserted, items.length);
+      }
+    }
   }
 
   return totalInserted;
@@ -16282,7 +16302,8 @@ export async function getFaturamentoTissByArquivo(arquivoId: number) {
  * Insere múltiplos registros de recebimentos_excel em lote
  */
 export async function insertRecebimentosExcelBatch(
-  records: InsertRecebimentoExcel[]
+  records: InsertRecebimentoExcel[],
+  onProgress?: (inserted: number, total: number) => void | Promise<void>
 ): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -16294,8 +16315,28 @@ export async function insertRecebimentosExcelBatch(
 
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
-    await db.insert(recebimentosExcel).values(batch);
-    totalInserted += batch.length;
+    try {
+      await db.insert(recebimentosExcel).values(batch);
+      totalInserted += batch.length;
+      console.log(`[insertRecebimentosExcelBatch] Inseridos ${totalInserted}/${records.length} itens`);
+      if (onProgress) {
+        await onProgress(totalInserted, records.length);
+      }
+    } catch (err) {
+      console.error(`[insertRecebimentosExcelBatch] Erro no lote ${i}-${i + batch.length}:`, err);
+      // Tentar inserir um a um para não perder todo o lote
+      for (const record of batch) {
+        try {
+          await db.insert(recebimentosExcel).values([record]);
+          totalInserted++;
+        } catch (singleErr) {
+          console.error(`[insertRecebimentosExcelBatch] Erro ao inserir item individual:`, singleErr);
+        }
+      }
+      if (onProgress) {
+        await onProgress(totalInserted, records.length);
+      }
+    }
   }
 
   return totalInserted;

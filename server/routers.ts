@@ -581,8 +581,8 @@ export const appRouter = router({
               comMedico: parseResult.procedimentos.filter(p => p.nomeMedico).length
             });
             
-            if (parseResult.success && parseResult.procedimentos.length > 0) {
-              // Agrupar procedimentos por código de prestador executante
+            if (parseResult.success && parseResult.procedimentos.length > 0 && input.direcao === "enviado") {
+              // Agrupar procedimentos por código de prestador executante (APENAS para arquivos enviados)
               const procedimentosPorPrestador: Record<string, typeof parseResult.procedimentos> = {};
               
               for (const proc of parseResult.procedimentos) {
@@ -751,6 +751,10 @@ export const appRouter = router({
                     
                     try {
                       const { parseExcelRecebimentosExcel } = await import('./recebimentosExcelParser');
+                      
+                      // Atualizar progresso: parsing
+                      await db.updateArquivoProgresso(arquivoId, 10, 0);
+                      
                       const recordsExcel = parseExcelRecebimentosExcel(
                         buffer,
                         arquivoId,
@@ -759,8 +763,17 @@ export const appRouter = router({
                         dataPagamentoUpload,
                         input.estabelecimentoId
                       );
+                      
+                      // Atualizar progresso: parsing concluído
+                      await db.updateArquivoProgresso(arquivoId, 20, 0, recordsExcel.length);
+                      console.log(`[Upload] Excel parsed: ${recordsExcel.length} registros encontrados`);
+                      
                       if (recordsExcel.length > 0) {
-                        const totalExcel = await db.insertRecebimentosExcelBatch(recordsExcel);
+                        // Inserir com progresso real (20% a 80%)
+                        const totalExcel = await db.insertRecebimentosExcelBatch(recordsExcel, async (inserted, total) => {
+                          const progresso = Math.round(20 + (inserted / total) * 60); // 20% a 80%
+                          await db.updateArquivoProgresso(arquivoId, progresso, inserted, total);
+                        });
                         console.log('[Upload] Recebimentos Excel importado:', totalExcel, 'itens');
                         
                         // SINCRONIZAÇÃO AUTOMÁTICA: Popular tabela demonstrativo
@@ -775,11 +788,15 @@ export const appRouter = router({
                         } catch (syncError) {
                           console.error('[Upload] Erro ao sincronizar demonstrativo:', syncError);
                         }
+                        // Progresso: sincronização concluída
+                        await db.updateArquivoProgresso(arquivoId, 95, recordsExcel.length, recordsExcel.length);
                       } else {
                         console.log('[Upload] Nenhum item de recebimentos_excel encontrado no arquivo');
                       }
                     } catch (excelError) {
                       console.error('[Upload] Erro ao importar recebimentos_excel:', excelError);
+                      // Registrar erro mas não falhar o upload
+                      await db.updateArquivoProgresso(arquivoId, 0, 0);
                     }
                   } else if (input.tipoArquivo === "xml") {
                     // Arquivos XML de retorno -> tabela recebimento_tiss
@@ -800,8 +817,17 @@ export const appRouter = router({
                       dataPagamentoUpload
                     );
                     
+                    // Atualizar progresso: parsing concluído
+                    if (recebimentoResult) {
+                      await db.updateArquivoProgresso(arquivoId, 20, 0, recebimentoResult.items.length);
+                    }
+                    
                     if (recebimentoResult && recebimentoResult.success && recebimentoResult.items.length > 0) {
-                      const totalImportados = await db.insertRecebimentoTiss(recebimentoResult.items);
+                      // Inserir com progresso real (20% a 80%)
+                      const totalImportados = await db.insertRecebimentoTiss(recebimentoResult.items, async (inserted, total) => {
+                        const progresso = Math.round(20 + (inserted / total) * 60); // 20% a 80%
+                        await db.updateArquivoProgresso(arquivoId, progresso, inserted, total);
+                      });
                       console.log('[Upload] Recebimento TISS importado:', totalImportados, 'itens de', recebimentoResult.totalRows, 'linhas');
                       
                       // SINCRONIZAÇÃO AUTOMÁTICA: Popular tabela demonstrativo
@@ -922,9 +948,6 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para reprocessar este arquivo" });
         }
         
-        // Delete existing faturamento_tiss
-        await db.deleteFaturamentoTissByArquivo(input.id);
-        
         // Download file from S3
         const response = await fetch(arquivo.s3Url);
         if (!response.ok) {
@@ -932,61 +955,149 @@ export const appRouter = router({
         }
         const buffer = Buffer.from(await response.arrayBuffer());
         
-        // Parse file and extract items - save directly to faturamento_tiss
         try {
-          console.log('[Reprocessar] Parsing file:', arquivo.nome);
-          const parseResult = await parseFile(buffer, arquivo.nome);
+          console.log('[Reprocessar] Processando arquivo:', arquivo.nome, 'direcao:', arquivo.direcao);
+          await db.updateArquivoStatus(input.id, "processando");
+          await db.updateArquivoProgresso(input.id, 5, 0);
           
-          console.log('[Reprocessar] Parse result:', {
-            success: parseResult.success,
-            itensCount: parseResult.procedimentos.length,
-          });
-          
-          if (parseResult.success && parseResult.procedimentos.length > 0) {
-            // Salvar diretamente em faturamento_tiss (sem tabela procedimentos)
-            const faturamentoRecords: InsertFaturamentoTiss[] = parseResult.procedimentos.map((proc, idx) => ({
-              numeroLote: proc.numeroLote || undefined,
-              sequencialTransacao: proc.sequencialTransacao || undefined,
-              registroAns: proc.registroANS || undefined,
-              numeroGuiaPrestador: proc.guiaNumero || undefined,
-              numeroGuiaOperadora: proc.numeroGuiaOperadora || undefined,
-              senha: proc.senha || undefined,
-              carteiraBeneficiario: proc.pacienteCarteirinha || undefined,
-              tipoItem: mapTipoDespesaParaTipoItem(proc.tipoDespesa),
-              sequencialItem: idx + 1,
-              dataExecucao: proc.dataExecucao || undefined,
-              codigoTabela: proc.codigoDespesa || undefined,
-              codigoItem: proc.codigo,
-              descricaoItem: proc.descricao || undefined,
-              quantidade: proc.quantidade ? String(proc.quantidade) : '1',
-              valorUnitario: proc.valorUnitario ? String(proc.valorUnitario) : undefined,
-              valorFaturado: proc.valorTotal ? String(proc.valorTotal) : undefined,
-              nomeProf: proc.nomeMedico || undefined,
-              conselhoProf: proc.crmMedico || undefined,
-              estabelecimentoId: arquivo.estabelecimentoId || undefined,
-              arquivoId: input.id,
-              convenioId: arquivo.convenioId,
-              dataReferencia: arquivo.dataReferencia || undefined,
-            }));
+          if (arquivo.direcao === "retornado") {
+            // === REPROCESSAR ARQUIVO DE RETORNO ===
+            const tipoArquivo = arquivo.nome.toLowerCase().endsWith('.xml') ? 'xml' : 'excel';
+            const dataReferenciaUpload = arquivo.dataReferencia ? new Date(arquivo.dataReferencia) : undefined;
+            const dataPagamentoUpload = arquivo.dataPagamento ? new Date(arquivo.dataPagamento) : undefined;
             
-            await db.insertFaturamentoTissBatch(faturamentoRecords);
+            let totalProcessados = 0;
+            
+            if (tipoArquivo === 'excel') {
+              // Excluir dados antigos
+              await db.deleteRecebimentosExcelByArquivo(input.id);
+              await db.deleteDemonstrativoByArquivo(input.id);
+              
+              const { parseExcelRecebimentosExcel } = await import('./recebimentosExcelParser');
+              await db.updateArquivoProgresso(input.id, 10, 0);
+              
+              const recordsExcel = parseExcelRecebimentosExcel(
+                buffer, input.id, arquivo.convenioId,
+                dataReferenciaUpload, dataPagamentoUpload,
+                arquivo.estabelecimentoId || undefined
+              );
+              
+              await db.updateArquivoProgresso(input.id, 20, 0, recordsExcel.length);
+              console.log(`[Reprocessar] Excel parsed: ${recordsExcel.length} registros`);
+              
+              if (recordsExcel.length > 0) {
+                totalProcessados = await db.insertRecebimentosExcelBatch(recordsExcel, async (inserted, total) => {
+                  const progresso = Math.round(20 + (inserted / total) * 60);
+                  await db.updateArquivoProgresso(input.id, progresso, inserted, total);
+                });
+                
+                // Sincronizar demonstrativo
+                try {
+                  const { syncDemonstrativoByArquivo } = await import('./syncDemonstrativo');
+                  const syncResult = await syncDemonstrativoByArquivo(input.id, 'excel');
+                  console.log('[Reprocessar] Demonstrativo sincronizado:', syncResult.total, 'itens');
+                } catch (syncError) {
+                  console.error('[Reprocessar] Erro ao sincronizar demonstrativo:', syncError);
+                }
+              }
+            } else {
+              // XML de retorno
+              await db.deleteRecebimentoTissByArquivo(input.id);
+              await db.deleteDemonstrativoByArquivo(input.id);
+              
+              const { parseXmlRecebimentoTiss } = await import('./recebimentoTissParser');
+              await db.updateArquivoProgresso(input.id, 10, 0);
+              
+              const recebimentoResult = await parseXmlRecebimentoTiss(
+                buffer, input.id, arquivo.estabelecimentoId || 0,
+                arquivo.convenioId, dataReferenciaUpload, dataPagamentoUpload
+              );
+              
+              if (recebimentoResult && recebimentoResult.success && recebimentoResult.items.length > 0) {
+                await db.updateArquivoProgresso(input.id, 20, 0, recebimentoResult.items.length);
+                
+                totalProcessados = await db.insertRecebimentoTiss(recebimentoResult.items, async (inserted, total) => {
+                  const progresso = Math.round(20 + (inserted / total) * 60);
+                  await db.updateArquivoProgresso(input.id, progresso, inserted, total);
+                });
+                
+                // Sincronizar demonstrativo
+                try {
+                  const { syncDemonstrativoByArquivo } = await import('./syncDemonstrativo');
+                  const syncResult = await syncDemonstrativoByArquivo(input.id, 'xml');
+                  console.log('[Reprocessar] Demonstrativo sincronizado:', syncResult.total, 'itens');
+                } catch (syncError) {
+                  console.error('[Reprocessar] Erro ao sincronizar demonstrativo:', syncError);
+                }
+              }
+            }
+            
             await db.updateArquivoStatus(input.id, "processado");
+            await db.updateArquivoProgresso(input.id, 100, totalProcessados, totalProcessados);
             
-            return { 
-              success: true, 
-              procedimentosCount: faturamentoRecords.length,
-              message: `Arquivo reprocessado com sucesso. ${faturamentoRecords.length} itens extraídos.`
+            return {
+              success: true,
+              procedimentosCount: totalProcessados,
+              message: `Arquivo de retorno reprocessado com sucesso. ${totalProcessados} itens extra\u00eddos.`
             };
-          } else if (!parseResult.success) {
-            await db.updateArquivoStatus(input.id, "erro");
-            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: parseResult.error || "Erro ao processar arquivo" });
           } else {
-            await db.updateArquivoStatus(input.id, "processado");
-            return { 
-              success: true, 
-              procedimentosCount: 0,
-              message: "Arquivo processado, mas nenhum item encontrado."
-            };
+            // === REPROCESSAR ARQUIVO DE ENVIO (fluxo original) ===
+            await db.deleteFaturamentoTissByArquivo(input.id);
+            
+            console.log('[Reprocessar] Parsing file:', arquivo.nome);
+            const parseResult = await parseFile(buffer, arquivo.nome);
+            
+            console.log('[Reprocessar] Parse result:', {
+              success: parseResult.success,
+              itensCount: parseResult.procedimentos.length,
+            });
+            
+            if (parseResult.success && parseResult.procedimentos.length > 0) {
+              const faturamentoRecords: InsertFaturamentoTiss[] = parseResult.procedimentos.map((proc, idx) => ({
+                numeroLote: proc.numeroLote || undefined,
+                sequencialTransacao: proc.sequencialTransacao || undefined,
+                registroAns: proc.registroANS || undefined,
+                numeroGuiaPrestador: proc.guiaNumero || undefined,
+                numeroGuiaOperadora: proc.numeroGuiaOperadora || undefined,
+                senha: proc.senha || undefined,
+                carteiraBeneficiario: proc.pacienteCarteirinha || undefined,
+                tipoItem: mapTipoDespesaParaTipoItem(proc.tipoDespesa),
+                sequencialItem: idx + 1,
+                dataExecucao: proc.dataExecucao || undefined,
+                codigoTabela: proc.codigoDespesa || undefined,
+                codigoItem: proc.codigo,
+                descricaoItem: proc.descricao || undefined,
+                quantidade: proc.quantidade ? String(proc.quantidade) : '1',
+                valorUnitario: proc.valorUnitario ? String(proc.valorUnitario) : undefined,
+                valorFaturado: proc.valorTotal ? String(proc.valorTotal) : undefined,
+                nomeProf: proc.nomeMedico || undefined,
+                conselhoProf: proc.crmMedico || undefined,
+                estabelecimentoId: arquivo.estabelecimentoId || undefined,
+                arquivoId: input.id,
+                convenioId: arquivo.convenioId,
+                dataReferencia: arquivo.dataReferencia || undefined,
+              }));
+              
+              await db.insertFaturamentoTissBatch(faturamentoRecords);
+              await db.updateArquivoStatus(input.id, "processado");
+              await db.updateArquivoProgresso(input.id, 100, faturamentoRecords.length, faturamentoRecords.length);
+              
+              return { 
+                success: true, 
+                procedimentosCount: faturamentoRecords.length,
+                message: `Arquivo reprocessado com sucesso. ${faturamentoRecords.length} itens extra\u00eddos.`
+              };
+            } else if (!parseResult.success) {
+              await db.updateArquivoStatus(input.id, "erro");
+              throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: parseResult.error || "Erro ao processar arquivo" });
+            } else {
+              await db.updateArquivoStatus(input.id, "processado");
+              return { 
+                success: true, 
+                procedimentosCount: 0,
+                message: "Arquivo processado, mas nenhum item encontrado."
+              };
+            }
           }
         } catch (error) {
           console.error("Error reprocessing file:", error);
