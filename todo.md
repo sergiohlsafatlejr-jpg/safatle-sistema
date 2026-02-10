@@ -1589,3 +1589,7 @@
 - [x] Verificar reimportação do arquivo 'Demostrativo Psi-12-2025.xlsx' (26.614 registros processados + otimização: pular parseFile genérico para retornados)
 - [x] Corrigir tela Demonstrativo: filtro por convênio retorna 0 contas e competência fica vazia (26.614 registros tinham convenioId=NULL, corrigidos para Unimed)
 - [x] Corrigir bug de fuso horário no Demonstrativo: data_referencia 2025-12-01 aparece como competência 11/2025 em vez de 12/2025 (dados corrigidos no banco via SQL UPDATE, função normalizeDateForDB já estava correta com meio-dia UTC)
+
+## Arquivo Travado em Processando - 10/02/2026
+- [x] Investigar arquivo demonstrativo-0284932.xlsx travado em status 'processando' (ID 1110264, 0 registros no banco)
+- [x] Corrigir status do arquivo e reprocessar (22.177 registros inseridos: 20.971 pagos + 1.206 glosados R$ 14.855,71, competência 12/2025)
