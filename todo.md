@@ -1567,3 +1567,4 @@
 - [x] Reprocessar os 4 XMLs CASSI que falharam (1020282, 1020283, 1020284, 1020285) - total 434 itens inseridos
 - [x] Atualizar schema Drizzle para marcar valorGlosado como generatedAlwaysAs no recebimentoTiss
 - [x] Corrigir syncDemonstrativo para calcular valorGlosado localmente em vez de usar campo do parser
+- [x] Analisar e corrigir importação de XMLs de retorno AFFEGO - 5 arquivos importados mas sem dados no demonstrativo (mesmo bug do valorGlosado VIRTUAL GENERATED + 4 arquivos não estavam no banco)
