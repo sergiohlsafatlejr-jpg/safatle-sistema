@@ -1511,7 +1511,7 @@
 - [x] Removida chamada a deleteProcedimentosByArquivoId no fluxo de delete/reprocessar
 - [x] Testes unitários do comparador atualizados (8 testes passando)
 - [x] Todos os 435 testes do projeto passando (36 arquivos de teste)
-- [ ] Migração completa das 211 referências restantes à tabela procedimentos no db.ts (funções legadas mantidas para compatibilidade)
+- [x] Migração completa: todas as referências .from(procedimentos) removidas do db.ts (38 refs em 22 funções migradas para faturamentoTiss/demonstrativo)
 
 ## Relatórios BI: Integrar faturamento_tiss + demonstrativos
 
@@ -1520,3 +1520,14 @@
 - [x] Atualizar getResumoGeral (dashboard) para usar faturamento_tiss (envios) e demonstrativo (retornos)
 - [x] Garantir que relatórios BI mostrem dados cruzados (faturado vs recebido)
 - [x] Executar testes e validar compilação (435 testes passando, 0 erros TypeScript)
+
+
+## Migração Completa: Remover todas as referências .from(procedimentos) no db.ts
+
+- [x] Mapear e categorizar todas as 40 referências .from(procedimentos) por função (38 refs em 22 funções)
+- [x] Migrar funções de conciliação e comparação para usar demonstrativo/faturamento_tiss
+- [x] Migrar funções de detalhes de arquivo e listagem para usar faturamento_tiss/demonstrativo
+- [x] Migrar funções de análise estatística e prestadores
+- [x] Migrar funções de insights IA e alertas
+- [x] Limpar imports e referências residuais à tabela procedimentos (removido import, removido createProcedimentos)
+- [x] Verificar compilação e executar testes (0 erros TS no db.ts, 435 testes passando)

@@ -6,7 +6,6 @@ import {
   users,
   convenios,
   arquivos,
-  procedimentos,
   comparacoes,
   divergencias,
   codigosProcedimentos,
@@ -14,7 +13,6 @@ import {
   itensManuals,
   InsertConvenio,
   InsertArquivo,
-  InsertProcedimento,
   InsertComparacao,
   InsertDivergencia,
   InsertCodigoProcedimento,
@@ -469,70 +467,8 @@ export async function deleteArquivo(id: number) {
   return { success: true };
 }
 
-// ============ PROCEDIMENTO FUNCTIONS ============
-
-export async function createProcedimentos(
-  data: InsertProcedimento[],
-  arquivoId?: number,
-  onProgress?: (progresso: number, itensProcessados: number, totalItens: number) => Promise<void>
-) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  if (data.length === 0) return { count: 0 };
-
-  // Use larger batch size for faster insertion
-  // MySQL can handle larger batches efficiently - increased to 10000 for better throughput
-  const BATCH_SIZE = 10000;
-  let inserted = 0;
-  const totalItens = data.length;
-  const startTime = Date.now();
-  
-  console.log(`[DB] Starting insertion of ${totalItens} procedimentos...`);
-  
-  // Process batches
-  const batches: InsertProcedimento[][] = [];
-  for (let i = 0; i < data.length; i += BATCH_SIZE) {
-    batches.push(data.slice(i, i + BATCH_SIZE));
-  }
-  
-  // Insert batches with optimized approach
-  // Use Promise.all for parallel insertion of smaller groups (5 at a time for better throughput)
-  const PARALLEL_BATCHES = 5;
-  
-  for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
-    const batchGroup = batches.slice(i, i + PARALLEL_BATCHES);
-    
-    // Insert batches in parallel
-    await Promise.all(
-      batchGroup.map(batch => db.insert(procedimentos).values(batch))
-    );
-    
-    inserted += batchGroup.reduce((sum, b) => sum + b.length, 0);
-    
-    // Calculate progress percentage
-    const progresso = Math.round((inserted / totalItens) * 100);
-    const elapsed = (Date.now() - startTime) / 1000;
-    const rate = elapsed > 0 ? inserted / elapsed : 0;
-    const remaining = totalItens - inserted;
-    const eta = rate > 0 ? remaining / rate : 0;
-    
-    // Only log every 5 batch groups or at the end to reduce log spam
-    if ((i / PARALLEL_BATCHES) % 5 === 0 || i + PARALLEL_BATCHES >= batches.length) {
-      console.log(`[DB] Progress: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec - ETA: ${Math.round(eta)}s`);
-    }
-    
-    // Report progress if callback provided (less frequently for better performance)
-    if (onProgress && ((i / PARALLEL_BATCHES) % 3 === 0 || i + PARALLEL_BATCHES >= batches.length)) {
-      await onProgress(progresso, inserted, totalItens);
-    }
-  }
-  
-  const totalTime = (Date.now() - startTime) / 1000;
-  console.log(`[DB] Completed: ${totalItens} procedimentos in ${totalTime.toFixed(1)}s (${Math.round(totalItens / totalTime)} items/sec)`);
-  
-  return { count: data.length };
-}
+// ============ FATURAMENTO TISS FUNCTIONS ============
+// (Função createProcedimentos removida - substituída por insertFaturamentoTissBatch)
 
 export async function getProcedimentosByArquivoId(arquivoId: number) {
   const db = await getDb();
@@ -540,15 +476,15 @@ export async function getProcedimentosByArquivoId(arquivoId: number) {
 
   return db
     .select()
-    .from(procedimentos)
-    .where(eq(procedimentos.arquivoId, arquivoId));
+    .from(faturamentoTiss)
+    .where(eq(faturamentoTiss.arquivoId, arquivoId));
 }
 
 export async function deleteProcedimentosByArquivoId(arquivoId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.delete(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  await db.delete(faturamentoTiss).where(eq(faturamentoTiss.arquivoId, arquivoId));
   return { success: true };
 }
 
@@ -560,30 +496,30 @@ export async function verificarDuplicatasPorChaveComposta(
   numeroLote: string,
   sequencialTransacao: string,
   estabelecimentoId?: number
-): Promise<{ arquivoId: number; count: number }[]> {
+): Promise<{ arquivoId: number | null; count: number }[]> {
   const dbConn = await getDb();
   if (!dbConn) return [];
 
   try {
-    // Buscar procedimentos com a mesma chave composta
+    // Buscar itens faturados com a mesma chave composta
     const conditions = [
-      eq(procedimentos.numeroLote, numeroLote),
-      eq(procedimentos.sequencialTransacao, sequencialTransacao),
+      eq(faturamentoTiss.numeroLote, numeroLote),
+      eq(faturamentoTiss.sequencialTransacao, sequencialTransacao),
     ];
 
     const result = await dbConn
       .select({
-        arquivoId: procedimentos.arquivoId,
+        arquivoId: faturamentoTiss.arquivoId,
         count: sql<number>`count(*)`
       })
-      .from(procedimentos)
-      .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+      .from(faturamentoTiss)
+      .innerJoin(arquivos, eq(faturamentoTiss.arquivoId, arquivos.id))
       .where(
         estabelecimentoId
           ? and(...conditions, eq(arquivos.estabelecimentoId, estabelecimentoId))
           : and(...conditions)
       )
-      .groupBy(procedimentos.arquivoId);
+      .groupBy(faturamentoTiss.arquivoId);
 
     return result;
   } catch (error) {
@@ -599,27 +535,27 @@ export async function getProcedimentosPorChaveComposta(
   numeroLote: string,
   sequencialTransacao: string,
   guiaNumero?: string
-): Promise<{ id: number; arquivoId: number; guiaNumero: string | null }[]> {
+): Promise<{ id: number; arquivoId: number | null; guiaNumero: string | null }[]> {
   const dbConn = await getDb();
   if (!dbConn) return [];
 
   try {
     const conditions = [
-      eq(procedimentos.numeroLote, numeroLote),
-      eq(procedimentos.sequencialTransacao, sequencialTransacao),
+      eq(faturamentoTiss.numeroLote, numeroLote),
+      eq(faturamentoTiss.sequencialTransacao, sequencialTransacao),
     ];
 
     if (guiaNumero) {
-      conditions.push(eq(procedimentos.guiaNumero, guiaNumero));
+      conditions.push(eq(faturamentoTiss.numeroGuiaPrestador, guiaNumero));
     }
 
     const result = await dbConn
       .select({
-        id: procedimentos.id,
-        arquivoId: procedimentos.arquivoId,
-        guiaNumero: procedimentos.guiaNumero,
+        id: faturamentoTiss.id,
+        arquivoId: faturamentoTiss.arquivoId,
+        guiaNumero: faturamentoTiss.numeroGuiaPrestador,
       })
-      .from(procedimentos)
+      .from(faturamentoTiss)
       .where(and(...conditions));
 
     return result;
@@ -635,8 +571,8 @@ export async function getProcedimentoById(id: number) {
 
   const result = await db
     .select()
-    .from(procedimentos)
-    .where(eq(procedimentos.id, id))
+    .from(faturamentoTiss)
+    .where(eq(faturamentoTiss.id, id))
     .limit(1);
   return result[0] || null;
 }
@@ -665,185 +601,201 @@ export async function getProcedimentosPaginated(filters?: {
   const pageSize = filters?.pageSize || 20;
   const offset = (page - 1) * pageSize;
 
-  // Build conditions
-  const conditions = [];
+  // Determinar se busca de retornados (demonstrativo) ou enviados (faturamentoTiss)
+  const isRetornado = filters?.apenasRetornados || filters?.direcaoArquivo === "retornado";
 
-  if (filters?.arquivoId) {
-    conditions.push(eq(procedimentos.arquivoId, filters.arquivoId));
-  }
-
-  if (filters?.search) {
-    conditions.push(
-      or(
-        like(procedimentos.codigo, `%${filters.search}%`),
-        like(procedimentos.descricao, `%${filters.search}%`),
-        like(procedimentos.guiaNumero, `%${filters.search}%`),
-        like(procedimentos.pacienteNome, `%${filters.search}%`)
-      )
-    );
-  }
-
-  if (filters?.nomeMedico) {
-    conditions.push(like(procedimentos.nomeMedico, `%${filters.nomeMedico}%`));
-  }
-
-  if (filters?.crmMedico) {
-    conditions.push(like(procedimentos.crmMedico, `%${filters.crmMedico}%`));
-  }
-
-  // Add codigoPrestadorExecutante filter
-  if (filters?.codigoPrestadorExecutante) {
-    conditions.push(eq(procedimentos.codigoPrestadorExecutante, filters.codigoPrestadorExecutante));
-  }
-
-  // Add convenioId filter
+  // Build conditions for arquivo filters (shared)
+  const arquivoConditions = [];
   if (filters?.convenioId) {
-    conditions.push(eq(arquivos.convenioId, filters.convenioId));
+    arquivoConditions.push(eq(arquivos.convenioId, filters.convenioId));
   }
-
-  // Add estabelecimentoId filter (show all procedures from the establishment, not just user's files)
   if (filters?.estabelecimentoId && filters.estabelecimentoId > 0) {
-    conditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+    arquivoConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
   }
-
-  // Add filter for only returned files (for Demonstrativo)
   if (filters?.apenasRetornados) {
-    conditions.push(eq(arquivos.direcao, "retornado"));
+    arquivoConditions.push(eq(arquivos.direcao, "retornado"));
   }
-
-  // Add filter for direcao (enviado/retornado)
   if (filters?.direcaoArquivo) {
-    conditions.push(eq(arquivos.direcao, filters.direcaoArquivo));
+    arquivoConditions.push(eq(arquivos.direcao, filters.direcaoArquivo));
   }
-
-  // Add filter for reference month/year (based on dataReferencia from arquivo - set during upload)
   if (filters?.mesReferencia && filters?.anoReferencia) {
-    // Filter by month and year of arquivo.dataReferencia
-    conditions.push(
+    arquivoConditions.push(
       sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia} AND YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
     );
   } else if (filters?.anoReferencia) {
-    // Filter by year only
-    conditions.push(
-      sql`YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`
-    );
+    arquivoConditions.push(sql`YEAR(${arquivos.dataReferencia}) = ${filters.anoReferencia}`);
   } else if (filters?.mesReferencia) {
-    // Filter by month only (all years)
-    conditions.push(
-      sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia}`
-    );
+    arquivoConditions.push(sql`MONTH(${arquivos.dataReferencia}) = ${filters.mesReferencia}`);
   }
 
-  // Add filter for status glosa (pago, glosado, parcial)
-  // IMPORTANTE: Para arquivos de demonstrativo da Unimed, itens glosados têm valorTotal=0 e valorGlosado>0
-  if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
-    if (filters.statusGlosa === "pago") {
-      // Pago: valorGlosado é null, 0 ou vazio
-      conditions.push(
-        or(
-          isNull(procedimentos.valorGlosado),
-          eq(procedimentos.valorGlosado, "0"),
-          eq(procedimentos.valorGlosado, ""),
-          sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0`
-        )
-      );
-    } else if (filters.statusGlosa === "glosado") {
-      // Glosado: valorGlosado > 0 (independente de valorTotal, pois itens glosados podem ter valorTotal=0)
-      conditions.push(
-        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0`
-      );
-    } else if (filters.statusGlosa === "parcial") {
-      // Parcial: valorGlosado > 0 E valorTotal > 0 (glosa parcial - ambos os valores presentes)
-      conditions.push(
-        sql`CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) > 0`
-      );
+  if (isRetornado) {
+    // === RETORNADOS: buscar de demonstrativo ===
+    const conditions = [...arquivoConditions];
+    if (filters?.arquivoId) {
+      conditions.push(eq(demonstrativo.arquivoId, filters.arquivoId));
     }
+    if (filters?.search) {
+      const searchOr = or(
+        like(demonstrativo.codigoItem, `%${filters.search}%`),
+        like(demonstrativo.descricaoItem, `%${filters.search}%`),
+        like(demonstrativo.numeroGuia, `%${filters.search}%`),
+        like(demonstrativo.nomeBeneficiario, `%${filters.search}%`)
+      );
+      if (searchOr) conditions.push(searchOr);
+    }
+    if (filters?.statusGlosa && filters.statusGlosa !== "todos") {
+      if (filters.statusGlosa === "pago") {
+        const pagoOr = or(
+          isNull(demonstrativo.valorGlosa),
+          eq(demonstrativo.valorGlosa, "0"),
+          eq(demonstrativo.valorGlosa, ""),
+          sql`CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) = 0`
+        );
+        if (pagoOr) conditions.push(pagoOr);
+      } else if (filters.statusGlosa === "glosado") {
+        conditions.push(sql`CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) > 0`);
+      } else if (filters.statusGlosa === "parcial") {
+        conditions.push(
+          sql`CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) > 0 AND CAST(${demonstrativo.valorPago} AS DECIMAL(12,2)) > 0`
+        );
+      }
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const items = await db
+      .select({
+        id: demonstrativo.id,
+        arquivoId: demonstrativo.arquivoId,
+        codigo: demonstrativo.codigoItem,
+        descricao: demonstrativo.descricaoItem,
+        quantidade: sql<string>`'1'`,
+        valorUnitario: demonstrativo.valorPago,
+        valorTotal: demonstrativo.valorPago,
+        dataExecucao: demonstrativo.dataExecucao,
+        pacienteNome: demonstrativo.nomeBeneficiario,
+        pacienteCarteirinha: demonstrativo.carteiraBeneficiario,
+        guiaNumero: demonstrativo.numeroGuia,
+        nomeMedico: sql<string>`''`,
+        crmMedico: sql<string>`''`,
+        valorGlosado: demonstrativo.valorGlosa,
+        motivoGlosa: demonstrativo.codigoGlosa,
+        codigoDespesa: sql<string>`''`,
+        tipoDespesa: sql<string>`''`,
+        dadosExtras: sql<string>`NULL`,
+        createdAt: demonstrativo.dataImportacaoSistema,
+        arquivoNome: arquivos.nome,
+        arquivoConvenioId: arquivos.convenioId,
+        convenioNome: convenios.nome,
+      })
+      .from(demonstrativo)
+      .leftJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
+      .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
+      .where(whereClause)
+      .orderBy(desc(demonstrativo.dataImportacaoSistema))
+      .limit(pageSize)
+      .offset(offset);
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(demonstrativo)
+      .leftJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
+      .where(whereClause);
+    const total = countResult[0]?.count || 0;
+
+    const resumoResult = await db
+      .select({
+        totalValorPago: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorPago} AS DECIMAL(12,2))), 0)`,
+        totalGlosado: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2))), 0)`,
+        quantidadeGlosados: sql<number>`SUM(CASE WHEN CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
+        quantidadeParciais: sql<number>`SUM(CASE WHEN CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) > 0 AND CAST(${demonstrativo.valorPago} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
+        quantidadePagos: sql<number>`SUM(CASE WHEN ${demonstrativo.valorGlosa} IS NULL OR CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2)) = 0 THEN 1 ELSE 0 END)`,
+        totalRegistros: sql<number>`count(*)`
+      })
+      .from(demonstrativo)
+      .leftJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
+      .where(whereClause);
+
+    const resumoData = resumoResult[0] || {};
+    const resumo = {
+      totalPago: parseFloat(String(resumoData.totalValorPago || 0)),
+      totalGlosado: parseFloat(String(resumoData.totalGlosado || 0)),
+      quantidadePagos: parseInt(String(resumoData.quantidadePagos || 0)),
+      quantidadeGlosados: parseInt(String(resumoData.quantidadeGlosados || 0)),
+      quantidadeParciais: parseInt(String(resumoData.quantidadeParciais || 0)),
+      total,
+    };
+    return { items, total, resumo };
+  } else {
+    // === ENVIADOS: buscar de faturamentoTiss ===
+    const conditions = [...arquivoConditions];
+    if (filters?.arquivoId) {
+      conditions.push(eq(faturamentoTiss.arquivoId, filters.arquivoId));
+    }
+    if (filters?.search) {
+      const searchOr = or(
+        like(faturamentoTiss.codigoItem, `%${filters.search}%`),
+        like(faturamentoTiss.descricaoItem, `%${filters.search}%`),
+        like(faturamentoTiss.numeroGuiaPrestador, `%${filters.search}%`),
+        like(faturamentoTiss.carteiraBeneficiario, `%${filters.search}%`)
+      );
+      if (searchOr) conditions.push(searchOr);
+    }
+    if (filters?.nomeMedico) {
+      conditions.push(like(faturamentoTiss.nomeProf, `%${filters.nomeMedico}%`));
+    }
+    // statusGlosa filters don't apply to faturamentoTiss (no glosa data in sent files)
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const items = await db
+      .select({
+        id: faturamentoTiss.id,
+        arquivoId: faturamentoTiss.arquivoId,
+        codigo: faturamentoTiss.codigoItem,
+        descricao: faturamentoTiss.descricaoItem,
+        quantidade: faturamentoTiss.quantidade,
+        valorUnitario: faturamentoTiss.valorUnitario,
+        valorTotal: faturamentoTiss.valorFaturado,
+        dataExecucao: faturamentoTiss.dataExecucao,
+        pacienteNome: faturamentoTiss.carteiraBeneficiario,
+        pacienteCarteirinha: faturamentoTiss.carteiraBeneficiario,
+        guiaNumero: faturamentoTiss.numeroGuiaPrestador,
+        nomeMedico: faturamentoTiss.nomeProf,
+        crmMedico: faturamentoTiss.conselhoProf,
+        valorGlosado: sql<string>`NULL`,
+        motivoGlosa: sql<string>`NULL`,
+        codigoDespesa: sql<string>`''`,
+        tipoDespesa: sql<string>`''`,
+        dadosExtras: sql<string>`NULL`,
+        createdAt: faturamentoTiss.dataImportacao,
+        arquivoNome: arquivos.nome,
+        arquivoConvenioId: arquivos.convenioId,
+        convenioNome: convenios.nome,
+      })
+      .from(faturamentoTiss)
+      .leftJoin(arquivos, eq(faturamentoTiss.arquivoId, arquivos.id))
+      .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
+      .where(whereClause)
+      .orderBy(desc(faturamentoTiss.dataImportacao))
+      .limit(pageSize)
+      .offset(offset);
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(faturamentoTiss)
+      .leftJoin(arquivos, eq(faturamentoTiss.arquivoId, arquivos.id))
+      .where(whereClause);
+    const total = countResult[0]?.count || 0;
+
+    const resumo = {
+      totalPago: 0,
+      totalGlosado: 0,
+      quantidadePagos: 0,
+      quantidadeGlosados: 0,
+      quantidadeParciais: 0,
+      total,
+    };
+    return { items, total, resumo };
   }
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  // Get paginated items with optimized query
-  const items = await db
-    .select({
-      id: procedimentos.id,
-      arquivoId: procedimentos.arquivoId,
-      codigo: procedimentos.codigo,
-      descricao: procedimentos.descricao,
-      quantidade: procedimentos.quantidade,
-      valorUnitario: procedimentos.valorUnitario,
-      valorTotal: procedimentos.valorTotal,
-      dataExecucao: procedimentos.dataExecucao,
-      pacienteNome: procedimentos.pacienteNome,
-      pacienteCarteirinha: procedimentos.pacienteCarteirinha,
-      guiaNumero: procedimentos.guiaNumero,
-      nomeMedico: procedimentos.nomeMedico,
-      crmMedico: procedimentos.crmMedico,
-      valorGlosado: procedimentos.valorGlosado,
-      motivoGlosa: procedimentos.motivoGlosa,
-      codigoDespesa: procedimentos.codigoDespesa,
-      tipoDespesa: procedimentos.tipoDespesa,
-      dadosExtras: procedimentos.dadosExtras,
-      createdAt: procedimentos.createdAt,
-      arquivoNome: arquivos.nome,
-      arquivoConvenioId: arquivos.convenioId,
-      convenioNome: convenios.nome,
-    })
-    .from(procedimentos)
-    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
-    .leftJoin(convenios, eq(arquivos.convenioId, convenios.id))
-    .where(whereClause)
-    .orderBy(desc(procedimentos.createdAt))
-    .limit(pageSize)
-    .offset(offset);
-
-  // Get total count with optimized query (only count, no data)
-  const countResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(procedimentos)
-    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
-    .where(whereClause);
-  
-  const total = countResult[0]?.count || 0;
-
-  // Get resumo with aggregation query from ALL items (not just paginated)
-  // IMPORTANTE: Para arquivos de demonstrativo da Unimed, itens glosados têm valorTotal=0 e valorGlosado>0
-  // Portanto, totalPago deve ser a soma de valorTotal onde valorGlosado=0 (itens pagos)
-  // E totalGlosado deve ser a soma de valorGlosado (itens glosados)
-  const resumoResult = await db
-    .select({
-      // Total de valorTotal (soma de todos os itens pagos - onde valorTotal > 0 e valorGlosado = 0)
-      totalValorPago: sql<number>`COALESCE(SUM(CASE WHEN (${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' OR CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0) THEN CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) ELSE 0 END), 0)`,
-      // Total de valorGlosado (soma de todos os itens glosados)
-      totalGlosado: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2))), 0)`,
-      // Quantidade de itens glosados: valorGlosado > 0 (independente de valorTotal)
-      quantidadeGlosados: sql<number>`SUM(CASE WHEN CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
-      // Quantidade de itens parciais: valorGlosado > 0 E valorTotal > 0 (glosa parcial)
-      quantidadeParciais: sql<number>`SUM(CASE WHEN CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) > 0 AND CAST(${procedimentos.valorTotal} AS DECIMAL(12,2)) > 0 THEN 1 ELSE 0 END)`,
-      // Quantidade de itens pagos: valorGlosado = 0 ou NULL
-      quantidadePagos: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} IS NULL OR ${procedimentos.valorGlosado} = 0 OR ${procedimentos.valorGlosado} = '0' OR CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2)) = 0 THEN 1 ELSE 0 END)`,
-      totalRegistros: sql<number>`count(*)`
-    })
-    .from(procedimentos)
-    .leftJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
-    .where(whereClause);
-
-  const resumoData = resumoResult[0] || {};
-  const totalValorPago = parseFloat(String(resumoData.totalValorPago || 0));
-  const totalGlosadoDb = parseFloat(String(resumoData.totalGlosado || 0));
-  const quantidadeGlosados = parseInt(String(resumoData.quantidadeGlosados || 0));
-  const quantidadeParciais = parseInt(String(resumoData.quantidadeParciais || 0));
-  const quantidadePagos = parseInt(String(resumoData.quantidadePagos || 0));
-
-  const resumo = {
-    totalPago: totalValorPago,
-    totalGlosado: totalGlosadoDb,
-    quantidadePagos,
-    quantidadeGlosados,
-    quantidadeParciais,
-    total,
-  };
-
-  return { items, total, resumo };
 }
 
 // ============ COMPARACAO FUNCTIONS ============
@@ -1246,16 +1198,16 @@ export async function getFaturamentoPorConvenio(
     let quantidadeProcedimentosEnviados = 0;
 
     for (const arq of arquivosEnviados) {
-      const procConditions: any[] = [eq(procedimentos.arquivoId, arq.id)];
+      const procConditions: any[] = [eq(faturamentoTiss.arquivoId, arq.id)];
       if (codigoPrestadorExecutante) {
-        procConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+        procConditions.push(eq(faturamentoTiss.nomeProf, codigoPrestadorExecutante));
       }
       const procs = await db
         .select({
-          valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
+          valorTotal: sql<number>`COALESCE(SUM(CAST(${faturamentoTiss.valorFaturado} AS DECIMAL(12,2))), 0)`,
           count: sql<number>`count(*)`
         })
-        .from(procedimentos)
+        .from(faturamentoTiss)
         .where(and(...procConditions));
 
       totalEnviado += parseFloat(String(procs[0]?.valorTotal || 0));
@@ -1268,17 +1220,14 @@ export async function getFaturamentoPorConvenio(
     let quantidadeProcedimentosRetornados = 0;
 
     for (const arq of arquivosRetornados) {
-      const procConditionsRet: any[] = [eq(procedimentos.arquivoId, arq.id)];
-      if (codigoPrestadorExecutante) {
-        procConditionsRet.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
-      }
+      const procConditionsRet: any[] = [eq(demonstrativo.arquivoId, arq.id)];
       const procs = await db
         .select({
-          valorTotal: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(12,2))), 0)`,
-          valorGlosado: sql<number>`COALESCE(SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(12,2))), 0)`,
+          valorTotal: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorPago} AS DECIMAL(12,2))), 0)`,
+          valorGlosado: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2))), 0)`,
           count: sql<number>`count(*)`
         })
-        .from(procedimentos)
+        .from(demonstrativo)
         .where(and(...procConditionsRet));
 
       totalRetornado += parseFloat(String(procs[0]?.valorTotal || 0));
@@ -1357,17 +1306,17 @@ export async function getFaturamentoPorMes(
 
     let totalEnviado = 0;
     for (const arq of arquivosMes) {
-      const procConditions: any[] = [eq(procedimentos.arquivoId, arq.id)];
+      const procConditions: any[] = [eq(faturamentoTiss.arquivoId, arq.id)];
       if (codigoPrestadorExecutante) {
-        procConditions.push(eq(procedimentos.codigoPrestadorExecutante, codigoPrestadorExecutante));
+        procConditions.push(eq(faturamentoTiss.nomeProf, codigoPrestadorExecutante));
       }
       const procs = await db
         .select()
-        .from(procedimentos)
+        .from(faturamentoTiss)
         .where(and(...procConditions));
 
       for (const proc of procs) {
-        totalEnviado += parseFloat(proc.valorTotal || "0");
+        totalEnviado += parseFloat(proc.valorFaturado || "0");
       }
     }
 
@@ -1903,9 +1852,9 @@ export async function verificarRecursoExistente(procedimentoId: number): Promise
   if (!db) throw new Error("Database not available");
 
   const [procedimento] = await db
-    .select({ recursoStatus: procedimentos.recursoStatus })
-    .from(procedimentos)
-    .where(eq(procedimentos.id, procedimentoId))
+    .select({ recursoStatus: demonstrativo.recursoStatus })
+    .from(demonstrativo)
+    .where(eq(demonstrativo.id, procedimentoId))
     .limit(1);
 
   return procedimento?.recursoStatus !== "sem_recurso" && procedimento?.recursoStatus !== null;
@@ -1919,12 +1868,12 @@ export async function marcarProcedimentosComRecurso(procedimentoIds: number[], r
   if (procedimentoIds.length === 0) return;
 
   await db
-    .update(procedimentos)
+    .update(demonstrativo)
     .set({ 
       recursoStatus: "recurso_criado",
       recursoId: recursoId || null
     })
-    .where(inArray(procedimentos.id, procedimentoIds));
+    .where(inArray(demonstrativo.id, procedimentoIds));
 }
 
 // Atualizar status de recurso nos procedimentos quando o recurso mudar de status
@@ -1936,9 +1885,9 @@ export async function atualizarStatusRecursoProcedimentos(
   if (!db) throw new Error("Database not available");
 
   await db
-    .update(procedimentos)
+    .update(demonstrativo)
     .set({ recursoStatus: novoStatus })
-    .where(eq(procedimentos.recursoId, recursoId));
+    .where(eq(demonstrativo.recursoId, recursoId));
 }
 
 export async function updateRecursoGlosa(
@@ -2242,7 +2191,7 @@ export interface ItemConciliacao {
   valorGlosado: number;
   motivoGlosa: string;
   status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido";
-  arquivoId?: number; // Para fallback de agrupamento
+  arquivoId?: number | null; // Para fallback de agrupamento
 }
 
 export interface ResumoConciliacao {
@@ -2363,33 +2312,33 @@ export async function getConciliacaoPorConvenio(filters: {
     .from(arquivos)
     .where(and(...arquivosRetornadosConditions));
 
-  // Buscar procedimentos enviados - OTIMIZADO: query única com IN
+  // Buscar itens faturados (enviados) - OTIMIZADO: query única com IN
   const arquivosEnviadosIds = arquivosEnviados.map(a => a.id);
   const procedimentosEnviados = arquivosEnviadosIds.length > 0 
     ? await db
         .select()
-        .from(procedimentos)
-        .where(inArray(procedimentos.arquivoId, arquivosEnviadosIds))
+        .from(faturamentoTiss)
+        .where(inArray(faturamentoTiss.arquivoId, arquivosEnviadosIds))
     : [];
 
-  // Buscar procedimentos retornados - OTIMIZADO: query única com IN
+  // Buscar itens demonstrativo (retornados) - OTIMIZADO: query única com IN
   const arquivosRetornadosIds = arquivosRetornados.map(a => a.id);
   const procedimentosRetornados = arquivosRetornadosIds.length > 0
     ? await db
         .select()
-        .from(procedimentos)
-        .where(inArray(procedimentos.arquivoId, arquivosRetornadosIds))
+        .from(demonstrativo)
+        .where(inArray(demonstrativo.arquivoId, arquivosRetornadosIds))
     : [];
 
   // Criar mapa de procedimentos retornados por chave composta
   // Chave: GUIA + LOTE + CÓDIGO + QUANTIDADE + DATA
   const retornadosMap = new Map<string, any[]>();
   
-  // Função para gerar chave composta
+  // Função para gerar chave composta (suporta campos de faturamentoTiss e demonstrativo)
   const gerarChaveComposta = (proc: any): string => {
-    const guia = (proc.guiaNumero || "").toString().toLowerCase().trim();
-    const lote = (proc.numeroLote || "").toString().toLowerCase().trim();
-    const codigo = (proc.codigo || "").toString().toLowerCase().trim();
+    const guia = (proc.numeroGuiaPrestador || proc.numeroGuia || proc.guiaNumero || "").toString().toLowerCase().trim();
+    const lote = (proc.numeroLote || proc.lotePrestador || "").toString().toLowerCase().trim();
+    const codigo = (proc.codigoItem || proc.codigo || "").toString().toLowerCase().trim();
     const quantidade = (proc.quantidade || 1).toString();
     // Normalizar data para formato YYYY-MM-DD
     let dataStr = "";
@@ -2404,8 +2353,8 @@ export async function getConciliacaoPorConvenio(filters: {
   
   // Função para gerar chave simplificada (fallback sem lote e data)
   const gerarChaveSimplificada = (proc: any): string => {
-    const guia = (proc.guiaNumero || "").toString().toLowerCase().trim();
-    const codigo = (proc.codigo || "").toString().toLowerCase().trim();
+    const guia = (proc.numeroGuiaPrestador || proc.numeroGuia || proc.guiaNumero || "").toString().toLowerCase().trim();
+    const codigo = (proc.codigoItem || proc.codigo || "").toString().toLowerCase().trim();
     const quantidade = (proc.quantidade || 1).toString();
     return `${guia}|${codigo}|${quantidade}`;
   };
@@ -2429,12 +2378,7 @@ export async function getConciliacaoPorConvenio(filters: {
     retornadosMapSimplificado.get(chaveSimples)!.push(proc);
   }
 
-  // Função auxiliar para extrair Protocolo TISS dos dadosExtras
-  const extrairProtocoloTISS = (proc: any): string => {
-    if (!proc.dadosExtras) return '';
-    const extras = typeof proc.dadosExtras === 'string' ? JSON.parse(proc.dadosExtras) : proc.dadosExtras;
-    return extras['Protocolo TISS'] || extras.protocoloTISS || '';
-  };
+  // Protocolo TISS agora vem diretamente do campo demonstrativo.protocolo
 
   // Processar conciliação
   const itensConciliados: ItemConciliacao[] = [];
@@ -2464,9 +2408,9 @@ export async function getConciliacaoPorConvenio(filters: {
       const procsSimplificados = retornadosMapSimplificado.get(chaveSimplificada) || [];
       if (procsSimplificados.length > 0) {
         // Encontrou correspondência - verificar se os valores batem
-        const valorEnv = parseFloat(env.valorTotal || "0");
+        const valorEnv = parseFloat(env.valorFaturado || "0");
         for (const proc of procsSimplificados) {
-          const valorRet = parseFloat(proc.valorTotal || "0");
+          const valorRet = parseFloat(proc.valorPago || "0");
           if (Math.abs(valorEnv - valorRet) < 0.01) {
             retornados = [proc];
             chaveUsada = gerarChaveComposta(proc);
@@ -2484,7 +2428,7 @@ export async function getConciliacaoPorConvenio(filters: {
     chavesProcessadas.add(chaveUsada);
     totalEnviados++;
 
-    const valorEnviado = parseFloat(env.valorTotal || "0");
+    const valorEnviado = parseFloat(env.valorFaturado || "0");
     valorTotalFaturado += valorEnviado;
 
     if (retornados.length === 0) {
@@ -2495,14 +2439,14 @@ export async function getConciliacaoPorConvenio(filters: {
       if (comportamento === "pago") {
         // Itens não encontrados são considerados pagos
         itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
+          guiaNumero: env.numeroGuiaPrestador || "",
           numeroLote: env.numeroLote || "",
           sequencialTransacao: env.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(env),
+          protocoloTISS: "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
+          codigo: env.codigoItem || "",
+          descricao: env.descricaoItem || "",
+          pacienteNome: env.carteiraBeneficiario || "",
           valorFaturado: valorEnviado,
           valorPago: valorEnviado,
           valorGlosado: 0,
@@ -2515,14 +2459,14 @@ export async function getConciliacaoPorConvenio(filters: {
       } else if (comportamento === "divergente") {
         // Marcar para análise manual
         itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
+          guiaNumero: env.numeroGuiaPrestador || "",
           numeroLote: env.numeroLote || "",
           sequencialTransacao: env.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(env),
+          protocoloTISS: "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
+          codigo: env.codigoItem || "",
+          descricao: env.descricaoItem || "",
+          pacienteNome: env.carteiraBeneficiario || "",
           valorFaturado: valorEnviado,
           valorPago: 0,
           valorGlosado: 0,
@@ -2534,14 +2478,14 @@ export async function getConciliacaoPorConvenio(filters: {
       } else {
         // Não recebido (padrão) - NÃO é glosa, apenas não foi processado ainda
         itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
+          guiaNumero: env.numeroGuiaPrestador || "",
           numeroLote: env.numeroLote || "",
           sequencialTransacao: env.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(env),
+          protocoloTISS: "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
+          codigo: env.codigoItem || "",
+          descricao: env.descricaoItem || "",
+          pacienteNome: env.carteiraBeneficiario || "",
           valorFaturado: valorEnviado,
           valorPago: 0,
           valorGlosado: 0,
@@ -2555,18 +2499,11 @@ export async function getConciliacaoPorConvenio(filters: {
     } else {
       // Encontrado - comparar valores
       const ret = retornados[0];
-      const valorRetornado = parseFloat(ret.valorTotal || "0");
+      const valorRetornado = parseFloat(ret.valorPago || "0");
       
-      // Extrair motivo de glosa e valor glosado do dadosExtras se existir
-      let motivoGlosa = "";
-      let valorGlosadoExplicito = 0;
-      if (ret.dadosExtras) {
-        const extras = typeof ret.dadosExtras === "string" 
-          ? JSON.parse(ret.dadosExtras) 
-          : ret.dadosExtras;
-        motivoGlosa = extras.motivoGlosa || extras.observacao || extras.glosa || "";
-        valorGlosadoExplicito = parseFloat(extras.valorGlosado || "0") || 0;
-      }
+      // Extrair motivo de glosa e valor glosado do demonstrativo
+      let motivoGlosa = ret.codigoGlosa || "";
+      let valorGlosadoExplicito = parseFloat(ret.valorGlosa || "0") || 0;
       
       // Verificar se o convênio é Bradesco ou similar (retorno só lista glosas)
       const isBradescoStyle = convenio.nome.toLowerCase().includes("bradesco") || 
@@ -2581,14 +2518,14 @@ export async function getConciliacaoPorConvenio(filters: {
         valorTotalGlosado += valorGlosadoExplicito;
         
         itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
+          guiaNumero: env.numeroGuiaPrestador || "",
           numeroLote: env.numeroLote || "",
           sequencialTransacao: env.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(env),
+          protocoloTISS: ret.protocolo || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
+          codigo: env.codigoItem || "",
+          descricao: env.descricaoItem || "",
+          pacienteNome: ret.nomeBeneficiario || env.carteiraBeneficiario || "",
           valorFaturado: valorEnviado,
           valorPago: valorPago,
           valorGlosado: valorGlosadoExplicito,
@@ -2602,14 +2539,14 @@ export async function getConciliacaoPorConvenio(filters: {
         valorTotalPago += valorEnviado;
         
         itensConciliados.push({
-          guiaNumero: env.guiaNumero || "",
+          guiaNumero: env.numeroGuiaPrestador || "",
           numeroLote: env.numeroLote || "",
           sequencialTransacao: env.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(env),
+          protocoloTISS: ret.protocolo || "",
           dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: env.codigo,
-          descricao: env.descricao || "",
-          pacienteNome: env.pacienteNome || "",
+          codigo: env.codigoItem || "",
+          descricao: env.descricaoItem || "",
+          pacienteNome: ret.nomeBeneficiario || env.carteiraBeneficiario || "",
           valorFaturado: valorEnviado,
           valorPago: valorEnviado,
           valorGlosado: 0,
@@ -2626,14 +2563,14 @@ export async function getConciliacaoPorConvenio(filters: {
         if (Math.abs(diferenca) < 0.01) {
           // Valores iguais - OK
           itensConciliados.push({
-            guiaNumero: env.guiaNumero || "",
+            guiaNumero: env.numeroGuiaPrestador || "",
             numeroLote: env.numeroLote || "",
             sequencialTransacao: env.sequencialTransacao || "",
-            protocoloTISS: extrairProtocoloTISS(env),
+            protocoloTISS: ret.protocolo || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-            codigo: env.codigo,
-            descricao: env.descricao || "",
-            pacienteNome: env.pacienteNome || "",
+            codigo: env.codigoItem || "",
+            descricao: env.descricaoItem || "",
+            pacienteNome: ret.nomeBeneficiario || env.carteiraBeneficiario || "",
             valorFaturado: valorEnviado,
             valorPago: valorRetornado,
             valorGlosado: 0,
@@ -2645,14 +2582,14 @@ export async function getConciliacaoPorConvenio(filters: {
         } else if (diferenca > 0) {
           // Glosa parcial
           itensConciliados.push({
-            guiaNumero: env.guiaNumero || "",
+            guiaNumero: env.numeroGuiaPrestador || "",
             numeroLote: env.numeroLote || "",
             sequencialTransacao: env.sequencialTransacao || "",
-            protocoloTISS: extrairProtocoloTISS(env),
+            protocoloTISS: ret.protocolo || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-            codigo: env.codigo,
-            descricao: env.descricao || "",
-            pacienteNome: env.pacienteNome || "",
+            codigo: env.codigoItem || "",
+            descricao: env.descricaoItem || "",
+            pacienteNome: ret.nomeBeneficiario || env.carteiraBeneficiario || "",
             valorFaturado: valorEnviado,
             valorPago: valorRetornado,
             valorGlosado: diferenca,
@@ -2665,14 +2602,14 @@ export async function getConciliacaoPorConvenio(filters: {
         } else {
           // Valor retornado maior que enviado (divergência)
           itensConciliados.push({
-            guiaNumero: env.guiaNumero || "",
+            guiaNumero: env.numeroGuiaPrestador || "",
             numeroLote: env.numeroLote || "",
             sequencialTransacao: env.sequencialTransacao || "",
-            protocoloTISS: extrairProtocoloTISS(env),
+            protocoloTISS: ret.protocolo || "",
             dataExecucao: env.dataExecucao ? new Date(env.dataExecucao).toLocaleDateString("pt-BR") : "",
-            codigo: env.codigo,
-            descricao: env.descricao || "",
-            pacienteNome: env.pacienteNome || "",
+            codigo: env.codigoItem || "",
+            descricao: env.descricaoItem || "",
+            pacienteNome: ret.nomeBeneficiario || env.carteiraBeneficiario || "",
             valorFaturado: valorEnviado,
             valorPago: valorRetornado,
             valorGlosado: 0,
@@ -2690,18 +2627,18 @@ export async function getConciliacaoPorConvenio(filters: {
   for (const [chave, itens] of Array.from(retornadosMap.entries())) {
     if (!chavesProcessadas.has(chave)) {
       for (const ret of itens) {
-        const valorRetornado = parseFloat(ret.valorTotal || "0");
+        const valorRetornado = parseFloat(ret.valorPago || "0");
         valorTotalPago += valorRetornado;
         
         itensConciliados.push({
-          guiaNumero: ret.guiaNumero || "",
-          numeroLote: ret.numeroLote || "",
-          sequencialTransacao: ret.sequencialTransacao || "",
-          protocoloTISS: extrairProtocoloTISS(ret),
+          guiaNumero: ret.numeroGuia || "",
+          numeroLote: ret.lotePrestador || "",
+          sequencialTransacao: "",
+          protocoloTISS: ret.protocolo || "",
           dataExecucao: ret.dataExecucao ? new Date(ret.dataExecucao).toLocaleDateString("pt-BR") : "",
-          codigo: ret.codigo,
-          descricao: ret.descricao || "",
-          pacienteNome: ret.pacienteNome || "",
+          codigo: ret.codigoItem || "",
+          descricao: ret.descricaoItem || "",
+          pacienteNome: ret.nomeBeneficiario || "",
           valorFaturado: 0,
           valorPago: valorRetornado,
           valorGlosado: 0,
@@ -3160,8 +3097,8 @@ export async function getTendenciasGlosa(filters: {
     for (const arq of arquivosEnviados) {
       const procs = await db
         .select()
-        .from(procedimentos)
-        .where(eq(procedimentos.arquivoId, arq.id));
+        .from(demonstrativo)
+        .where(eq(demonstrativo.arquivoId, arq.id));
 
       for (const proc of procs) {
         const dataProc = proc.dataExecucao || arq.createdAt;
@@ -3173,7 +3110,7 @@ export async function getTendenciasGlosa(filters: {
         const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
 
         if (dadosPorMes[chave]) {
-          dadosPorMes[chave].valorFaturado += parseFloat(proc.valorTotal || "0");
+          dadosPorMes[chave].valorFaturado += parseFloat(proc.valorPago || "0");
           dadosPorMes[chave].quantidadeEnviados++;
         }
       }
@@ -3183,8 +3120,8 @@ export async function getTendenciasGlosa(filters: {
     for (const arq of arquivosRetornados) {
       const procs = await db
         .select()
-        .from(procedimentos)
-        .where(eq(procedimentos.arquivoId, arq.id));
+        .from(demonstrativo)
+        .where(eq(demonstrativo.arquivoId, arq.id));
 
       for (const proc of procs) {
         const dataProc = proc.dataExecucao || arq.createdAt;
@@ -3196,7 +3133,7 @@ export async function getTendenciasGlosa(filters: {
         const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
 
         if (dadosPorMes[chave]) {
-          dadosPorMes[chave].valorPago += parseFloat(proc.valorTotal || "0");
+          dadosPorMes[chave].valorPago += parseFloat(proc.valorPago || "0");
         }
       }
     }
@@ -3326,8 +3263,8 @@ export async function getTendenciaGeral(filters: {
   for (const arq of arquivosEnviados) {
     const procs = await db
       .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
+      .from(demonstrativo)
+      .where(eq(demonstrativo.arquivoId, arq.id));
 
     for (const proc of procs) {
       const dataProc = proc.dataExecucao || arq.createdAt;
@@ -3339,7 +3276,7 @@ export async function getTendenciaGeral(filters: {
       const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
 
       if (dadosPorMes[chave]) {
-        dadosPorMes[chave].valorFaturado += parseFloat(proc.valorTotal || "0");
+        dadosPorMes[chave].valorFaturado += parseFloat(proc.valorPago || "0");
         dadosPorMes[chave].quantidadeEnviados++;
       }
     }
@@ -3349,8 +3286,8 @@ export async function getTendenciaGeral(filters: {
   for (const arq of arquivosRetornados) {
     const procs = await db
       .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
+      .from(demonstrativo)
+      .where(eq(demonstrativo.arquivoId, arq.id));
 
     for (const proc of procs) {
       const dataProc = proc.dataExecucao || arq.createdAt;
@@ -3362,7 +3299,7 @@ export async function getTendenciaGeral(filters: {
       const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
 
       if (dadosPorMes[chave]) {
-        dadosPorMes[chave].valorPago += parseFloat(proc.valorTotal || "0");
+        dadosPorMes[chave].valorPago += parseFloat(proc.valorPago || "0");
       }
     }
   }
@@ -3435,37 +3372,36 @@ export async function getRepasseData(filters: {
 
   const arquivoIds = arquivosEnviados.map(a => a.id);
 
-  // Buscar procedimentos enviados
+  // Buscar itens faturados (enviados)
   const procConditions: any[] = [
-    inArray(procedimentos.arquivoId, arquivoIds),
+    inArray(faturamentoTiss.arquivoId, arquivoIds),
   ];
 
   if (filters.dataInicio) {
-    procConditions.push(gte(procedimentos.dataExecucao, filters.dataInicio));
+    procConditions.push(gte(faturamentoTiss.dataExecucao, filters.dataInicio));
   }
   if (filters.dataFim) {
-    procConditions.push(lte(procedimentos.dataExecucao, filters.dataFim));
+    procConditions.push(lte(faturamentoTiss.dataExecucao, filters.dataFim));
   }
 
   // Adicionar filtro de busca
   if (filters.search) {
-    procConditions.push(
-      or(
-        like(procedimentos.codigo, `%${filters.search}%`),
-        like(procedimentos.descricao, `%${filters.search}%`),
-        like(procedimentos.guiaNumero, `%${filters.search}%`),
-        like(procedimentos.pacienteNome, `%${filters.search}%`),
-        like(procedimentos.nomeMedico, `%${filters.search}%`)
-      )
+    const searchOr = or(
+      like(faturamentoTiss.codigoItem, `%${filters.search}%`),
+      like(faturamentoTiss.descricaoItem, `%${filters.search}%`),
+      like(faturamentoTiss.numeroGuiaPrestador, `%${filters.search}%`),
+      like(faturamentoTiss.carteiraBeneficiario, `%${filters.search}%`),
+      like(faturamentoTiss.nomeProf, `%${filters.search}%`)
     );
+    if (searchOr) procConditions.push(searchOr);
   }
 
-  // Buscar TODOS os procedimentos para calcular resumo
+  // Buscar TODOS os itens faturados para calcular resumo
   const allProcsEnviados = await db
     .select()
-    .from(procedimentos)
+    .from(faturamentoTiss)
     .where(and(...procConditions))
-    .orderBy(desc(procedimentos.dataExecucao));
+    .orderBy(desc(faturamentoTiss.dataExecucao));
 
   // Buscar arquivos retornados para comparar
   const arquivosRetornadosConditions = [
@@ -3489,11 +3425,11 @@ export async function getRepasseData(filters: {
   for (const arq of arquivosRetornados) {
     const procs = await db
       .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
+      .from(demonstrativo)
+      .where(eq(demonstrativo.arquivoId, arq.id));
     
     for (const proc of procs) {
-      const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
+      const chave = `${proc.codigoItem}|${proc.numeroGuia || ""}`.toLowerCase();
       if (!retornadosMap.has(chave)) {
         retornadosMap.set(chave, proc);
       }
@@ -3509,28 +3445,21 @@ export async function getRepasseData(filters: {
 
   // Processar itens de repasse
   const items: RepasseItem[] = allProcsEnviados.map((proc: any) => {
-    const chave = `${proc.codigo}|${proc.guiaNumero || ""}`.toLowerCase();
+    const chave = `${proc.codigoItem}|${proc.numeroGuiaPrestador || ""}`.toLowerCase();
     const retornado = retornadosMap.get(chave);
     
-    const valorFaturado = parseFloat(proc.valorTotal || "0");
+    const valorFaturado = parseFloat(proc.valorFaturado || "0");
     let valorPago = 0;
     let valorGlosado = 0;
 
     if (retornado) {
-      valorPago = parseFloat(retornado.valorTotal || "0");
-      
-      // Verificar se há valor glosado nos dados extras
-      if (retornado.dadosExtras) {
-        const extras = typeof retornado.dadosExtras === "string" 
-          ? JSON.parse(retornado.dadosExtras) 
-          : retornado.dadosExtras;
-        valorGlosado = parseFloat(extras.valorGlosado || "0");
-        if (valorGlosado > 0) {
-          valorPago = valorFaturado - valorGlosado;
-        }
+      valorPago = parseFloat(retornado.valorPago || "0");
+      valorGlosado = parseFloat(retornado.valorGlosa || "0");
+      if (valorGlosado > 0 && valorPago === 0) {
+        valorPago = valorFaturado - valorGlosado;
       }
     } else {
-      // Não encontrado no retorno - considerar glosado
+      // Não encontrado no retorno - considerar pendente
       valorGlosado = valorFaturado;
     }
 
@@ -3538,13 +3467,13 @@ export async function getRepasseData(filters: {
 
     return {
       id: proc.id,
-      guiaNumero: proc.guiaNumero || "",
+      guiaNumero: proc.numeroGuiaPrestador || "",
       dataExecucao: proc.dataExecucao,
-      codigo: proc.codigo,
-      descricao: proc.descricao || "",
-      pacienteNome: proc.pacienteNome || "",
-      nomeMedico: proc.nomeMedico || "",
-      crmMedico: proc.crmMedico || "",
+      codigo: proc.codigoItem,
+      descricao: proc.descricaoItem || "",
+      pacienteNome: proc.carteiraBeneficiario || "",
+      nomeMedico: proc.nomeProf || "",
+      crmMedico: proc.conselhoProf || "",
       convenioNome: convenioId ? convMap.get(convenioId) || "" : "",
       valorFaturado: valorFaturado.toFixed(2),
       valorPago: valorPago.toFixed(2),
@@ -4462,9 +4391,9 @@ export async function atualizarClassificacaoProcedimento(
       updateData.dataAceite = null;
     }
     
-    await db.update(procedimentos)
+    await db.update(demonstrativo)
       .set(updateData)
-      .where(eq(procedimentos.id, procedimentoId));
+      .where(eq(demonstrativo.id, procedimentoId));
     return true;
   } catch (error) {
     console.error("[Database] Erro ao atualizar classificação:", error);
@@ -4646,19 +4575,19 @@ export async function classificarGlosasAutomaticamente(
   try {
     // Buscar procedimentos glosados pendentes de classificação
     const conditions = [
-      eq(procedimentos.classificacaoGlosa, "pendente"),
+      eq(demonstrativo.classificacaoGlosa, "pendente"),
     ];
 
     const procs = await db.select()
-      .from(procedimentos)
-      .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+      .from(demonstrativo)
+      .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
       .where(and(...conditions))
       .limit(500);
 
-    for (const { procedimentos: proc, arquivos: arq } of procs) {
+    for (const { demonstrativo: proc, arquivos: arq } of procs) {
       if (convenioId && arq.convenioId !== convenioId) continue;
 
-      const extras = (proc.dadosExtras || {}) as Record<string, unknown>;
+      const extras = ((proc as any).dadosExtras || {}) as Record<string, unknown>;
       const motivoGlosa = (extras.motivoGlosa || extras['Erro TISS'] || extras.cod_glosa || extras['COD. GLOSA'] || "") as string;
       const codigoGlosa = motivoGlosa.match(/^(\d+)/)?.[1] || "";
 
@@ -4771,11 +4700,11 @@ export async function atualizarStatusProcedimentosPorRecurso(
 
   try {
     // Buscar todos os procedimentos vinculados a este recurso
-    await dbConn.update(procedimentos)
+    await dbConn.update(demonstrativo)
       .set({
         recursoStatus: novoStatus,
       })
-      .where(eq(procedimentos.recursoId, recursoId));
+      .where(eq(demonstrativo.recursoId, recursoId));
 
     console.log(`[Database] Status dos procedimentos do recurso ${recursoId} atualizado para ${novoStatus}`);
     return true;
@@ -5666,7 +5595,7 @@ export async function compararComTabelaPrecos(arquivoId: number) {
   );
   
   // Buscar procedimentos do arquivo
-  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  const procs = await db.select().from(faturamentoTiss).where(eq(faturamentoTiss.arquivoId, arquivoId));
   
   // Buscar tabela de preços do convênio (sem filtro de vigência para incluir todas as tabelas ativas)
   // O filtro de vigência pode ser aplicado posteriormente se necessário
@@ -5692,8 +5621,8 @@ export async function compararComTabelaPrecos(arquivoId: number) {
   let valorTotalDiferenca = 0;
   
   for (const proc of procs) {
-    const precoTabela = precoMap.get(proc.codigo);
-    const valorCobrado = parseFloat(proc.valorUnitario || proc.valorTotal || "0");
+    const precoTabela = precoMap.get(proc.codigoItem || "");
+    const valorCobrado = parseFloat(proc.valorUnitario || proc.valorFaturado || "0");
     
     if (!precoTabela) {
       // Código não encontrado na tabela
@@ -5702,11 +5631,11 @@ export async function compararComTabelaPrecos(arquivoId: number) {
         procedimentoId: proc.id,
         tipoAlerta: "codigo_invalido",
         severidade: "media",
-        titulo: `Código não encontrado na tabela: ${proc.codigo}`,
-        descricao: `O código ${proc.codigo} (${proc.descricao || "Sem descrição"}) não foi encontrado na tabela de preços do convênio.`,
-        codigoItem: proc.codigo,
-        descricaoItem: proc.descricao || undefined,
-        guiaNumero: proc.guiaNumero || undefined,
+        titulo: `Código não encontrado na tabela: ${proc.codigoItem}`,
+        descricao: `O código ${proc.codigoItem} (${proc.descricaoItem || "Sem descrição"}) não foi encontrado na tabela de preços do convênio.`,
+        codigoItem: proc.codigoItem,
+        descricaoItem: proc.descricaoItem || undefined,
+        guiaNumero: proc.numeroGuiaPrestador || undefined,
         valorCobrado: valorCobrado.toString(),
         sugestaoCorrecao: "Verificar se o código está correto ou adicionar à tabela de preços.",
         status: "pendente"
@@ -5722,11 +5651,11 @@ export async function compararComTabelaPrecos(arquivoId: number) {
         procedimentoId: proc.id,
         tipoAlerta: "valor_divergente",
         severidade: diferenca > 0 ? "alta" : "media",
-        titulo: `Valor divergente: ${proc.codigo}`,
+        titulo: `Valor divergente: ${proc.codigoItem}`,
         descricao: `O valor cobrado (R$ ${valorCobrado.toFixed(2)}) difere do valor da tabela (R$ ${precoTabela.valor.toFixed(2)}). Diferença: R$ ${diferenca.toFixed(2)}`,
-        codigoItem: proc.codigo,
-        descricaoItem: proc.descricao || undefined,
-        guiaNumero: proc.guiaNumero || undefined,
+        codigoItem: proc.codigoItem,
+        descricaoItem: proc.descricaoItem || undefined,
+        guiaNumero: proc.numeroGuiaPrestador || undefined,
         valorCobrado: valorCobrado.toString(),
         valorEsperado: precoTabela.valor.toString(),
         diferenca: diferenca.toString(),
@@ -5767,21 +5696,21 @@ export async function verificarRegrasNegocio(arquivoId: number) {
   const estabelecimentoId = arquivo[0].estabelecimentoId;
   
   // Buscar procedimentos do arquivo
-  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  const procs = await db.select().from(faturamentoTiss).where(eq(faturamentoTiss.arquivoId, arquivoId));
   
   // Criar mapa de códigos presentes na conta
   const codigosPresentes = new Map<string, { quantidade: number; valor: number; descricao: string }>();
   for (const proc of procs) {
-    const existing = codigosPresentes.get(proc.codigo);
-    const valor = parseFloat(proc.valorTotal || "0");
+    const existing = codigosPresentes.get(proc.codigoItem || "");
+    const valor = parseFloat(proc.valorFaturado || "0");
     if (existing) {
-      existing.quantidade += proc.quantidade || 1;
+      existing.quantidade += parseFloat(String(proc.quantidade)) || 1;
       existing.valor += valor;
     } else {
-      codigosPresentes.set(proc.codigo, {
-        quantidade: proc.quantidade || 1,
+      codigosPresentes.set(proc.codigoItem || "", {
+        quantidade: parseFloat(String(proc.quantidade)) || 1,
         valor,
-        descricao: proc.descricao || ""
+        descricao: proc.descricaoItem || ""
       });
     }
   }
@@ -5925,13 +5854,13 @@ export async function atualizarPadroesContas(convenioId: number, estabelecimento
   // Buscar todos os procedimentos desses arquivos
   const arquivoIds = arquivosConvenio.map(a => a.id);
   const todosProcs = await db.select()
-    .from(procedimentos)
-    .where(inArray(procedimentos.arquivoId, arquivoIds));
+    .from(faturamentoTiss)
+    .where(inArray(faturamentoTiss.arquivoId, arquivoIds));
   
   // Agrupar por guia para identificar contas
   const contasPorGuia = new Map<string, typeof todosProcs>();
   for (const proc of todosProcs) {
-    const guia = proc.guiaNumero || `arquivo_${proc.arquivoId}`;
+    const guia = proc.numeroGuiaPrestador || `arquivo_${proc.arquivoId}`;
     const existing = contasPorGuia.get(guia) || [];
     existing.push(proc);
     contasPorGuia.set(guia, existing);
@@ -5952,10 +5881,10 @@ export async function atualizarPadroesContas(convenioId: number, estabelecimento
       parseFloat(a.valorTotal || "0") > parseFloat(b.valorTotal || "0") ? a : b
     );
     
-    const key = procPrincipal.codigo;
+    const key = procPrincipal.codigoItem || "";
     const padrao = padroes.get(key) || {
-      codigoPrincipal: procPrincipal.codigo,
-      descricao: procPrincipal.descricao || "",
+      codigoPrincipal: procPrincipal.codigoItem || "",
+      descricao: procPrincipal.descricaoItem || "",
       itensAssociados: new Map<string, { codigo: string; descricao: string; ocorrencias: number; valorTotal: number }>(),
       totalOcorrencias: 0,
       valorTotalContas: 0
@@ -5966,20 +5895,20 @@ export async function atualizarPadroesContas(convenioId: number, estabelecimento
     
     // Registrar itens associados
     for (const proc of procsGuia) {
-      if (proc.codigo === procPrincipal.codigo) continue;
+      if (proc.codigoItem === procPrincipal.codigoItem) continue;
       
-      const item = padrao.itensAssociados.get(proc.codigo) || {
-        codigo: proc.codigo,
-        descricao: proc.descricao || "",
+      const item = padrao.itensAssociados.get(proc.codigoItem || "") || {
+        codigo: proc.codigoItem || "",
+        descricao: proc.descricaoItem || "",
         ocorrencias: 0,
         valorTotal: 0
       };
       item.ocorrencias++;
-      item.valorTotal += parseFloat(proc.valorTotal || "0");
-      padrao.itensAssociados.set(proc.codigo, item);
+      item.valorTotal += parseFloat(proc.valorFaturado || "0");
+      padrao.itensAssociados.set(proc.codigoItem || "", item);
     }
     
-    padroes.set(key, padrao);
+    padroes.set(key || "", padrao);
   }
   
   // Salvar padrões no banco
@@ -6043,10 +5972,10 @@ export async function sugerirItensFaltantes(arquivoId: number) {
   const convenioId = arquivo[0].convenioId;
   
   // Buscar procedimentos do arquivo
-  const procs = await db.select().from(procedimentos).where(eq(procedimentos.arquivoId, arquivoId));
+  const procs = await db.select().from(faturamentoTiss).where(eq(faturamentoTiss.arquivoId, arquivoId));
   
   // Criar set de códigos presentes
-  const codigosPresentes = new Set(procs.map(p => p.codigo));
+  const codigosPresentes = new Set(procs.map(p => p.codigoItem));
   
   // Buscar padrões para os procedimentos principais
   const sugestoes: Array<{
@@ -6063,7 +5992,7 @@ export async function sugerirItensFaltantes(arquivoId: number) {
       .from(padroesContas)
       .where(and(
         eq(padroesContas.convenioId, convenioId),
-        eq(padroesContas.codigoProcedimentoPrincipal, proc.codigo)
+        eq(padroesContas.codigoProcedimentoPrincipal, proc.codigoItem || "")
       ))
       .limit(1);
     
@@ -6079,12 +6008,12 @@ export async function sugerirItensFaltantes(arquivoId: number) {
     for (const item of itensAssociados) {
       if (item.frequencia >= 70 && !codigosPresentes.has(item.codigo)) {
         sugestoes.push({
-          codigoPrincipal: proc.codigo,
+          codigoPrincipal: proc.codigoItem || "",
           itemSugerido: item.codigo,
           descricaoItem: item.descricao,
           frequencia: item.frequencia,
           valorMedio: item.valorMedio,
-          motivo: `Este item aparece em ${item.frequencia}% das contas com o procedimento ${proc.codigo}`
+          motivo: `Este item aparece em ${item.frequencia}% das contas com o procedimento ${proc.codigoItem}`
         });
       }
     }
@@ -6569,8 +6498,8 @@ export async function getDadosConsolidados(userId: number) {
           valorTotal: sql<number>`SUM(CAST(valorTotal AS DECIMAL(12,2)))`,
           valorGlosado: sql<number>`SUM(CAST(valorGlosado AS DECIMAL(12,2)))`,
         })
-        .from(procedimentos)
-        .where(inArray(procedimentos.arquivoId, arquivoIds));
+        .from(demonstrativo)
+        .where(inArray(demonstrativo.arquivoId, arquivoIds));
 
       totalProcedimentos = procs[0]?.count || 0;
       valorFaturado = procs[0]?.valorTotal || 0;
@@ -6663,19 +6592,19 @@ export async function getComparativoGlosasEstabelecimentos(userId: number, perio
     // Buscar procedimentos
     const procs = await db
       .select()
-      .from(procedimentos)
-      .where(inArray(procedimentos.arquivoId, arquivoIds));
+      .from(demonstrativo)
+      .where(inArray(demonstrativo.arquivoId, arquivoIds));
 
     let valorFaturado = 0;
     let valorGlosado = 0;
     const motivosGlosa: { [key: string]: { count: number; valor: number } } = {};
 
     for (const proc of procs) {
-      valorFaturado += parseFloat(proc.valorTotal || "0");
-      const glosa = parseFloat(proc.valorGlosado || "0");
+      valorFaturado += parseFloat(proc.valorPago || "0");
+      const glosa = parseFloat(proc.valorGlosa || "0");
       if (glosa > 0) {
         valorGlosado += glosa;
-        const motivo = proc.motivoGlosa || "Não especificado";
+        const motivo = proc.codigoGlosa || "Não especificado";
         if (!motivosGlosa[motivo]) {
           motivosGlosa[motivo] = { count: 0, valor: 0 };
         }
@@ -6904,13 +6833,13 @@ export async function getMetricasProdutividade(filters: {
   if (arquivosRetornados.length > 0) {
     const arquivoIds = arquivosRetornados.map(a => a.id);
     const procsPendentes = await db
-      .select({ id: procedimentos.id })
-      .from(procedimentos)
+      .select({ id: demonstrativo.id })
+      .from(demonstrativo)
       .where(and(
-        inArray(procedimentos.arquivoId, arquivoIds),
+        inArray(demonstrativo.arquivoId, arquivoIds),
         or(
-          isNull(procedimentos.classificacaoGlosa),
-          eq(procedimentos.classificacaoGlosa, "pendente")
+          isNull(demonstrativo.classificacaoGlosa),
+          eq(demonstrativo.classificacaoGlosa, "pendente")
         )
       ));
     totalPendentes = procsPendentes.length;
@@ -7292,11 +7221,11 @@ export async function getMetricasEnvioXML(filters: {
     // Buscar procedimentos do arquivo
     const procs = await db
       .select()
-      .from(procedimentos)
-      .where(eq(procedimentos.arquivoId, arq.id));
+      .from(faturamentoTiss)
+      .where(eq(faturamentoTiss.arquivoId, arq.id));
     
     const qtdProcedimentos = procs.length;
-    const valorArquivo = procs.reduce((sum, p) => sum + parseFloat(String(p.valorTotal || 0)), 0);
+    const valorArquivo = procs.reduce((sum, p) => sum + parseFloat(String(p.valorFaturado || 0)), 0);
 
     totalArquivos++;
     totalProcedimentos += qtdProcedimentos;
@@ -9623,14 +9552,14 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
 
   const arquivosEnviadosIds = arquivosEnviados.map(a => a.id);
 
-  // Buscar procedimentos enviados da guia específica
+  // Buscar itens faturados da guia específica
   const procsEnviados = await db
     .select()
-    .from(procedimentos)
+    .from(faturamentoTiss)
     .where(
       and(
-        inArray(procedimentos.arquivoId, arquivosEnviadosIds),
-        eq(procedimentos.guiaNumero, guiaNumero)
+        inArray(faturamentoTiss.arquivoId, arquivosEnviadosIds),
+        eq(faturamentoTiss.numeroGuiaPrestador, guiaNumero)
       )
     );
 
@@ -9665,15 +9594,15 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
 
   const arquivosRetornadosIds = arquivosRetornados.map(a => a.id);
 
-  // Buscar procedimentos retornados da guia
+  // Buscar itens de demonstrativo retornados da guia
   const procsRetornados = arquivosRetornadosIds.length > 0
     ? await db
         .select()
-        .from(procedimentos)
+        .from(demonstrativo)
         .where(
           and(
-            inArray(procedimentos.arquivoId, arquivosRetornadosIds),
-            eq(procedimentos.guiaNumero, guiaNumero)
+            inArray(demonstrativo.arquivoId, arquivosRetornadosIds),
+            eq(demonstrativo.numeroGuia, guiaNumero)
           )
         )
     : [];
@@ -9681,7 +9610,7 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
   // Criar mapa de retornados por código
   const retornadosMap = new Map<string, typeof procsRetornados[0]>();
   for (const proc of procsRetornados) {
-    retornadosMap.set(proc.codigo, proc);
+    retornadosMap.set(proc.codigoItem || "", proc);
   }
 
   // Montar itens da conta
@@ -9693,11 +9622,11 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
   let dataExecucao = "";
 
   for (const procEnv of procsEnviados) {
-    const valorFaturado = parseFloat(String(procEnv.valorTotal || 0));
+    const valorFaturado = parseFloat(String(procEnv.valorFaturado || 0));
     valorTotalFaturado += valorFaturado;
     
-    if (!pacienteNome && procEnv.pacienteNome) {
-      pacienteNome = procEnv.pacienteNome;
+    if (!pacienteNome && procEnv.carteiraBeneficiario) {
+      pacienteNome = procEnv.carteiraBeneficiario;
     }
     if (!dataExecucao && procEnv.dataExecucao) {
       dataExecucao = procEnv.dataExecucao instanceof Date 
@@ -9705,7 +9634,7 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
         : String(procEnv.dataExecucao);
     }
 
-    const procRet = retornadosMap.get(procEnv.codigo);
+    const procRet = retornadosMap.get(procEnv.codigoItem || "");
     
     let valorPago = 0;
     let valorGlosado = 0;
@@ -9713,9 +9642,9 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
     let status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido" = "nao_recebido";
 
     if (procRet) {
-      valorPago = parseFloat(String(procRet.valorTotal || 0));
-      valorGlosado = parseFloat(String(procRet.valorGlosado || 0));
-      motivoGlosa = procRet.motivoGlosa || "";
+      valorPago = parseFloat(String(procRet.valorPago || 0));
+      valorGlosado = parseFloat(String(procRet.valorGlosa || 0));
+      motivoGlosa = procRet.codigoGlosa || "";
       valorTotalRecebido += valorPago;
       valorTotalGlosado += valorGlosado;
 
@@ -9729,14 +9658,14 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
     }
 
     itens.push({
-      guiaNumero: procEnv.guiaNumero || guiaNumero,
+      guiaNumero: procEnv.numeroGuiaPrestador || guiaNumero,
       numeroLote: procEnv.numeroLote || "",
       dataExecucao: procEnv.dataExecucao instanceof Date 
         ? procEnv.dataExecucao.toLocaleDateString("pt-BR")
         : String(procEnv.dataExecucao || ""),
-      codigo: procEnv.codigo,
-      descricao: procEnv.descricao || "",
-      pacienteNome: procEnv.pacienteNome || "",
+      codigo: procEnv.codigoItem,
+      descricao: procEnv.descricaoItem || "",
+      pacienteNome: procEnv.carteiraBeneficiario || "",
       valorFaturado,
       valorPago,
       valorGlosado,
@@ -9755,7 +9684,7 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
 
   return {
     guiaNumero,
-    numeroLote: procsEnviados[0]?.numeroLote || "",
+    numeroLote: procsEnviados[0]?.numeroLote || "",  
     pacienteNome,
     dataExecucao,
     valorTotalFaturado,
@@ -9777,9 +9706,8 @@ export async function getEstatisticasPorCodigo(estabelecimentoId: number, conven
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   const whereConditions = [
-    eq(procedimentos.tipoDespesa, "procedimento"),
     sql`${arquivos.estabelecimentoId} = ${estabelecimentoId}`,
-    sql`${arquivos.direcao} = 'enviado'`,
+    sql`${arquivos.direcao} = 'retornado'`,
   ];
   
   if (convenioId) {
@@ -9788,19 +9716,19 @@ export async function getEstatisticasPorCodigo(estabelecimentoId: number, conven
 
   const stats = await db
     .select({
-      codigo: procedimentos.codigo,
-      descricao: procedimentos.descricao,
+      codigo: demonstrativo.codigoItem,
+      descricao: demonstrativo.descricaoItem,
       convenioId: arquivos.convenioId,
       totalContas: sql<number>`COUNT(*)`,
-      valorMedio: sql<number>`AVG(CAST(${procedimentos.valorTotal} AS DECIMAL(10,2)))`,
-      valorMinimo: sql<number>`MIN(CAST(${procedimentos.valorTotal} AS DECIMAL(10,2)))`,
-      valorMaximo: sql<number>`MAX(CAST(${procedimentos.valorTotal} AS DECIMAL(10,2)))`,
-      desvioPadrao: sql<number>`STDDEV(CAST(${procedimentos.valorTotal} AS DECIMAL(10,2)))`,
+      valorMedio: sql<number>`AVG(CAST(${demonstrativo.valorPago} AS DECIMAL(10,2)))`,
+      valorMinimo: sql<number>`MIN(CAST(${demonstrativo.valorPago} AS DECIMAL(10,2)))`,
+      valorMaximo: sql<number>`MAX(CAST(${demonstrativo.valorPago} AS DECIMAL(10,2)))`,
+      desvioPadrao: sql<number>`STDDEV(CAST(${demonstrativo.valorPago} AS DECIMAL(10,2)))`,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(and(...whereConditions))
-    .groupBy(procedimentos.codigo, procedimentos.descricao, arquivos.convenioId)
+    .groupBy(demonstrativo.codigoItem, demonstrativo.descricaoItem, arquivos.convenioId)
     .having(sql`COUNT(*) >= 3`); // Mínimo de 3 contas para ter estatísticas significativas
 
   return stats;
@@ -9838,20 +9766,20 @@ export async function getContasOutliers(estabelecimentoId: number, convenioId?: 
   if (!db2) throw new Error('Database connection failed');
   const procedimentosRecentes = await db2
     .select({
-      id: procedimentos.id,
-      codigo: procedimentos.codigo,
-      descricao: procedimentos.descricao,
-      valorTotal: procedimentos.valorTotal,
-      guiaNumero: procedimentos.guiaNumero,
-      pacienteNome: procedimentos.pacienteNome,
-      dataExecucao: procedimentos.dataExecucao,
+      id: demonstrativo.id,
+      codigo: demonstrativo.codigoItem,
+      descricao: demonstrativo.descricaoItem,
+      valorTotal: demonstrativo.valorPago,
+      guiaNumero: demonstrativo.numeroGuia,
+      pacienteNome: demonstrativo.nomeBeneficiario,
+      dataExecucao: demonstrativo.dataExecucao,
       convenioId: arquivos.convenioId,
       arquivoId: arquivos.id,
       arquivoNome: arquivos.nome,
       userId: arquivos.userId,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(and(...whereConditions));
 
   // Identifica outliers
@@ -9909,13 +9837,13 @@ export async function getPadroesErroPorFuncionario(estabelecimentoId: number) {
     .select({
       userId: arquivos.userId,
       totalContas: sql<number>`COUNT(DISTINCT ${arquivos.id})`,
-      totalProcedimentos: sql<number>`COUNT(${procedimentos.id})`,
-      totalGlosados: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 THEN 1 ELSE 0 END)`,
-      valorTotalFaturado: sql<number>`SUM(CAST(${procedimentos.valorTotal} AS DECIMAL(10,2)))`,
-      valorTotalGlosado: sql<number>`SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(10,2)))`,
+      totalProcedimentos: sql<number>`COUNT(${demonstrativo.id})`,
+      totalGlosados: sql<number>`SUM(CASE WHEN ${demonstrativo.valorGlosa} > 0 THEN 1 ELSE 0 END)`,
+      valorTotalFaturado: sql<number>`SUM(CAST(${demonstrativo.valorPago} AS DECIMAL(10,2)))`,
+      valorTotalGlosado: sql<number>`SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(10,2)))`,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(and(
       sql`${arquivos.estabelecimentoId} = ${estabelecimentoId}`,
       sql`${arquivos.direcao} = 'enviado'`,
@@ -9977,21 +9905,21 @@ export async function getMotivosGlosaPorFuncionario(estabelecimentoId: number, u
 
   const motivos = await db
     .select({
-      motivoGlosa: procedimentos.motivoGlosa,
-      codigo: procedimentos.codigo,
-      descricao: procedimentos.descricao,
+      motivoGlosa: demonstrativo.codigoGlosa,
+      codigo: demonstrativo.codigoItem,
+      descricao: demonstrativo.descricaoItem,
       quantidade: sql<number>`COUNT(*)`,
-      valorTotal: sql<number>`SUM(CAST(${procedimentos.valorGlosado} AS DECIMAL(10,2)))`,
+      valorTotal: sql<number>`SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(10,2)))`,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(and(
       sql`${arquivos.estabelecimentoId} = ${estabelecimentoId}`,
       sql`${arquivos.userId} = ${userId}`,
-      sql`${procedimentos.valorGlosado} > 0`,
+      sql`${demonstrativo.valorGlosa} > 0`,
       sql`${arquivos.createdAt} >= ${dataLimite}`,
     ))
-    .groupBy(procedimentos.motivoGlosa, procedimentos.codigo, procedimentos.descricao)
+    .groupBy(demonstrativo.codigoGlosa, demonstrativo.codigoItem, demonstrativo.descricaoItem)
     .orderBy(sql`COUNT(*) DESC`)
     .limit(20);
 
@@ -10007,15 +9935,15 @@ export async function calcularRiscoGlosa(estabelecimentoId: number, arquivoId?: 
   // Busca histórico de glosas por código de procedimento
   const historicoGlosas = await db
     .select({
-      codigo: procedimentos.codigo,
+      codigo: demonstrativo.codigoItem,
       convenioId: arquivos.convenioId,
       totalContas: sql<number>`COUNT(*)`,
-      totalGlosadas: sql<number>`SUM(CASE WHEN ${procedimentos.valorGlosado} > 0 THEN 1 ELSE 0 END)`,
+      totalGlosadas: sql<number>`SUM(CASE WHEN ${demonstrativo.valorGlosa} > 0 THEN 1 ELSE 0 END)`,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(sql`${arquivos.estabelecimentoId} = ${estabelecimentoId}`)
-    .groupBy(procedimentos.codigo, arquivos.convenioId);
+    .groupBy(demonstrativo.codigoItem, arquivos.convenioId);
 
   // Cria mapa de taxa de glosa por código/convênio
   const taxaGlosaMap = new Map<string, number>();
@@ -10047,15 +9975,15 @@ export async function calcularRiscoGlosa(estabelecimentoId: number, arquivoId?: 
       arquivoId: arquivos.id,
       arquivoNome: arquivos.nome,
       convenioId: arquivos.convenioId,
-      guiaNumero: procedimentos.guiaNumero,
-      pacienteNome: procedimentos.pacienteNome,
-      codigo: procedimentos.codigo,
-      descricao: procedimentos.descricao,
-      valorTotal: procedimentos.valorTotal,
-      dataExecucao: procedimentos.dataExecucao,
+      guiaNumero: demonstrativo.numeroGuia,
+      pacienteNome: demonstrativo.nomeBeneficiario,
+      codigo: demonstrativo.codigoItem,
+      descricao: demonstrativo.descricaoItem,
+      valorTotal: demonstrativo.valorPago,
+      dataExecucao: demonstrativo.dataExecucao,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(demonstrativo)
+    .innerJoin(arquivos, eq(demonstrativo.arquivoId, arquivos.id))
     .where(and(...whereConditions));
 
   // Agrupa por guia e calcula risco
@@ -10099,7 +10027,7 @@ export async function calcularRiscoGlosa(estabelecimentoId: number, arquivoId?: 
 
     const grupo = contasAgrupadas.get(key)!;
     grupo.itens.push({
-      codigo: conta.codigo,
+      codigo: conta.codigo || "",
       descricao: conta.descricao,
       valorTotal: conta.valorTotal,
       riscoIndividual,
@@ -11094,8 +11022,8 @@ export async function compararTasyComXML(
   // Busca procedimentos do XML
   const procedimentosXML = await db
     .select()
-    .from(procedimentos)
-    .where(eq(procedimentos.arquivoId, arquivoId));
+    .from(faturamentoTiss)
+    .where(eq(faturamentoTiss.arquivoId, arquivoId));
 
   // Busca o arquivo para obter informações do convênio e período
   const arquivo = await db
@@ -11127,7 +11055,7 @@ export async function compararTasyComXML(
   // Agrupa procedimentos do XML por código
   const xmlPorCodigo = new Map<string, any[]>();
   for (const proc of procedimentosXML) {
-    const codigo = proc.codigo || '';
+    const codigo = proc.codigoItem || '';
     if (!xmlPorCodigo.has(codigo)) {
       xmlPorCodigo.set(codigo, []);
     }
@@ -14436,8 +14364,8 @@ export async function listarPrestadoresExecutantes(filters?: {
   const conditions = [];
 
   // Filtrar apenas procedimentos com codigoPrestadorExecutante preenchido
-  conditions.push(isNotNull(procedimentos.codigoPrestadorExecutante));
-  conditions.push(sql`${procedimentos.codigoPrestadorExecutante} != ''`);
+  conditions.push(isNotNull(faturamentoTiss.nomeProf));
+  conditions.push(sql`${faturamentoTiss.nomeProf} != ''`);
 
   // Filtrar por estabelecimento se informado
   if (filters?.estabelecimentoId) {
@@ -14451,13 +14379,13 @@ export async function listarPrestadoresExecutantes(filters?: {
 
   const result = await db
     .select({
-      codigo: procedimentos.codigoPrestadorExecutante,
+      codigo: faturamentoTiss.nomeProf,
       quantidade: sql<number>`COUNT(*)`,
     })
-    .from(procedimentos)
-    .innerJoin(arquivos, eq(procedimentos.arquivoId, arquivos.id))
+    .from(faturamentoTiss)
+    .innerJoin(arquivos, eq(faturamentoTiss.arquivoId, arquivos.id))
     .where(and(...conditions))
-    .groupBy(procedimentos.codigoPrestadorExecutante)
+    .groupBy(faturamentoTiss.nomeProf)
     .orderBy(desc(sql`COUNT(*)`));
 
   // Buscar informações de estabelecimento vinculado para cada prestador

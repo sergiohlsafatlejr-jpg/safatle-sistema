@@ -73,7 +73,7 @@ interface ItemConciliacao {
   valorGlosado: number;
   motivoGlosa: string;
   status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido";
-  arquivoId?: number;
+  arquivoId?: number | null;
 }
 
 interface ContaConciliacao {
