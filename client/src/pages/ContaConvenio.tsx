@@ -30,7 +30,7 @@ import {
   Layers2
 } from "lucide-react";
 import React, { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 
 // Gerar lista de competências no formato MM/AAAA
@@ -110,8 +110,9 @@ interface ContaAgrupada {
 export default function ContaConvenio() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
-  const [convenioId, setConvenioId] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
   
   // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
   const getCompetenciaInicial = () => {
@@ -123,9 +124,11 @@ export default function ContaConvenio() {
     return `${mesAtual - 1}-${hoje.getFullYear()}`;
   };
   
-  const [competencia, setCompetencia] = useState<string>(getCompetenciaInicial());
-  const [page, setPage] = useState(1);
-  const [, setLocation] = useLocation();
+  // Restaurar filtros da URL (quando volta dos detalhes)
+  const [convenioId, setConvenioId] = useState<string>(urlParams.get("convenioId") || "");
+  const [searchTerm, setSearchTerm] = useState(urlParams.get("search") || "");
+  const [competencia, setCompetencia] = useState<string>(urlParams.get("competencia") || getCompetenciaInicial());
+  const [page, setPage] = useState(parseInt(urlParams.get("page") || "1"));
   const pageSize = 20;
 
   // Extrair mês e ano da competência selecionada
@@ -231,8 +234,15 @@ export default function ContaConvenio() {
   // Obter label da competência selecionada
   const competenciaSelecionada = competencias.find(c => c.value === competencia);
 
-  // Navegar para detalhes da conta
+  // Navegar para detalhes da conta (preservando filtros atuais para o retorno)
   const handleVerDetalhes = (conta: ContaAgrupada) => {
+    // Salvar filtros atuais como returnParams para restaurar ao voltar
+    const returnParams = new URLSearchParams();
+    if (convenioId) returnParams.set("returnConvenioId", convenioId);
+    if (searchTerm) returnParams.set("returnSearch", searchTerm);
+    if (competencia) returnParams.set("returnCompetencia", competencia);
+    if (page > 1) returnParams.set("returnPage", String(page));
+
     const params = new URLSearchParams({
       guia: conta.numeroGuia,
       lote: conta.numeroLote,
@@ -241,6 +251,8 @@ export default function ContaConvenio() {
       convenioId: String(conta.convenioId || convenioId),
       origem: "faturamento",
     });
+    // Anexar returnParams
+    returnParams.forEach((value, key) => params.set(key, value));
     setLocation(`/conta-convenio-detalhes?${params.toString()}`);
   };
 

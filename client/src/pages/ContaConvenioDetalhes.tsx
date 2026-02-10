@@ -184,9 +184,21 @@ export default function ContaConvenioDetalhes() {
     XLSX.writeFile(wb, `guia_${guia}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  // Voltar para lista
+  // Voltar para lista (restaurando filtros preservados)
   const handleVoltar = () => {
-    setLocation("/conta-convenio");
+    const returnParams = new URLSearchParams();
+    const returnConvenioId = params.get("returnConvenioId");
+    const returnSearch = params.get("returnSearch");
+    const returnCompetencia = params.get("returnCompetencia");
+    const returnPage = params.get("returnPage");
+    
+    if (returnConvenioId) returnParams.set("convenioId", returnConvenioId);
+    if (returnSearch) returnParams.set("search", returnSearch);
+    if (returnCompetencia) returnParams.set("competencia", returnCompetencia);
+    if (returnPage) returnParams.set("page", returnPage);
+    
+    const queryString = returnParams.toString();
+    setLocation(`/conta-convenio${queryString ? `?${queryString}` : ""}`);
   };
 
   return (

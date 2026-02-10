@@ -1551,3 +1551,8 @@
 - [x] Aplicar migração via drizzle-kit migrate (55/55 synced)
 - [x] Adicionar tabela demonstrativo ao snapshot (56/56 tabelas sincronizadas)
 - [x] Verificar compilação e testes (435 testes passando, schema e banco 100% sincronizados)
+
+## Bug: Perda de Filtros ao Voltar dos Detalhes da Guia
+
+- [x] Corrigir perda de filtros na tela de Contas por Convênio ao clicar em "Voltar" dos detalhes da guia (filtros preservados via query params na URL)
+- [x] Corrigir erro de coluna valorTotal/valorGlosado inexistente na tabela demonstrativo (getDadosConsolidados)

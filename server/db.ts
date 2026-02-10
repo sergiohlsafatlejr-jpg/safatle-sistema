@@ -6495,16 +6495,16 @@ export async function getDadosConsolidados(userId: number) {
       const procs = await db
         .select({
           count: sql<number>`count(*)`,
-          valorTotal: sql<number>`SUM(CAST(valorTotal AS DECIMAL(12,2)))`,
-          valorGlosado: sql<number>`SUM(CAST(valorGlosado AS DECIMAL(12,2)))`,
+          valorPago: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorPago} AS DECIMAL(12,2))), 0)`,
+          valorGlosa: sql<number>`COALESCE(SUM(CAST(${demonstrativo.valorGlosa} AS DECIMAL(12,2))), 0)`,
         })
         .from(demonstrativo)
         .where(inArray(demonstrativo.arquivoId, arquivoIds));
 
       totalProcedimentos = procs[0]?.count || 0;
-      valorFaturado = procs[0]?.valorTotal || 0;
-      valorGlosado = procs[0]?.valorGlosado || 0;
-      valorPago = valorFaturado - valorGlosado;
+      valorPago = procs[0]?.valorPago || 0;
+      valorGlosado = procs[0]?.valorGlosa || 0;
+      valorFaturado = valorPago + valorGlosado;
     }
 
     // Contar convênios
