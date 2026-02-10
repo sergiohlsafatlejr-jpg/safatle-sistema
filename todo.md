@@ -1587,3 +1587,4 @@
 - [x] Atualizar Demonstrativo para navegar para DemonstrativoDetalhes em vez de abrir modal
 - [x] Remover aba Contas Demonstrativo e ContaDetalhesDemonstrativo do sistema
 - [x] Verificar reimportação do arquivo 'Demostrativo Psi-12-2025.xlsx' (26.614 registros processados + otimização: pular parseFile genérico para retornados)
+- [x] Corrigir tela Demonstrativo: filtro por convênio retorna 0 contas e competência fica vazia (26.614 registros tinham convenioId=NULL, corrigidos para Unimed)
