@@ -1543,3 +1543,11 @@
 ## Sincronização do Schema Drizzle com o Banco
 
 - [x] Sincronizar schema Drizzle com o banco: migração 0053 criada (DROP TABLE procedimentos), snapshot atualizado, 4 migrações faltantes registradas (54/54 synced), drizzle-kit migrate OK, 435 testes passando
+
+## Gerar Migrações Pendentes de Colunas Novas
+
+- [x] Identificar diferenças: 29 diferenças (10 tabelas faltantes, 18 colunas faltantes, 1 tabela extra)
+- [x] Gerar migração 0054_sync_schema.sql (28 statements: 10 CREATE TABLE + 18 ALTER TABLE ADD COLUMN)
+- [x] Aplicar migração via drizzle-kit migrate (55/55 synced)
+- [x] Adicionar tabela demonstrativo ao snapshot (56/56 tabelas sincronizadas)
+- [x] Verificar compilação e testes (435 testes passando, schema e banco 100% sincronizados)

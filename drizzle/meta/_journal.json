@@ -379,6 +379,13 @@
       "when": 1770683618551,
       "tag": "0053_remove_procedimentos",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1770684316247,
+      "tag": "0054_sync_schema",
+      "breakpoints": true
     }
   ]
 }
