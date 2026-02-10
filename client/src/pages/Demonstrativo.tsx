@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -27,14 +26,12 @@ import {
   Eye,
   TrendingDown,
   TrendingUp,
-  Info,
   Banknote,
   Layers2,
-  Hash,
-  User,
-  CreditCard
+  ExternalLink
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -43,17 +40,31 @@ import * as XLSX from "xlsx";
 export default function Demonstrativo() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
-  const [convenioId, setConvenioId] = useState<string>("");
-  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
-  const [busca, setBusca] = useState<string>("");
-  const [buscaDebounced, setBuscaDebounced] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const [itemDetalhe, setItemDetalhe] = useState<any>(null);
+  const [, setLocation] = useLocation();
+  const searchString = useSearch();
+
+  // Restaurar filtros da URL (quando volta do detalhe)
+  const urlFiltros = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return {
+      competencia: p.get("competencia") || "",
+      statusGlosa: p.get("statusGlosa") || "",
+      page: p.get("page") ? parseInt(p.get("page")!) : 0,
+      searchTerm: p.get("searchTerm") || "",
+      convenioId: p.get("convenioId") || "",
+    };
+  }, [searchString]);
+
+  const [convenioId, setConvenioId] = useState<string>(urlFiltros.convenioId);
+  const [filtroStatus, setFiltroStatus] = useState<string>(urlFiltros.statusGlosa || "todos");
+  const [busca, setBusca] = useState<string>(urlFiltros.searchTerm);
+  const [buscaDebounced, setBuscaDebounced] = useState<string>(urlFiltros.searchTerm);
+  const [page, setPage] = useState(urlFiltros.page || 1);
   const pageSize = 50;
 
   // Competência inicializada como vazia - será definida quando as competências do banco carregarem
-  const [competencia, setCompetencia] = useState<string>("");
-  const [competenciaInicializada, setCompetenciaInicializada] = useState(false);
+  const [competencia, setCompetencia] = useState<string>(urlFiltros.competencia || "");
+  const [competenciaInicializada, setCompetenciaInicializada] = useState(!!urlFiltros.competencia);
 
   // Extrair mês e ano da competência selecionada
   const { mesReferencia, anoReferencia } = useMemo(() => {
@@ -127,17 +138,6 @@ export default function Demonstrativo() {
     { enabled: !!estabelecimentoAtual }
   );
 
-  // Buscar itens de uma guia específica quando dialog está aberto
-  const { data: itensGuia, isLoading: isLoadingItens } = trpc.demonstrativo.itensPorGuia.useQuery(
-    {
-      numeroGuia: itemDetalhe?.numeroGuia || "",
-      protocolo: itemDetalhe?.protocolo || undefined,
-      convenioId: itemDetalhe?.convenioId || undefined,
-      arquivoId: itemDetalhe?.arquivoId || undefined,
-    },
-    { enabled: !!itemDetalhe?.numeroGuia }
-  );
-
   const formatCurrency = (value: number | string | null | undefined) => {
     const num = typeof value === "string" ? parseFloat(value) : (value || 0);
     if (isNaN(num)) return "R$ 0,00";
@@ -152,6 +152,25 @@ export default function Demonstrativo() {
     } catch {
       return "-";
     }
+  };
+
+  // Navegar para detalhes da conta (preservando filtros atuais na URL)
+  const handleVerDetalhes = (conta: any) => {
+    const params = new URLSearchParams({
+      guia: conta.numeroGuia || "",
+      protocolo: conta.protocolo || "",
+      convenioId: String(conta.convenioId || convenioId || ""),
+      arquivoId: String(conta.arquivoId || ""),
+      lotePrestador: conta.lotePrestador || "",
+      nomeBeneficiario: conta.nomeBeneficiario || "",
+      // Preservar filtros para restaurar ao voltar
+      _competencia: competencia || "",
+      _statusGlosa: filtroStatus || "todos",
+      _page: String(page),
+      _searchTerm: busca || "",
+      _convenioId: convenioId || "",
+    });
+    setLocation(`/demonstrativo-detalhes?${params.toString()}`);
   };
 
   const handleExportExcel = () => {
@@ -221,16 +240,6 @@ export default function Demonstrativo() {
     return <Badge variant="outline" className="gap-1 border-green-500 text-green-600"><CheckCircle2 className="h-3 w-3" /> Pago</Badge>;
   };
 
-  const getItemStatusBadge = (item: any) => {
-    const valorGlosa = parseFloat(item.valorGlosa || "0");
-    const situacao = (item.situacaoItem || "").toUpperCase();
-
-    if (situacao.includes("GLOS") || valorGlosa > 0) {
-      return <Badge variant="destructive" className="text-xs">Glosado</Badge>;
-    }
-    return <Badge variant="outline" className="text-xs border-green-500 text-green-600">Pago</Badge>;
-  };
-
   const totalPages = contasData?.totalPages || 1;
   const items = contasData?.items || [];
 
@@ -273,7 +282,6 @@ export default function Demonstrativo() {
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os convênios</SelectItem>
                     {convenios?.map((convenio: any) => (
                       <SelectItem key={convenio.id} value={String(convenio.id)}>
                         {convenio.nome} ({convenio.codigo})
@@ -480,13 +488,13 @@ export default function Demonstrativo() {
                           <TableRow 
                             key={`${conta.numeroGuia}-${conta.protocolo}-${conta.lotePrestador}-${idx}`} 
                             className={`${valorGlosa > 0 ? "bg-red-50/50 dark:bg-red-950/20" : ""} cursor-pointer hover:bg-muted/50`}
-                            onClick={() => setItemDetalhe(conta)}
+                            onClick={() => handleVerDetalhes(conta)}
                           >
                             <TableCell>
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setItemDetalhe(conta); }}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleVerDetalhes(conta); }}>
                                       <Eye className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </TooltipTrigger>
@@ -569,177 +577,6 @@ export default function Demonstrativo() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Dialog de detalhes da conta (itens da guia) */}
-      <Dialog open={!!itemDetalhe} onOpenChange={(open) => !open && setItemDetalhe(null)}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5" />
-              Detalhes da Conta - Guia {itemDetalhe?.numeroGuia || ""}
-            </DialogTitle>
-          </DialogHeader>
-
-          {itemDetalhe && (
-            <div className="space-y-6">
-              {/* Resumo da conta */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  RESUMO DA CONTA
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <DetailField label="Guia" value={itemDetalhe.numeroGuia} />
-                  <DetailField label="Protocolo" value={itemDetalhe.protocolo} />
-                  <DetailField label="Lote" value={itemDetalhe.lotePrestador} />
-                  <DetailField label="Origem" value={itemDetalhe.origemTipo === "excel" ? "Excel" : "XML"} />
-                  <DetailField label="Paciente" value={itemDetalhe.nomeBeneficiario} />
-                  <DetailField label="Carteirinha" value={itemDetalhe.carteiraBeneficiario} />
-                  <DetailField label="Data Pagamento" value={formatDate(itemDetalhe.dataPagamento)} />
-                  <DetailField label="Competência" value={formatDate(itemDetalhe.dataReferencia)} />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                  <DetailField label="Total Itens" value={itemDetalhe.totalItens} />
-                  <DetailField label="Vl. Informado" value={formatCurrency(itemDetalhe.valorInformado)} highlight="blue" />
-                  <DetailField label="Vl. Pago" value={formatCurrency(itemDetalhe.valorTotal)} highlight="green" />
-                  <DetailField label="Vl. Glosado" value={formatCurrency(itemDetalhe.valorGlosado)} highlight="red" />
-                </div>
-              </div>
-
-              {/* Itens da guia */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  ITENS DA CONTA ({itensGuia?.length || 0} itens)
-                </h3>
-                {isLoadingItens ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : itensGuia && itensGuia.length > 0 ? (
-                  <div className="overflow-x-auto border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40px]">Seq</TableHead>
-                          <TableHead>Código</TableHead>
-                          <TableHead className="max-w-[200px]">Descrição</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Data Exec.</TableHead>
-                          <TableHead className="text-center">Qtd</TableHead>
-                          <TableHead className="text-right">Vl. Informado</TableHead>
-                          <TableHead className="text-right">Vl. Pago</TableHead>
-                          <TableHead className="text-right">Vl. Glosa</TableHead>
-                          <TableHead>Cód. Glosa</TableHead>
-                          <TableHead>Situação</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {itensGuia.map((item: any, idx: number) => {
-                          const temGlosa = parseFloat(item.valorGlosa || "0") > 0 || (item.situacaoItem || "").toUpperCase().includes("GLOS");
-                          return (
-                            <TableRow key={item.id || idx} className={temGlosa ? "bg-red-50/50 dark:bg-red-950/20" : ""}>
-                              <TableCell className="text-xs text-muted-foreground">{item.sequencialItem || idx + 1}</TableCell>
-                              <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm">{item.descricaoItem || "-"}</TableCell>
-                              <TableCell>
-                                {item.tipoLancamento ? (
-                                  <Badge variant="secondary" className="text-xs">{item.tipoLancamento}</Badge>
-                                ) : "-"}
-                              </TableCell>
-                              <TableCell className="text-sm">{formatDate(item.dataExecucao)}</TableCell>
-                              <TableCell className="text-center text-sm">{item.quantidade || "-"}</TableCell>
-                              <TableCell className="text-right font-mono text-sm">{formatCurrency(item.valorInformado)}</TableCell>
-                              <TableCell className="text-right font-mono text-sm text-emerald-600 font-semibold">{formatCurrency(item.valorPago)}</TableCell>
-                              <TableCell className="text-right font-mono text-sm text-red-600">{formatCurrency(item.valorGlosa)}</TableCell>
-                              <TableCell className="text-sm">
-                                {item.codigoGlosa ? (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger>
-                                        <Badge variant="outline" className="text-xs border-red-300 text-red-600">
-                                          {item.codigoGlosa}
-                                        </Badge>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-[300px]">
-                                        <p className="font-semibold">Glosa: {item.codigoGlosa}</p>
-                                        <p className="text-sm">{item.erroTiss || "Sem descrição"}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                ) : "-"}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {getItemStatusBadge(item)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground text-sm">
-                    Nenhum item encontrado para esta guia
-                  </div>
-                )}
-
-                {/* Totais da guia */}
-                {itensGuia && itensGuia.length > 0 && (
-                  <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Itens</p>
-                        <p className="text-lg font-bold">{itensGuia.length}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Informado</p>
-                        <p className="text-lg font-bold text-blue-600">
-                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorInformado || "0"), 0))}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Pago</p>
-                        <p className="text-lg font-bold text-emerald-600">
-                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorPago || "0"), 0))}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Glosado</p>
-                        <p className="text-lg font-bold text-red-600">
-                          {formatCurrency(itensGuia.reduce((acc: number, i: any) => acc + parseFloat(i.valorGlosa || "0"), 0))}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
-  );
-}
-
-// Componente auxiliar para exibir campos de detalhe
-function DetailField({ label, value, highlight }: { label: string; value: any; highlight?: string }) {
-  const displayValue = value === null || value === undefined || value === "" || value === "R$ 0,00" ? "-" : String(value);
-  
-  const colorMap: Record<string, string> = {
-    blue: "text-blue-600",
-    indigo: "text-indigo-600",
-    green: "text-emerald-600",
-    red: "text-red-600",
-    emerald: "text-emerald-700 font-bold",
-  };
-
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-sm font-medium ${highlight && displayValue !== "-" ? colorMap[highlight] || "" : ""}`}>
-        {displayValue}
-      </p>
-    </div>
   );
 }

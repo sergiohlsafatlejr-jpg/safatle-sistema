@@ -85,7 +85,7 @@ const menuItems: MenuItem[] = [
   { icon: Upload, label: "Upload de Arquivos", path: "/upload", modulo: "arquivos" },
   { icon: FileSearch, label: "Arquivos", path: "/arquivos", modulo: "arquivos" },
   { icon: List, label: "Conta Convênio", path: "/conta-convenio", modulo: "arquivos" },
-  { icon: FileSpreadsheet, label: "Contas Demonstrativo", path: "/contas-demonstrativo", modulo: "arquivos" },
+
   
   // Comparações e Conciliação
   { icon: GitCompare, label: "Comparações", path: "/comparacoes", modulo: "comparacoes" },

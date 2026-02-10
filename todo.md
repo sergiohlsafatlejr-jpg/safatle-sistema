@@ -1582,3 +1582,7 @@
 - [x] Remover aba Relatório de Contas do sistema (rota, sidebar, página)
 - [x] Remover aba Histórico de Contestações do sistema (rota, sidebar, página)
 - [x] Remover aba Faturado Tasy do sistema (rota, sidebar, página)
+- [x] Unificar abas 'Conta Demonstrativo' e 'Demonstrativo' em uma única aba (eliminar redundância)
+- [x] Criar página DemonstrativoDetalhes em tela cheia (substituir modal)
+- [x] Atualizar Demonstrativo para navegar para DemonstrativoDetalhes em vez de abrir modal
+- [x] Remover aba Contas Demonstrativo e ContaDetalhesDemonstrativo do sistema
