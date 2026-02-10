@@ -1,4 +1,5 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, date } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
@@ -2196,7 +2197,9 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
   valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
-  valorGlosado: decimal("valor_glosado", { precision: 12, scale: 2 }),
+  // valor_glosado é VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
+  // Marcado como generatedAlwaysAs para que Drizzle não tente inserir valores nela
+  valorGlosado: decimal("valor_glosado", { precision: 12, scale: 2 }).generatedAlwaysAs(sql`\`valor_informado\` - \`valor_liberado\``, { mode: 'virtual' }),
   
   // Motivos de Glosa do Item (relacaoGlosa)
   codigoGlosa: varchar("codigo_glosa", { length: 20 }),

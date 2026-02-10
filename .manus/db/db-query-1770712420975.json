@@ -1,0 +1,64 @@
+{
+  "query": "SELECT a.id, a.nome, a.status, a.totalItens, a.itensProcessados, \n(SELECT COUNT(*) FROM demonstrativo d WHERE d.arquivo_id = a.id) as demo_count,\n(SELECT COUNT(*) FROM recebimento_tiss r WHERE r.arquivo_id = a.id) as receb_count\nFROM arquivos a WHERE a.id IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) ORDER BY a.id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.status, a.totalItens, a.itensProcessados, \n(SELECT COUNT(*) FROM demonstrativo d WHERE d.arquivo_id = a.id) as demo_count,\n(SELECT COUNT(*) FROM recebimento_tiss r WHERE r.arquivo_id = a.id) as receb_count\nFROM arquivos a WHERE a.id IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) ORDER BY a.id",
+  "rows": [
+    {
+      "id": "1020280",
+      "nome": "223689903.xml",
+      "status": "processado",
+      "totalItens": "102",
+      "itensProcessados": "102",
+      "demo_count": "102",
+      "receb_count": "102"
+    },
+    {
+      "id": "1020281",
+      "nome": "223722682.xml",
+      "status": "processado",
+      "totalItens": "15",
+      "itensProcessados": "15",
+      "demo_count": "15",
+      "receb_count": "15"
+    },
+    {
+      "id": "1020282",
+      "nome": "223742387.xml",
+      "status": "processado",
+      "totalItens": "26",
+      "itensProcessados": "26",
+      "demo_count": "0",
+      "receb_count": "0"
+    },
+    {
+      "id": "1020283",
+      "nome": "223750296.xml",
+      "status": "processado",
+      "totalItens": "261",
+      "itensProcessados": "261",
+      "demo_count": "0",
+      "receb_count": "0"
+    },
+    {
+      "id": "1020284",
+      "nome": "223750408.xml",
+      "status": "processado",
+      "totalItens": "23",
+      "itensProcessados": "23",
+      "demo_count": "0",
+      "receb_count": "0"
+    },
+    {
+      "id": "1020285",
+      "nome": "223805266.xml",
+      "status": "processado",
+      "totalItens": "124",
+      "itensProcessados": "124",
+      "demo_count": "0",
+      "receb_count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tstatus\ttotalItens\titensProcessados\tdemo_count\treceb_count\n1020280\t223689903.xml\tprocessado\t102\t102\t102\t102\n1020281\t223722682.xml\tprocessado\t15\t15\t15\t15\n1020282\t223742387.xml\tprocessado\t26\t26\t0\t0\n1020283\t223750296.xml\tprocessado\t261\t261\t0\t0\n1020284\t223750408.xml\tprocessado\t23\t23\t0\t0\n1020285\t223805266.xml\tprocessado\t124\t124\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

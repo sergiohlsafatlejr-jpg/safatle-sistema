@@ -276,7 +276,7 @@ export async function parseExcelRecebimentoTiss(
         valorInformado: parseNumber(findValue('valorInformado'))?.toString(),
         valorProcessado: parseNumber(findValue('valorProcessado'))?.toString(),
         valorLiberado: parseNumber(findValue('valorLiberado'))?.toString(),
-        valorGlosado: parseNumber(findValue('valorGlosado'))?.toString(),
+        // valorGlosado é VIRTUAL GENERATED no banco (= valor_informado - valor_liberado), não inserir
         
         // Motivos de Glosa
         codigoGlosa: findValue('codigoGlosa') as string | undefined,
@@ -457,21 +457,9 @@ export async function parseXmlRecebimentoTiss(
           const valorProcessado = itemXml.match(/<(?:ans:)?valorProcessado>([^<]+)<\/(?:ans:)?valorProcessado>/)?.[1];
           const valorLiberado = itemXml.match(/<(?:ans:)?valorLiberado>([^<]+)<\/(?:ans:)?valorLiberado>/)?.[1];
           
-          // Calcular valor glosado do item
-          // CORREÇÃO: Só marcar como glosado se houver tag <relacaoGlosa> explícita no item
-          // OU se a guia tiver <motivoGlosaGuia> E o valorLiberado for 0
-          // NÃO calcular glosa pela diferença valorInformado - valorLiberado, pois
-          // o convênio pode processar valores diferentes sem ser glosa
-          let valorGlosado: string | undefined;
-          const relacaoGlosaMatch = itemXml.match(/<(?:ans:)?relacaoGlosa>[\s\S]*?<\/(?:ans:)?relacaoGlosa>/);
-          const valorGlosaItem = itemXml.match(/<(?:ans:)?valorGlosa>([^<]+)<\/(?:ans:)?valorGlosa>/)?.[1];
-          if (relacaoGlosaMatch && valorGlosaItem) {
-            // Glosa explícita no item via <relacaoGlosa>
-            valorGlosado = valorGlosaItem;
-          } else if (motivoGlosaGuiaCodigo && valorLiberado && parseFloat(valorLiberado) === 0 && valorInformado) {
-            // Guia tem motivo de glosa E o item tem valorLiberado = 0 → item glosado
-            valorGlosado = valorInformado;
-          }
+          // NOTA: valor_glosado é coluna VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
+          // NÃO devemos inserir valores nela - o banco calcula automaticamente
+          // Extraímos apenas o código e descrição da glosa para referência
           
           // Glosa do item (relacaoGlosa)
           let codigoGlosa = itemXml.match(/<(?:ans:)?codigoGlosa>([^<]+)<\/(?:ans:)?codigoGlosa>/)?.[1];
@@ -536,7 +524,7 @@ export async function parseXmlRecebimentoTiss(
             valorInformado,
             valorProcessado,
             valorLiberado,
-            valorGlosado,
+            // valorGlosado é VIRTUAL GENERATED (= valor_informado - valor_liberado), não inserir
             codigoGlosa,
             descricaoGlosa,
             

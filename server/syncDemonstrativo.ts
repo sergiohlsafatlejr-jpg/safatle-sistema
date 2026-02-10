@@ -132,10 +132,9 @@ export async function syncDemonstrativoByArquivo(
         const valorInf = parseFloat(item.valorInformado || '0');
         const valorLib = parseFloat(item.valorLiberado || '0');
         
-        // CORREÇÃO: Usar o valorGlosado já calculado corretamente pelo parser
-        // O parser só marca como glosado se houver <relacaoGlosa> explícita ou motivoGlosaGuia
-        const valorGlosadoStr = item.valorGlosado ? String(item.valorGlosado) : null;
-        const valorGlosadoNum = parseFloat(valorGlosadoStr || '0');
+        // valor_glosado é VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
+        // Calcular localmente para determinar se há glosa
+        const valorGlosadoNum = Math.max(0, valorInf - valorLib);
         const hasGlosa = valorGlosadoNum > 0.01 || (item.codigoGlosa && item.codigoGlosa !== '');
         
         // Traduzir situação TISS

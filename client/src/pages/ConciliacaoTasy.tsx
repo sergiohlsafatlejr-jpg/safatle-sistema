@@ -160,12 +160,12 @@ export default function ConciliacaoTasy() {
           demonstrativoPorGuia.set(guia, []);
         }
         
-        const dadosExtras = proc.dadosExtras as Record<string, unknown> | undefined;
+        const dadosExtras = proc.dadosExtras as unknown as Record<string, unknown> | undefined;
         demonstrativoPorGuia.get(guia)!.push({
           guia,
           codigo: proc.codigo || '',
           descricao: proc.descricao || '',
-          quantidade: proc.quantidade || 1,
+          quantidade: Number(proc.quantidade) || 1,
           valorInformado: parseFloat(String(dadosExtras?.valorInformado || proc.valorTotal || '0')),
           valorPago: parseFloat(String(dadosExtras?.valorLiberado || proc.valorTotal || '0')),
           valorGlosado: parseFloat(proc.valorGlosado || '0'),

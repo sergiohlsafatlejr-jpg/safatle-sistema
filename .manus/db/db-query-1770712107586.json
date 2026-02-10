@@ -1,0 +1,58 @@
+{
+  "query": "SELECT id, nome FROM convenios ORDER BY nome;\nSELECT a.id, a.nome, a.tipoArquivo, a.direcao, a.status, a.convenioId, a.createdAt FROM arquivos a WHERE a.direcao = 'retornado' ORDER BY a.createdAt DESC LIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome FROM convenios ORDER BY nome;\nSELECT a.id, a.nome, a.tipoArquivo, a.direcao, a.status, a.convenioId, a.createdAt FROM arquivos a WHERE a.direcao = 'retornado' ORDER BY a.createdAt DESC LIMIT 20",
+  "rows": [
+    {
+      "id": "60001",
+      "nome": "Affego"
+    },
+    {
+      "id": "60002",
+      "nome": "Assefaz"
+    },
+    {
+      "id": "60003",
+      "nome": "Bradesco"
+    },
+    {
+      "id": "60004",
+      "nome": "Cassi"
+    },
+    {
+      "id": "60005",
+      "nome": "Geap"
+    },
+    {
+      "id": "30001",
+      "nome": "Ipasgo "
+    },
+    {
+      "id": "60006",
+      "nome": "Petrobras"
+    },
+    {
+      "id": "60007",
+      "nome": "Saude Caixa"
+    },
+    {
+      "id": "1",
+      "nome": "Unimed"
+    },
+    {
+      "id": "60008",
+      "nome": "Vivacom"
+    }
+  ],
+  "messages": [
+    "id\tnome\ttipoArquivo\tdirecao\tstatus\tconvenioId\tcreatedAt",
+    "1020284\t223750408.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:05",
+    "1020285\t223805266.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:05",
+    "1020283\t223750296.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:04",
+    "1020282\t223742387.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:25:24",
+    "1020281\t223722682.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:25:02",
+    "1020280\t223689903.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:23:47"
+  ],
+  "stdout": "id\tnome\n60001\tAffego\n60002\tAssefaz\n60003\tBradesco\n60004\tCassi\n60005\tGeap\n30001\tIpasgo \n60006\tPetrobras\n60007\tSaude Caixa\n1\tUnimed\n60008\tVivacom\nid\tnome\ttipoArquivo\tdirecao\tstatus\tconvenioId\tcreatedAt\n1020284\t223750408.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:05\n1020285\t223805266.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:05\n1020283\t223750296.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:26:04\n1020282\t223742387.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:25:24\n1020281\t223722682.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:25:02\n1020280\t223689903.xml\txml\tretornado\tprocessado\t60004\t2026-02-10 08:23:47\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

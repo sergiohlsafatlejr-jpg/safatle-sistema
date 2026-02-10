@@ -1556,3 +1556,14 @@
 
 - [x] Corrigir perda de filtros na tela de Contas por Convênio ao clicar em "Voltar" dos detalhes da guia (filtros preservados via query params na URL)
 - [x] Corrigir erro de coluna valorTotal/valorGlosado inexistente na tabela demonstrativo (getDadosConsolidados)
+
+## Bug: Valores Incorretos na Importação de XML de Retorno CASSI
+
+- [ ] Investigar valores incorretos após importação de 6 XMLs de retorno do convênio CASSI
+- [ ] Verificar parser de XML de retorno para convênio CASSI
+- [ ] Corrigir extração de valores (pagos, glosados) do XML de retorno CASSI
+
+- [x] Corrigir bug de importação de XML de retorno CASSI - 4 de 6 arquivos não geraram dados no demonstrativo (causa: coluna valor_glosado é VIRTUAL GENERATED no banco, parser tentava inserir valores nela)
+- [x] Reprocessar os 4 XMLs CASSI que falharam (1020282, 1020283, 1020284, 1020285) - total 434 itens inseridos
+- [x] Atualizar schema Drizzle para marcar valorGlosado como generatedAlwaysAs no recebimentoTiss
+- [x] Corrigir syncDemonstrativo para calcular valorGlosado localmente em vez de usar campo do parser

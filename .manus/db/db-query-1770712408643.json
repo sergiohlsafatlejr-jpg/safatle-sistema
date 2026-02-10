@@ -1,0 +1,18 @@
+{
+  "query": "SELECT arquivo_id, COUNT(*) as total FROM recebimento_tiss WHERE arquivo_id IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) GROUP BY arquivo_id ORDER BY arquivo_id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT arquivo_id, COUNT(*) as total FROM recebimento_tiss WHERE arquivo_id IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) GROUP BY arquivo_id ORDER BY arquivo_id",
+  "rows": [
+    {
+      "arquivo_id": "1020280",
+      "total": "102"
+    },
+    {
+      "arquivo_id": "1020281",
+      "total": "15"
+    }
+  ],
+  "messages": [],
+  "stdout": "arquivo_id\ttotal\n1020280\t102\n1020281\t15\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}
