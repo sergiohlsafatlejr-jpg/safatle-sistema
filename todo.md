@@ -1586,3 +1586,4 @@
 - [x] Criar página DemonstrativoDetalhes em tela cheia (substituir modal)
 - [x] Atualizar Demonstrativo para navegar para DemonstrativoDetalhes em vez de abrir modal
 - [x] Remover aba Contas Demonstrativo e ContaDetalhesDemonstrativo do sistema
+- [x] Verificar reimportação do arquivo 'Demostrativo Psi-12-2025.xlsx' (26.614 registros processados + otimização: pular parseFile genérico para retornados)

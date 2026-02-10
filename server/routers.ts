@@ -573,13 +573,20 @@ export const appRouter = router({
             // Set status to processing
             await db.updateArquivoStatus(arquivoId, "processando");
             
-            const parseResult = await parseFile(buffer, input.nome);
+            // Para arquivos retornados, pular o parseFile genérico (economiza memória e tempo para arquivos grandes)
+            let parseResult: { success: boolean; procedimentos: any[] } = { success: false, procedimentos: [] };
             
-            console.log('[Upload] Parse completed in', ((Date.now() - startTime) / 1000).toFixed(1), 's:', {
-              success: parseResult.success,
-              procedimentosCount: parseResult.procedimentos.length,
-              comMedico: parseResult.procedimentos.filter(p => p.nomeMedico).length
-            });
+            if (input.direcao === "enviado") {
+              parseResult = await parseFile(buffer, input.nome);
+              
+              console.log('[Upload] Parse completed in', ((Date.now() - startTime) / 1000).toFixed(1), 's:', {
+                success: parseResult.success,
+                procedimentosCount: parseResult.procedimentos.length,
+                comMedico: parseResult.procedimentos.filter(p => p.nomeMedico).length
+              });
+            } else {
+              console.log('[Upload] Arquivo retornado - pulando parseFile genérico para otimização');
+            }
             
             if (parseResult.success && parseResult.procedimentos.length > 0 && input.direcao === "enviado") {
               // Agrupar procedimentos por código de prestador executante (APENAS para arquivos enviados)
