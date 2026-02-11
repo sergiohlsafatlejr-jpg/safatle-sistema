@@ -886,7 +886,8 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
     "faturista",      // Acesso a: Dashboard, Arquivos, Comparações, Faturamento, Tabelas de Preço
     "recurso_glosa",  // Acesso a: Análise de Glosa, Dicionário de Glosas, Recursos de Glosa
     "gestor",         // Acesso a: Dashboard Consolidado, Relatórios, Produtividade
-    "visualizador"    // Acesso apenas para visualização (somente leitura)
+    "visualizador",   // Acesso apenas para visualização (somente leitura)
+    "usuario_tasy"    // Acesso a: Importação Tasy, Contas Faturadas, Relatórios Tasy, Relatórios BI, Conciliação
   ]).default("visualizador").notNull(),
   
   // Permissões específicas (mantém para compatibilidade e controle granular)
@@ -909,6 +910,20 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoProdutividade: mysqlEnum("acessoProdutividade", ["sim", "nao"]).default("nao").notNull(),
   acessoEstabelecimentos: mysqlEnum("acessoEstabelecimentos", ["sim", "nao"]).default("nao").notNull(),
   acessoPermissoes: mysqlEnum("acessoPermissoes", ["sim", "nao"]).default("nao").notNull(),
+  
+  // Módulos Tasy
+  acessoImportacaoTasy: mysqlEnum("acessoImportacaoTasy", ["sim", "nao"]).default("nao").notNull(),
+  acessoContasFaturadas: mysqlEnum("acessoContasFaturadas", ["sim", "nao"]).default("nao").notNull(),
+  acessoRelatoriosTasy: mysqlEnum("acessoRelatoriosTasy", ["sim", "nao"]).default("nao").notNull(),
+  acessoRelatoriosBi: mysqlEnum("acessoRelatoriosBi", ["sim", "nao"]).default("nao").notNull(),
+  acessoConciliacaoContasPagas: mysqlEnum("acessoConciliacaoContasPagas", ["sim", "nao"]).default("nao").notNull(),
+  
+  // Módulos de Recebimento e Demonstrativo
+  acessoRecebimentosXml: mysqlEnum("acessoRecebimentosXml", ["sim", "nao"]).default("nao").notNull(),
+  acessoRecebimentosExcel: mysqlEnum("acessoRecebimentosExcel", ["sim", "nao"]).default("nao").notNull(),
+  acessoDemonstrativo: mysqlEnum("acessoDemonstrativo", ["sim", "nao"]).default("nao").notNull(),
+  acessoContaConvenio: mysqlEnum("acessoContaConvenio", ["sim", "nao"]).default("nao").notNull(),
+  acessoRecursos: mysqlEnum("acessoRecursos", ["sim", "nao"]).default("nao").notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -92,11 +92,11 @@ const menuItems: MenuItem[] = [
   { icon: Scale, label: "Conciliação", path: "/conciliacao", modulo: "comparacoes" },
   
   // Faturamento
-  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "faturamento" },
+  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
   
   // Recebimentos (fontes de dados do Demonstrativo)
-  { icon: FileCode2, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "faturamento" },
-  { icon: FileSpreadsheet, label: "Recebimentos Excel", path: "/recebimentos-excel", modulo: "faturamento" },
+  { icon: FileCode2, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
+  { icon: FileSpreadsheet, label: "Recebimentos Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
   
   // Análise e Recursos de Glosa
   { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },
@@ -116,11 +116,11 @@ const menuItems: MenuItem[] = [
   { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
-  { icon: Database, label: "Importação Tasy", path: "/importacao-tasy", adminOnly: true, tasyOnly: true },
-  { icon: DollarSign, label: "Contas Faturadas", path: "/contas-faturadas", modulo: "arquivos", tasyOnly: true },
-  { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "arquivos", tasyOnly: true },
-  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "arquivos", tasyOnly: true },
-  { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "arquivos", tasyOnly: true },
+  { icon: Database, label: "Importação Tasy", path: "/importacao-tasy", modulo: "importacaoTasy", tasyOnly: true },
+  { icon: DollarSign, label: "Contas Faturadas", path: "/contas-faturadas", modulo: "contasFaturadas", tasyOnly: true },
+  { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "relatoriosTasy", tasyOnly: true },
+  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", tasyOnly: true },
+  { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas", tasyOnly: true },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 

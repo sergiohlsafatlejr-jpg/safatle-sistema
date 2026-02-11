@@ -1598,3 +1598,11 @@
 - [x] Reprocessar demonstrativo-0284932.xlsx (ID 1110266) travado em processando com 0 registros (22.177 registros inseridos, competência 01/2026)
 - [x] Reprocessar demonstrativo_servicos_1.xml (ID 1110265) travado em processando com 0 registros (24.004 registros inseridos, competência 01/2026)
 - [x] Investigar causa raiz do travamento: timeoutPromise criado mas nunca usado com Promise.race - corrigido para usar Promise.race([doProcess(), timeoutPromise])
+
+
+## Permissões Específicas por Usuário e Grupo Tasy - 11/02/2026
+- [x] Implementar permissões granulares por usuário (escolher módulos/abas individualmente)
+- [x] Criar grupo pré-definido "Usuário Tasy" (Importação Tasy, Contas Faturadas, Relatórios Tasy, Relatórios BI, Conciliação Contas Pagas)
+- [x] Atualizar UI de Gerenciar Permissões para permitir edição de permissões individuais por usuário (23 módulos em 3 categorias: Geral, Tasy, Recebimento)
+- [x] Aplicar restrição de navegação na sidebar baseada nas permissões do usuário
+- [x] Notificação amigável de acesso negado ao tentar acessar módulo sem permissão

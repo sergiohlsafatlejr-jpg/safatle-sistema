@@ -109,6 +109,13 @@ const GRUPOS_SERVICO_PADRAO = [
     icon: Eye,
     color: "bg-gray-500"
   },
+  { 
+    value: "usuario_tasy", 
+    label: "Usuário Tasy", 
+    description: "Importação Tasy, Contas Faturadas, Relatórios Tasy, Relatórios BI, Conciliação",
+    icon: Briefcase,
+    color: "bg-teal-500"
+  },
 ];
 
 // Definição dos módulos do sistema
@@ -126,6 +133,16 @@ const MODULOS = [
   { key: "acessoProdutividade", label: "Produtividade", icon: BarChart3 },
   { key: "acessoEstabelecimentos", label: "Estabelecimentos", icon: Building2 },
   { key: "acessoPermissoes", label: "Permissões", icon: Shield },
+  { key: "acessoImportacaoTasy", label: "Importação Tasy", icon: FolderOpen, category: "tasy" },
+  { key: "acessoContasFaturadas", label: "Contas Faturadas", icon: FileText, category: "tasy" },
+  { key: "acessoRelatoriosTasy", label: "Relatórios Tasy", icon: BarChart3, category: "tasy" },
+  { key: "acessoRelatoriosBi", label: "Relatórios BI", icon: BarChart3, category: "tasy" },
+  { key: "acessoConciliacaoContasPagas", label: "Conciliação Contas Pagas", icon: DollarSign, category: "tasy" },
+  { key: "acessoRecebimentosXml", label: "Recebimentos XML", icon: FileText, category: "recebimento" },
+  { key: "acessoRecebimentosExcel", label: "Recebimentos Excel", icon: FileText, category: "recebimento" },
+  { key: "acessoDemonstrativo", label: "Demonstrativo", icon: FileText, category: "recebimento" },
+  { key: "acessoContaConvenio", label: "Conta Convênio", icon: DollarSign, category: "recebimento" },
+  { key: "acessoRecursos", label: "Recursos", icon: Briefcase, category: "recebimento" },
 ];
 
 // Cores disponíveis para grupos
@@ -192,6 +209,16 @@ export default function GerenciarPermissoes() {
     acessoProdutividade: "nao" as "sim" | "nao",
     acessoEstabelecimentos: "nao" as "sim" | "nao",
     acessoPermissoes: "nao" as "sim" | "nao",
+    acessoImportacaoTasy: "nao" as "sim" | "nao",
+    acessoContasFaturadas: "nao" as "sim" | "nao",
+    acessoRelatoriosTasy: "nao" as "sim" | "nao",
+    acessoRelatoriosBi: "nao" as "sim" | "nao",
+    acessoConciliacaoContasPagas: "nao" as "sim" | "nao",
+    acessoRecebimentosXml: "nao" as "sim" | "nao",
+    acessoRecebimentosExcel: "nao" as "sim" | "nao",
+    acessoDemonstrativo: "nao" as "sim" | "nao",
+    acessoContaConvenio: "nao" as "sim" | "nao",
+    acessoRecursos: "nao" as "sim" | "nao",
   });
 
   // Verificar se é gestor
@@ -451,6 +478,16 @@ export default function GerenciarPermissoes() {
       acessoProdutividade: user.acessoProdutividade || "nao",
       acessoEstabelecimentos: user.acessoEstabelecimentos || "nao",
       acessoPermissoes: user.acessoPermissoes || "nao",
+      acessoImportacaoTasy: user.acessoImportacaoTasy || "nao",
+      acessoContasFaturadas: user.acessoContasFaturadas || "nao",
+      acessoRelatoriosTasy: user.acessoRelatoriosTasy || "nao",
+      acessoRelatoriosBi: user.acessoRelatoriosBi || "nao",
+      acessoConciliacaoContasPagas: user.acessoConciliacaoContasPagas || "nao",
+      acessoRecebimentosXml: user.acessoRecebimentosXml || "nao",
+      acessoRecebimentosExcel: user.acessoRecebimentosExcel || "nao",
+      acessoDemonstrativo: user.acessoDemonstrativo || "nao",
+      acessoContaConvenio: user.acessoContaConvenio || "nao",
+      acessoRecursos: user.acessoRecursos || "nao",
     });
     setShowEditDialog(true);
   };
@@ -741,6 +778,16 @@ export default function GerenciarPermissoes() {
                       acessoProdutividade: "nao",
                       acessoEstabelecimentos: "nao",
                       acessoPermissoes: "nao",
+                      acessoImportacaoTasy: "nao",
+                      acessoContasFaturadas: "nao",
+                      acessoRelatoriosTasy: "nao",
+                      acessoRelatoriosBi: "nao",
+                      acessoConciliacaoContasPagas: "nao",
+                      acessoRecebimentosXml: "nao",
+                      acessoRecebimentosExcel: "nao",
+                      acessoDemonstrativo: "nao",
+                      acessoContaConvenio: "nao",
+                      acessoRecursos: "nao",
                     });
                     setShowAddDialog(true);
                   }}>
@@ -1299,6 +1346,8 @@ export default function GerenciarPermissoes() {
                         permissoes[modulo.key] = ["acessoDashboard", "acessoFaturamento", "acessoProdutividade", "acessoEstabelecimentos"].includes(modulo.key) ? "sim" : "nao";
                       } else if (value === "visualizador") {
                         permissoes[modulo.key] = modulo.key === "acessoDashboard" ? "sim" : "nao";
+                      } else if (value === "usuario_tasy") {
+                        permissoes[modulo.key] = ["acessoDashboard", "acessoImportacaoTasy", "acessoContasFaturadas", "acessoRelatoriosTasy", "acessoRelatoriosBi", "acessoConciliacaoContasPagas"].includes(modulo.key) ? "sim" : "nao";
                       }
                     });
                     setNewGroup(prev => ({ ...prev, permissoesPadrao: permissoes }));
@@ -1524,28 +1573,52 @@ export default function GerenciarPermissoes() {
                 Personalize os módulos que este usuário pode acessar.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {MODULOS.map((modulo) => {
+              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Módulos Gerais</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => !(m as any).category).map((modulo) => {
                   const Icon = modulo.icon;
                   const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
                   return (
-                    <div
-                      key={modulo.key}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{modulo.label}</span>
                       </div>
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={(checked) => 
-                          setNewPermissao(prev => ({
-                            ...prev,
-                            [modulo.key]: checked ? "sim" : "nao"
-                          }))
-                        }
-                      />
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 className="font-semibold text-sm text-teal-600 uppercase tracking-wider mt-4">Módulos Tasy</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "tasy").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-teal-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-teal-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 className="font-semibold text-sm text-blue-600 uppercase tracking-wider mt-4">Módulos Recebimento / Demonstrativo</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "recebimento").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
                     </div>
                   );
                 })}
@@ -1623,28 +1696,52 @@ export default function GerenciarPermissoes() {
                 Personalize os módulos que este usuário pode acessar.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {MODULOS.map((modulo) => {
+              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Módulos Gerais</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => !(m as any).category).map((modulo) => {
                   const Icon = modulo.icon;
                   const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
                   return (
-                    <div
-                      key={modulo.key}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{modulo.label}</span>
                       </div>
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={(checked) => 
-                          setNewPermissao(prev => ({
-                            ...prev,
-                            [modulo.key]: checked ? "sim" : "nao"
-                          }))
-                        }
-                      />
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 className="font-semibold text-sm text-teal-600 uppercase tracking-wider mt-4">Módulos Tasy</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "tasy").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-teal-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-teal-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 className="font-semibold text-sm text-blue-600 uppercase tracking-wider mt-4">Módulos Recebimento / Demonstrativo</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "recebimento").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
                     </div>
                   );
                 })}

@@ -33,7 +33,17 @@ export type ModuloPermissao =
   | "regrasNegocio" 
   | "produtividade" 
   | "estabelecimentos" 
-  | "permissoes";
+  | "permissoes"
+  | "importacaoTasy"
+  | "contasFaturadas"
+  | "relatoriosTasy"
+  | "relatoriosBi"
+  | "conciliacaoContasPagas"
+  | "recebimentosXml"
+  | "recebimentosExcel"
+  | "demonstrativo"
+  | "contaConvenio"
+  | "recursos";
 
 interface PermissoesModulo {
   acessoDashboard: "sim" | "nao";
@@ -49,6 +59,16 @@ interface PermissoesModulo {
   acessoProdutividade: "sim" | "nao";
   acessoEstabelecimentos: "sim" | "nao";
   acessoPermissoes: "sim" | "nao";
+  acessoImportacaoTasy: "sim" | "nao";
+  acessoContasFaturadas: "sim" | "nao";
+  acessoRelatoriosTasy: "sim" | "nao";
+  acessoRelatoriosBi: "sim" | "nao";
+  acessoConciliacaoContasPagas: "sim" | "nao";
+  acessoRecebimentosXml: "sim" | "nao";
+  acessoRecebimentosExcel: "sim" | "nao";
+  acessoDemonstrativo: "sim" | "nao";
+  acessoContaConvenio: "sim" | "nao";
+  acessoRecursos: "sim" | "nao";
   grupoServico: string | null;
 }
 
@@ -85,6 +105,16 @@ const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
   produtividade: "acessoProdutividade",
   estabelecimentos: "acessoEstabelecimentos",
   permissoes: "acessoPermissoes",
+  importacaoTasy: "acessoImportacaoTasy",
+  contasFaturadas: "acessoContasFaturadas",
+  relatoriosTasy: "acessoRelatoriosTasy",
+  relatoriosBi: "acessoRelatoriosBi",
+  conciliacaoContasPagas: "acessoConciliacaoContasPagas",
+  recebimentosXml: "acessoRecebimentosXml",
+  recebimentosExcel: "acessoRecebimentosExcel",
+  demonstrativo: "acessoDemonstrativo",
+  contaConvenio: "acessoContaConvenio",
+  recursos: "acessoRecursos",
 };
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
@@ -133,6 +163,16 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoProdutividade: "sim",
           acessoEstabelecimentos: "sim",
           acessoPermissoes: "sim",
+          acessoImportacaoTasy: "sim",
+          acessoContasFaturadas: "sim",
+          acessoRelatoriosTasy: "sim",
+          acessoRelatoriosBi: "sim",
+          acessoConciliacaoContasPagas: "sim",
+          acessoRecebimentosXml: "sim",
+          acessoRecebimentosExcel: "sim",
+          acessoDemonstrativo: "sim",
+          acessoContaConvenio: "sim",
+          acessoRecursos: "sim",
           grupoServico: "administrador",
         };
       }
@@ -161,6 +201,16 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoProdutividade: "sim",
           acessoEstabelecimentos: "sim",
           acessoPermissoes: "sim",
+          acessoImportacaoTasy: "sim",
+          acessoContasFaturadas: "sim",
+          acessoRelatoriosTasy: "sim",
+          acessoRelatoriosBi: "sim",
+          acessoConciliacaoContasPagas: "sim",
+          acessoRecebimentosXml: "sim",
+          acessoRecebimentosExcel: "sim",
+          acessoDemonstrativo: "sim",
+          acessoContaConvenio: "sim",
+          acessoRecursos: "sim",
           grupoServico: "administrador",
         };
       }
@@ -181,6 +231,16 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       acessoProdutividade: permissao.acessoProdutividade || "nao",
       acessoEstabelecimentos: permissao.acessoEstabelecimentos || "nao",
       acessoPermissoes: permissao.acessoPermissoes || "nao",
+      acessoImportacaoTasy: permissao.acessoImportacaoTasy || "nao",
+      acessoContasFaturadas: permissao.acessoContasFaturadas || "nao",
+      acessoRelatoriosTasy: permissao.acessoRelatoriosTasy || "nao",
+      acessoRelatoriosBi: permissao.acessoRelatoriosBi || "nao",
+      acessoConciliacaoContasPagas: permissao.acessoConciliacaoContasPagas || "nao",
+      acessoRecebimentosXml: permissao.acessoRecebimentosXml || "nao",
+      acessoRecebimentosExcel: permissao.acessoRecebimentosExcel || "nao",
+      acessoDemonstrativo: permissao.acessoDemonstrativo || "nao",
+      acessoContaConvenio: permissao.acessoContaConvenio || "nao",
+      acessoRecursos: permissao.acessoRecursos || "nao",
       grupoServico: permissao.grupoServico || null,
     };
   })();

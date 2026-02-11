@@ -6169,6 +6169,16 @@ export async function getPermissoesUsuario(userId: number) {
       acessoProdutividade: permissoesEstabelecimento.acessoProdutividade,
       acessoEstabelecimentos: permissoesEstabelecimento.acessoEstabelecimentos,
       acessoPermissoes: permissoesEstabelecimento.acessoPermissoes,
+      acessoImportacaoTasy: permissoesEstabelecimento.acessoImportacaoTasy,
+      acessoContasFaturadas: permissoesEstabelecimento.acessoContasFaturadas,
+      acessoRelatoriosTasy: permissoesEstabelecimento.acessoRelatoriosTasy,
+      acessoRelatoriosBi: permissoesEstabelecimento.acessoRelatoriosBi,
+      acessoConciliacaoContasPagas: permissoesEstabelecimento.acessoConciliacaoContasPagas,
+      acessoRecebimentosXml: permissoesEstabelecimento.acessoRecebimentosXml,
+      acessoRecebimentosExcel: permissoesEstabelecimento.acessoRecebimentosExcel,
+      acessoDemonstrativo: permissoesEstabelecimento.acessoDemonstrativo,
+      acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
+      acessoRecursos: permissoesEstabelecimento.acessoRecursos,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -6300,6 +6310,16 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
         acessoProdutividade: data.acessoProdutividade,
         acessoEstabelecimentos: data.acessoEstabelecimentos,
         acessoPermissoes: data.acessoPermissoes,
+        acessoImportacaoTasy: data.acessoImportacaoTasy,
+        acessoContasFaturadas: data.acessoContasFaturadas,
+        acessoRelatoriosTasy: data.acessoRelatoriosTasy,
+        acessoRelatoriosBi: data.acessoRelatoriosBi,
+        acessoConciliacaoContasPagas: data.acessoConciliacaoContasPagas,
+        acessoRecebimentosXml: data.acessoRecebimentosXml,
+        acessoRecebimentosExcel: data.acessoRecebimentosExcel,
+        acessoDemonstrativo: data.acessoDemonstrativo,
+        acessoContaConvenio: data.acessoContaConvenio,
+        acessoRecursos: data.acessoRecursos,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
@@ -6407,6 +6427,16 @@ export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
       acessoProdutividade: permissoesEstabelecimento.acessoProdutividade,
       acessoEstabelecimentos: permissoesEstabelecimento.acessoEstabelecimentos,
       acessoPermissoes: permissoesEstabelecimento.acessoPermissoes,
+      acessoImportacaoTasy: permissoesEstabelecimento.acessoImportacaoTasy,
+      acessoContasFaturadas: permissoesEstabelecimento.acessoContasFaturadas,
+      acessoRelatoriosTasy: permissoesEstabelecimento.acessoRelatoriosTasy,
+      acessoRelatoriosBi: permissoesEstabelecimento.acessoRelatoriosBi,
+      acessoConciliacaoContasPagas: permissoesEstabelecimento.acessoConciliacaoContasPagas,
+      acessoRecebimentosXml: permissoesEstabelecimento.acessoRecebimentosXml,
+      acessoRecebimentosExcel: permissoesEstabelecimento.acessoRecebimentosExcel,
+      acessoDemonstrativo: permissoesEstabelecimento.acessoDemonstrativo,
+      acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
+      acessoRecursos: permissoesEstabelecimento.acessoRecursos,
       userName: users.name,
       userEmail: users.email,
       userRole: users.role,
@@ -7308,7 +7338,7 @@ export async function getMetricasEnvioXML(filters: {
 export async function verificarAcessoModulo(
   userId: number,
   estabelecimentoId: number,
-  modulo: "dashboard" | "arquivos" | "comparacoes" | "faturamento" | "tabelasPreco" | "analiseGlosa" | "dicionarioGlosas" | "recursosGlosa" | "convenios" | "regrasNegocio" | "produtividade" | "estabelecimentos" | "permissoes"
+  modulo: "dashboard" | "arquivos" | "comparacoes" | "faturamento" | "tabelasPreco" | "analiseGlosa" | "dicionarioGlosas" | "recursosGlosa" | "convenios" | "regrasNegocio" | "produtividade" | "estabelecimentos" | "permissoes" | "importacaoTasy" | "contasFaturadas" | "relatoriosTasy" | "relatoriosBi" | "conciliacaoContasPagas" | "recebimentosXml" | "recebimentosExcel" | "demonstrativo" | "contaConvenio" | "recursos"
 ): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
@@ -7346,6 +7376,16 @@ export async function verificarAcessoModulo(
     produtividade: "acessoProdutividade",
     estabelecimentos: "acessoEstabelecimentos",
     permissoes: "acessoPermissoes",
+    importacaoTasy: "acessoImportacaoTasy",
+    contasFaturadas: "acessoContasFaturadas",
+    relatoriosTasy: "acessoRelatoriosTasy",
+    relatoriosBi: "acessoRelatoriosBi",
+    conciliacaoContasPagas: "acessoConciliacaoContasPagas",
+    recebimentosXml: "acessoRecebimentosXml",
+    recebimentosExcel: "acessoRecebimentosExcel",
+    demonstrativo: "acessoDemonstrativo",
+    contaConvenio: "acessoContaConvenio",
+    recursos: "acessoRecursos",
   };
 
   const campo = moduloMap[modulo];
@@ -7370,25 +7410,21 @@ export function getModulosPermitidosPorGrupo(grupoServico: string): Record<strin
     acessoProdutividade: "nao" as const,
     acessoEstabelecimentos: "nao" as const,
     acessoPermissoes: "nao" as const,
+    acessoImportacaoTasy: "nao" as const,
+    acessoContasFaturadas: "nao" as const,
+    acessoRelatoriosTasy: "nao" as const,
+    acessoRelatoriosBi: "nao" as const,
+    acessoConciliacaoContasPagas: "nao" as const,
+    acessoRecebimentosXml: "nao" as const,
+    acessoRecebimentosExcel: "nao" as const,
+    acessoDemonstrativo: "nao" as const,
+    acessoContaConvenio: "nao" as const,
+    acessoRecursos: "nao" as const,
   };
 
   switch (grupoServico) {
     case "administrador":
-      return {
-        acessoDashboard: "sim",
-        acessoArquivos: "sim",
-        acessoComparacoes: "sim",
-        acessoFaturamento: "sim",
-        acessoTabelasPreco: "sim",
-        acessoAnaliseGlosa: "sim",
-        acessoDicionarioGlosas: "sim",
-        acessoRecursosGlosa: "sim",
-        acessoConvenios: "sim",
-        acessoRegrasNegocio: "sim",
-        acessoProdutividade: "sim",
-        acessoEstabelecimentos: "sim",
-        acessoPermissoes: "sim",
-      };
+      return Object.fromEntries(Object.keys(todosModulos).map(k => [k, "sim"])) as Record<string, "sim" | "nao">;
     case "faturista":
       return {
         ...todosModulos,
@@ -7423,6 +7459,37 @@ export function getModulosPermitidosPorGrupo(grupoServico: string): Record<strin
         acessoDashboard: "sim",
       };
   }
+}
+
+/**
+ * Retorna os módulos permitidos para o grupo Usuário Tasy
+ */
+export function getModulosTasyUser(): Record<string, "sim" | "nao"> {
+  return {
+    acessoDashboard: "sim",
+    acessoArquivos: "nao",
+    acessoComparacoes: "nao",
+    acessoFaturamento: "nao",
+    acessoTabelasPreco: "nao",
+    acessoAnaliseGlosa: "nao",
+    acessoDicionarioGlosas: "nao",
+    acessoRecursosGlosa: "nao",
+    acessoConvenios: "nao",
+    acessoRegrasNegocio: "nao",
+    acessoProdutividade: "nao",
+    acessoEstabelecimentos: "nao",
+    acessoPermissoes: "nao",
+    acessoImportacaoTasy: "sim",
+    acessoContasFaturadas: "sim",
+    acessoRelatoriosTasy: "sim",
+    acessoRelatoriosBi: "sim",
+    acessoConciliacaoContasPagas: "sim",
+    acessoRecebimentosXml: "nao",
+    acessoRecebimentosExcel: "nao",
+    acessoDemonstrativo: "nao",
+    acessoContaConvenio: "nao",
+    acessoRecursos: "nao",
+  };
 }
 
 /**

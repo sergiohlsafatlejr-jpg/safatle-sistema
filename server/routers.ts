@@ -3472,7 +3472,7 @@ export const appRouter = router({
       .input(z.object({
         userId: z.number(),
         estabelecimentoId: z.number(),
-        grupoServico: z.enum(["administrador", "faturista", "recurso_glosa", "gestor", "visualizador"]).optional(),
+        grupoServico: z.enum(["administrador", "faturista", "recurso_glosa", "gestor", "visualizador", "usuario_tasy"]).optional(),
         podeVisualizar: z.enum(["sim", "nao"]).optional(),
         podeEditar: z.enum(["sim", "nao"]).optional(),
         podeExcluir: z.enum(["sim", "nao"]).optional(),
@@ -3490,6 +3490,16 @@ export const appRouter = router({
         acessoProdutividade: z.enum(["sim", "nao"]).optional(),
         acessoEstabelecimentos: z.enum(["sim", "nao"]).optional(),
         acessoPermissoes: z.enum(["sim", "nao"]).optional(),
+        acessoImportacaoTasy: z.enum(["sim", "nao"]).optional(),
+        acessoContasFaturadas: z.enum(["sim", "nao"]).optional(),
+        acessoRelatoriosTasy: z.enum(["sim", "nao"]).optional(),
+        acessoRelatoriosBi: z.enum(["sim", "nao"]).optional(),
+        acessoConciliacaoContasPagas: z.enum(["sim", "nao"]).optional(),
+        acessoRecebimentosXml: z.enum(["sim", "nao"]).optional(),
+        acessoRecebimentosExcel: z.enum(["sim", "nao"]).optional(),
+        acessoDemonstrativo: z.enum(["sim", "nao"]).optional(),
+        acessoContaConvenio: z.enum(["sim", "nao"]).optional(),
+        acessoRecursos: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const podeGerenciar = await db.verificarPermissaoEstabelecimento(
