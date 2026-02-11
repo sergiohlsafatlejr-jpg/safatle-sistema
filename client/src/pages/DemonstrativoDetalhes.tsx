@@ -27,7 +27,14 @@ import {
   AlertTriangle,
   Gavel,
   Layers2,
-  Package
+  Package,
+  Pill,
+  Stethoscope,
+  BedDouble,
+  TestTube2,
+  Wrench,
+  CircleDot,
+  BarChart3
 } from "lucide-react";
 import React, { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -48,6 +55,50 @@ const formatDate = (date: Date | string | null | undefined) => {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString("pt-BR");
+};
+
+// Mapa de tipos de lançamento com labels legíveis, ícones e cores
+const TIPO_LANCAMENTO_MAP: Record<string, { label: string; color: string; bgColor: string; borderColor: string; icon: any }> = {
+  "EXA": { label: "Exames", color: "text-purple-700", bgColor: "bg-purple-50", borderColor: "border-purple-200", icon: TestTube2 },
+  "HOS": { label: "Diárias/Hosp.", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-200", icon: BedDouble },
+  "MED": { label: "Medicamentos", color: "text-emerald-700", bgColor: "bg-emerald-50", borderColor: "border-emerald-200", icon: Pill },
+  "MAT": { label: "Materiais", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-200", icon: Package },
+  "CON": { label: "Procedimentos", color: "text-indigo-700", bgColor: "bg-indigo-50", borderColor: "border-indigo-200", icon: Stethoscope },
+  "HON": { label: "Honorários", color: "text-cyan-700", bgColor: "bg-cyan-50", borderColor: "border-cyan-200", icon: CircleDot },
+  "TAX": { label: "Taxas", color: "text-amber-700", bgColor: "bg-amber-50", borderColor: "border-amber-200", icon: Wrench },
+};
+
+// Inferir tipo de lançamento pelo código do item quando não disponível
+const inferirTipoLancamento = (codigoItem: string | null | undefined): string | null => {
+  if (!codigoItem) return null;
+  const codigo = codigoItem.trim();
+  // Códigos que começam com 9 = Medicamentos
+  if (codigo.startsWith("9")) return "MED";
+  // Códigos que começam com 7 = Materiais
+  if (codigo.startsWith("7")) return "MAT";
+  // Códigos que começam com 2 = Exames/Procedimentos
+  if (codigo.startsWith("2")) return "EXA";
+  // Códigos que começam com 6 = Hospitalares/Diárias
+  if (codigo.startsWith("6")) return "HOS";
+  // Códigos que começam com 1 = Consultas/Procedimentos
+  if (codigo.startsWith("1")) return "CON";
+  // Códigos que começam com 3 ou 4 = Honorários
+  if (codigo.startsWith("3") || codigo.startsWith("4")) return "HON";
+  return null;
+};
+
+// Obter tipo efetivo do item (original ou inferido)
+const getTipoEfetivo = (item: any): string | null => {
+  if (item.tipoLancamento && item.tipoLancamento.trim() !== "") {
+    return item.tipoLancamento.trim().toUpperCase();
+  }
+  return inferirTipoLancamento(item.codigoItem);
+};
+
+// Obter info do tipo
+const getTipoInfo = (tipo: string | null) => {
+  if (!tipo) return { label: "Outros", color: "text-gray-700", bgColor: "bg-gray-50", borderColor: "border-gray-200", icon: Layers2 };
+  return TIPO_LANCAMENTO_MAP[tipo] || { label: tipo, color: "text-gray-700", bgColor: "bg-gray-50", borderColor: "border-gray-200", icon: Layers2 };
 };
 
 export default function DemonstrativoDetalhes() {
@@ -102,7 +153,7 @@ export default function DemonstrativoDetalhes() {
     { enabled: !!params.guia }
   );
 
-  // Calcular totais
+  // Calcular totais gerais
   const totais = useMemo(() => {
     if (!itens?.length) return { valorInformado: 0, valorPago: 0, valorGlosa: 0, qtdItens: 0, qtdGlosados: 0 };
     
@@ -115,10 +166,34 @@ export default function DemonstrativoDetalhes() {
     }), { valorInformado: 0, valorPago: 0, valorGlosa: 0, qtdItens: 0, qtdGlosados: 0 });
   }, [itens]);
 
+  // Calcular totais por tipo de lançamento
+  const totaisPorTipo = useMemo(() => {
+    if (!itens?.length) return [];
+    
+    const map = new Map<string, { tipo: string; qtd: number; valorInformado: number; valorPago: number; valorGlosa: number; qtdGlosados: number }>();
+    
+    for (const item of itens) {
+      const tipo = getTipoEfetivo(item) || "OUTROS";
+      const existing = map.get(tipo) || { tipo, qtd: 0, valorInformado: 0, valorPago: 0, valorGlosa: 0, qtdGlosados: 0 };
+      const valorGlosa = parseFloat(item.valorGlosa || "0");
+      existing.qtd += 1;
+      existing.valorInformado += parseFloat(item.valorInformado || "0");
+      existing.valorPago += parseFloat(item.valorPago || "0");
+      existing.valorGlosa += valorGlosa;
+      existing.qtdGlosados += valorGlosa > 0 ? 1 : 0;
+      map.set(tipo, existing);
+    }
+    
+    // Ordenar por valor pago (maior primeiro)
+    return Array.from(map.values()).sort((a, b) => (b.valorPago + b.valorInformado) - (a.valorPago + a.valorInformado));
+  }, [itens]);
+
   // % de glosa
   const percentualGlosa = totais.valorInformado > 0 
     ? ((totais.valorGlosa / totais.valorInformado) * 100).toFixed(1)
-    : "0.0";
+    : totais.valorPago > 0 
+      ? ((totais.valorGlosa / (totais.valorPago + totais.valorGlosa)) * 100).toFixed(1)
+      : "0.0";
 
   // Informações do cabeçalho (primeiro item)
   const cabecalho = itens?.[0];
@@ -146,7 +221,7 @@ export default function DemonstrativoDetalhes() {
       "Seq": item.sequencialItem || "",
       "Código": item.codigoItem || "",
       "Descrição": item.descricaoItem || "",
-      "Tipo Lançamento": item.tipoLancamento || "",
+      "Tipo Lançamento": getTipoInfo(getTipoEfetivo(item)).label,
       "Data Execução": formatDate(item.dataExecucao),
       "Quantidade": item.quantidade || "",
       "Valor Informado": parseFloat(item.valorInformado || "0"),
@@ -344,6 +419,81 @@ export default function DemonstrativoDetalhes() {
               </Card>
             </div>
 
+            {/* KPIs por Tipo de Lançamento */}
+            {totaisPorTipo.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Resumo por Tipo de Lançamento
+                  </CardTitle>
+                  <CardDescription>
+                    Valores agrupados por categoria de item ({totaisPorTipo.length} tipos encontrados)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {totaisPorTipo.map((t) => {
+                      const info = getTipoInfo(t.tipo === "OUTROS" ? null : t.tipo);
+                      const TipoIcon = info.icon;
+                      const valorTotal = t.valorPago + t.valorGlosa + t.valorInformado;
+                      const percGlosa = (t.valorPago + t.valorGlosa) > 0 
+                        ? ((t.valorGlosa / (t.valorPago + t.valorGlosa)) * 100).toFixed(1)
+                        : t.valorInformado > 0 
+                          ? ((t.valorGlosa / t.valorInformado) * 100).toFixed(1)
+                          : "0.0";
+                      
+                      return (
+                        <div 
+                          key={t.tipo} 
+                          className={`rounded-lg border p-4 ${info.bgColor} ${info.borderColor} transition-all hover:shadow-md`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <TipoIcon className={`h-5 w-5 ${info.color}`} />
+                              <span className={`font-semibold text-sm ${info.color}`}>{info.label}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {t.qtd} {t.qtd === 1 ? "item" : "itens"}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            {t.valorInformado > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Informado</span>
+                                <span className="font-medium text-blue-600">{formatCurrency(t.valorInformado)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Pago</span>
+                              <span className="font-medium text-emerald-600">{formatCurrency(t.valorPago)}</span>
+                            </div>
+                            {t.valorGlosa > 0 && (
+                              <>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Glosado</span>
+                                  <span className="font-medium text-red-600">{formatCurrency(t.valorGlosa)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs pt-1 border-t">
+                                  <span className="text-muted-foreground">% Glosa</span>
+                                  <span className="font-semibold text-red-600">{percGlosa}%</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">Glosados</span>
+                                  <span className="font-semibold text-red-600">{t.qtdGlosados} de {t.qtd}</span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Alerta de Glosa */}
             {totais.qtdGlosados > 0 && (
               <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800">
@@ -382,7 +532,7 @@ export default function DemonstrativoDetalhes() {
                         <TableHead className="w-[50px]">Seq</TableHead>
                         <TableHead className="w-[100px]">Código</TableHead>
                         <TableHead>Descrição</TableHead>
-                        <TableHead className="w-[110px]">Tipo</TableHead>
+                        <TableHead className="w-[130px]">Tipo</TableHead>
                         <TableHead className="w-[100px]">Data Exec.</TableHead>
                         <TableHead className="w-[60px] text-center">Qtd</TableHead>
                         <TableHead className="w-[120px] text-right">Informado</TableHead>
@@ -397,6 +547,10 @@ export default function DemonstrativoDetalhes() {
                         const status = getStatusItem(item);
                         const StatusIcon = status.icon;
                         const hasGlosa = parseFloat(item.valorGlosa || "0") > 0;
+                        const tipoEfetivo = getTipoEfetivo(item);
+                        const tipoInfo = getTipoInfo(tipoEfetivo);
+                        const TipoIcon = tipoInfo.icon;
+                        const isInferido = !item.tipoLancamento && tipoEfetivo;
                         
                         return (
                           <TableRow 
@@ -415,11 +569,26 @@ export default function DemonstrativoDetalhes() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              {item.tipoLancamento ? (
-                                <Badge variant="outline" className="text-xs">
-                                  {item.tipoLancamento}
-                                </Badge>
-                              ) : "-"}
+                              {tipoEfetivo ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs ${tipoInfo.color} ${tipoInfo.borderColor} ${isInferido ? "border-dashed" : ""}`}
+                                      >
+                                        <TipoIcon className="h-3 w-3 mr-1" />
+                                        {tipoInfo.label}
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{isInferido ? `Tipo inferido pelo código ${item.codigoItem}` : `Tipo: ${tipoInfo.label} (${tipoEfetivo})`}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-sm">
                               {formatDate(item.dataExecucao)}

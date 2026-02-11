@@ -1609,3 +1609,8 @@
 
 ## Correção Data Referência demonstrativo_servicos_1.xml - Ox Uti - 11/02/2026
 - [x] Corrigir data de referência do demonstrativo_servicos_1.xml (ID 1110265) no Ox Uti de 01/2026 para 12/2025 (24.004 registros atualizados em arquivos, recebimento_tiss e demonstrativo)
+
+## KPIs e Tipo de Lançamento na Tela Detalhes da Conta - 11/02/2026
+- [x] Analisar dados disponíveis de tipo de lançamento no banco (PSI: 98.5% com tipo, Ox Uti: 30.7% com tipo - XML Ipasgo sem tipo)
+- [x] Adicionar KPIs com totais por tipo de lançamento na tela Detalhes da Conta (cards coloridos com ícones por EXA, HOS, MED, MAT, CON, HON)
+- [x] Adicionar coluna de tipo de lançamento na tabela de itens com inferência automática pelo código do item (borda tracejada quando inferido)
