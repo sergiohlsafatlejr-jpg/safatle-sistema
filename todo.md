@@ -1606,3 +1606,6 @@
 - [x] Atualizar UI de Gerenciar Permissões para permitir edição de permissões individuais por usuário (23 módulos em 3 categorias: Geral, Tasy, Recebimento)
 - [x] Aplicar restrição de navegação na sidebar baseada nas permissões do usuário
 - [x] Notificação amigável de acesso negado ao tentar acessar módulo sem permissão
+
+## Correção Data Referência demonstrativo_servicos_1.xml - Ox Uti - 11/02/2026
+- [x] Corrigir data de referência do demonstrativo_servicos_1.xml (ID 1110265) no Ox Uti de 01/2026 para 12/2025 (24.004 registros atualizados em arquivos, recebimento_tiss e demonstrativo)
