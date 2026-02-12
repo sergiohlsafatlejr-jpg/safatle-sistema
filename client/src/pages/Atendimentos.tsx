@@ -104,6 +104,7 @@ export default function Atendimentos() {
   const [notificacaoLinhas, setNotificacaoLinhas] = useState<NotificacaoLinha[]>([{ motivo: "", setor: "", medico: "" }]);
   const [observacao, setObservacao] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
+  const [filtroServico, setFiltroServico] = useState<string | null>(null);
 
   const { data: atendimentos, isLoading, refetch } = trpc.atendimentos.listar.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -154,6 +155,11 @@ export default function Atendimentos() {
       filtrados = filtrados.filter(d => d.tipoatendimentodescricao === filtroTipo);
     }
 
+    // Filtro por serviço
+    if (filtroServico) {
+      filtrados = filtrados.filter(d => (d.codserv || "Sem Serviço") === filtroServico);
+    }
+
     // Filtro de pesquisa
     if (pesquisa) {
       const termo = pesquisa.toLowerCase();
@@ -193,7 +199,7 @@ export default function Atendimentos() {
     });
 
     return filtrados;
-  }, [atendimentos, pesquisa, sortColumn, sortOrder, filtroTipo]);
+  }, [atendimentos, pesquisa, sortColumn, sortOrder, filtroTipo, filtroServico]);
 
   function handleSort(col: SortColumn) {
     if (sortColumn === col) {
@@ -351,8 +357,16 @@ export default function Atendimentos() {
             <h2 className="text-sm font-semibold text-muted-foreground mb-3">Quantidade por Serviço</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {servicosContagem.map(([servico, qtd]) => (
-                <div key={servico} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 border text-sm">
-                  <span className="text-muted-foreground truncate mr-2">{servico}</span>
+                <div
+                  key={servico}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5 ${
+                    filtroServico === servico
+                      ? "bg-primary/10 border-primary ring-1 ring-primary/30"
+                      : "bg-muted/50"
+                  }`}
+                  onClick={() => setFiltroServico(prev => prev === servico ? null : servico)}
+                >
+                  <span className={`truncate mr-2 ${filtroServico === servico ? "text-primary font-medium" : "text-muted-foreground"}`}>{servico}</span>
                   <span className="font-bold text-primary">{qtd}</span>
                 </div>
               ))}
@@ -377,12 +391,22 @@ export default function Atendimentos() {
         </Button>
       </div>
 
-      {filtroTipo !== "todos" && (
-        <div className="flex items-center gap-2 text-sm text-blue-400 bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-500/20">
+      {(filtroTipo !== "todos" || filtroServico) && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-blue-400 bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-500/20">
           <AlertTriangle className="w-4 h-4" />
-          Filtrando por tipo: <strong>{filtroTipo}</strong>
-          <Button variant="ghost" size="sm" className="ml-auto h-6 px-2" onClick={() => setFiltroTipo("todos")}>
-            <X className="w-3 h-3" /> Limpar
+          <span>Filtros ativos:</span>
+          {filtroTipo !== "todos" && (
+            <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => setFiltroTipo("todos")}>
+              Tipo: {filtroTipo} <X className="w-3 h-3" />
+            </Badge>
+          )}
+          {filtroServico && (
+            <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => setFiltroServico(null)}>
+              Serviço: {filtroServico} <X className="w-3 h-3" />
+            </Badge>
+          )}
+          <Button variant="ghost" size="sm" className="ml-auto h-6 px-2" onClick={() => { setFiltroTipo("todos"); setFiltroServico(null); }}>
+            <X className="w-3 h-3 mr-1" /> Limpar Todos
           </Button>
         </div>
       )}
