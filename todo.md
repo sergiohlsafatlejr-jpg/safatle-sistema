@@ -1629,3 +1629,6 @@
 ## Melhorias Tela Atendimentos - 12/02/2026
 - [x] Tornar cards de Quantidade por Serviço clicáveis como filtros na tabela (toggle on/off com destaque visual)
 - [x] Mostrar indicador visual do filtro ativo com badges removíveis e botão Limpar Todos
+
+## Vincular Atendimentos ao Hospital Urológico (IRG) - 12/02/2026
+- [x] Restringir aba Atendimentos para aparecer apenas no Hospital Urológico (IRG) (ID 4, via estabelecimentoIds no MenuItem + AccessGuard)

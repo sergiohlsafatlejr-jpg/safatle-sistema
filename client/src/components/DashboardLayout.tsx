@@ -73,6 +73,7 @@ type MenuItem = {
   modulo?: ModuloPermissao;
   adminOnly?: boolean;
   tasyOnly?: boolean; // Se true, este item é visível apenas para usuários Tasy (e admins)
+  estabelecimentoIds?: number[]; // Se definido, item só aparece para estes estabelecimentos
 };
 
 const menuItems: MenuItem[] = [
@@ -123,8 +124,8 @@ const menuItems: MenuItem[] = [
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", tasyOnly: true },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas", tasyOnly: true },
   
-  // Atendimentos (PostgreSQL externo)
-  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
+  // Atendimentos (PostgreSQL externo) - apenas Hospital Urológico (ID 4)
+  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
@@ -139,16 +140,35 @@ function AccessGuard({
   location, 
   isGestor, 
   temAcessoModulo,
-  userRole 
+  userRole,
+  estabelecimentoId 
 }: { 
   children: React.ReactNode; 
   location: string;
   isGestor: boolean;
   temAcessoModulo: (modulo: ModuloPermissao) => boolean;
   userRole?: string;
+  estabelecimentoId?: number;
 }) {
   // Encontrar o item de menu correspondente à rota atual
   const currentMenuItem = menuItems.find(item => item.path === location);
+  
+  // Verificar restrição por estabelecimento
+  if (currentMenuItem?.estabelecimentoIds && estabelecimentoId) {
+    if (!currentMenuItem.estabelecimentoIds.includes(estabelecimentoId)) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 max-w-md">
+            <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <Lock className="h-8 w-8 text-slate-500" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Funcionalidade não disponível</h2>
+            <p className="text-slate-600">Esta funcionalidade não está disponível para o estabelecimento selecionado.</p>
+          </div>
+        </div>
+      );
+    }
+  }
   
   // Verificar se é usuário Tasy
   const isTasyUser = userRole === 'tasy_user';
@@ -471,12 +491,16 @@ function DashboardLayoutContent({
                   }
                   
                   // Para usuários normais e admins, manter lógica original
-                  // Se não tem módulo definido, sempre mostra
-                  if (!item.modulo && !item.adminOnly) return true;
-                  // Se é adminOnly, verificar se é gestor
-                  if (item.adminOnly) return isGestor;
-                  // Verificar permissão do módulo
-                  return temAcessoModulo(item.modulo!);
+                   // Verificar restrição por estabelecimento
+                   if (item.estabelecimentoIds && estabelecimentoAtual) {
+                     if (!item.estabelecimentoIds.includes(estabelecimentoAtual.id)) return false;
+                   }
+                   // Se não tem módulo definido, sempre mostra
+                   if (!item.modulo && !item.adminOnly) return true;
+                   // Se é adminOnly, verificar se é gestor
+                   if (item.adminOnly) return isGestor;
+                   // Verificar permissão do módulo
+                   return temAcessoModulo(item.modulo!);
                 })
                 .map(item => {
                 const isActive = location === item.path;
@@ -577,7 +601,7 @@ function DashboardLayoutContent({
           </div>
         )}
         <main className="flex-1 p-6">
-          <AccessGuard location={location} isGestor={isGestor} temAcessoModulo={temAcessoModulo} userRole={user?.role}>
+          <AccessGuard location={location} isGestor={isGestor} temAcessoModulo={temAcessoModulo} userRole={user?.role} estabelecimentoId={estabelecimentoAtual?.id}>
             {children}
           </AccessGuard>
         </main>
