@@ -6180,6 +6180,7 @@ export async function getPermissoesUsuario(userId: number) {
       acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
       acessoRecursos: permissoesEstabelecimento.acessoRecursos,
       acessoAtendimentos: permissoesEstabelecimento.acessoAtendimentos,
+      acessoAtendimentosFaturar: permissoesEstabelecimento.acessoAtendimentosFaturar,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -6322,6 +6323,7 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
         acessoContaConvenio: data.acessoContaConvenio,
         acessoRecursos: data.acessoRecursos,
         acessoAtendimentos: data.acessoAtendimentos,
+        acessoAtendimentosFaturar: data.acessoAtendimentosFaturar,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
@@ -6440,6 +6442,7 @@ export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
       acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
       acessoRecursos: permissoesEstabelecimento.acessoRecursos,
       acessoAtendimentos: permissoesEstabelecimento.acessoAtendimentos,
+      acessoAtendimentosFaturar: permissoesEstabelecimento.acessoAtendimentosFaturar,
       userName: users.name,
       userEmail: users.email,
       userRole: users.role,
@@ -7390,6 +7393,7 @@ export async function verificarAcessoModulo(
     contaConvenio: "acessoContaConvenio",
     recursos: "acessoRecursos",
     atendimentos: "acessoAtendimentos",
+    atendimentosFaturar: "acessoAtendimentosFaturar",
   };
 
   const campo = moduloMap[modulo];
@@ -7425,6 +7429,7 @@ export function getModulosPermitidosPorGrupo(grupoServico: string): Record<strin
     acessoContaConvenio: "nao" as const,
     acessoRecursos: "nao" as const,
     acessoAtendimentos: "nao" as const,
+    acessoAtendimentosFaturar: "nao" as const,
   };
 
   switch (grupoServico) {
@@ -7495,6 +7500,7 @@ export function getModulosTasyUser(): Record<string, "sim" | "nao"> {
     acessoContaConvenio: "nao",
     acessoRecursos: "nao",
     acessoAtendimentos: "nao",
+    acessoAtendimentosFaturar: "nao",
   };
 }
 
@@ -8004,6 +8010,7 @@ export async function atualizarEstabelecimentosUsuario(
       acessoContaConvenio: "nao",
       acessoRecursos: "nao",
       acessoAtendimentos: "nao",
+      acessoAtendimentosFaturar: "nao",
     });
 
     // Registrar no log de auditoria

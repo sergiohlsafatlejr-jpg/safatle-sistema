@@ -110,6 +110,7 @@ describe("Edição de Estabelecimentos de Usuários", () => {
         acessoContaConvenio: "nao",
         acessoRecursos: "nao",
         acessoAtendimentos: "nao",
+        acessoAtendimentosFaturar: "nao",
       });
 
       const estabelecimentos = await db.getEstabelecimentosUsuario(testUserId);

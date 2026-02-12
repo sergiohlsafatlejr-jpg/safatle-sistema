@@ -3502,6 +3502,7 @@ export const appRouter = router({
         acessoContaConvenio: z.enum(["sim", "nao"]).optional(),
         acessoRecursos: z.enum(["sim", "nao"]).optional(),
         acessoAtendimentos: z.enum(["sim", "nao"]).optional(),
+        acessoAtendimentosFaturar: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const podeGerenciar = await db.verificarPermissaoEstabelecimento(

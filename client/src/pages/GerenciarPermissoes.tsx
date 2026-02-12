@@ -144,6 +144,7 @@ const MODULOS = [
   { key: "acessoContaConvenio", label: "Conta Convênio", icon: DollarSign, category: "recebimento" },
   { key: "acessoRecursos", label: "Recursos", icon: Briefcase, category: "recebimento" },
   { key: "acessoAtendimentos", label: "Atendimentos", icon: Users, category: "atendimento" },
+  { key: "acessoAtendimentosFaturar", label: "Atendimentos a Faturar", icon: FileText, category: "atendimento" },
 ];
 
 // Cores disponíveis para grupos
@@ -221,6 +222,7 @@ export default function GerenciarPermissoes() {
     acessoContaConvenio: "nao" as "sim" | "nao",
     acessoRecursos: "nao" as "sim" | "nao",
     acessoAtendimentos: "nao" as "sim" | "nao",
+    acessoAtendimentosFaturar: "nao" as "sim" | "nao",
   });
 
   // Verificar se é gestor
@@ -393,6 +395,7 @@ export default function GerenciarPermissoes() {
       acessoContaConvenio: "nao",
       acessoRecursos: "nao",
       acessoAtendimentos: "nao",
+      acessoAtendimentosFaturar: "nao",
     };
 
     switch (grupo) {
@@ -502,6 +505,7 @@ export default function GerenciarPermissoes() {
       acessoContaConvenio: user.acessoContaConvenio || "nao",
       acessoRecursos: user.acessoRecursos || "nao",
       acessoAtendimentos: user.acessoAtendimentos || "nao",
+      acessoAtendimentosFaturar: user.acessoAtendimentosFaturar || "nao",
     });
     setShowEditDialog(true);
   };
@@ -803,6 +807,7 @@ export default function GerenciarPermissoes() {
                       acessoContaConvenio: "nao",
                       acessoRecursos: "nao",
                       acessoAtendimentos: "nao",
+                      acessoAtendimentosFaturar: "nao",
                     });
                     setShowAddDialog(true);
                   }}>

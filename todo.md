@@ -1670,3 +1670,17 @@
 - [x] Adicionar item no menu da sidebar (DashboardLayout) com permissão acessoAtendimentos
 - [x] Adicionar coluna codtipsai (tipo saída) na interface e na tabela
 - [x] Criar testes para a nova funcionalidade (6 testes passando)
+
+## Permissão Específica: acessoAtendimentosFaturar - 12/02/2026
+- [x] Adicionar coluna acessoAtendimentosFaturar no schema drizzle/schema.ts
+- [x] Executar db:push para migrar banco (ALTER TABLE manual + schema atualizado)
+- [x] Adicionar acessoAtendimentosFaturar nas queries de seleção do db.ts (2 queries)
+- [x] Adicionar acessoAtendimentosFaturar na query de upsert do db.ts
+- [x] Adicionar acessoAtendimentosFaturar no moduloMap e todosModulos do db.ts
+- [x] Adicionar acessoAtendimentosFaturar na criação padrão de permissão do db.ts
+- [x] Adicionar acessoAtendimentosFaturar no schema Zod do routers.ts
+- [x] Adicionar 'atendimentosFaturar' ao tipo ModuloPermissao e moduloParaCampo no EstabelecimentoContext
+- [x] Adicionar 'atendimentosFaturar' na lista MODULOS do GerenciarPermissoes.tsx (categoria 'atendimento')
+- [x] Adicionar acessoAtendimentosFaturar no estado newPermissao e permissoesPadrao do GerenciarPermissoes
+- [x] Alterar modulo da rota atendimentos-faturar no DashboardLayout de 'atendimentos' para 'atendimentosFaturar'
+- [x] Atualizar testes com acessoAtendimentosFaturar (editarEstabelecimentos.test.ts)

@@ -925,6 +925,7 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoContaConvenio: mysqlEnum("acessoContaConvenio", ["sim", "nao"]).default("nao").notNull(),
   acessoRecursos: mysqlEnum("acessoRecursos", ["sim", "nao"]).default("nao").notNull(),
   acessoAtendimentos: mysqlEnum("acessoAtendimentos", ["sim", "nao"]).default("nao").notNull(),
+  acessoAtendimentosFaturar: mysqlEnum("acessoAtendimentosFaturar", ["sim", "nao"]).default("nao").notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

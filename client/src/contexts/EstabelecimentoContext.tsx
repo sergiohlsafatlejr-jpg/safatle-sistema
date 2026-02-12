@@ -44,7 +44,8 @@ export type ModuloPermissao =
   | "demonstrativo"
   | "contaConvenio"
   | "recursos"
-  | "atendimentos";
+  | "atendimentos"
+  | "atendimentosFaturar";
 
 interface PermissoesModulo {
   acessoDashboard: "sim" | "nao";
@@ -71,6 +72,7 @@ interface PermissoesModulo {
   acessoContaConvenio: "sim" | "nao";
   acessoRecursos: "sim" | "nao";
   acessoAtendimentos: "sim" | "nao";
+  acessoAtendimentosFaturar: "sim" | "nao";
   grupoServico: string | null;
 }
 
@@ -118,6 +120,7 @@ const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
   contaConvenio: "acessoContaConvenio",
   recursos: "acessoRecursos",
   atendimentos: "acessoAtendimentos",
+  atendimentosFaturar: "acessoAtendimentosFaturar",
 };
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
@@ -175,11 +178,12 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoRecebimentosExcel: "sim",
           acessoDemonstrativo: "sim",
           acessoContaConvenio: "sim",
-          acessoRecursos: "sim",
-          acessoAtendimentos: "sim",
+          acessoRecursos: "sim",          acessoAtendimentos: "sim",
+          acessoAtendimentosFaturar: "sim",
           grupoServico: "administrador",
         };
       }
+
       return null;
     }
 
@@ -216,6 +220,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoContaConvenio: "sim",
           acessoRecursos: "sim",
           acessoAtendimentos: "sim",
+          acessoAtendimentosFaturar: "sim",
           grupoServico: "administrador",
         };
       }
@@ -247,6 +252,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       acessoContaConvenio: permissao.acessoContaConvenio || "nao",
       acessoRecursos: permissao.acessoRecursos || "nao",
       acessoAtendimentos: (permissao as any).acessoAtendimentos || "nao",
+      acessoAtendimentosFaturar: (permissao as any).acessoAtendimentosFaturar || "nao",
       grupoServico: permissao.grupoServico || null,
     };
   })();
