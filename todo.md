@@ -1635,3 +1635,17 @@
 
 ## Renomear Estabelecimento ID 4 - 12/02/2026
 - [x] Atualizar referências de 'Hospital Urológico' para 'Instituto do Rim' no código (título da tela Atendimentos, comentários)
+
+## Permissão Específica para Aba Atendimentos - 12/02/2026
+- [x] Garantir que o módulo 'atendimentos' aparece na tela Gerenciar Permissões como switch configurável
+- [x] Adicionar 'atendimentos' à categoria 'atendimento' na lista de módulos do GerenciarPermissoes.tsx (seção roxa separada)
+- [x] Verificar que o módulo funciona corretamente com o grupo Administrador (acesso total) e outros grupos
+- [x] Adicionar acessoAtendimentos no estado newPermissao (dialog adicionar/editar)
+- [x] Adicionar acessoAtendimentos no permissoesPadrao da função aplicarPermissoesGrupo (frontend)
+- [x] Adicionar acessoAtendimentos no schema Zod do routers.ts (validação backend)
+- [x] Adicionar acessoAtendimentos nas queries de seleção do db.ts (getPermissoesUsuario, listarPermissoes)
+- [x] Adicionar acessoAtendimentos na query de update do db.ts (upsertPermissaoEstabelecimento)
+- [x] Adicionar acessoAtendimentos no moduloMap do db.ts (verificação de permissão por módulo)
+- [x] Adicionar acessoAtendimentos no todosModulos e getModulosTasyUser do db.ts
+- [x] Adicionar acessoAtendimentos na criação padrão de permissão ao editar estabelecimentos
+- [x] Atualizar teste editarEstabelecimentos.test.ts com acessoAtendimentos

@@ -143,6 +143,7 @@ const MODULOS = [
   { key: "acessoDemonstrativo", label: "Demonstrativo", icon: FileText, category: "recebimento" },
   { key: "acessoContaConvenio", label: "Conta Convênio", icon: DollarSign, category: "recebimento" },
   { key: "acessoRecursos", label: "Recursos", icon: Briefcase, category: "recebimento" },
+  { key: "acessoAtendimentos", label: "Atendimentos", icon: Users, category: "atendimento" },
 ];
 
 // Cores disponíveis para grupos
@@ -219,6 +220,7 @@ export default function GerenciarPermissoes() {
     acessoDemonstrativo: "nao" as "sim" | "nao",
     acessoContaConvenio: "nao" as "sim" | "nao",
     acessoRecursos: "nao" as "sim" | "nao",
+    acessoAtendimentos: "nao" as "sim" | "nao",
   });
 
   // Verificar se é gestor
@@ -380,6 +382,17 @@ export default function GerenciarPermissoes() {
       acessoProdutividade: "nao",
       acessoEstabelecimentos: "nao",
       acessoPermissoes: "nao",
+      acessoImportacaoTasy: "nao",
+      acessoContasFaturadas: "nao",
+      acessoRelatoriosTasy: "nao",
+      acessoRelatoriosBi: "nao",
+      acessoConciliacaoContasPagas: "nao",
+      acessoRecebimentosXml: "nao",
+      acessoRecebimentosExcel: "nao",
+      acessoDemonstrativo: "nao",
+      acessoContaConvenio: "nao",
+      acessoRecursos: "nao",
+      acessoAtendimentos: "nao",
     };
 
     switch (grupo) {
@@ -488,6 +501,7 @@ export default function GerenciarPermissoes() {
       acessoDemonstrativo: user.acessoDemonstrativo || "nao",
       acessoContaConvenio: user.acessoContaConvenio || "nao",
       acessoRecursos: user.acessoRecursos || "nao",
+      acessoAtendimentos: user.acessoAtendimentos || "nao",
     });
     setShowEditDialog(true);
   };
@@ -788,6 +802,7 @@ export default function GerenciarPermissoes() {
                       acessoDemonstrativo: "nao",
                       acessoContaConvenio: "nao",
                       acessoRecursos: "nao",
+                      acessoAtendimentos: "nao",
                     });
                     setShowAddDialog(true);
                   }}>
@@ -1623,6 +1638,23 @@ export default function GerenciarPermissoes() {
                   );
                 })}
               </div>
+
+              <h4 className="font-semibold text-sm text-purple-600 uppercase tracking-wider mt-4">Módulos Atendimentos (Instituto do Rim)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "atendimento").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-purple-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-purple-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
             </TabsContent>
           </Tabs>
 
@@ -1739,6 +1771,23 @@ export default function GerenciarPermissoes() {
                     <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-blue-200">
                       <div className="flex items-center gap-3">
                         <Icon className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium">{modulo.label}</span>
+                      </div>
+                      <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 className="font-semibold text-sm text-purple-600 uppercase tracking-wider mt-4">Módulos Atendimentos (Instituto do Rim)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULOS.filter(m => (m as any).category === "atendimento").map((modulo) => {
+                  const Icon = modulo.icon;
+                  const isEnabled = newPermissao[modulo.key as keyof typeof newPermissao] === "sim";
+                  return (
+                    <div key={modulo.key} className="flex items-center justify-between p-3 border rounded-lg border-purple-200">
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-purple-600" />
                         <span className="font-medium">{modulo.label}</span>
                       </div>
                       <Switch checked={isEnabled} onCheckedChange={(checked) => setNewPermissao(prev => ({ ...prev, [modulo.key]: checked ? "sim" : "nao" }))} />

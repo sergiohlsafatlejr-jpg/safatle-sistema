@@ -99,6 +99,17 @@ describe("Edição de Estabelecimentos de Usuários", () => {
         acessoProdutividade: "nao",
         acessoEstabelecimentos: "nao",
         acessoPermissoes: "nao",
+        acessoImportacaoTasy: "nao",
+        acessoContasFaturadas: "nao",
+        acessoRelatoriosTasy: "nao",
+        acessoRelatoriosBi: "nao",
+        acessoConciliacaoContasPagas: "nao",
+        acessoRecebimentosXml: "nao",
+        acessoRecebimentosExcel: "nao",
+        acessoDemonstrativo: "nao",
+        acessoContaConvenio: "nao",
+        acessoRecursos: "nao",
+        acessoAtendimentos: "nao",
       });
 
       const estabelecimentos = await db.getEstabelecimentosUsuario(testUserId);

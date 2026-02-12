@@ -6179,6 +6179,7 @@ export async function getPermissoesUsuario(userId: number) {
       acessoDemonstrativo: permissoesEstabelecimento.acessoDemonstrativo,
       acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
       acessoRecursos: permissoesEstabelecimento.acessoRecursos,
+      acessoAtendimentos: permissoesEstabelecimento.acessoAtendimentos,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -6320,6 +6321,7 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
         acessoDemonstrativo: data.acessoDemonstrativo,
         acessoContaConvenio: data.acessoContaConvenio,
         acessoRecursos: data.acessoRecursos,
+        acessoAtendimentos: data.acessoAtendimentos,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
@@ -6437,6 +6439,7 @@ export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
       acessoDemonstrativo: permissoesEstabelecimento.acessoDemonstrativo,
       acessoContaConvenio: permissoesEstabelecimento.acessoContaConvenio,
       acessoRecursos: permissoesEstabelecimento.acessoRecursos,
+      acessoAtendimentos: permissoesEstabelecimento.acessoAtendimentos,
       userName: users.name,
       userEmail: users.email,
       userRole: users.role,
@@ -7386,6 +7389,7 @@ export async function verificarAcessoModulo(
     demonstrativo: "acessoDemonstrativo",
     contaConvenio: "acessoContaConvenio",
     recursos: "acessoRecursos",
+    atendimentos: "acessoAtendimentos",
   };
 
   const campo = moduloMap[modulo];
@@ -7420,6 +7424,7 @@ export function getModulosPermitidosPorGrupo(grupoServico: string): Record<strin
     acessoDemonstrativo: "nao" as const,
     acessoContaConvenio: "nao" as const,
     acessoRecursos: "nao" as const,
+    acessoAtendimentos: "nao" as const,
   };
 
   switch (grupoServico) {
@@ -7489,6 +7494,7 @@ export function getModulosTasyUser(): Record<string, "sim" | "nao"> {
     acessoDemonstrativo: "nao",
     acessoContaConvenio: "nao",
     acessoRecursos: "nao",
+    acessoAtendimentos: "nao",
   };
 }
 
@@ -7987,6 +7993,17 @@ export async function atualizarEstabelecimentosUsuario(
       acessoProdutividade: "nao",
       acessoEstabelecimentos: "nao",
       acessoPermissoes: "nao",
+      acessoImportacaoTasy: "nao",
+      acessoContasFaturadas: "nao",
+      acessoRelatoriosTasy: "nao",
+      acessoRelatoriosBi: "nao",
+      acessoConciliacaoContasPagas: "nao",
+      acessoRecebimentosXml: "nao",
+      acessoRecebimentosExcel: "nao",
+      acessoDemonstrativo: "nao",
+      acessoContaConvenio: "nao",
+      acessoRecursos: "nao",
+      acessoAtendimentos: "nao",
     });
 
     // Registrar no log de auditoria
