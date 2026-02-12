@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-type SortColumn = "numatend" | "nomepac" | "nomeplaco" | "datatend" | "datasai" | "diasParado" | "tipoatendimentodescricao" | "codserv" | "codcc_destino" | "codtipsai" | "carater" | "procprin";
+type SortColumn = "numatend" | "nomeplaco" | "datatend" | "datasai" | "diasParado" | "tipoatendimentodescricao" | "codserv" | "carater" | "procprin";
 type SortOrder = "asc" | "desc";
 
 function getDiasParadoColor(dias: number): string {
@@ -115,12 +115,12 @@ export default function AtendimentosFaturar() {
       const termo = pesquisa.toLowerCase();
       filtrados = filtrados.filter(d => {
         const campos = [
-          d.numatend, d.nomepac, d.nomeplaco,
+          d.numatend, d.nomeplaco,
           d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
           d.datasai ? new Date(d.datasai).toLocaleDateString("pt-BR") : "",
           String(d.diasParado),
-          d.tipoatendimentodescricao, d.codserv, d.codcc_destino,
-          d.codtipsai, d.carater, d.procprin,
+          d.tipoatendimentodescricao, d.codserv,
+          d.carater, d.procprin,
         ];
         return campos.some(c => (c || "").toLowerCase().includes(termo));
       });
@@ -164,7 +164,6 @@ export default function AtendimentosFaturar() {
   function exportarExcel() {
     const dadosExport = dadosFiltrados.map(d => ({
       "Nº Atend.": d.numatend,
-      "Paciente": d.nomepac,
       "Plano": d.nomeplaco,
       "Caráter": d.carater || "-",
       "Data Entrada": d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
@@ -172,9 +171,7 @@ export default function AtendimentosFaturar() {
       "Dias Parado": d.diasParado,
       "Tipo": d.tipoatendimentodescricao || "-",
       "Serviço": d.codserv || "-",
-      "Tipo Saída": d.codtipsai || "-",
       "Proc. Principal": d.procprin || "-",
-      "CC Destino": d.codcc_destino || "-",
     }));
     const ws = XLSX.utils.json_to_sheet(dadosExport);
     const wb = XLSX.utils.book_new();
@@ -355,7 +352,6 @@ export default function AtendimentosFaturar() {
               <tr className="border-b bg-muted/30">
                 {[
                   { col: "numatend" as SortColumn, label: "Nº Atend." },
-                  { col: "nomepac" as SortColumn, label: "Paciente" },
                   { col: "nomeplaco" as SortColumn, label: "Plano" },
                   { col: "carater" as SortColumn, label: "Caráter" },
                   { col: "datatend" as SortColumn, label: "Data Entrada" },
@@ -363,9 +359,7 @@ export default function AtendimentosFaturar() {
                   { col: "diasParado" as SortColumn, label: "Dias Parado" },
                   { col: "tipoatendimentodescricao" as SortColumn, label: "Tipo" },
                   { col: "codserv" as SortColumn, label: "Serviço" },
-                  { col: "codtipsai" as SortColumn, label: "Tipo Saída" },
                   { col: "procprin" as SortColumn, label: "Proc. Principal" },
-                  { col: "codcc_destino" as SortColumn, label: "CC Destino" },
                 ].map(({ col, label }) => (
                   <th
                     key={col}
@@ -381,7 +375,7 @@ export default function AtendimentosFaturar() {
             <tbody>
               {dadosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                     Nenhum atendimento a faturar encontrado
                   </td>
                 </tr>
@@ -392,7 +386,6 @@ export default function AtendimentosFaturar() {
                     className="border-b hover:bg-muted/20 transition-colors"
                   >
                     <td className="px-4 py-3 font-mono font-medium">{d.numatend}</td>
-                    <td className="px-4 py-3 max-w-[200px] truncate" title={d.nomepac}>{d.nomepac}</td>
                     <td className="px-4 py-3 max-w-[150px] truncate" title={d.nomeplaco}>{d.nomeplaco}</td>
                     <td className="px-4 py-3">
                       {d.carater ? (
@@ -419,9 +412,7 @@ export default function AtendimentosFaturar() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">{d.codserv || "-"}</td>
-                    <td className="px-4 py-3">{d.codtipsai || "-"}</td>
                     <td className="px-4 py-3 font-mono text-xs">{d.procprin || "-"}</td>
-                    <td className="px-4 py-3">{d.codcc_destino || "-"}</td>
                   </tr>
                 ))
               )}

@@ -1684,3 +1684,13 @@
 - [x] Adicionar acessoAtendimentosFaturar no estado newPermissao e permissoesPadrao do GerenciarPermissoes
 - [x] Alterar modulo da rota atendimentos-faturar no DashboardLayout de 'atendimentos' para 'atendimentosFaturar'
 - [x] Atualizar testes com acessoAtendimentosFaturar (editarEstabelecimentos.test.ts)
+
+## Bug: Tela de Atendimentos não traz dados - 12/02/2026
+- [ ] Investigar por que a tela de Atendimentos não está retornando dados
+- [ ] Verificar conexão com PostgreSQL externo e query SQL
+- [ ] Corrigir o problema identificado
+
+## Alteração Query Atendimentos a Faturar
+- [x] Substituir query UNION complexa por SELECT simples da tabela din_Atend_receb_s_faturar
+- [x] Ajustar interface AtendimentoFaturarRow para os novos campos (remover nomepac, codtipsai, codcc_destino)
+- [x] Ajustar frontend para campos disponíveis (remover colunas Paciente, Tipo Saída, CC Destino)
