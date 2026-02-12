@@ -1649,3 +1649,8 @@
 - [x] Adicionar acessoAtendimentos no todosModulos e getModulosTasyUser do db.ts
 - [x] Adicionar acessoAtendimentos na criação padrão de permissão ao editar estabelecimentos
 - [x] Atualizar teste editarEstabelecimentos.test.ts com acessoAtendimentos
+
+## Polling Automático na Aba Atendimentos - 12/02/2026
+- [x] Implementar refetchInterval de 60 minutos nas queries tRPC da aba Atendimentos
+- [x] Adicionar indicador visual de última atualização e countdown para próximo refresh
+- [x] Permitir refresh manual via botão dedicado (com spinner e estado disabled durante fetch)

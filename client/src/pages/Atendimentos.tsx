@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Users, Building2, Stethoscope, FlaskConical,
   ArrowUpDown, Download, Plus, X, RefreshCw,
-  Search, Bell, AlertTriangle, Clock
+  Search, Bell, AlertTriangle, Clock, Timer
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -106,9 +106,41 @@ export default function Atendimentos() {
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [filtroServico, setFiltroServico] = useState<string | null>(null);
 
-  const { data: atendimentos, isLoading, refetch } = trpc.atendimentos.listar.useQuery(undefined, {
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
+  const [tempoRestante, setTempoRestante] = useState<string>("");
+
+  const POLLING_INTERVAL = 60 * 60 * 1000; // 60 minutos em ms
+
+  const { data: atendimentos, isLoading, refetch, isFetching, dataUpdatedAt } = trpc.atendimentos.listar.useQuery(undefined, {
     refetchOnWindowFocus: false,
+    refetchInterval: POLLING_INTERVAL,
+    refetchIntervalInBackground: false,
   });
+
+  // Atualizar timestamp da última atualização quando dados mudam
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setUltimaAtualizacao(new Date(dataUpdatedAt));
+    }
+  }, [dataUpdatedAt]);
+
+  // Countdown para próxima atualização
+  useEffect(() => {
+    if (!ultimaAtualizacao) return;
+    const interval = setInterval(() => {
+      const agora = Date.now();
+      const proximaAtualizacao = ultimaAtualizacao.getTime() + POLLING_INTERVAL;
+      const diff = proximaAtualizacao - agora;
+      if (diff <= 0) {
+        setTempoRestante("Atualizando...");
+        return;
+      }
+      const minutos = Math.floor(diff / 60000);
+      const segundos = Math.floor((diff % 60000) / 1000);
+      setTempoRestante(`${minutos}min ${segundos.toString().padStart(2, "0")}s`);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [ultimaAtualizacao]);
 
   const registrarNotificacao = trpc.atendimentos.registrarNotificacao.useMutation({
     onSuccess: () => {
@@ -289,9 +321,23 @@ export default function Atendimentos() {
             Monitoramento de atendimentos pendentes de faturamento
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()} className="gap-2">
-          <RefreshCw className="w-4 h-4" /> Atualizar
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Indicador de última atualização */}
+          {ultimaAtualizacao && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+              <Timer className="w-3.5 h-3.5" />
+              <div className="flex flex-col">
+                <span>Atualizado: {ultimaAtualizacao.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                {tempoRestante && (
+                  <span className="text-[10px] opacity-70">Próxima em {tempoRestante}</span>
+                )}
+              </div>
+            </div>
+          )}
+          <Button variant="outline" onClick={() => refetch()} disabled={isFetching} className="gap-2">
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} /> {isFetching ? "Atualizando..." : "Atualizar"}
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
