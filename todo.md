@@ -1632,3 +1632,6 @@
 
 ## Vincular Atendimentos ao Hospital Urológico (IRG) - 12/02/2026
 - [x] Restringir aba Atendimentos para aparecer apenas no Hospital Urológico (IRG) (ID 4, via estabelecimentoIds no MenuItem + AccessGuard)
+
+## Renomear Estabelecimento ID 4 - 12/02/2026
+- [x] Atualizar referências de 'Hospital Urológico' para 'Instituto do Rim' no código (título da tela Atendimentos, comentários)

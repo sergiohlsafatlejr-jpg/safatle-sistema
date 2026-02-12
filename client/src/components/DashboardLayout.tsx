@@ -124,7 +124,7 @@ const menuItems: MenuItem[] = [
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", tasyOnly: true },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas", tasyOnly: true },
   
-  // Atendimentos (PostgreSQL externo) - apenas Hospital Urológico (ID 4)
+  // Atendimentos (PostgreSQL externo) - apenas Instituto do Rim (ID 4)
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
