@@ -56,7 +56,8 @@ import {
   Clock,
   Database,
   ArrowLeftRight,
-  FileCode2
+  FileCode2,
+  Users
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -121,6 +122,9 @@ const menuItems: MenuItem[] = [
   { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "relatoriosTasy", tasyOnly: true },
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", tasyOnly: true },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas", tasyOnly: true },
+  
+  // Atendimentos (PostgreSQL externo)
+  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 

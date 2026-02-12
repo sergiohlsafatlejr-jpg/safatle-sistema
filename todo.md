@@ -1614,3 +1614,14 @@
 - [x] Analisar dados disponíveis de tipo de lançamento no banco (PSI: 98.5% com tipo, Ox Uti: 30.7% com tipo - XML Ipasgo sem tipo)
 - [x] Adicionar KPIs com totais por tipo de lançamento na tela Detalhes da Conta (cards coloridos com ícones por EXA, HOS, MED, MAT, CON, HON)
 - [x] Adicionar coluna de tipo de lançamento na tabela de itens com inferência automática pelo código do item (borda tracejada quando inferido)
+
+## Nova Aba: Atendimentos (baseado no projeto-atendimento-wareline) - 12/02/2026
+- [x] Configurar conexão com banco PostgreSQL externo (147.93.4.135:5432/coletor) via secrets
+- [x] Criar procedure tRPC para buscar atendimentos parados (din_Atend_n_receb)
+- [x] Criar procedure tRPC para registrar notificações (registro_notificacao + registro_notificacao_item)
+- [x] Criar página Atendimentos.tsx com KPIs (Total, Internação, Exame, Ambulatório)
+- [x] Implementar tabela de atendimentos com ordenação, filtro e "Dias Parado" colorido
+- [x] Implementar modal de notificação com motivo, setor, médico e observação
+- [x] Implementar exportação Excel dos atendimentos
+- [x] Adicionar aba Atendimentos na sidebar do DashboardLayout
+- [x] Adicionar módulo de permissão acessoAtendimentos no schema e frontend

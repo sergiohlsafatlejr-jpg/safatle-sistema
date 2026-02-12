@@ -49,6 +49,7 @@ import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
 import ContaConvenioDetalhes from "./pages/ContaConvenioDetalhes";
 import RecebimentosXml from "./pages/RecebimentosXml";
 import RecebimentosExcel from "./pages/RecebimentosExcel";
+import Atendimentos from "./pages/Atendimentos";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -106,6 +107,7 @@ function Router() {
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
       <Route path={"/recebimentos-xml"} component={RecebimentosXml} />
       <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
+      <Route path={"/atendimentos"} component={Atendimentos} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

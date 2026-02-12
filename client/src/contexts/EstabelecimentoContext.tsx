@@ -43,7 +43,8 @@ export type ModuloPermissao =
   | "recebimentosExcel"
   | "demonstrativo"
   | "contaConvenio"
-  | "recursos";
+  | "recursos"
+  | "atendimentos";
 
 interface PermissoesModulo {
   acessoDashboard: "sim" | "nao";
@@ -69,6 +70,7 @@ interface PermissoesModulo {
   acessoDemonstrativo: "sim" | "nao";
   acessoContaConvenio: "sim" | "nao";
   acessoRecursos: "sim" | "nao";
+  acessoAtendimentos: "sim" | "nao";
   grupoServico: string | null;
 }
 
@@ -115,6 +117,7 @@ const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
   demonstrativo: "acessoDemonstrativo",
   contaConvenio: "acessoContaConvenio",
   recursos: "acessoRecursos",
+  atendimentos: "acessoAtendimentos",
 };
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
@@ -173,6 +176,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoDemonstrativo: "sim",
           acessoContaConvenio: "sim",
           acessoRecursos: "sim",
+          acessoAtendimentos: "sim",
           grupoServico: "administrador",
         };
       }
@@ -211,6 +215,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoDemonstrativo: "sim",
           acessoContaConvenio: "sim",
           acessoRecursos: "sim",
+          acessoAtendimentos: "sim",
           grupoServico: "administrador",
         };
       }
@@ -241,6 +246,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       acessoDemonstrativo: permissao.acessoDemonstrativo || "nao",
       acessoContaConvenio: permissao.acessoContaConvenio || "nao",
       acessoRecursos: permissao.acessoRecursos || "nao",
+      acessoAtendimentos: (permissao as any).acessoAtendimentos || "nao",
       grupoServico: permissao.grupoServico || null,
     };
   })();

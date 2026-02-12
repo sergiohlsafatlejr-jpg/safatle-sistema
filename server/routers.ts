@@ -11,6 +11,7 @@ import type { InsertFaturamentoTiss } from "../drizzle/schema";
 import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
+import { getAtendimentosParados, salvarNotificacao } from "./pgAtendimentos";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6089,6 +6090,62 @@ export const appRouter = router({
         return { success: true, deleted };
       }),
   }),
+
+  // ===== ATENDIMENTOS (PostgreSQL externo) =====
+  atendimentos: router({
+    listar: protectedProcedure
+      .query(async () => {
+        try {
+          const dados = await getAtendimentosParados();
+          return dados.map(d => ({
+            ...d,
+            diasParado: calcularDiasParado(d.datasai),
+          }));
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar atendimentos: ${err.message}`,
+          });
+        }
+      }),
+
+    registrarNotificacao: protectedProcedure
+      .input(z.object({
+        numatend: z.string(),
+        observacao: z.string(),
+        notificacoes: z.array(z.object({
+          motivo: z.string(),
+          setor: z.string(),
+          medico: z.string(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const id = await salvarNotificacao(
+            input.numatend,
+            input.observacao,
+            input.notificacoes
+          );
+          return { success: true, id };
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao registrar notificação: ${err.message}`,
+          });
+        }
+      }),
+  }),
 });
+
+function calcularDiasParado(datasai: string | null): number {
+  if (!datasai) return 0;
+  const dataSaida = new Date(datasai);
+  dataSaida.setHours(0, 0, 0, 0);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const diffTime = hoje.getTime() - dataSaida.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
 
 export type AppRouter = typeof appRouter;
