@@ -104,6 +104,45 @@ export async function salvarNotificacao(
   }
 }
 
+export async function salvarNotificacaoEmLote(
+  atendimentos: Array<{ numatend: string; nomepac: string }>,
+  observacao: string,
+  notificacoes: Array<{ motivo: string; setor: string; medico: string }>
+): Promise<number[]> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const ids: number[] = [];
+
+    for (const atend of atendimentos) {
+      const insertResult = await client.query<{ id: number }>(
+        `INSERT INTO c33581562000206.registro_notificacao (numatend, observacao)
+         VALUES ($1, $2) RETURNING id`,
+        [atend.numatend, observacao]
+      );
+      const notificacaoId = insertResult.rows[0].id;
+      ids.push(notificacaoId);
+
+      for (const item of notificacoes) {
+        await client.query(
+          `INSERT INTO c33581562000206.registro_notificacao_item
+             (notificacao_id, motivo, setor, medico)
+           VALUES ($1, $2, $3, $4)`,
+          [notificacaoId, item.motivo, item.setor, item.medico]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return ids;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export interface AtendimentoFaturarRow {
   numatend: string;
   nomeplaco: string;

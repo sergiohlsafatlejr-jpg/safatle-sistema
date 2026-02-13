@@ -1730,3 +1730,14 @@
 - [x] Exibir banners de avisos ativos na tela SelecionarEstabelecimento após login
 - [x] Tipos de aviso: informação, alerta, urgente (com cores diferentes)
 - [x] Criar testes para a funcionalidade (23 testes passando)
+
+## Notificação em Lote - Atendimentos Parados
+- [x] Adicionar checkboxes para seleção múltipla de atendimentos na tabela
+- [x] Adicionar botão "Selecionar Todos" e contador de selecionados
+- [x] Criar botão de notificação em lote para atendimentos selecionados
+- [x] Criar procedure tRPC registrarNotificacaoEmLote no backend
+- [x] Criar função salvarNotificacaoEmLote no pgAtendimentos.ts
+- [x] Criar geração de PDF de notificação com layout/logo Safatle (jsPDF + autoTable)
+- [x] Adicionar aba "Notificações Geradas" para listar e baixar PDFs
+- [x] Botão "Baixar PDF" nos selecionados e no histórico
+- [x] Criar testes vitest para a funcionalidade (480 testes passando)

@@ -11,7 +11,7 @@ import type { InsertFaturamentoTiss } from "../drizzle/schema";
 import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
-import { getAtendimentosParados, salvarNotificacao, getAtendimentosAFaturar } from "./pgAtendimentos";
+import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar } from "./pgAtendimentos";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6133,6 +6133,34 @@ export const appRouter = router({
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `Erro ao registrar notificação: ${err.message}`,
+          });
+        }
+      }),
+    registrarNotificacaoEmLote: protectedProcedure
+      .input(z.object({
+        atendimentos: z.array(z.object({
+          numatend: z.string(),
+          nomepac: z.string(),
+        })),
+        observacao: z.string(),
+        notificacoes: z.array(z.object({
+          motivo: z.string(),
+          setor: z.string(),
+          medico: z.string(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const ids = await salvarNotificacaoEmLote(
+            input.atendimentos,
+            input.observacao,
+            input.notificacoes
+          );
+          return { success: true, ids, count: ids.length };
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao registrar notificações em lote: ${err.message}`,
           });
         }
       }),
