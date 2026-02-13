@@ -136,7 +136,7 @@ export default function AtendimentosFaturar() {
         const campos = [
           d.numatend, d.nomeplaco, d.nomepac,
           d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
-          d.datasai ? new Date(d.datasai).toLocaleDateString("pt-BR") : "",
+          (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "",
           String(d.diasParado),
           d.tipoatendimentodescricao, d.codserv,
           d.carater, d.procprin,
@@ -187,7 +187,7 @@ export default function AtendimentosFaturar() {
       "Paciente": d.nomepac || "-",
       "Caráter": d.carater || "-",
       "Data Entrada": d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
-      "Data Saída": d.datasai ? new Date(d.datasai).toLocaleDateString("pt-BR") : "",
+      "Data Saída": (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "",
       "Dias Parado": d.diasParado,
       "Tipo": d.tipoatendimentodescricao || "-",
       "Serviço": d.codserv || "-",
@@ -458,7 +458,7 @@ export default function AtendimentosFaturar() {
                       {d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {d.datasai ? new Date(d.datasai).toLocaleDateString("pt-BR") : "-"}
+                      {(d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "-"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${getDiasParadoColor(d.diasParado)}`}>

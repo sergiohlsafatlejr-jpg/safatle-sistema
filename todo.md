@@ -1707,3 +1707,7 @@
 - [x] Atualizar interface AtendimentoFaturarRow com nomepac
 - [x] Adicionar coluna Paciente no frontend AtendimentosFaturar.tsx
 - [x] Incluir nomepac na busca textual e exportação Excel
+
+## Fallback Data Saída para Exame/Ambulatório
+- [x] Quando tipo for Exame ou Ambulatório e datasai for null/vazio, usar datatend como datasai na tela Atendimentos
+- [x] Aplicar mesma lógica na tela Atendimentos a Faturar
