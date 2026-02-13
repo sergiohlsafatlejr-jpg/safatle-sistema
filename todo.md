@@ -1753,3 +1753,7 @@
 - [x] Gerar PDFs sob demanda a partir dos dados persistidos no banco
 - [x] Exibir usuário que gerou a notificação no histórico
 - [x] Criar testes vitest para a funcionalidade (486 testes passando)
+
+## Incluir Motivos/Observações no PDF de Atendimentos Parados
+- [x] Adicionar coluna "Motivo" na tabela de atendimentos do PDF
+- [x] Ajustar larguras das colunas para acomodar a nova coluna

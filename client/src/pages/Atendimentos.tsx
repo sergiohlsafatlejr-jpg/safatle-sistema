@@ -291,7 +291,7 @@ async function gerarPDFNotificacao(
 
   autoTable(doc, {
     startY: y,
-    head: [["Nº Atend.", "Paciente", "Plano", "Data Entrada", "Data Saída", "Dias Parado", "Tipo", "Serviço"]],
+    head: [["Nº Atend.", "Paciente", "Plano", "Data Entrada", "Data Saída", "Dias", "Tipo", "Serviço", "Motivo"]],
     body: atendimentos.map(d => [
       d.numatend,
       d.nomepac,
@@ -301,6 +301,7 @@ async function gerarPDFNotificacao(
       String(d.diasParado),
       d.tipoatendimentodescricao || "-",
       d.codserv || "-",
+      d.motivo || "-",
     ]),
     theme: "grid",
     headStyles: {
@@ -313,11 +314,15 @@ async function gerarPDFNotificacao(
     alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: margin, right: margin },
     columnStyles: {
-      0: { cellWidth: 18 },
-      1: { cellWidth: 40 },
-      2: { cellWidth: 28 },
-      5: { cellWidth: 16, halign: "center" },
-      6: { cellWidth: 22 },
+      0: { cellWidth: 16 },
+      1: { cellWidth: 34 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 12, halign: "center" },
+      6: { cellWidth: 20 },
+      7: { cellWidth: 22 },
+      8: { cellWidth: 14 },
     },
     didDrawPage: () => {
       drawHeader(doc);
