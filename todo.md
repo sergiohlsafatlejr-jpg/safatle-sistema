@@ -1719,3 +1719,14 @@
 - [x] Seção de estabelecimentos visível apenas após login
 - [x] Footer com informações da empresa
 - [x] Layout responsivo e visual profissional
+
+## Sistema de Avisos Internos (Banners)
+- [x] Criar tabela avisosInternos no schema drizzle (id, titulo, conteudo, tipo, ativo, criadoPor, criadoEm, expiraEm)
+- [x] Migrar banco com db:push
+- [x] Criar helpers CRUD no db.ts (listar, criar, editar, excluir, listarAtivos)
+- [x] Criar procedures tRPC para admin (criar, editar, excluir, listar) e pública (listarAtivos)
+- [x] Criar página de gerenciamento de avisos para admin (GerenciarAvisos.tsx)
+- [x] Registrar rota e menu na sidebar para admin
+- [x] Exibir banners de avisos ativos na tela SelecionarEstabelecimento após login
+- [x] Tipos de aviso: informação, alerta, urgente (com cores diferentes)
+- [x] Criar testes para a funcionalidade (23 testes passando)

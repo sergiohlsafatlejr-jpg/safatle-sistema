@@ -57,7 +57,8 @@ import {
   Database,
   ArrowLeftRight,
   FileCode2,
-  Users
+  Users,
+  Megaphone
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -127,6 +128,7 @@ const menuItems: MenuItem[] = [
   // Atendimentos (PostgreSQL externo) - apenas Instituto do Rim (ID 4)
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
   { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar", estabelecimentoIds: [4] },
+  { icon: Megaphone, label: "Avisos Internos", path: "/gerenciar-avisos", adminOnly: true },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 

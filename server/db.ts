@@ -94,6 +94,8 @@ import {
   InsertFaturamentoTiss,
   recebimentosExcel,
   InsertRecebimentoExcel,
+  avisosInternos,
+  InsertAvisoInterno,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -17113,4 +17115,79 @@ export async function getDemonstrativoCompetencias(params: {
     value: `${r.mes}-${r.ano}`,
     total: r.total,
   }));
+}
+
+
+// ============ AVISOS INTERNOS FUNCTIONS ============
+
+export async function listarAvisosInternos() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select()
+    .from(avisosInternos)
+    .orderBy(desc(avisosInternos.createdAt));
+  return result;
+}
+
+export async function listarAvisosAtivos() {
+  const db = await getDb();
+  if (!db) return [];
+  const agora = new Date();
+  const result = await db
+    .select()
+    .from(avisosInternos)
+    .where(
+      and(
+        eq(avisosInternos.ativo, "sim"),
+        or(
+          isNull(avisosInternos.expiraEm),
+          sql`${avisosInternos.expiraEm} > ${agora}`
+        )
+      )
+    )
+    .orderBy(desc(avisosInternos.createdAt));
+  return result;
+}
+
+export async function criarAvisoInterno(data: {
+  titulo: string;
+  conteudo: string;
+  tipo: "informacao" | "alerta" | "urgente";
+  criadoPorId: number;
+  criadoPorNome: string;
+  expiraEm?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(avisosInternos).values({
+    titulo: data.titulo,
+    conteudo: data.conteudo,
+    tipo: data.tipo,
+    criadoPorId: data.criadoPorId,
+    criadoPorNome: data.criadoPorNome,
+    expiraEm: data.expiraEm || null,
+  });
+  return result;
+}
+
+export async function editarAvisoInterno(id: number, data: {
+  titulo?: string;
+  conteudo?: string;
+  tipo?: "informacao" | "alerta" | "urgente";
+  ativo?: "sim" | "nao";
+  expiraEm?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(avisosInternos)
+    .set(data)
+    .where(eq(avisosInternos.id, id));
+}
+
+export async function excluirAvisoInterno(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(avisosInternos).where(eq(avisosInternos.id, id));
 }

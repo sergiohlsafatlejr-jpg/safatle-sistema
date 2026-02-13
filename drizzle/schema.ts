@@ -2499,3 +2499,24 @@ export const demonstrativo = mysqlTable("demonstrativo", {
 
 export type Demonstrativo = typeof demonstrativo.$inferSelect;
 export type InsertDemonstrativo = typeof demonstrativo.$inferInsert;
+
+
+/**
+ * Avisos Internos (Banners de comunicados da empresa)
+ * Gerenciados pelo administrador, exibidos na tela inicial após login
+ */
+export const avisosInternos = mysqlTable("avisosInternos", {
+  id: int("id").autoincrement().primaryKey(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  conteudo: text("conteudo").notNull(),
+  tipo: mysqlEnum("tipo", ["informacao", "alerta", "urgente"]).default("informacao").notNull(),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  criadoPorId: int("criadoPorId").notNull(),
+  criadoPorNome: varchar("criadoPorNome", { length: 255 }),
+  expiraEm: timestamp("expiraEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AvisoInterno = typeof avisosInternos.$inferSelect;
+export type InsertAvisoInterno = typeof avisosInternos.$inferInsert;

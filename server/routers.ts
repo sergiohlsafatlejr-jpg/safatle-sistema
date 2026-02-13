@@ -6226,6 +6226,74 @@ export const appRouter = router({
       }
     }),
   }),
+
+  // ============ AVISOS INTERNOS ============
+  avisosInternos: router({
+    listarAtivos: publicProcedure.query(async () => {
+      return await db.listarAvisosAtivos();
+    }),
+
+    listarTodos: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem gerenciar avisos." });
+      }
+      return await db.listarAvisosInternos();
+    }),
+
+    criar: protectedProcedure
+      .input(z.object({
+        titulo: z.string().min(1, "Título é obrigatório"),
+        conteudo: z.string().min(1, "Conteúdo é obrigatório"),
+        tipo: z.enum(["informacao", "alerta", "urgente"]),
+        expiraEm: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem criar avisos." });
+        }
+        await db.criarAvisoInterno({
+          titulo: input.titulo,
+          conteudo: input.conteudo,
+          tipo: input.tipo,
+          criadoPorId: ctx.user.id,
+          criadoPorNome: ctx.user.name || "Admin",
+          expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
+        });
+        return { success: true };
+      }),
+
+    editar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        titulo: z.string().min(1).optional(),
+        conteudo: z.string().min(1).optional(),
+        tipo: z.enum(["informacao", "alerta", "urgente"]).optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+        expiraEm: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem editar avisos." });
+        }
+        const { id, ...data } = input;
+        const updateData: any = { ...data };
+        if (data.expiraEm !== undefined) {
+          updateData.expiraEm = data.expiraEm ? new Date(data.expiraEm) : null;
+        }
+        await db.editarAvisoInterno(id, updateData);
+        return { success: true };
+      }),
+
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem excluir avisos." });
+        }
+        await db.excluirAvisoInterno(input.id);
+        return { success: true };
+      }),
+  }),
 });
 
 function calcularDiasParado(datasai: string | null): number {

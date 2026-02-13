@@ -51,6 +51,7 @@ import RecebimentosXml from "./pages/RecebimentosXml";
 import RecebimentosExcel from "./pages/RecebimentosExcel";
 import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
+import GerenciarAvisos from "./pages/GerenciarAvisos";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -110,6 +111,7 @@ function Router() {
       <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
       <Route path={"/atendimentos"} component={Atendimentos} />
       <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
+      <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
