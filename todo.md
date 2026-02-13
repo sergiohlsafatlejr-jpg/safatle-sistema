@@ -1711,3 +1711,11 @@
 ## Fallback Data Saída para Exame/Ambulatório
 - [x] Quando tipo for Exame ou Ambulatório e datasai for null/vazio, usar datatend como datasai na tela Atendimentos
 - [x] Aplicar mesma lógica na tela Atendimentos a Faturar
+
+## Redesign da Tela Home
+- [x] Criar hero section com branding Safatle e botão de login visível
+- [x] Implementar seção de notícias de saúde/faturamento hospitalar (RSS/API)
+- [x] Criar procedure tRPC para buscar notícias no backend
+- [x] Seção de estabelecimentos visível apenas após login
+- [x] Footer com informações da empresa
+- [x] Layout responsivo e visual profissional

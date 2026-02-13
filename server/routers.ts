@@ -6156,6 +6156,76 @@ export const appRouter = router({
         }
       }),
   }),
+
+  noticias: router({
+    listar: publicProcedure.query(async () => {
+      try {
+        const feeds = [
+          { url: "https://news.google.com/rss/search?q=faturamento+hospitalar+sa%C3%BAde&hl=pt-BR&gl=BR&ceid=BR:pt-419", categoria: "Faturamento Hospitalar" },
+          { url: "https://news.google.com/rss/search?q=gest%C3%A3o+hospitalar+plano+sa%C3%BAde&hl=pt-BR&gl=BR&ceid=BR:pt-419", categoria: "Gestão Hospitalar" },
+          { url: "https://news.google.com/rss/search?q=ANS+conv%C3%AAnio+hospital&hl=pt-BR&gl=BR&ceid=BR:pt-419", categoria: "Regulação ANS" },
+        ];
+
+        const allNoticias: Array<{
+          titulo: string;
+          link: string;
+          fonte: string;
+          dataPublicacao: string;
+          categoria: string;
+        }> = [];
+
+        for (const feed of feeds) {
+          try {
+            const response = await fetch(feed.url, {
+              headers: { "User-Agent": "Mozilla/5.0" },
+            });
+            const xml = await response.text();
+
+            // Parse RSS XML simples
+            const items = xml.split("<item>").slice(1);
+            for (const item of items.slice(0, 5)) {
+              const titulo = item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/)?.[1]
+                || item.match(/<title>(.+?)<\/title>/)?.[1]
+                || "";
+              const link = item.match(/<link>(.+?)<\/link>/)?.[1]
+                || item.match(/<link\/>\s*(.+?)\s*</)?.[1]
+                || "";
+              const fonte = item.match(/<source[^>]*>(.+?)<\/source>/)?.[1]
+                || item.match(/<source[^>]*><!\[CDATA\[(.+?)\]\]><\/source>/)?.[1]
+                || "";
+              const pubDate = item.match(/<pubDate>(.+?)<\/pubDate>/)?.[1] || "";
+
+              if (titulo && link) {
+                allNoticias.push({
+                  titulo: titulo.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"'),
+                  link: link.trim(),
+                  fonte: fonte.replace(/&amp;/g, "&"),
+                  dataPublicacao: pubDate,
+                  categoria: feed.categoria,
+                });
+              }
+            }
+          } catch {
+            // Ignora feeds que falharem
+          }
+        }
+
+        // Ordenar por data mais recente e limitar a 12
+        allNoticias.sort((a, b) => {
+          const da = new Date(a.dataPublicacao).getTime() || 0;
+          const db2 = new Date(b.dataPublicacao).getTime() || 0;
+          return db2 - da;
+        });
+
+        return allNoticias.slice(0, 12);
+      } catch (err: any) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Erro ao buscar notícias: ${err.message}`,
+        });
+      }
+    }),
+  }),
 });
 
 function calcularDiasParado(datasai: string | null): number {
