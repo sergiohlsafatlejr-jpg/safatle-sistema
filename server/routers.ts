@@ -11,7 +11,7 @@ import type { InsertFaturamentoTiss } from "../drizzle/schema";
 import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebimentoTissParser";
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
-import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar } from "./pgAtendimentos";
+import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6149,18 +6149,103 @@ export const appRouter = router({
           medico: z.string(),
         })),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           const ids = await salvarNotificacaoEmLote(
             input.atendimentos,
             input.observacao,
             input.notificacoes
           );
+
+          // Salvar no histórico para persistência
+          try {
+            await salvarHistoricoNotificacao(
+              input.atendimentos.length,
+              input.observacao,
+              ctx.user?.name || "Usuário",
+              input.atendimentos.map(a => ({
+                numatend: a.numatend,
+                nomepac: a.nomepac,
+                nomeplaco: "",
+                datatend: "",
+                datasai: null,
+                diasParado: 0,
+                tipoatendimentodescricao: "",
+                codserv: "",
+              })),
+              input.notificacoes
+            );
+          } catch (histErr) {
+            // Não falhar a operação principal se o histórico falhar
+            console.error("Erro ao salvar histórico de notificação:", histErr);
+          }
+
           return { success: true, ids, count: ids.length };
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `Erro ao registrar notificações em lote: ${err.message}`,
+          });
+        }
+      }),
+
+    // Salvar histórico de notificação com dados completos dos atendimentos
+    salvarHistorico: protectedProcedure
+      .input(z.object({
+        qtdAtendimentos: z.number(),
+        observacao: z.string(),
+        atendimentos: z.array(z.object({
+          numatend: z.string(),
+          nomepac: z.string(),
+          nomeplaco: z.string(),
+          datatend: z.string(),
+          datasai: z.string().nullable(),
+          diasParado: z.number(),
+          tipoatendimentodescricao: z.string(),
+          codserv: z.string(),
+        })),
+        notificacoes: z.array(z.object({
+          motivo: z.string(),
+          setor: z.string(),
+          medico: z.string(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const id = await salvarHistoricoNotificacao(
+            input.qtdAtendimentos,
+            input.observacao,
+            ctx.user?.name || "Usuário",
+            input.atendimentos,
+            input.notificacoes
+          );
+          return { success: true, id };
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao salvar histórico: ${err.message}`,
+          });
+        }
+      }),
+
+    // Listar histórico de notificações
+    listarHistorico: protectedProcedure
+      .query(async () => {
+        try {
+          const historico = await listarHistoricoNotificacoes();
+          return historico.map(h => ({
+            id: h.id,
+            dataGeracao: h.data_geracao,
+            qtdAtendimentos: h.qtd_atendimentos,
+            observacao: h.observacao,
+            usuario: h.usuario,
+            atendimentos: JSON.parse(h.atendimentos_json),
+            notificacoes: JSON.parse(h.notificacoes_json),
+          }));
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao listar histórico: ${err.message}`,
           });
         }
       }),

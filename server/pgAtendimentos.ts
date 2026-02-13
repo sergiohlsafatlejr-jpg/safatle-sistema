@@ -179,6 +179,107 @@ export async function getAtendimentosAFaturar(): Promise<AtendimentoFaturarRow[]
   }
 }
 
+// ===== HISTÓRICO DE NOTIFICAÇÕES EM LOTE =====
+
+export interface HistoricoNotificacaoRow {
+  id: number;
+  data_geracao: string;
+  qtd_atendimentos: number;
+  observacao: string;
+  usuario: string;
+  atendimentos_json: string;
+  notificacoes_json: string;
+}
+
+export async function criarTabelaHistoricoNotificacao(): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS c33581562000206.historico_notificacao_lote (
+        id SERIAL PRIMARY KEY,
+        data_geracao TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        qtd_atendimentos INTEGER NOT NULL,
+        observacao TEXT NOT NULL DEFAULT '',
+        usuario TEXT NOT NULL DEFAULT '',
+        atendimentos_json JSONB NOT NULL DEFAULT '[]',
+        notificacoes_json JSONB NOT NULL DEFAULT '[]'
+      )
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+export async function salvarHistoricoNotificacao(
+  qtdAtendimentos: number,
+  observacao: string,
+  usuario: string,
+  atendimentos: Array<{ numatend: string; nomepac: string; nomeplaco: string; datatend: string; datasai: string | null; diasParado: number; tipoatendimentodescricao: string; codserv: string }>,
+  notificacoes: Array<{ motivo: string; setor: string; medico: string }>
+): Promise<number> {
+  const client = await getPool().connect();
+  try {
+    // Garantir que a tabela existe
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS c33581562000206.historico_notificacao_lote (
+        id SERIAL PRIMARY KEY,
+        data_geracao TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        qtd_atendimentos INTEGER NOT NULL,
+        observacao TEXT NOT NULL DEFAULT '',
+        usuario TEXT NOT NULL DEFAULT '',
+        atendimentos_json JSONB NOT NULL DEFAULT '[]',
+        notificacoes_json JSONB NOT NULL DEFAULT '[]'
+      )
+    `);
+
+    const result = await client.query<{ id: number }>(
+      `INSERT INTO c33581562000206.historico_notificacao_lote
+         (qtd_atendimentos, observacao, usuario, atendimentos_json, notificacoes_json)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        qtdAtendimentos,
+        observacao,
+        usuario,
+        JSON.stringify(atendimentos),
+        JSON.stringify(notificacoes),
+      ]
+    );
+    return result.rows[0].id;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listarHistoricoNotificacoes(): Promise<HistoricoNotificacaoRow[]> {
+  const client = await getPool().connect();
+  try {
+    // Garantir que a tabela existe
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS c33581562000206.historico_notificacao_lote (
+        id SERIAL PRIMARY KEY,
+        data_geracao TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        qtd_atendimentos INTEGER NOT NULL,
+        observacao TEXT NOT NULL DEFAULT '',
+        usuario TEXT NOT NULL DEFAULT '',
+        atendimentos_json JSONB NOT NULL DEFAULT '[]',
+        notificacoes_json JSONB NOT NULL DEFAULT '[]'
+      )
+    `);
+
+    const result = await client.query<HistoricoNotificacaoRow>(
+      `SELECT id, data_geracao::text, qtd_atendimentos, observacao, usuario,
+              atendimentos_json::text, notificacoes_json::text
+       FROM c33581562000206.historico_notificacao_lote
+       ORDER BY data_geracao DESC
+       LIMIT 100`
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 export async function testConnection(): Promise<boolean> {
   const client = await getPool().connect();
   try {

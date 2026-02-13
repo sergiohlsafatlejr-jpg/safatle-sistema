@@ -357,15 +357,30 @@ export default function Atendimentos() {
   // Aba ativa
   const [abaAtiva, setAbaAtiva] = useState("atendimentos");
 
-  // Histórico de notificações geradas para download
-  const [notificacoesGeradas, setNotificacoesGeradas] = useState<Array<{
-    id: string;
-    data: Date;
-    qtdAtendimentos: number;
-    atendimentos: AtendimentoData[];
-    notificacoes: NotificacaoLinha[];
-    observacao: string;
-  }>>([]);
+  // Histórico de notificações geradas - agora carregado do banco
+  const { data: historicoNotificacoes, refetch: refetchHistorico } = trpc.atendimentos.listarHistorico.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const salvarHistoricoMutation = trpc.atendimentos.salvarHistorico.useMutation({
+    onSuccess: () => {
+      refetchHistorico();
+    },
+  });
+
+  // Combinar histórico do banco com notificações da sessão (para exibição imediata)
+  const notificacoesGeradas = useMemo(() => {
+    if (!historicoNotificacoes) return [];
+    return historicoNotificacoes.map(h => ({
+      id: `DB-${h.id}`,
+      data: new Date(h.dataGeracao),
+      qtdAtendimentos: h.qtdAtendimentos,
+      atendimentos: (h.atendimentos as AtendimentoData[]) || [],
+      notificacoes: (h.notificacoes as NotificacaoLinha[]) || [],
+      observacao: h.observacao || "",
+      usuario: h.usuario || "",
+    }));
+  }, [historicoNotificacoes]);
 
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
   const [tempoRestante, setTempoRestante] = useState<string>("");
@@ -418,16 +433,27 @@ export default function Atendimentos() {
     onSuccess: (result) => {
       toast.success(`Notificação registrada para ${result.count} atendimentos!`);
 
-      // Salvar no histórico para download
+      // Salvar histórico completo no banco com dados dos atendimentos
       const atendimentosSelecionadosData = dadosFiltrados.filter(d => selecionados.has(d.numatend));
-      setNotificacoesGeradas(prev => [{
-        id: `NOT-${Date.now()}`,
-        data: new Date(),
+      salvarHistoricoMutation.mutate({
         qtdAtendimentos: result.count,
-        atendimentos: atendimentosSelecionadosData,
-        notificacoes: [...loteNotificacaoLinhas],
         observacao: loteObservacao,
-      }, ...prev]);
+        atendimentos: atendimentosSelecionadosData.map(a => ({
+          numatend: a.numatend,
+          nomepac: a.nomepac,
+          nomeplaco: a.nomeplaco || "",
+          datatend: a.datatend || "",
+          datasai: a.datasai || null,
+          diasParado: a.diasParado || 0,
+          tipoatendimentodescricao: a.tipoatendimentodescricao || "",
+          codserv: a.codserv || "",
+        })),
+        notificacoes: loteNotificacaoLinhas.map(n => ({
+          motivo: n.motivo,
+          setor: n.setor,
+          medico: n.medico,
+        })),
+      });
 
       setModalLoteAberto(false);
       setLoteNotificacaoLinhas([{ motivo: "", setor: "", medico: "" }]);
@@ -636,7 +662,7 @@ export default function Atendimentos() {
   }
 
   // ===== Download PDF =====
-  async function baixarPDFNotificacao(notif: typeof notificacoesGeradas[0]) {
+  async function baixarPDFNotificacao(notif: { data: Date; qtdAtendimentos: number; atendimentos: AtendimentoData[]; notificacoes: NotificacaoLinha[]; observacao: string }) {
     try {
       toast.info("Gerando PDF...");
       const doc = await gerarPDFNotificacao(
@@ -1093,6 +1119,7 @@ export default function Atendimentos() {
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             Gerada em {notif.data.toLocaleDateString("pt-BR")} às {notif.data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            {(notif as any).usuario ? ` por ${(notif as any).usuario}` : ""}
                           </p>
                           {notif.notificacoes.filter(n => n.motivo).length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">

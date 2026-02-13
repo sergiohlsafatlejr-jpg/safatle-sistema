@@ -1741,3 +1741,15 @@
 - [x] Adicionar aba "Notificações Geradas" para listar e baixar PDFs
 - [x] Botão "Baixar PDF" nos selecionados e no histórico
 - [x] Criar testes vitest para a funcionalidade (480 testes passando)
+
+## Persistir Histórico de Notificações no Banco de Dados
+- [x] Criar tabela historico_notificacao_lote no PostgreSQL externo (id, data_geracao, qtd_atendimentos, observacao, usuario, atendimentos_json, notificacoes_json)
+- [x] Criar helper salvarHistoricoNotificacao no pgAtendimentos.ts
+- [x] Criar helper listarHistoricoNotificacoes no pgAtendimentos.ts
+- [x] Criar procedure tRPC salvarHistorico para persistir com dados completos
+- [x] Criar procedure tRPC listarHistorico para carregar histórico
+- [x] Atualizar registrarNotificacaoEmLote para salvar no histórico automaticamente
+- [x] Atualizar frontend para carregar histórico do banco na aba "Notificações Geradas" (useMemo + useQuery)
+- [x] Gerar PDFs sob demanda a partir dos dados persistidos no banco
+- [x] Exibir usuário que gerou a notificação no histórico
+- [x] Criar testes vitest para a funcionalidade (486 testes passando)

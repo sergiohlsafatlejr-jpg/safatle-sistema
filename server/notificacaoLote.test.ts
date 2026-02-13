@@ -80,6 +80,36 @@ vi.mock("./pgAtendimentos", () => ({
   ]),
   salvarNotificacao: vi.fn().mockResolvedValue(1),
   salvarNotificacaoEmLote: vi.fn().mockResolvedValue([1, 2, 3]),
+  salvarHistoricoNotificacao: vi.fn().mockResolvedValue(42),
+  listarHistoricoNotificacoes: vi.fn().mockResolvedValue([
+    {
+      id: 1,
+      data_geracao: "2025-02-13 10:00:00",
+      qtd_atendimentos: 3,
+      observacao: "Notificação de teste",
+      usuario: "Sample User",
+      atendimentos_json: JSON.stringify([
+        { numatend: "1001", nomepac: "PACIENTE 1", nomeplaco: "PLANO A", datatend: "2025-01-01", datasai: "2025-01-01", diasParado: 30, tipoatendimentodescricao: "AMBULATORIO", codserv: "CONSULTA" },
+        { numatend: "1002", nomepac: "PACIENTE 2", nomeplaco: "PLANO B", datatend: "2025-01-02", datasai: "2025-01-02", diasParado: 29, tipoatendimentodescricao: "INTERNACAO", codserv: "INTERNACAO CLINICA" },
+      ]),
+      notificacoes_json: JSON.stringify([
+        { motivo: "medico", setor: "faturamento", medico: "dr_jose_dias" },
+      ]),
+    },
+    {
+      id: 2,
+      data_geracao: "2025-02-12 14:30:00",
+      qtd_atendimentos: 1,
+      observacao: "Outra notificação",
+      usuario: "Admin",
+      atendimentos_json: JSON.stringify([
+        { numatend: "1003", nomepac: "PACIENTE 3", nomeplaco: "PLANO C", datatend: "2025-01-03", datasai: null, diasParado: 28, tipoatendimentodescricao: "EXAME", codserv: "ULTRASSOM" },
+      ]),
+      notificacoes_json: JSON.stringify([
+        { motivo: "enfermagem", setor: "enfermagem", medico: "" },
+      ]),
+    },
+  ]),
   getAtendimentosAFaturar: vi.fn().mockResolvedValue([]),
   testConnection: vi.fn().mockResolvedValue(true),
 }));
@@ -242,5 +272,154 @@ describe("atendimentos.listar", () => {
     const caller = appRouter.createCaller(ctx);
 
     await expect(caller.atendimentos.listar()).rejects.toThrow();
+  });
+});
+
+describe("atendimentos.salvarHistorico", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("salva histórico de notificação com dados completos", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.atendimentos.salvarHistorico({
+      qtdAtendimentos: 2,
+      observacao: "Teste de persistência",
+      atendimentos: [
+        {
+          numatend: "1001",
+          nomepac: "PACIENTE TESTE 1",
+          nomeplaco: "PLANO A",
+          datatend: "2025-01-01",
+          datasai: "2025-01-01",
+          diasParado: 30,
+          tipoatendimentodescricao: "AMBULATORIO",
+          codserv: "CONSULTA",
+        },
+        {
+          numatend: "1002",
+          nomepac: "PACIENTE TESTE 2",
+          nomeplaco: "PLANO B",
+          datatend: "2025-01-02",
+          datasai: null,
+          diasParado: 29,
+          tipoatendimentodescricao: "INTERNACAO",
+          codserv: "INTERNACAO CLINICA",
+        },
+      ],
+      notificacoes: [
+        { motivo: "medico", setor: "faturamento", medico: "dr_jose_dias" },
+      ],
+    });
+
+    expect(result).toEqual({ success: true, id: 42 });
+  });
+
+  it("rejeita chamada sem autenticação", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.atendimentos.salvarHistorico({
+        qtdAtendimentos: 1,
+        observacao: "Teste",
+        atendimentos: [
+          {
+            numatend: "1001",
+            nomepac: "PACIENTE",
+            nomeplaco: "PLANO",
+            datatend: "2025-01-01",
+            datasai: null,
+            diasParado: 10,
+            tipoatendimentodescricao: "AMBULATORIO",
+            codserv: "CONSULTA",
+          },
+        ],
+        notificacoes: [
+          { motivo: "medico", setor: "faturamento", medico: "dr_jose_dias" },
+        ],
+      })
+    ).rejects.toThrow();
+  });
+
+  it("aceita datasai como null", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.atendimentos.salvarHistorico({
+      qtdAtendimentos: 1,
+      observacao: "Teste com datasai null",
+      atendimentos: [
+        {
+          numatend: "1001",
+          nomepac: "PACIENTE",
+          nomeplaco: "PLANO",
+          datatend: "2025-01-01",
+          datasai: null,
+          diasParado: 10,
+          tipoatendimentodescricao: "AMBULATORIO",
+          codserv: "CONSULTA",
+        },
+      ],
+      notificacoes: [],
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("atendimentos.listarHistorico", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("lista histórico de notificações com dados parseados", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.atendimentos.listarHistorico();
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(2);
+
+    // Primeiro item
+    expect(result[0]).toHaveProperty("id", 1);
+    expect(result[0]).toHaveProperty("dataGeracao");
+    expect(result[0]).toHaveProperty("qtdAtendimentos", 3);
+    expect(result[0]).toHaveProperty("observacao", "Notificação de teste");
+    expect(result[0]).toHaveProperty("usuario", "Sample User");
+    expect(Array.isArray(result[0].atendimentos)).toBe(true);
+    expect(result[0].atendimentos.length).toBe(2);
+    expect(result[0].atendimentos[0]).toHaveProperty("numatend", "1001");
+    expect(Array.isArray(result[0].notificacoes)).toBe(true);
+    expect(result[0].notificacoes[0]).toHaveProperty("motivo", "medico");
+
+    // Segundo item
+    expect(result[1]).toHaveProperty("id", 2);
+    expect(result[1]).toHaveProperty("qtdAtendimentos", 1);
+    expect(result[1]).toHaveProperty("usuario", "Admin");
+    expect(result[1].atendimentos.length).toBe(1);
+  });
+
+  it("rejeita chamada sem autenticação", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.atendimentos.listarHistorico()).rejects.toThrow();
+  });
+
+  it("retorna array vazio quando não há histórico", async () => {
+    const { listarHistoricoNotificacoes } = await import("./pgAtendimentos");
+    (listarHistoricoNotificacoes as any).mockResolvedValueOnce([]);
+
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.atendimentos.listarHistorico();
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
   });
 });
