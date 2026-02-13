@@ -1,9 +1,9 @@
-import { Building2, MapPin, FileText, LayoutGrid, LogIn, Newspaper, ExternalLink, Clock, Activity, TrendingUp, Shield, Info, AlertTriangle, AlertCircle, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Building2, MapPin, FileText, LogIn, Newspaper, ExternalLink, Clock, Activity, TrendingUp, Shield } from "lucide-react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEstabelecimento, Estabelecimento, TODOS_ESTABELECIMENTOS } from "@/contexts/EstabelecimentoContext";
+import { useEstabelecimento, Estabelecimento } from "@/contexts/EstabelecimentoContext";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -44,31 +44,7 @@ export default function SelecionarEstabelecimento() {
     staleTime: 15 * 60 * 1000,
   });
 
-  const { data: avisosAtivos } = trpc.avisosInternos.listarAtivos.useQuery(undefined, {
-    refetchInterval: 5 * 60 * 1000, // 5 minutos
-    staleTime: 2 * 60 * 1000,
-  });
 
-  const [avisosFechados, setAvisosFechados] = useState<number[]>([]);
-
-  // Carregar avisos fechados do localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("avisos_fechados");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setAvisosFechados(parsed);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  const fecharAviso = (id: number) => {
-    const novos = [...avisosFechados, id];
-    setAvisosFechados(novos);
-    localStorage.setItem("avisos_fechados", JSON.stringify(novos));
-  };
-
-  const avisosVisiveis = avisosAtivos?.filter(a => !avisosFechados.includes(a.id)) || [];
 
   const handleSelecionar = (estabelecimento: Estabelecimento) => {
     setEstabelecimentoAtual(estabelecimento);
@@ -198,92 +174,9 @@ export default function SelecionarEstabelecimento() {
         </div>
       </section>
 
-      {/* Avisos Internos - Apenas após login */}
-      {isAuthenticated && avisosVisiveis.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-          <div className="space-y-3">
-            {avisosVisiveis.map((aviso) => {
-              const isUrgente = aviso.tipo === "urgente";
-              const isAlerta = aviso.tipo === "alerta";
-              const bgClass = isUrgente
-                ? "bg-red-50 border-red-300"
-                : isAlerta
-                ? "bg-amber-50 border-amber-300"
-                : "bg-blue-50 border-blue-300";
-              const textClass = isUrgente
-                ? "text-red-800"
-                : isAlerta
-                ? "text-amber-800"
-                : "text-blue-800";
-              const IconComponent = isUrgente
-                ? AlertCircle
-                : isAlerta
-                ? AlertTriangle
-                : Info;
-
-              return (
-                <div
-                  key={aviso.id}
-                  className={`relative rounded-lg border-l-4 p-4 ${bgClass} shadow-sm animate-in fade-in slide-in-from-top-2 duration-300`}
-                >
-                  <button
-                    onClick={() => fecharAviso(aviso.id)}
-                    className={`absolute top-3 right-3 p-1 rounded-full hover:bg-black/10 transition-colors ${textClass}`}
-                    title="Fechar aviso"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <div className="flex items-start gap-3 pr-8">
-                    <IconComponent className={`h-5 w-5 mt-0.5 flex-shrink-0 ${textClass}`} />
-                    <div>
-                      <h4 className={`font-semibold text-sm ${textClass}`}>{aviso.titulo}</h4>
-                      <p className={`text-sm mt-1 ${textClass} opacity-80 whitespace-pre-wrap`}>{aviso.conteudo}</p>
-                      <p className={`text-xs mt-2 ${textClass} opacity-50`}>
-                        {new Date(aviso.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-                        {aviso.criadoPorNome && ` — ${aviso.criadoPorNome}`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       {/* Estabelecimentos - Apenas após login */}
       {isAuthenticated && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Dashboard Consolidado */}
-          <Card
-            className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.01] hover:border-destructive/50 bg-gradient-to-r from-destructive/5 to-destructive/10 border-destructive/30 mb-6"
-            onClick={() => handleSelecionar(TODOS_ESTABELECIMENTOS)}
-          >
-            <CardContent className="flex items-center gap-4 py-6">
-              <div className="p-3 rounded-lg bg-destructive/10">
-                <LayoutGrid className="h-8 w-8 text-destructive" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-foreground">Dashboard Consolidado</h3>
-                <p className="text-muted-foreground text-sm">Visualizar dados de todos os estabelecimentos em um único painel</p>
-              </div>
-              <Button variant="outline" className="border-destructive/50 text-destructive hover:bg-destructive/10">
-                Acessar
-              </Button>
-            </CardContent>
-          </Card>
-
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-gradient-to-br from-background via-background to-secondary/30 px-4 text-muted-foreground">
-                ou selecione um estabelecimento específico
-              </span>
-            </div>
-          </div>
-
           <div className="grid md:grid-cols-2 gap-6">
             {estabelecimentos.map((estabelecimento) => (
               <Card

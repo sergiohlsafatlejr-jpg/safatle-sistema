@@ -1757,3 +1757,8 @@
 ## Incluir Motivos/Observações no PDF de Atendimentos Parados
 - [x] Adicionar coluna "Motivo" na tabela de atendimentos do PDF
 - [x] Ajustar larguras das colunas para acomodar a nova coluna
+
+## Mover Avisos e Remover Dashboard Consolidado
+- [x] Remover banners de avisos internos da tela SelecionarEstabelecimento
+- [x] Remover card de Dashboard Consolidado da tela SelecionarEstabelecimento
+- [x] Adicionar banners de avisos internos na tela Home do dashboard (após selecionar estabelecimento)
