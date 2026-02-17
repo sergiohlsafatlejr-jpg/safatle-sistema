@@ -23,7 +23,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
-
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, 
@@ -57,7 +56,7 @@ import {
   Clock,
   Database,
   ArrowLeftRight,
-  FileCode2 as FileCodeIcon,
+  FileCode2,
   Users,
   Megaphone,
   Home
@@ -102,9 +101,8 @@ const menuItems: MenuItem[] = [
   { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
   
   // Recebimentos (fontes de dados do Demonstrativo)
-  { icon: FileCodeIcon, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
+  { icon: FileCode2, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
   { icon: FileSpreadsheet, label: "Recebimentos Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
-  { icon: FileCodeIcon, label: "Importação XML (Fase 1)", path: "/importacao-xml", modulo: "arquivos" },
   
   // Análise e Recursos de Glosa
   { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },
@@ -134,7 +132,6 @@ const menuItems: MenuItem[] = [
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
   { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar", estabelecimentoIds: [4] },
   { icon: Megaphone, label: "Avisos Internos", path: "/gerenciar-avisos", adminOnly: true },
-  { icon: FileCodeIcon, label: "Validação XML (IA)", path: "/importacao-xml", modulo: "arquivos", adminOnly: true },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
