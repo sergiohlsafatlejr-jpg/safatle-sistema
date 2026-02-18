@@ -1801,3 +1801,27 @@
 - [ ] Implementar glosaRouter com cache Redis
 - [ ] Implementar dashboard de cache para monitoramento
 - [ ] Migrar 50% das procedures do monolito para módulos
+
+
+## Fase 3 - Ativar Módulos com Feature Flags (Semana 6)
+
+- [x] Implementar glosaRouter com cache Redis
+- [x] Criar testes vitest para glosaRouter (6 testes passando)
+- [x] Implementar dashboard de cache para monitoramento
+- [x] Adicionar rota /cache-dashboard no App.tsx
+- [x] Atualizar featureFlags.ts com canary deployment
+- [x] Implementar fallback automático para monolito
+- [x] Corrigir erros de tipagem em trpc.ts
+- [ ] Ativar módulo de faturamento com feature flag (5% → 100%)
+- [ ] Ativar módulo de glosa com feature flag (5% → 100%)
+- [ ] Monitorar métricas de erro e performance
+- [ ] Expandir tráfego gradualmente para 100%
+
+## Fase 4 - Próximas Etapas
+
+- [ ] Corrigir erros de tipagem remanescentes em routers/index.ts
+- [ ] Migrar 50% das procedures do monolito para módulos
+- [ ] Implementar histórico de validações XML
+- [ ] Criar procedures tRPC para histórico
+- [ ] Atualizar página ImportacaoXML para persistir histórico
+- [ ] Exibir histórico com filtros por data, usuário e arquivo

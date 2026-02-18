@@ -1,6 +1,6 @@
 import { router } from "../_core/trpc";
 import { faturamentoRouter } from "./faturamentoRouter";
-// import { glosaRouter } from "./glosaRouter"; // TODO: Implementar glosaRouter
+import { glosaRouter } from "./glosaRouter";
 import { comparacoesRouter } from "./comparacoesRouter";
 import { tasyRouter } from "./tasyRouter";
 import { relatoriosRouter } from "./relatoriosRouter";
@@ -12,7 +12,7 @@ import { relatoriosRouter } from "./relatoriosRouter";
  */
 export const modulesRouter = router({
   faturamento: faturamentoRouter,
-  // glosa: glosaRouter, // TODO: Implementar glosaRouter
+  glosa: glosaRouter,
   comparacoes: comparacoesRouter,
   tasy: tasyRouter,
   relatorios: relatoriosRouter,

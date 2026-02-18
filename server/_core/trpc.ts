@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import type { TrpcContext } from "./context";
 import { logger } from "./logger";
 import { logAudit } from "./audit";
@@ -116,7 +117,7 @@ const auditMiddleware = t.middleware(async (opts) => {
           registroId,
           tipoAcao,
           usuarioId: ctx.user?.id || 0,
-          usuarioNome: ctx.user?.name,
+          usuarioNome: ctx.user?.name || undefined,
           valoresNovos: resultado,
           estabelecimentoId: ctx.estabelecimentoId,
         });
@@ -260,8 +261,9 @@ export const auditRouter = router({
         params.push(input.limite, offset);
         
         // Executar query
-        const db = getDb();
-        const logs = await db.all(query, ...params);
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const logs = await db.execute(sql`${sql.raw(query)}`);
         
         // Contar total
         let countQuery = `SELECT COUNT(*) as total FROM auditLog WHERE 1=1`;
@@ -292,8 +294,8 @@ export const auditRouter = router({
           countParams.push(ctx.estabelecimentoId);
         }
         
-        const countResult = await db.get(countQuery, ...countParams);
-        const total = countResult?.total || 0;
+        const countResult = await db.execute(sql`${sql.raw(countQuery)}`);
+        const total = Array.isArray(countResult) && countResult[0] ? (countResult[0] as any).total : 0;
         
         logger.info({
           tipo: "audit_list_logs",

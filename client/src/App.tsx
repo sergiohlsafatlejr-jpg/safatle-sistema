@@ -54,6 +54,7 @@ import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
 import AuditDashboard from "./pages/AuditDashboard";
+import CacheDashboard from "./pages/CacheDashboard";
 // import ImportacaoXML from "./pages/ImportacaoXML"; // Removido temporariamente
 
 function Router() {
@@ -117,6 +118,7 @@ function Router() {
       <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
       <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
       <Route path={"/auditoria"} component={AuditDashboard} />
+      <Route path={"/cache-dashboard"} component={CacheDashboard} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
