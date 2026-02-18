@@ -53,6 +53,7 @@ import RecebimentosExcel from "./pages/RecebimentosExcel";
 import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
+import ImportacaoXML from "./pages/ImportacaoXML";
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();

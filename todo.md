@@ -1769,3 +1769,11 @@
 - [x] Configurar rota "/" para a nova página Início
 - [x] Mover Dashboard para rota "/dashboard"
 - [x] Remover avisos da Home.tsx (agora ficam só no Início)
+
+
+## Fase 1 - Motor de Regras (Histórico de Validações XML)
+- [ ] Implementar histórico de validações XML com SQL raw queries (evitar problemas de tipagem Drizzle)
+- [ ] Criar procedures tRPC para salvar/listar/consultar histórico
+- [ ] Atualizar página ImportacaoXML para persistir histórico de validações
+- [ ] Exibir histórico com filtros por data, usuário e arquivo
+- [ ] Criar testes para histórico XML

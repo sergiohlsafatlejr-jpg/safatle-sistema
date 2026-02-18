@@ -1,6 +1,5 @@
-import { eq, and, desc, like, sql, gte, lte, lt, gt, or, inArray, count } from "drizzle-orm";
+import { eq, and, desc, like, sql, gte, lte, lt, gt, or, inArray, count, isNull, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { isNull, isNotNull } from "drizzle-orm";
 import {
   InsertUser,
   users,
@@ -6064,7 +6063,14 @@ export async function getResumoAlertasArquivo(arquivoId: number) {
 // Histórico de Validações
 // ============================================
 
-// Salvar resultado de validação no histórico
+// ============ HISTÓRICO DE VALIDAÇÕES XML (SQL RAW) ============
+// Usando SQL raw queries para evitar conflitos de tipagem com Drizzle ORM
+
+// Nota: As funções de histórico XML serão implementadas com raw SQL queries
+// usando a conexão MySQL diretamente para evitar conflitos de tipagem Drizzle
+// Por enquanto, mantemos as funções antigas para compatibilidade
+
+// Manter compatibilidade com as funções antigas (Drizzle ORM)
 export async function salvarHistoricoValidacao(dados: {
   arquivoId: number;
   convenioId: number;
@@ -6095,7 +6101,6 @@ export async function salvarHistoricoValidacao(dados: {
   return result;
 }
 
-// Listar histórico de validações
 export async function listarHistoricoValidacoes(filtros?: {
   convenioId?: number;
   arquivoId?: number;
@@ -6125,7 +6130,6 @@ export async function listarHistoricoValidacoes(filtros?: {
   return result;
 }
 
-// Buscar validação por ID
 export async function getHistoricoValidacao(id: number) {
   const db = await getDb();
   if (!db) return null;
@@ -6136,6 +6140,175 @@ export async function getHistoricoValidacao(id: number) {
     .limit(1);
   
   return result[0] || null;
+}
+
+// ============ HISTÓRICO DE VALIDAÇÕES XML (Raw SQL) ============
+// Implementação com raw SQL queries para evitar conflitos de tipagem Drizzle
+
+export async function salvarHistoricoValidacaoXml(dados: {
+  estabelecimentoId: number;
+  nomeArquivo: string;
+  dataProcessamento: Date;
+  totalContas: number;
+  contasValidas: number;
+  contasInvalidas: number;
+  scoreConformidadeMedio: number;
+  resultadoCompleto: any;
+  usuarioId: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    // Usar raw SQL via Drizzle
+    const result = await db.execute(
+      sql`
+        INSERT INTO historicoValidacaoXml (
+          estabelecimentoId,
+          nomeArquivo,
+          dataProcessamento,
+          totalContas,
+          contasValidas,
+          contasInvalidas,
+          scoreConformidadeMedio,
+          resultadoCompleto,
+          usuarioId,
+          createdAt
+        ) VALUES (
+          ${dados.estabelecimentoId},
+          ${dados.nomeArquivo},
+          ${dados.dataProcessamento},
+          ${dados.totalContas},
+          ${dados.contasValidas},
+          ${dados.contasInvalidas},
+          ${dados.scoreConformidadeMedio},
+          ${JSON.stringify(dados.resultadoCompleto)},
+          ${dados.usuarioId},
+          NOW()
+        )
+      `
+    );
+    
+    return { success: true };
+  } catch (error) {
+    console.error('[DB] Erro ao salvar histórico de validação XML:', error);
+    return null;
+  }
+}
+
+export async function listarHistoricoValidacoesXml(filtros?: {
+  estabelecimentoId?: number;
+  usuarioId?: number;
+  dataInicio?: Date;
+  dataFim?: Date;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const conditions: any[] = [];
+    
+    if (filtros?.estabelecimentoId) {
+      conditions.push(sql`estabelecimentoId = ${filtros.estabelecimentoId}`);
+    }
+    
+    if (filtros?.usuarioId) {
+      conditions.push(sql`usuarioId = ${filtros.usuarioId}`);
+    }
+    
+    if (filtros?.dataInicio) {
+      conditions.push(sql`dataProcessamento >= ${filtros.dataInicio}`);
+    }
+    
+    if (filtros?.dataFim) {
+      conditions.push(sql`dataProcessamento <= ${filtros.dataFim}`);
+    }
+    
+    let query = sql`SELECT * FROM historicoValidacaoXml`;
+    
+    if (conditions.length > 0) {
+      query = sql`SELECT * FROM historicoValidacaoXml WHERE ${conditions[0]}`;
+      for (let i = 1; i < conditions.length; i++) {
+        query = sql`${query} AND ${conditions[i]}`;
+      }
+    }
+    
+    query = sql`${query} ORDER BY dataProcessamento DESC`;
+    
+    if (filtros?.limit) {
+      query = sql`${query} LIMIT ${filtros.limit}`;
+      
+      if (filtros?.offset) {
+        query = sql`${query} OFFSET ${filtros.offset}`;
+      }
+    }
+    
+    const result = await db.execute(query);
+    return (result as any)?.[0] || [];
+  } catch (error) {
+    console.error('[DB] Erro ao listar histórico de validações XML:', error);
+    return [];
+  }
+}
+
+export async function obterDetalhesValidacaoXml(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const result = await db.execute(
+      sql`SELECT * FROM historicoValidacaoXml WHERE id = ${id} LIMIT 1`
+    );
+    
+    const rows = (result as any)?.[0];
+    if (rows && rows.length > 0) {
+      const row = rows[0];
+      return {
+        ...row,
+        resultadoCompleto: typeof row.resultadoCompleto === 'string' 
+          ? JSON.parse(row.resultadoCompleto) 
+          : row.resultadoCompleto
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[DB] Erro ao obter detalhes de validação XML:', error);
+    return null;
+  }
+}
+
+export async function obterEstatisticasValidacaoXml(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const result = await db.execute(
+      sql`
+        SELECT
+          COUNT(*) as totalValidacoes,
+          SUM(totalContas) as totalContasProcessadas,
+          SUM(contasValidas) as totalContasValidas,
+          SUM(contasInvalidas) as totalContasInvalidas,
+          AVG(scoreConformidadeMedio) as scoreConformidadeMedia,
+          MAX(dataProcessamento) as ultimaValidacao
+        FROM historicoValidacaoXml
+        WHERE estabelecimentoId = ${estabelecimentoId}
+      `
+    );
+    
+    const rows = (result as any)?.[0];
+    if (rows && rows.length > 0) {
+      return rows[0];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[DB] Erro ao obter estatísticas de validação XML:', error);
+    return null;
+  }
 }
 
 

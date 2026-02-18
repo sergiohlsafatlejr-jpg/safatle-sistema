@@ -3407,6 +3407,58 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getHistoricoValidacao(input.id);
       }),
+
+    // Salvar histórico de validação XML
+    salvarHistoricoXml: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nomeArquivo: z.string(),
+        dataProcessamento: z.date(),
+        totalContas: z.number(),
+        contasValidas: z.number(),
+        contasInvalidas: z.number(),
+        scoreConformidadeMedio: z.number(),
+        resultadoCompleto: z.any(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.salvarHistoricoValidacaoXml({
+          ...input,
+          usuarioId: ctx.user.id,
+        });
+      }),
+
+    // Listar histórico de validações XML
+    listarHistoricoXml: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        usuarioId: z.number().optional(),
+        dataInicio: z.date().optional(),
+        dataFim: z.date().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const filtros = {
+          ...input,
+          estabelecimentoId: input?.estabelecimentoId,
+        };
+        return db.listarHistoricoValidacoesXml(filtros);
+      }),
+
+    // Obter detalhes de uma validação XML
+    obterDetalhesXml: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.obterDetalhesValidacaoXml(input.id);
+      }),
+
+    // Obter estatísticas de validações XML
+    obterEstatisticasXml: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return db.obterEstatisticasValidacaoXml(input.estabelecimentoId);
+      }),
+
   }),
 
   // ============ PERMISSÕES E DASHBOARD CONSOLIDADO ============

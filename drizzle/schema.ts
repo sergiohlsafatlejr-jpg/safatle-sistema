@@ -2520,3 +2520,40 @@ export const avisosInternos = mysqlTable("avisosInternos", {
 
 export type AvisoInterno = typeof avisosInternos.$inferSelect;
 export type InsertAvisoInterno = typeof avisosInternos.$inferInsert;
+
+
+/**
+ * Histórico de Validações de Arquivos XML
+ * Persistência de resultados de validação de arquivos XML para análise de tendências
+ */
+export const historicoValidacaoXml = mysqlTable("historicoValidacaoXml", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Estabelecimento que realizou a validação
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Nome do arquivo XML validado
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  
+  // Data de processamento do arquivo
+  dataProcessamento: timestamp("dataProcessamento").notNull(),
+  
+  // Estatísticas de contas processadas
+  totalContas: int("totalContas").default(0),
+  contasValidas: int("contasValidas").default(0),
+  contasInvalidas: int("contasInvalidas").default(0),
+  
+  // Score de conformidade médio (0-100)
+  scoreConformidadeMedio: decimal("scoreConformidadeMedio", { precision: 5, scale: 2 }).default(0),
+  
+  // Resultado completo em JSON (divergências, violações, etc.)
+  resultadoCompleto: json("resultadoCompleto"),
+  
+  // Usuário que realizou a validação
+  usuarioId: int("usuarioId").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoValidacaoXml = typeof historicoValidacaoXml.$inferSelect;
+export type InsertHistoricoValidacaoXml = typeof historicoValidacaoXml.$inferInsert;
