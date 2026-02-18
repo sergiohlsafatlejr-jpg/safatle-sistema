@@ -53,6 +53,7 @@ import RecebimentosExcel from "./pages/RecebimentosExcel";
 import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
+import AuditDashboard from "./pages/AuditDashboard";
 // import ImportacaoXML from "./pages/ImportacaoXML"; // Removido temporariamente
 
 function Router() {
@@ -115,6 +116,7 @@ function Router() {
       <Route path={"/atendimentos"} component={Atendimentos} />
       <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
       <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
+      <Route path={"/auditoria"} component={AuditDashboard} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

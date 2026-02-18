@@ -1529,7 +1529,7 @@ export const appRouter = router({
         });
       }),
 
-    create: protectedProcedure
+    create: trackedProtectedProcedure
       .input(
         z.object({
           arquivoId: z.number().optional(),
@@ -1556,7 +1556,7 @@ export const appRouter = router({
         });
       }),
 
-    delete: protectedProcedure
+    delete: trackedProtectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteItemManual(input.id);
@@ -2816,7 +2816,7 @@ export const appRouter = router({
       }),
 
     // Criar novo item
-    create: protectedProcedure
+    create: trackedProtectedProcedure
       .input(
         z.object({
           convenioId: z.number(),
@@ -2862,7 +2862,7 @@ export const appRouter = router({
       }),
 
     // Atualizar item
-    update: protectedProcedure
+    update: trackedProtectedProcedure
       .input(
         z.object({
           id: z.number(),
@@ -2913,7 +2913,7 @@ export const appRouter = router({
       }),
 
     // Excluir item (soft delete)
-    delete: protectedProcedure
+    delete: trackedProtectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         // Buscar dados anteriores para o histórico
