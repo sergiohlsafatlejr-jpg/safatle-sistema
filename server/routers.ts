@@ -1418,7 +1418,7 @@ export const appRouter = router({
         return db.getCodigosProcedimentos(input?.ativo);
       }),
 
-    create: protectedProcedure
+    create: trackedProtectedProcedure
       .input(
         z.object({
           codigo: z.string().min(1),
@@ -1436,7 +1436,7 @@ export const appRouter = router({
         });
       }),
 
-    update: protectedProcedure
+    update: trackedProtectedProcedure
       .input(
         z.object({
           id: z.number(),
@@ -1868,7 +1868,7 @@ export const appRouter = router({
         return db.getRecursoById(input.id);
       }),
 
-    create: protectedProcedure
+    create: trackedProtectedProcedure
       .input(
         z.object({
           divergenciaId: z.number().optional(),
@@ -1895,7 +1895,7 @@ export const appRouter = router({
         return { id };
       }),
 
-    update: protectedProcedure
+    update: trackedProtectedProcedure
       .input(
         z.object({
           id: z.number(),
@@ -1940,7 +1940,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: protectedProcedure
+    delete: trackedProtectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteRecursoGlosa(input.id);
