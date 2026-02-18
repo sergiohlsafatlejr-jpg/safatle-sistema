@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, trackedProtectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -1198,7 +1198,7 @@ export const appRouter = router({
       return db.getComparacoesStats(ctx.user.id);
     }),
 
-    criar: protectedProcedure
+    criar: trackedProtectedProcedure
       .input(
         z.object({
           arquivoEnviadoId: z.number(),
