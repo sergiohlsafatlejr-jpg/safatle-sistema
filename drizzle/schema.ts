@@ -2539,12 +2539,12 @@ export const historicoValidacaoXml = mysqlTable("historicoValidacaoXml", {
   dataProcessamento: timestamp("dataProcessamento").notNull(),
   
   // Estatísticas de contas processadas
-  totalContas: int("totalContas").default(0),
-  contasValidas: int("contasValidas").default(0),
-  contasInvalidas: int("contasInvalidas").default(0),
+  totalContas: int("totalContas").default(0).notNull(),
+  contasValidas: int("contasValidas").default(0).notNull(),
+  contasInvalidas: int("contasInvalidas").default(0).notNull(),
   
   // Score de conformidade médio (0-100)
-  scoreConformidadeMedio: decimal("scoreConformidadeMedio", { precision: 5, scale: 2 }).default(0),
+  scoreConformidadeMedio: decimal("scoreConformidadeMedio", { precision: 5, scale: 2 }).default("0"),
   
   // Resultado completo em JSON (divergências, violações, etc.)
   resultadoCompleto: json("resultadoCompleto"),
@@ -2557,3 +2557,17 @@ export const historicoValidacaoXml = mysqlTable("historicoValidacaoXml", {
 
 export type HistoricoValidacaoXml = typeof historicoValidacaoXml.$inferSelect;
 export type InsertHistoricoValidacaoXml = typeof historicoValidacaoXml.$inferInsert;
+
+// Tabela de auditoria
+export const auditLog = mysqlTable('auditLog', {
+  id: int('id').primaryKey().autoincrement(),
+  tabela: varchar('tabela', { length: 100 }).notNull(),
+  registroId: int('registroId').notNull(),
+  tipoAcao: varchar('tipoAcao', { length: 20 }).notNull(),
+  usuarioId: int('usuarioId').notNull(),
+  usuarioNome: varchar('usuarioNome', { length: 255 }),
+  valoresAnteriores: json('valoresAnteriores'),
+  valoresNovos: json('valoresNovos'),
+  estabelecimentoId: int('estabelecimentoId'),
+  criadoEm: timestamp('criadoEm').defaultNow(),
+});
