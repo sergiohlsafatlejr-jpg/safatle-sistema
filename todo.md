@@ -1777,3 +1777,27 @@
 - [ ] Atualizar página ImportacaoXML para persistir histórico de validações
 - [ ] Exibir histórico com filtros por data, usuário e arquivo
 - [ ] Criar testes para histórico XML
+
+
+## Refatoração de Infraestrutura (Semanas 1-6)
+
+- [x] Implementar logger estruturado com Pino
+- [x] Criar sistema de auditoria completo com tabela auditLog
+- [x] Implementar RBAC consolidado (6 grupos + 24 módulos)
+- [x] Criar sistema de idempotência para prevenir duplicação
+- [x] Implementar retry logic com exponential backoff
+- [x] Configurar Redis Cloud para cache distribuído
+- [x] Criar 48 testes vitest (100% passando)
+- [x] Adicionar 13 índices de banco para otimização
+- [x] Implementar dashboard de auditoria frontend
+- [x] Criar 6 módulos temáticos (faturamento, glosa, comparacoes, tasy, relatorios, auditoria)
+- [x] Implementar feature flags para rollout gradual
+- [x] Criar documentação completa (8 guias, 136 páginas)
+- [x] Corrigir assinatura do logger em cache.ts
+- [x] Implementar faturamentoRouter com cache Redis
+- [x] Criar testes vitest para faturamentoRouter (6 testes passando)
+- [ ] Ativar módulo de faturamento com feature flag
+- [ ] Ativar módulo de glosa com feature flag
+- [ ] Implementar glosaRouter com cache Redis
+- [ ] Implementar dashboard de cache para monitoramento
+- [ ] Migrar 50% das procedures do monolito para módulos

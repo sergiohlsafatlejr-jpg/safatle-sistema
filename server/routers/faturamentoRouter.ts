@@ -1,4 +1,4 @@
-import { router, protectedProcedure, trackedProtectedProcedure } from "../_core/trpc";
+import { router, trackedProtectedProcedure, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import {
   cacheGet,
@@ -11,8 +11,9 @@ import {
 } from "../_core/cache";
 import { getDb } from "../db";
 import { logger } from "../_core/logger";
+import { sql } from "drizzle-orm";
 
-const ENABLE_FATURAMENTO_MODULO = process.env.ENABLE_FATURAMENTO_MODULO === "true";
+const ENABLE_FATURAMENTO_MODULO = process.env.ENABLE_MODULO_FATURAMENTO === "true";
 
 /**
  * Router de Faturamento com Cache Redis
@@ -28,9 +29,8 @@ export const faturamentoRouter = router({
     .input(
       z.object({
         estabelecimentoId: z.number().positive(),
-        mes: z.string().regex(/^\d{4}-\d{2}$/),
-        ano: z.number().min(2000),
-        dados: z.record(z.any()),
+        convenioId: z.number().positive(),
+        dataReferencia: z.date(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -40,27 +40,31 @@ export const faturamentoRouter = router({
 
       try {
         const db = await getDb();
-        
-        // Cria faturamento no banco
+        if (!db) throw new Error("Database not available");
+
+        // Cria faturamento no banco usando Drizzle ORM
         const resultado = await db.execute(
-          `INSERT INTO faturamento_tiss 
-           (estabelecimento_id, mes_referencia, ano, dados, usuario_id, data_criacao)
-           VALUES (?, ?, ?, ?, ?, NOW())`,
-          [input.estabelecimentoId, input.mes, input.ano, JSON.stringify(input.dados), ctx.user.id]
+          sql`INSERT INTO faturamento_tiss (estabelecimentoId, convenioId, data_referencia, data_importacao)
+              VALUES (${input.estabelecimentoId}, ${input.convenioId}, ${input.dataReferencia}, NOW())`
         );
 
         // Invalida cache
         await invalidateFaturamentoCache(input.estabelecimentoId);
 
-        logger.info("Faturamento criado", {
+        logger.info({
+          message: "Faturamento criado",
           estabelecimentoId: input.estabelecimentoId,
-          mes: input.mes,
+          convenioId: input.convenioId,
           usuarioId: ctx.user.id,
         });
 
-        return { id: resultado.insertId, status: "sucesso" };
+        return { id: Number((resultado as any)[0]?.insertId || 0), status: "sucesso" };
       } catch (error) {
-        logger.error("Erro ao criar faturamento", { error, input });
+        logger.error({
+          message: "Erro ao criar faturamento",
+          error: String(error),
+          input,
+        });
         throw error;
       }
     }),
@@ -74,8 +78,7 @@ export const faturamentoRouter = router({
     .input(
       z.object({
         estabelecimentoId: z.number().positive(),
-        mes: z.string().regex(/^\d{4}-\d{2}$/).optional(),
-        status: z.string().optional(),
+        convenioId: z.number().positive().optional(),
         limit: z.number().min(1).max(100).default(20),
         offset: z.number().min(0).default(0),
       })
@@ -83,8 +86,8 @@ export const faturamentoRouter = router({
     .query(async ({ input }) => {
       const cacheKey = generateFaturamentoKey(
         input.estabelecimentoId,
-        input.mes || "all",
-        input.status
+        input.convenioId?.toString() || "all",
+        "list"
       );
 
       // Tenta obter do cache
@@ -92,31 +95,25 @@ export const faturamentoRouter = router({
         cacheKey,
         async () => {
           const db = await getDb();
-          
-          let query = "SELECT * FROM faturamento_tiss WHERE estabelecimento_id = ?";
-          const params: any[] = [input.estabelecimentoId];
+          if (!db) return [];
 
-          if (input.mes) {
-            query += " AND mes_referencia = ?";
-            params.push(input.mes);
+          let query = sql`SELECT * FROM faturamento_tiss WHERE estabelecimentoId = ${input.estabelecimentoId}`;
+
+          if (input.convenioId) {
+            query = sql`SELECT * FROM faturamento_tiss WHERE estabelecimentoId = ${input.estabelecimentoId} AND convenioId = ${input.convenioId}`;
           }
 
-          if (input.status) {
-            query += " AND status = ?";
-            params.push(input.status);
-          }
+          const resultado = await db.execute(
+            sql`${query} ORDER BY data_importacao DESC LIMIT ${input.limit} OFFSET ${input.offset}`
+          );
 
-          query += " ORDER BY data_criacao DESC LIMIT ? OFFSET ?";
-          params.push(input.limit, input.offset);
-
-          const resultado = await db.execute(query, params);
-          
-          logger.debug("Faturamentos listados", {
+          logger.debug({
+            message: "Faturamentos listados",
             estabelecimentoId: input.estabelecimentoId,
-            count: resultado.length,
+            count: Array.isArray(resultado) ? resultado.length : 0,
           });
 
-          return resultado;
+          return Array.isArray(resultado) ? resultado : [];
         },
         CACHE_TTL.FATURAMENTO
       );
@@ -134,11 +131,13 @@ export const faturamentoRouter = router({
         cacheKey,
         async () => {
           const db = await getDb();
+          if (!db) return null;
+
           const resultado = await db.execute(
-            "SELECT * FROM faturamento_tiss WHERE id = ?",
-            [input.id]
+            sql`SELECT * FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
           );
-          return resultado[0] || null;
+
+          return Array.isArray(resultado) && resultado.length > 0 ? resultado[0] : null;
         },
         CACHE_TTL.FATURAMENTO
       );
@@ -152,8 +151,6 @@ export const faturamentoRouter = router({
     .input(
       z.object({
         id: z.number().positive(),
-        dados: z.record(z.any()),
-        status: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -163,36 +160,41 @@ export const faturamentoRouter = router({
 
       try {
         const db = await getDb();
-        
+        if (!db) throw new Error("Database not available");
+
         // Obtém faturamento atual para invalidar cache
         const faturamento = await db.execute(
-          "SELECT estabelecimento_id FROM faturamento_tiss WHERE id = ?",
-          [input.id]
+          sql`SELECT estabelecimentoId FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
         );
 
-        if (!faturamento[0]) {
+        if (!Array.isArray(faturamento) || !faturamento[0]) {
           throw new Error("Faturamento não encontrado");
         }
 
         // Atualiza faturamento
         await db.execute(
-          `UPDATE faturamento_tiss 
-           SET dados = ?, status = ?, data_atualizacao = NOW()
-           WHERE id = ?`,
-          [JSON.stringify(input.dados), input.status, input.id]
+          sql`UPDATE faturamento_tiss SET data_importacao = NOW() WHERE id = ${input.id}`
         );
 
         // Invalida cache
-        await invalidateFaturamentoCache(faturamento[0].estabelecimento_id);
+        const estabelecimentoId = (faturamento[0] as any).estabelecimentoId;
+        if (estabelecimentoId) {
+          await invalidateFaturamentoCache(estabelecimentoId);
+        }
 
-        logger.info("Faturamento atualizado", {
+        logger.info({
+          message: "Faturamento atualizado",
           id: input.id,
           usuarioId: ctx.user.id,
         });
 
         return { id: input.id, status: "sucesso" };
       } catch (error) {
-        logger.error("Erro ao atualizar faturamento", { error, input });
+        logger.error({
+          message: "Erro ao atualizar faturamento",
+          error: String(error),
+          input,
+        });
         throw error;
       }
     }),
@@ -210,31 +212,41 @@ export const faturamentoRouter = router({
 
       try {
         const db = await getDb();
-        
+        if (!db) throw new Error("Database not available");
+
         // Obtém faturamento atual
         const faturamento = await db.execute(
-          "SELECT estabelecimento_id FROM faturamento_tiss WHERE id = ?",
-          [input.id]
+          sql`SELECT estabelecimentoId FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
         );
 
-        if (!faturamento[0]) {
+        if (!Array.isArray(faturamento) || !faturamento[0]) {
           throw new Error("Faturamento não encontrado");
         }
 
         // Deleta faturamento
-        await db.execute("DELETE FROM faturamento_tiss WHERE id = ?", [input.id]);
+        await db.execute(
+          sql`DELETE FROM faturamento_tiss WHERE id = ${input.id}`
+        );
 
         // Invalida cache
-        await invalidateFaturamentoCache(faturamento[0].estabelecimento_id);
+        const estabelecimentoId = (faturamento[0] as any).estabelecimentoId;
+        if (estabelecimentoId) {
+          await invalidateFaturamentoCache(estabelecimentoId);
+        }
 
-        logger.info("Faturamento deletado", {
+        logger.info({
+          message: "Faturamento deletado",
           id: input.id,
           usuarioId: ctx.user.id,
         });
 
         return { id: input.id, status: "sucesso" };
       } catch (error) {
-        logger.error("Erro ao deletar faturamento", { error, input });
+        logger.error({
+          message: "Erro ao deletar faturamento",
+          error: String(error),
+          input,
+        });
         throw error;
       }
     }),

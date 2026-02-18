@@ -21,7 +21,7 @@ export async function initRedis(): Promise<void> {
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            logger.error("Redis: Máximo de tentativas de reconexão atingido");
+            logger.error({ message: "Redis: Máximo de tentativas de reconexão atingido" });
             return new Error("Redis max retries exceeded");
           }
           return retries * 100;
@@ -30,16 +30,16 @@ export async function initRedis(): Promise<void> {
     });
 
     redisClient.on("error", (err) => {
-      logger.error("Redis Client Error", { error: err.message });
+      logger.error({ message: "Redis Client Error", error: err.message });
     });
 
     redisClient.on("connect", () => {
-      logger.info("Redis: Conectado com sucesso");
+      logger.info({ message: "Redis: Conectado com sucesso" });
     });
 
     await redisClient.connect();
   } catch (error) {
-    logger.error("Redis: Falha ao conectar", { error });
+    logger.error({ message: "Redis: Falha ao conectar", error: String(error) });
     redisClient = null;
   }
 }
@@ -66,15 +66,15 @@ export async function cacheSet<T>(
   ttlSeconds: number = 3600
 ): Promise<void> {
   if (!redisClient) {
-    logger.warn("Cache: Redis não está conectado, ignorando SET", { key });
+    logger.warn({ message: "Cache: Redis não está conectado, ignorando SET", key });
     return;
   }
 
   try {
     await redisClient.setEx(key, ttlSeconds, JSON.stringify(value) as any);
-    logger.debug("Cache: SET", { key, ttl: ttlSeconds });
+    logger.debug({ message: "Cache: SET", key, ttl: ttlSeconds });
   } catch (error) {
-    logger.error("Cache: Erro ao SET", { key, error });
+    logger.error({ message: "Cache: Erro ao SET", key, error: String(error) });
   }
 }
 
@@ -85,20 +85,20 @@ export async function cacheSet<T>(
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
   if (!redisClient) {
-    logger.warn("Cache: Redis não está conectado, ignorando GET", { key });
+    logger.warn({ message: "Cache: Redis não está conectado, ignorando GET", key });
     return null;
   }
 
   try {
     const value = await redisClient.get(key);
     if (value) {
-      logger.debug("Cache: HIT", { key });
+      logger.debug({ message: "Cache: HIT", key });
       return JSON.parse(value) as T;
     }
-    logger.debug("Cache: MISS", { key });
+    logger.debug({ message: "Cache: MISS", key });
     return null;
   } catch (error) {
-    logger.error("Cache: Erro ao GET", { key, error });
+    logger.error({ message: "Cache: Erro ao GET", key, error: String(error) });
     return null;
   }
 }
@@ -112,9 +112,9 @@ export async function cacheDel(key: string): Promise<void> {
 
   try {
     await redisClient.del(key);
-    logger.debug("Cache: DEL", { key });
+    logger.debug({ message: "Cache: DEL", key });
   } catch (error) {
-    logger.error("Cache: Erro ao DEL", { key, error });
+    logger.error({ message: "Cache: Erro ao DEL", key, error: String(error) });
   }
 }
 
@@ -127,9 +127,9 @@ export async function cacheDelMultiple(keys: string[]): Promise<void> {
 
   try {
     await redisClient.del(keys);
-    logger.debug("Cache: DEL MULTIPLE", { count: keys.length });
+    logger.debug({ message: "Cache: DEL MULTIPLE", count: keys.length });
   } catch (error) {
-    logger.error("Cache: Erro ao DEL MULTIPLE", { error });
+    logger.error({ message: "Cache: Erro ao DEL MULTIPLE", error: String(error) });
   }
 }
 
@@ -144,10 +144,10 @@ export async function cacheClearPattern(pattern: string): Promise<void> {
     const keys = await redisClient.keys(pattern);
     if (keys.length > 0) {
       await redisClient.del(keys);
-      logger.debug("Cache: CLEAR PATTERN", { pattern, count: keys.length });
+      logger.debug({ message: "Cache: CLEAR PATTERN", pattern, count: keys.length });
     }
   } catch (error) {
-    logger.error("Cache: Erro ao CLEAR PATTERN", { pattern, error });
+    logger.error({ message: "Cache: Erro ao CLEAR PATTERN", pattern, error: String(error) });
   }
 }
 
