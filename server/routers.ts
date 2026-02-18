@@ -12,6 +12,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
+import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6391,6 +6392,9 @@ export const appRouter = router({
       }
     }),
   }),
+
+  // ============ MOTOR DE REGRAS ============
+  motorRegras: motorRegrasRouter,
 
   // ============ AVISOS INTERNOS ============
   avisosInternos: router({

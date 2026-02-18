@@ -252,6 +252,28 @@ export function generateComparacoesKey(
 }
 
 /**
+ * Invalidar cache do Motor de Regras
+ * Chamado quando histórico XML é criado/atualizado/deletado
+ */
+export async function invalidateMotorRegrasCache(
+  estabelecimentoId: number
+): Promise<void> {
+  await cacheClearPattern(`motor-regras:${estabelecimentoId}:*`);
+}
+
+/**
+ * Gera chave de cache para Motor de Regras
+ * @param estabelecimentoId ID do estabelecimento
+ * @param tipo Tipo de query (historico, estatisticas, etc)
+ */
+export function generateMotorRegrasKey(
+  estabelecimentoId: number,
+  tipo: string
+): string {
+  return `motor-regras:${estabelecimentoId}:${tipo}`;
+}
+
+/**
  * Gera chave de cache para relatórios
  * @param tipo Tipo de relatório (faturamento, glosa, comparacoes)
  * @param estabelecimentoId ID do estabelecimento
@@ -292,6 +314,9 @@ export const CACHE_TTL = {
 
   // Configurações (1 dia)
   CONFIGURACOES: 86400,
+
+  // Motor de Regras - Histórico XML (2 horas)
+  MOTOR_REGRAS: 7200,
 };
 
 /**

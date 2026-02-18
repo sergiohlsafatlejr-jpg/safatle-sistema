@@ -1851,3 +1851,23 @@
 - [ ] Exibir histórico com filtros por data, usuário e arquivo
 - [ ] Migrar módulo de tasy (procedures de importação)
 - [ ] Migrar módulo de relatórios (procedures de geração)
+
+
+## Fase 6 - Motor de Regras - Histórico de Validações XML (Semana 7)
+
+- [x] Ativar módulos com feature flags (faturamento, glosa, comparações) em 100% de tráfego
+- [x] Implementar motorRegrasRouter com procedures tRPC
+- [x] Criar procedures: salvarValidacao, listarHistorico, obterValidacao, obterEstatisticas, deletarValidacao
+- [x] Integrar cache Redis com TTL de 2 horas
+- [x] Criar testes vitest para motorRegrasRouter (6 testes passando)
+- [x] Adicionar MOTOR_REGRAS ao CACHE_TTL em cache.ts
+- [x] Criar funções invalidateMotorRegrasCache e generateMotorRegrasKey
+- [x] Implementar página HistoricoValidacaoXml.tsx com:
+  - [x] Tabela de histórico com filtros
+  - [x] Estatísticas de conformidade (total, válidas, inválidas, score)
+  - [x] Exportar para CSV
+  - [x] Deletar validações (admin only)
+  - [x] Paginação e busca por arquivo/data
+- [x] Adicionar rota /historico-validacao-xml no App.tsx
+- [x] Integrar motorRegrasRouter no appRouter (server/routers.ts)
+- [x] **ZERO ERROS DE COMPILAÇÃO MANTIDO!**

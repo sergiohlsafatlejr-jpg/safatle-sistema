@@ -2,6 +2,7 @@ import { router } from "../_core/trpc";
 import { faturamentoRouter } from "./faturamentoRouter";
 import { glosaRouter } from "./glosaRouter";
 import { comparacoesRouter } from "./comparacoesRouter";
+import { motorRegrasRouter } from "./motorRegrasRouter";
 import { tasyRouter } from "./tasyRouter";
 import { relatoriosRouter } from "./relatoriosRouter";
 // import { auditariaRouter } from "./auditariaRouter"; // TODO: Criar auditariaRouter
@@ -14,6 +15,7 @@ export const modulesRouter = router({
   faturamento: faturamentoRouter,
   glosa: glosaRouter,
   comparacoes: comparacoesRouter,
+  motorRegras: motorRegrasRouter,
   tasy: tasyRouter,
   relatorios: relatoriosRouter,
   // auditoria: auditariaRouter, // TODO: Implementar auditariaRouter
@@ -26,6 +28,7 @@ export const MODULOS_ATIVOS = {
   faturamento: process.env.ENABLE_MODULO_FATURAMENTO === "true",
   glosa: process.env.ENABLE_MODULO_GLOSA === "true",
   comparacoes: process.env.ENABLE_MODULO_COMPARACOES === "true",
+  motorRegras: process.env.ENABLE_MODULO_MOTOR_REGRAS === "true",
   tasy: process.env.ENABLE_MODULO_TASY === "true",
   relatorios: process.env.ENABLE_MODULO_RELATORIOS === "true",
   // auditoria: process.env.ENABLE_MODULO_AUDITORIA === "true", // TODO: Implementar
