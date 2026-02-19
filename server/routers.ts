@@ -5843,6 +5843,41 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getOpcoesFiltroBi(input.estabelecimentoId);
       }),
+
+    // Itens por categoria
+    itemsPorCategoria: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+        convenioId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getItemsPorCategoria(input);
+      }),
+
+    // Glosas por motivo
+    glosasPorMotivo: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+        convenioId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getGlosasPorMotivo(input);
+      }),
+
+    // Performance por médico
+    performanceMedico: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getPerformanceMedico(input);
+      }),
   }),
 
   // ============ RECEBIMENTO TISS ============

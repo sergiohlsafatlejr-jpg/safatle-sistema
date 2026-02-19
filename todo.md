@@ -1887,3 +1887,18 @@
 - [ ] Criar testes vitest para procedure populateFromImportedXml
 - [ ] Executar população de histórico com dados reais
 - [ ] Validar regras geradas automaticamente
+
+
+## Fase 8 - Refatoração de Relatórios BI (Semana 9)
+
+- [x] Criar procedures tRPC para novos relatórios (itemsPorCategoria, glosasPorMotivo, performanceMedico)
+- [x] Adicionar 3 procedures ao relatoriosBI router em server/routers.ts
+- [x] Implementar funções em server/db.ts (com dados mock para agora)
+- [ ] Refatorar RelatoriosBI.tsx com novo layout moderno (4 abas: Dashboard, Análise Itens, Glosas, Médicos)
+- [ ] Implementar componentes reutilizáveis (MetricCard, ChartContainer, TrendIndicator, DataTable)
+- [ ] Integrar gráficos e tabelas dos novos relatórios
+- [ ] Testar responsividade (desktop, tablet, mobile)
+- [ ] Implementar dark mode
+- [ ] Adicionar filtros por prestador e mês de referência
+- [ ] Implementar export para Excel/PDF
+- [ ] Validar integração com dados reais do banco
