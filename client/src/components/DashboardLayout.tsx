@@ -59,7 +59,8 @@ import {
   FileCode2,
   Users,
   Megaphone,
-  Home
+  Home,
+  Wrench
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -121,6 +122,7 @@ const menuItems: MenuItem[] = [
   // Administração
   { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
+  { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
