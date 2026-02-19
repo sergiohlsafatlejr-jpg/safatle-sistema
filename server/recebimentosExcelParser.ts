@@ -28,8 +28,9 @@ const COLUMN_MAPPING: Record<string, keyof InsertRecebimentoExcel> = {
   
   // Beneficiário
   'Beneficiário': 'beneficiario',
-  'ASSOCIADO': 'beneficiario', // Formato Vivacom
+  // 'ASSOCIADO': 'beneficiario', // NÃO MAPEAR - ASSOCIADO é o nome do paciente, não a carteirinha
   'Nome Beneficiário': 'nomeBeneficiario',
+  'ASSOCIADO': 'nomeBeneficiario', // Formato Vivacom - ASSOCIADO é o nome do paciente
   
   // Execução
   'Data Execução': 'dataExecucao',
@@ -50,7 +51,7 @@ const COLUMN_MAPPING: Record<string, keyof InsertRecebimentoExcel> = {
   'Tipo Lançamento': 'tipoLancamento',
   'Tipo Lancamento': 'tipoLancamento',
   'Erro TISS': 'erroTiss',
-  'COD. GLOSA': 'erroTiss', // Formato Vivacom
+  'COD. GLOSA': 'codigoGlosa', // Formato Vivacom - CORRIGIDO: era erroTiss
   'Situação Item': 'situacaoItem',
   'Situacao Item': 'situacaoItem',
   
@@ -75,7 +76,7 @@ const COLUMN_MAPPING: Record<string, keyof InsertRecebimentoExcel> = {
   
   // Valores Vivacom
   'VALOR PROCESSADO': 'processado', // Formato Vivacom
-  'VALOR GLOSA': 'erroTiss', // Formato Vivacom
+  'VALOR GLOSA': 'valorGlosa', // Formato Vivacom - CORRIGIDO: era erroTiss
 };
 
 /**
