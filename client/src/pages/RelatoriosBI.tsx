@@ -439,6 +439,131 @@ export default function RelatoriosBI() {
             )}
           </CardContent>
         </Card>
+
+        {/* Relatório por Motivo de Glosa */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Glosados por Motivo
+            </CardTitle>
+            <CardDescription>Análise de glosados agrupados por motivo/justificativa</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {relatorioData?.porMotivoGlosa && relatorioData.porMotivoGlosa.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Motivo da Glosa</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead className="text-right">Valor Faturado</TableHead>
+                      <TableHead className="text-right">Valor Glosado</TableHead>
+                      <TableHead className="text-center">% Glosa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {relatorioData.porMotivoGlosa.slice(0, 10).map((item) => {
+                      const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
+                      return (
+                        <TableRow key={item.chave}>
+                          <TableCell className="font-medium">{item.chave || "Sem motivo"}</TableCell>
+                          <TableCell className="text-right">{item.quantidade}</TableCell>
+                          <TableCell className="text-right">
+                            R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600 font-medium">
+                            R$ {(item.valorGlosado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
+                              {percentualGlosa}%
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {relatorioData.porMotivoGlosa && relatorioData.porMotivoGlosa.length > 10 && (
+                  <div className="mt-4 text-sm text-muted-foreground text-center">
+                    Mostrando 10 de {relatorioData.porMotivoGlosa.length} registros
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Nenhum dado de glosa encontrado
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Relatório por Descrição de Itens */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-blue-600" />
+              Itens por Descrição
+            </CardTitle>
+            <CardDescription>Análise de itens agrupados por descrição/procedimento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {relatorioData?.porDescricao && relatorioData.porDescricao.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Descrição do Item</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead className="text-right">Valor Faturado</TableHead>
+                      <TableHead className="text-right">Valor Recebido</TableHead>
+                      <TableHead className="text-right">Valor Glosado</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {relatorioData.porDescricao.slice(0, 15).map((item) => (
+                      <TableRow key={item.chave}>
+                        <TableCell className="font-medium text-sm">{item.chave || "-"}</TableCell>
+                        <TableCell className="text-right">{item.quantidade}</TableCell>
+                        <TableCell className="text-right">
+                          R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">
+                          R$ {(item.valorRecebido || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right text-red-600 font-medium">
+                          R$ {(item.valorGlosado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {item.valorGlosado && item.valorGlosado > 0 ? (
+                            <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">
+                              Glosado
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                              Pago
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {relatorioData.porDescricao && relatorioData.porDescricao.length > 15 && (
+                  <div className="mt-4 text-sm text-muted-foreground text-center">
+                    Mostrando 15 de {relatorioData.porDescricao.length} registros
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Nenhum dado de itens encontrado
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
