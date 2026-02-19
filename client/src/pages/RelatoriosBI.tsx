@@ -196,6 +196,22 @@ export default function RelatoriosBI() {
     { enabled: !!estabelecimentoAtual }
   );
   
+  // Buscar novos relatórios
+  const { data: itemsPorCategoria } = trpc.relatoriosBI.itemsPorCategoria.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0, mesReferencia: mesSelecionado > 0 ? mesSelecionado : undefined, anoReferencia: anoSelecionado, convenioId: filtroConvenio !== 'all' ? parseInt(filtroConvenio) : undefined },
+    { enabled: !!estabelecimentoAtual }
+  );
+  
+  const { data: glosasPorMotivo } = trpc.relatoriosBI.glosasPorMotivo.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0, mesReferencia: mesSelecionado > 0 ? mesSelecionado : undefined, anoReferencia: anoSelecionado, convenioId: filtroConvenio !== 'all' ? parseInt(filtroConvenio) : undefined },
+    { enabled: !!estabelecimentoAtual }
+  );
+  
+  const { data: performanceMedico } = trpc.relatoriosBI.performanceMedico.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || 0, mesReferencia: mesSelecionado > 0 ? mesSelecionado : undefined, anoReferencia: anoSelecionado },
+    { enabled: !!estabelecimentoAtual }
+  );
+  
 
   
   // Dados agrupados baseado na dimensão selecionada
@@ -730,6 +746,17 @@ export default function RelatoriosBI() {
           </Card>
         </div>
         
+        {/* Abas de Relatórios */}
+        <Tabs defaultValue="dashboard" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="itens">Análise Itens</TabsTrigger>
+            <TabsTrigger value="glosas">Glosas</TabsTrigger>
+            <TabsTrigger value="medicos">Médicos</TabsTrigger>
+          </TabsList>
+          
+          {/* Aba Dashboard */}
+          <TabsContent value="dashboard" className="space-y-6">
         {/* Área de Análise */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Painel de Controle */}
@@ -952,6 +979,122 @@ export default function RelatoriosBI() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+          
+          {/* Aba Análise de Itens */}
+          <TabsContent value="itens" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Análise de Itens por Categoria</CardTitle>
+                <CardDescription>Distribuição de valores por tipo de item</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {itemsPorCategoria?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold">{item.categoria}</h3>
+                        <Badge>{item.percentual}%</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Quantidade</p>
+                          <p className="font-bold">{formatNumber(item.quantidade)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Valor</p>
+                          <p className="font-bold text-blue-600">{formatCurrency(item.valor)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Tendência</p>
+                          <p className={`font-bold ${item.tendencia === 'up' ? 'text-green-600' : item.tendencia === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
+                            {item.tendencia === 'up' ? '↑' : item.tendencia === 'down' ? '↓' : '→'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* Aba Glosas */}
+          <TabsContent value="glosas" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Glosas por Motivo</CardTitle>
+                <CardDescription>Análise detalhada de motivos de glosa</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {glosasPorMotivo?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-red-900">{item.motivo}</h3>
+                        <Badge variant="destructive">{item.percentual}%</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Quantidade</p>
+                          <p className="font-bold">{formatNumber(item.quantidade)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Valor</p>
+                          <p className="font-bold text-red-600">{formatCurrency(item.valor)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Por Convenío</p>
+                          <p className="text-xs">{item.porConvenio?.length || 0} conveníos</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* Aba Performance por Médico */}
+          <TabsContent value="medicos" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance por Médico</CardTitle>
+                <CardDescription>Análise de faturamento e taxa de glosa</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Médico</TableHead>
+                        <TableHead className="text-right">Faturado</TableHead>
+                        <TableHead className="text-right">Recebido</TableHead>
+                        <TableHead className="text-right">Glosado</TableHead>
+                        <TableHead className="text-right">Taxa Glosa</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {performanceMedico?.map((medico: any, idx: number) => (
+                        <TableRow key={idx} className="hover:bg-muted/50">
+                          <TableCell className="font-medium">{medico.medicoNome}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(medico.faturado)}</TableCell>
+                          <TableCell className="text-right text-green-600 font-semibold">{formatCurrency(medico.recebido)}</TableCell>
+                          <TableCell className="text-right text-red-600 font-semibold">{formatCurrency(medico.glosado)}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant={medico.taxaGlosa > 15 ? 'destructive' : 'default'}>
+                              {medico.taxaGlosa}%
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
         
         {/* Modal de Drill-Down */}
         <Dialog open={drillDownAberto} onOpenChange={setDrillDownAberto}>

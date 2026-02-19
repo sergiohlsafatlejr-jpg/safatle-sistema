@@ -1894,7 +1894,7 @@
 - [x] Criar procedures tRPC para novos relatórios (itemsPorCategoria, glosasPorMotivo, performanceMedico)
 - [x] Adicionar 3 procedures ao relatoriosBI router em server/routers.ts
 - [x] Implementar funções em server/db.ts (com dados mock para agora)
-- [ ] Refatorar RelatoriosBI.tsx com novo layout moderno (4 abas: Dashboard, Análise Itens, Glosas, Médicos)
+- [x] Refatorar RelatoriosBI.tsx com novo layout moderno (4 abas: Dashboard, Análise Itens, Glosas, Médicos)
 - [ ] Implementar componentes reutilizáveis (MetricCard, ChartContainer, TrendIndicator, DataTable)
 - [ ] Integrar gráficos e tabelas dos novos relatórios
 - [ ] Testar responsividade (desktop, tablet, mobile)
