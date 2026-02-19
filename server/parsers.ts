@@ -492,14 +492,7 @@ function extractProcedimentosFromPetrobras(obj: unknown): ParsedProcedimento[] {
         if (!protocolo || typeof protocolo !== "object") continue;
         const protoRecord = protocolo as Record<string, unknown>;
         
-        // Get protocolo info
-        const numeroProtocolo = getTextValue(protoRecord["numeroProtocolo"]);
-        const numeroLote = getTextValue(protoRecord["numeroLote"]);
-        const dataProtocolo = parseDate(protoRecord["dataProtocolo"]);
-        const valorInformado = parseNumber(protoRecord["valorInformado"]);
-        const valorProcessado = parseNumber(protoRecord["valorProcessado"]);
-        const valorLiberado = parseNumber(protoRecord["valorLiberado"]);
-        const valorGlosa = parseNumber(protoRecord["valorGlosa"]);
+        // Protocolo info não é usado - apenas guiasDoLote
         
         // Get guiasDoLote (can be array or single)
         let guias = protoRecord["guiasDoLote"];
@@ -527,31 +520,25 @@ function extractProcedimentosFromPetrobras(obj: unknown): ParsedProcedimento[] {
           }
           
           // Create procedimento entry for this guia
+          // Use apenas campos de guiasDoLote
           procedimentos.push({
-            codigo: numeroGuiaPrestador || numeroGuiaOperadora || "UNKNOWN",
+            codigo: numeroGuiaOperadora || numeroGuiaPrestador || "UNKNOWN",
             descricao: `Guia ${numeroGuiaOperadora || numeroGuiaPrestador}`,
             quantidade: 1,
             valorUnitario: valorLiberadoGuia,
             valorTotal: valorLiberadoGuia,
-            dataExecucao: dataProtocolo || dataPagamento || dataEmissao,
-            guiaNumero: numeroGuiaPrestador || numeroGuiaOperadora,
+            dataExecucao: dataPagamento,
+            guiaNumero: numeroGuiaOperadora,
             numeroGuiaOperadora: numeroGuiaOperadora,
-            codigoPrestadorExecutante: codigoPrestador,
-            registroANS: nomeOperadora,
+            codigoPrestadorExecutante: undefined,
+            registroANS: undefined,
             motivoGlosa: (valorGlosaGuia || 0) > 0 ? "Glosa" : undefined,
             valorGlosado: valorGlosaGuia,
-            numeroLote: numeroLote,
+            numeroLote: undefined,
             dadosExtras: {
-              nomeOperadora,
-              numeroCNPJ,
-              numeroProtocolo,
-              cnes,
               tipoPagamento,
               valorProcessadoGuia,
-              valorProcessado,
-              valorInformado,
               situacaoItem,
-              dataPagamento: dataPagamento?.toISOString(),
             }
           });
         }
