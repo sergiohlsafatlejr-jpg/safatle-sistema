@@ -19,6 +19,7 @@ import {
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
+import { PieChart as RechartsPieChart, Pie as RechartsPie, Cell, ResponsiveContainer, Legend as RechartsLegend, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar as RechartsBar, XAxis, YAxis, CartesianGrid, LineChart as RechartsLineChart, Line as RechartsLine } from "recharts";
 import { 
   BarChart3, 
   PieChart, 
@@ -60,7 +61,7 @@ import {
   PointElement,
   LineElement,
 } from 'chart.js';
-import { Bar, Pie, Line, Doughnut } from 'react-chartjs-2';
+import { Bar as ChartJSBar, Pie as ChartJSPie, Line as ChartJSLine, Doughnut } from 'react-chartjs-2';
 import { toast } from "sonner";
 
 // Registrar componentes do Chart.js
@@ -912,9 +913,9 @@ export default function RelatoriosBI() {
                 </div>
               ) : (
                 <div className="h-[400px]">
-                  {tipoGrafico === 'bar' && <Bar data={dadosGrafico} options={opcoesGrafico} />}
-                  {tipoGrafico === 'line' && <Line data={dadosGrafico} options={opcoesGrafico} />}
-                  {tipoGrafico === 'pie' && <Pie data={dadosGrafico} options={opcoesGrafico} />}
+                  {tipoGrafico === 'bar' && <ChartJSBar data={dadosGrafico} options={opcoesGrafico} />}
+                  {tipoGrafico === 'line' && <ChartJSLine data={dadosGrafico} options={opcoesGrafico} />}
+                  {tipoGrafico === 'pie' && <ChartJSPie data={dadosGrafico} options={opcoesGrafico} />}
                   {tipoGrafico === 'doughnut' && <Doughnut data={dadosGrafico} options={opcoesGrafico} />}
                 </div>
               )}
@@ -1002,31 +1003,59 @@ export default function RelatoriosBI() {
                 <CardDescription>Distribuição de valores por tipo de item</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {itemsPorCategoria?.map((item: any, idx: number) => (
-                    <div key={idx} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold">{item.categoria}</h3>
-                        <Badge>{item.percentual}%</Badge>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Quantidade</p>
-                          <p className="font-bold">{formatNumber(item.quantidade)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Valor</p>
-                          <p className="font-bold text-blue-600">{formatCurrency(item.valor)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Tendência</p>
-                          <p className={`font-bold ${item.tendencia === 'up' ? 'text-green-600' : item.tendencia === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
-                            {item.tendencia === 'up' ? '↑' : item.tendencia === 'down' ? '↓' : '→'}
-                          </p>
-                        </div>
-                      </div>
+                <div className="space-y-6">
+                  {/* Gráfico de Pizza */}
+                  {itemsPorCategoria && itemsPorCategoria.length > 0 && (
+                    <div className="h-80 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsPieChart>
+                          <RechartsPie
+                            data={itemsPorCategoria}
+                            dataKey="valor"
+                            nameKey="categoria"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label={(entry) => `${entry.categoria}: ${entry.percentual}%`}
+                          >
+                            {itemsPorCategoria.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][index % 6]} />
+                            ))}
+                          </RechartsPie>
+                          <RechartsTooltip formatter={(value: any) => formatCurrency(value)} />
+                          <RechartsLegend />
+                        </RechartsPieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
+                  )}
+                  
+                  {/* Tabela de Detalhes */}
+                  <div className="space-y-4">
+                    {itemsPorCategoria?.map((item: any, idx: number) => (
+                      <div key={idx} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold">{item.categoria}</h3>
+                          <Badge>{item.percentual}%</Badge>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Quantidade</p>
+                            <p className="font-bold">{formatNumber(item.quantidade)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Valor</p>
+                            <p className="font-bold text-blue-600">{formatCurrency(item.valor)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Tendência</p>
+                            <p className={`font-bold ${item.tendencia === 'up' ? 'text-green-600' : item.tendencia === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
+                              {item.tendencia === 'up' ? '↑' : item.tendencia === 'down' ? '↓' : '→'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
