@@ -37,14 +37,8 @@ import NaoRecebidos from "./pages/NaoRecebidos";
 import EnvioRecursosLote from "./pages/EnvioRecursosLote";
 import RegrasIA from "./pages/RegrasIA";
 import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
-import ImportacaoTasy from "./pages/ImportacaoTasy";
-import ConciliacaoTasy from "./pages/ConciliacaoTasy";
-import ContasTasy from "./pages/ContasTasy";
-import RelatoriosTasy from "./pages/RelatoriosTasy";
-import DetalheContaTasy from "./pages/DetalheContaTasy";
 import RelatoriosBI from "./pages/RelatoriosBI";
 import ConciliacaoContasPagas from "./pages/ConciliacaoContasPagas";
-import HistoricoConciliacaoTasy from "./pages/HistoricoConciliacaoTasy";
 import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
 import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
 import ContaConvenioDetalhes from "./pages/ContaConvenioDetalhes";
@@ -104,14 +98,8 @@ function Router() {
       <Route path={"/nao-recebidos"} component={NaoRecebidos} />
       <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
       <Route path={"/regras-ia"} component={RegrasIA} />
-      <Route path={"/importacao-tasy"} component={ImportacaoTasy} />
-      <Route path={"/conciliacao-tasy"} component={ConciliacaoTasy} />
-      <Route path={"/contas-tasy"} component={ContasTasy} />
-      <Route path={"/contas-tasy/:atendimento"} component={DetalheContaTasy} />
-      <Route path={"/relatorios-tasy"} component={RelatoriosTasy} />
       <Route path={"/relatorios-bi"} component={RelatoriosBI} />
       <Route path={"/conciliacao-contas-pagas"} component={ConciliacaoContasPagas} />
-      <Route path={"/historico-conciliacao-tasy"} component={HistoricoConciliacaoTasy} />
       <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
       <Route path={"/recebimentos-xml"} component={RecebimentosXml} />

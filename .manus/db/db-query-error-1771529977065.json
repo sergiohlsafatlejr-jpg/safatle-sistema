@@ -1,0 +1,8 @@
+{
+  "query": "-- Backup das tabelas TASY (criar cópias com sufixo _backup)\nCREATE TABLE IF NOT EXISTS faturadoTasy_backup AS SELECT * FROM faturadoTasy;\nCREATE TABLE IF NOT EXISTS importacoesTasy_backup AS SELECT * FROM importacoesTasy;\nCREATE TABLE IF NOT EXISTS itensConciliacaoTasy_backup AS SELECT * FROM itensConciliacaoTasy;\nCREATE TABLE IF NOT EXISTS itensContaTasy_backup AS SELECT * FROM itensContaTasy;\nCREATE TABLE IF NOT EXISTS itensPagosTasy_backup AS SELECT * FROM itensPagosTasy;\nCREATE TABLE IF NOT EXISTS matMedTasy_backup AS SELECT * FROM matMedTasy;\nCREATE TABLE IF NOT EXISTS procedimentosTasy_backup AS SELECT * FROM procedimentosTasy;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute -- Backup das tabelas TASY (criar cópias com sufixo _backup)\nCREATE TABLE IF NOT EXISTS faturadoTasy_backup AS SELECT * FROM faturadoTasy;\nCREATE TABLE IF NOT EXISTS importacoesTasy_backup AS SELECT * FROM importacoesTasy;\nCREATE TABLE IF NOT EXISTS itensConciliacaoTasy_backup AS SELECT * FROM itensConciliacaoTasy;\nCREATE TABLE IF NOT EXISTS itensContaTasy_backup AS SELECT * FROM itensContaTasy;\nCREATE TABLE IF NOT EXISTS itensPagosTasy_backup AS SELECT * FROM itensPagosTasy;\nCREATE TABLE IF NOT EXISTS matMedTasy_backup AS SELECT * FROM matMedTasy;\nCREATE TABLE IF NOT EXISTS procedimentosTasy_backup AS SELECT * FROM procedimentosTasy;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1105 (HY000) at line 2: 'CREATE TABLE ... SELECT' is not implemented yet"
+  ]
+}

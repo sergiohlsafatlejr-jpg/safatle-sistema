@@ -74,7 +74,7 @@ type MenuItem = {
   path: string;
   modulo?: ModuloPermissao;
   adminOnly?: boolean;
-  tasyOnly?: boolean; // Se true, este item é visível apenas para usuários Tasy (e admins)
+
   estabelecimentoIds?: number[]; // Se definido, item só aparece para estes estabelecimentos
 };
 
@@ -122,11 +122,8 @@ const menuItems: MenuItem[] = [
   { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
-  { icon: Database, label: "Importação Tasy", path: "/importacao-tasy", modulo: "importacaoTasy", tasyOnly: true },
-  { icon: DollarSign, label: "Contas Faturadas", path: "/contas-faturadas", modulo: "contasFaturadas", tasyOnly: true },
-  { icon: BarChart3, label: "Relatórios Tasy", path: "/relatorios-tasy", modulo: "relatoriosTasy", tasyOnly: true },
-  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", tasyOnly: true },
-  { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas", tasyOnly: true },
+  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
+  { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
   
   // Atendimentos (PostgreSQL externo) - apenas Instituto do Rim (ID 4)
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
@@ -176,35 +173,7 @@ function AccessGuard({
     }
   }
   
-  // Verificar se é usuário Tasy
-  const isTasyUser = userRole === 'tasy_user';
-  
-  // Se é usuário Tasy, verificar se a rota é permitida
-  if (isTasyUser && currentMenuItem) {
-    const allowedPaths = ['/', '/configuracoes'];
-    const isAllowedForTasy = allowedPaths.includes(currentMenuItem.path) || currentMenuItem.tasyOnly;
-    
-    if (!isAllowedForTasy) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 max-w-md">
-            <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
-              <Lock className="h-8 w-8 text-blue-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-blue-800 mb-2">
-              Acesso Restrito - Usuário Tasy
-            </h2>
-            <p className="text-blue-700 mb-4">
-              Seu perfil de usuário Tasy tem acesso apenas às funcionalidades relacionadas ao sistema Tasy.
-            </p>
-            <p className="text-sm text-blue-600">
-              Para acessar outras funcionalidades do sistema, entre em contato com o administrador.
-            </p>
-          </div>
-        </div>
-      );
-    }
-  }
+
   
   // Se não encontrou o item ou não tem módulo definido, permite acesso
   if (!currentMenuItem || (!currentMenuItem.modulo && !currentMenuItem.adminOnly)) {
@@ -480,33 +449,16 @@ function DashboardLayoutContent({
             <SidebarMenu className="px-2 py-3">
               {menuItems
                 .filter(item => {
-                  // Verificar se é usuário Tasy (role = tasy_user)
-                  const isTasyUser = user?.role === 'tasy_user';
-                  
-                  // Se é usuário Tasy, só mostrar itens marcados como tasyOnly ou Dashboard/Configurações
-                  if (isTasyUser) {
-                    // Permitir Dashboard, Configurações e itens Tasy
-                    const allowedPaths = ['/', '/configuracoes'];
-                    if (allowedPaths.includes(item.path) || item.tasyOnly) {
-                      // Ainda precisa verificar permissão do módulo (se houver)
-                      if (item.modulo) return temAcessoModulo(item.modulo);
-                      if (item.adminOnly) return false; // Tasy user não é admin
-                      return true;
-                    }
-                    return false;
+                  // Verificar restrição por estabelecimento
+                  if (item.estabelecimentoIds && estabelecimentoAtual) {
+                    if (!item.estabelecimentoIds.includes(estabelecimentoAtual.id)) return false;
                   }
-                  
-                  // Para usuários normais e admins, manter lógica original
-                   // Verificar restrição por estabelecimento
-                   if (item.estabelecimentoIds && estabelecimentoAtual) {
-                     if (!item.estabelecimentoIds.includes(estabelecimentoAtual.id)) return false;
-                   }
-                   // Se não tem módulo definido, sempre mostra
-                   if (!item.modulo && !item.adminOnly) return true;
-                   // Se é adminOnly, verificar se é gestor
-                   if (item.adminOnly) return isGestor;
-                   // Verificar permissão do módulo
-                   return temAcessoModulo(item.modulo!);
+                  // Se não tem módulo definido, sempre mostra
+                  if (!item.modulo && !item.adminOnly) return true;
+                  // Se é adminOnly, verificar se é gestor
+                  if (item.adminOnly) return isGestor;
+                  // Verificar permissão do módulo
+                  return temAcessoModulo(item.modulo!);
                 })
                 .map(item => {
                 const isActive = location === item.path;
