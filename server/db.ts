@@ -12611,6 +12611,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
     if (paciente && paciente !== "todos" && item.carteiraBeneficiario !== paciente) return false;
     if (procedimento && procedimento !== "todos" && item.codigoItem !== procedimento) return false;
+    if (codigoPrestadorExecutante && codigoPrestadorExecutante !== "todos" && item.nomeProf !== codigoPrestadorExecutante) return false;
     return true;
   };
 
@@ -12622,6 +12623,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
     if (paciente && paciente !== "todos" && item.nomeBeneficiario !== paciente && item.carteiraBeneficiario !== paciente) return false;
     if (procedimento && procedimento !== "todos" && item.codigoItem !== procedimento) return false;
+    if (codigoPrestadorExecutante && codigoPrestadorExecutante !== "todos" && item.nomePrestador !== codigoPrestadorExecutante) return false;
     return true;
   };
 

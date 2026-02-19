@@ -52,6 +52,7 @@ export default function RelatoriosBI() {
   const [mes, setMes] = useState("todos");
   const [convenio, setConvenio] = useState("todos");
   const [tipo, setTipo] = useState("todos");
+  const [prestador, setPrestador] = useState("todos");
 
   const { data: relatorioData, isLoading } = trpc.relatoriosBI.dados.useQuery(
     {
@@ -60,6 +61,7 @@ export default function RelatoriosBI() {
       mesReferencia: mes !== "todos" ? parseInt(mes) : undefined,
       convenioId: convenio !== "todos" ? parseInt(convenio) : undefined,
       tipo: tipo !== "todos" ? tipo : undefined,
+      codigoPrestadorExecutante: prestador !== "todos" ? prestador : undefined,
     },
     { enabled: !!estabelecimentoAtual?.id }
   );
@@ -221,6 +223,25 @@ export default function RelatoriosBI() {
                     <SelectItem value="procedimento">Procedimento</SelectItem>
                     <SelectItem value="diaria">Diária</SelectItem>
                     <SelectItem value="taxa">Taxa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="prestador" className="text-sm font-medium">
+                  Prestador/Médico
+                </Label>
+                <Select value={prestador} onValueChange={setPrestador}>
+                  <SelectTrigger id="prestador">
+                    <SelectValue placeholder="Selecione um prestador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os Prestadores</SelectItem>
+                    {relatorioData?.porMedico?.map((item: any) => (
+                      <SelectItem key={item.chave} value={item.chave || "sem-codigo"}>
+                        {item.chave || "Sem código"}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
