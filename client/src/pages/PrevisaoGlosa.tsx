@@ -51,8 +51,8 @@ interface AnaliseRiscoConta {
 }
 
 export function PrevisaoGlosa() {
-  const { estabelecimento } = useEstabelecimento();
-  const estabelecimentoId = estabelecimento?.id || 0;
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id;
 
   const [convenioId, setConvenioId] = useState<number | null>(null);
   const [mesesHistorico, setMesesHistorico] = useState(12);
@@ -122,7 +122,7 @@ export function PrevisaoGlosa() {
   const coresPizza = ["#dc2626", "#f97316", "#eab308", "#22c55e"];
 
   const handleAnalisarPadroes = () => {
-    if (!convenioId) return;
+    if (!convenioId || !estabelecimentoId) return;
     padroesMutation.mutate({
       estabelecimentoId,
       convenioId,
@@ -131,7 +131,7 @@ export function PrevisaoGlosa() {
   };
 
   const handleAnalisarRisco = () => {
-    if (!convenioId || !numeroGuia) return;
+    if (!convenioId || !numeroGuia || !estabelecimentoId) return;
     riscoConta.mutate({
       estabelecimentoId,
       convenioId,
@@ -142,7 +142,7 @@ export function PrevisaoGlosa() {
   };
 
   const handleIdentificarContas = () => {
-    if (!convenioId || !arquivoId) return;
+    if (!convenioId || !arquivoId || !estabelecimentoId) return;
     contasComRisco.mutate({
       estabelecimentoId,
       convenioId,
