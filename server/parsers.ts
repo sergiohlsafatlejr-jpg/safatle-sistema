@@ -137,83 +137,84 @@ export async function parseXML(content: Buffer | string): Promise<ParseResult> {
           });
         }
       }
-    }
-    // Check if this is Petrobras format (operadoraParaPrestador with guiasDoLote)
-    const mensagemRecord = result as Record<string, unknown>;
-    const mensagemTISS = mensagemRecord['mensagemTISS'] as Record<string, unknown> | undefined;
-    const operadoraParaPrestador = mensagemTISS ? mensagemTISS['operadoraParaPrestador'] : mensagemRecord['operadoraParaPrestador'];
-    
-    if (operadoraParaPrestador && typeof operadoraParaPrestador === 'object') {
-      console.log('[Parser] Detected Petrobras format (operadoraParaPrestador with guiasDoLote)');
-      // Create a wrapper object for extractProcedimentosFromPetrobras
-      const petrobrasWrapper = mensagemTISS ? mensagemTISS : result;
-      const procsPetrobras = extractProcedimentosFromPetrobras(petrobrasWrapper);
-      console.log(`[Parser] Extracted ${procsPetrobras.length} guias from Petrobras XML`);
-      for (const proc of procsPetrobras) {
-        procedimentos.push({
-          ...proc,
-          numeroLote: proc.numeroLote || numeroLote,
-        });
-      }
     } else {
-      const demonstrativos = findDemonstrativosRetorno(result);
-      if (demonstrativos.length > 0) {
-        // Process demonstrativo de retorno
-        for (const demonstrativo of demonstrativos) {
-          const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
-          // Adicionar numeroLote aos procedimentos
-          for (const proc of procsRetorno) {
-            procedimentos.push({
-              ...proc,
-              numeroLote,
-            });
-          }
+      // Check if this is Petrobras format (operadoraParaPrestador with guiasDoLote)
+      const mensagemRecord = result as Record<string, unknown>;
+      const mensagemTISS = mensagemRecord['mensagemTISS'] as Record<string, unknown> | undefined;
+      const operadoraParaPrestador = mensagemTISS ? mensagemTISS['operadoraParaPrestador'] : mensagemRecord['operadoraParaPrestador'];
+      
+      if (operadoraParaPrestador && typeof operadoraParaPrestador === 'object') {
+        console.log('[Parser] Detected Petrobras format (operadoraParaPrestador with guiasDoLote)');
+        // Create a wrapper object for extractProcedimentosFromPetrobras
+        const petrobrasWrapper = mensagemTISS ? mensagemTISS : result;
+        const procsPetrobras = extractProcedimentosFromPetrobras(petrobrasWrapper);
+        console.log(`[Parser] Extracted ${procsPetrobras.length} guias from Petrobras XML`);
+        for (const proc of procsPetrobras) {
+          procedimentos.push({
+            ...proc,
+            numeroLote: proc.numeroLote || numeroLote,
+          });
         }
       } else {
-        // Process regular guias (prestadorParaOperadora) com guiasTISS
-        const guiasComSequencial = findGuiasComSequencial(result);
+        const demonstrativos = findDemonstrativosRetorno(result);
+        if (demonstrativos.length > 0) {
+          // Process demonstrativo de retorno
+          for (const demonstrativo of demonstrativos) {
+            const procsRetorno = extractProcedimentosFromDemonstrativo(demonstrativo);
+            // Adicionar numeroLote aos procedimentos
+            for (const proc of procsRetorno) {
+              procedimentos.push({
+                ...proc,
+                numeroLote,
+              });
+            }
+          }
+        } else {
+          // Process regular guias (prestadorParaOperadora) com guiasTISS
+          const guiasComSequencial = findGuiasComSequencial(result);
         
-        for (const { guia, sequencialTransacao } of guiasComSequencial) {
-          const guiaNumero = extractGuiaNumero(guia);
-          const pacienteCarteirinha = extractPacienteCarteirinha(guia);
-          const codigoPrestadorExecutante = extractCodigoPrestadorExecutante(guia);
-          const { registroANS, senha, numeroGuiaOperadora } = extractDadosGuia(guia);
-          
-          if (sequencialTransacao) {
-            console.log(`[Parser] Guia ${guiaNumero} - Sequencial: ${sequencialTransacao}`);
-          }
-          console.log(`[Parser] Guia ${guiaNumero} - registroANS: ${registroANS || 'N/A'}, senha: ${senha || 'N/A'}, guiaOperadora: ${numeroGuiaOperadora || 'N/A'}`);
-          
-          // Extract procedimentos executados
-          const procedimentosExecutados = extractProcedimentosExecutados(guia);
-          for (const proc of procedimentosExecutados) {
-            procedimentos.push({
-              ...proc,
-              guiaNumero: proc.guiaNumero || guiaNumero,
-              pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-              codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
-              registroANS,
-              senha: proc.senha || senha,
-              numeroGuiaOperadora,
-              numeroLote,
-              sequencialTransacao,
-            });
-          }
-          
-          // Extract outras despesas (servicosExecutados)
-          const outrasDespesas = extractOutrasDespesas(guia);
-          for (const proc of outrasDespesas) {
-            procedimentos.push({
-              ...proc,
-              guiaNumero: proc.guiaNumero || guiaNumero,
-              pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
-              codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
-              registroANS,
-              senha: proc.senha || senha,
-              numeroGuiaOperadora,
-              numeroLote,
-              sequencialTransacao,
-            });
+          for (const { guia, sequencialTransacao } of guiasComSequencial) {
+            const guiaNumero = extractGuiaNumero(guia);
+            const pacienteCarteirinha = extractPacienteCarteirinha(guia);
+            const codigoPrestadorExecutante = extractCodigoPrestadorExecutante(guia);
+            const { registroANS, senha, numeroGuiaOperadora } = extractDadosGuia(guia);
+            
+            if (sequencialTransacao) {
+              console.log(`[Parser] Guia ${guiaNumero} - Sequencial: ${sequencialTransacao}`);
+            }
+            console.log(`[Parser] Guia ${guiaNumero} - registroANS: ${registroANS || 'N/A'}, senha: ${senha || 'N/A'}, guiaOperadora: ${numeroGuiaOperadora || 'N/A'}`);
+            
+            // Extract procedimentos executados
+            const procedimentosExecutados = extractProcedimentosExecutados(guia);
+            for (const proc of procedimentosExecutados) {
+              procedimentos.push({
+                ...proc,
+                guiaNumero: proc.guiaNumero || guiaNumero,
+                pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+                codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
+                registroANS,
+                senha: proc.senha || senha,
+                numeroGuiaOperadora,
+                numeroLote,
+                sequencialTransacao,
+              });
+            }
+            
+            // Extract outras despesas (servicosExecutados)
+            const outrasDespesas = extractOutrasDespesas(guia);
+            for (const proc of outrasDespesas) {
+              procedimentos.push({
+                ...proc,
+                guiaNumero: proc.guiaNumero || guiaNumero,
+                pacienteCarteirinha: proc.pacienteCarteirinha || pacienteCarteirinha,
+                codigoPrestadorExecutante: proc.codigoPrestadorExecutante || codigoPrestadorExecutante,
+                registroANS,
+                senha: proc.senha || senha,
+                numeroGuiaOperadora,
+                numeroLote,
+                sequencialTransacao,
+              });
+            }
           }
         }
       }

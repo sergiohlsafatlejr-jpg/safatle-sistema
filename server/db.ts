@@ -17369,3 +17369,71 @@ export async function excluirAvisoInterno(id: number) {
 
 // ============ NOVOS RELATÓRIOS BI ============
 
+
+/**
+ * Buscar dados de faturamento_tiss para relatório
+ */
+export async function getRelatorioFaturamento(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenioId?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const conditions = [eq(faturamentoTiss.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.dataInicio) {
+    conditions.push(gte(faturamentoTiss.dataExecucao, filtros.dataInicio));
+  }
+
+  if (filtros?.dataFim) {
+    conditions.push(lte(faturamentoTiss.dataExecucao, filtros.dataFim));
+  }
+
+  if (filtros?.convenioId) {
+    conditions.push(eq(faturamentoTiss.convenioId, filtros.convenioId));
+  }
+
+  return await db
+    .select()
+    .from(faturamentoTiss)
+    .where(and(...conditions));
+}
+
+/**
+ * Buscar dados de demonstrativo para relatório
+ */
+export async function getRelatorioDemonstrativo(
+  estabelecimentoId: number,
+  filtros?: {
+    dataInicio?: Date;
+    dataFim?: Date;
+    convenioId?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const conditions = [eq(demonstrativo.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros?.dataInicio) {
+    conditions.push(gte(demonstrativo.dataExecucao, filtros.dataInicio));
+  }
+
+  if (filtros?.dataFim) {
+    conditions.push(lte(demonstrativo.dataExecucao, filtros.dataFim));
+  }
+
+  if (filtros?.convenioId) {
+    conditions.push(eq(demonstrativo.convenioId, filtros.convenioId));
+  }
+
+  return await db
+    .select()
+    .from(demonstrativo)
+    .where(and(...conditions));
+}

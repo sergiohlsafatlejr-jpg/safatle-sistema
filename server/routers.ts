@@ -5819,6 +5819,8 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ RELATÓRIOS ============
+
   // ============ RELATÓRIOS BI ============
   relatoriosBI: router({
     // Buscar dados consolidados para BI
