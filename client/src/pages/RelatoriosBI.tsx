@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import {
@@ -53,6 +54,7 @@ export default function RelatoriosBI() {
   const [convenio, setConvenio] = useState("todos");
   const [tipo, setTipo] = useState("todos");
   const [prestador, setPrestador] = useState("todos");
+  const [categoriaGlosa, setCategoriaGlosa] = useState("todas");
 
   const { data: relatorioData, isLoading } = trpc.relatoriosBI.dados.useQuery(
     {
@@ -109,10 +111,49 @@ export default function RelatoriosBI() {
       toast.error("Nenhum dado para exportar");
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(relatorioData.porConvenio);
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-    XLSX.writeFile(wb, `relatorio-${ano}-${mes}.xlsx`);
+    
+    // Aba 1: Resumo Geral
+    const resumoData = [{
+      Metrica: "Valor Faturado",
+      Valor: metricas.faturado,
+    }, {
+      Metrica: "Valor Recebido",
+      Valor: metricas.recebido,
+    }, {
+      Metrica: "Valor Glosado",
+      Valor: metricas.glosado,
+    }, {
+      Metrica: "Taxa de Glosa (%)",
+      Valor: metricas.percentualGlosa,
+    }];
+    const wsResumo = XLSX.utils.json_to_sheet(resumoData);
+    XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+    
+    // Aba 2: Por Convenio
+    const wsConvenio = XLSX.utils.json_to_sheet(relatorioData.porConvenio);
+    XLSX.utils.book_append_sheet(wb, wsConvenio, "Por Convenio");
+    
+    // Aba 3: Por Motivo de Glosa (com nomes descritivos)
+    const motivosData = (relatorioData.porMotivoGlosa || []).map((item: any) => {
+      const codigoMatch = String(item.chave).match(/^(\d+)/);
+      const codigo = codigoMatch ? codigoMatch[1] : "";
+      const descricao = String(item.chave).replace(/^\d+\s*-?\s*/, "") || "Sem motivo";
+      const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
+      return {
+        "Codigo TISS": codigo,
+        "Motivo da Glosa": descricao,
+        "Quantidade": item.quantidade || 0,
+        "Valor Faturado": item.valorFaturado || 0,
+        "Valor Glosado": item.valorGlosado || 0,
+        "Taxa Glosa (%)": percentualGlosa,
+      };
+    });
+    const wsMotivos = XLSX.utils.json_to_sheet(motivosData);
+    XLSX.utils.book_append_sheet(wb, wsMotivos, "Motivos Glosa");
+    
+    XLSX.writeFile(wb, `relatorio-bi-${ano}-${mes}-${new Date().getTime()}.xlsx`);
     toast.success("Relatório exportado com sucesso!");
   };
 
@@ -242,6 +283,29 @@ export default function RelatoriosBI() {
                         {item.chave || "Sem código"}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="categoriaGlosa" className="text-sm font-medium">
+                  Categoria de Glosa
+                </Label>
+                <Select value={categoriaGlosa} onValueChange={setCategoriaGlosa}>
+                  <SelectTrigger id="categoriaGlosa">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as Categorias</SelectItem>
+                    <SelectItem value="elegibilidade">Elegibilidade</SelectItem>
+                    <SelectItem value="protocolo">Protocolo</SelectItem>
+                    <SelectItem value="prestador">Prestador</SelectItem>
+                    <SelectItem value="guia">Guia</SelectItem>
+                    <SelectItem value="autorizacao">Autorização</SelectItem>
+                    <SelectItem value="diagnostico">Diagnóstico</SelectItem>
+                    <SelectItem value="atendimento">Atendimento</SelectItem>
+                    <SelectItem value="valorizacao">Valorização</SelectItem>
+                    <SelectItem value="procedimento">Procedimento</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -486,9 +550,28 @@ export default function RelatoriosBI() {
                   <TableBody>
                     {relatorioData.porMotivoGlosa.slice(0, 10).map((item) => {
                       const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
+                      // Extrair código e descrição
+                      const codigoMatch = String(item.chave).match(/^(\d+)/);
+                      const codigo = codigoMatch ? codigoMatch[1] : "";
+                      const descricao = String(item.chave).replace(/^\d+\s*-?\s*/, "") || "Sem motivo";
+                      
                       return (
                         <TableRow key={item.chave}>
-                          <TableCell className="font-medium">{item.chave || "Sem motivo"}</TableCell>
+                          <TableCell className="font-medium">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help border-b border-dotted border-gray-400 hover:border-gray-600">
+                                  {descricao}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-sm">
+                                  <p className="font-semibold">Código TISS: {codigo || "N/A"}</p>
+                                  <p className="mt-1">{descricao}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell className="text-right">{item.quantidade}</TableCell>
                           <TableCell className="text-right">
                             R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}

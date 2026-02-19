@@ -1957,3 +1957,9 @@
 - [x] Validar que dados foram sincronizados em demonstrativo
 - [ ] Verificar dados na tela de Demonstrativo de Retorno
 - [ ] Verificar dados nos graficos de Relatorios BI
+
+## Melhorias em Relatórios BI (Em Desenvolvimento)
+
+- [ ] Adicionar tooltip com código TISS ao passar mouse sobre nome do motivo de glosa
+- [ ] Implementar filtro por categoria de glosa (Elegibilidade, Autorização, Valorização, etc.)
+- [ ] Melhorar exportação Excel para incluir nomes descritivos junto com códigos de motivos
