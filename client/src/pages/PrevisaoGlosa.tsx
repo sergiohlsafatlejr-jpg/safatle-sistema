@@ -63,7 +63,7 @@ export function PrevisaoGlosa() {
   // Estados para resultados
   const [padroes, setPadroes] = useState<PadraoRecebimento[]>([]);
   const [analiseRisco, setAnaliseRisco] = useState<AnaliseRiscoConta | null>(null);
-  const [contasRisco, setContasRisco] = useState<AnaliseRiscoConta[]>([]);
+  const [contasRisco, setContasRisco] = useState<any[]>([]);
 
   // Mutations
   const padroesMutation = trpc.motorRegras.analisarPadroesRecebimento.useMutation({
