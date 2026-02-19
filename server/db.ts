@@ -12912,11 +12912,19 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
 
   // Agrupar por motivo de glosa (do demonstrativo)
+  // Buscar todos os motivos de glosa para mapear código -> descrição
+  const motivosGlosaDb = await db.select().from(motivosGlosa);
+  const motivoGlosaMap = new Map(motivosGlosaDb.map(m => [m.codigo, m.descricaoSimplificada || m.descricao]));
+  
   const porMotivoGlosaMap = new Map<string, DadosBIAgrupado>();
   for (const item of itensRecebidosFiltrados) {
     const valorGlosa = parseFloat(item.valorGlosa || "0");
     if (valorGlosa > 0) {
-      const chave = item.codigoGlosa || 'Motivo Não Informado';
+      const codigoGlosa = item.codigoGlosa || 'Motivo Não Informado';
+      // Buscar descrição do motivo no dicionário, ou usar o código se não encontrar
+      const descricaoMotivo = motivoGlosaMap.get(codigoGlosa) || codigoGlosa;
+      const chave = descricaoMotivo;
+      
       if (!porMotivoGlosaMap.has(chave)) {
         porMotivoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
       }
