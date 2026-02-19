@@ -115,6 +115,8 @@ export class AnalisadorRiscoGlosa {
       const padroes: PadraoRecebimento[] = [];
 
       for (const row of dados) {
+        if (!row.codigoItem) continue; // Pular se não houver código de item
+        
         const totalFaturado = Number(row.totalFaturado) || 0;
         const totalRecebido = Number(row.totalRecebido) || 0;
         const totalGlosado = Number(row.totalGlosado) || 0;
@@ -129,7 +131,7 @@ export class AnalisadorRiscoGlosa {
             rt.descricao_glosa as descricao,
             COUNT(*) as frequencia
           FROM recebimento_tiss rt
-          WHERE rt.codigo_item = ${row.codigoItem}
+          WHERE rt.codigo_item = ${String(row.codigoItem).trim()}
             AND rt.estabelecimentoId = ${estabelecimentoId}
             ${convenioId ? sql`AND rt.convenioId = ${convenioId}` : sql``}
             AND rt.valor_glosado > 0
