@@ -1,0 +1,21 @@
+{
+  "query": "SELECT id, numero_guia, codigo_item, descricao_item, valor_pago, valor_glosa, codigo_glosa, erro_tiss, situacao_item FROM demonstrativo WHERE numero_guia = '2573412' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, numero_guia, codigo_item, descricao_item, valor_pago, valor_glosa, codigo_glosa, erro_tiss, situacao_item FROM demonstrativo WHERE numero_guia = '2573412' LIMIT 1;",
+  "rows": [
+    {
+      "id": "761626",
+      "numero_guia": "2573412",
+      "codigo_item": "0000004917",
+      "descricao_item": "AGUA PARA INJECAO/AGUA DESTILADA",
+      "valor_pago": "0.42",
+      "valor_glosa": "NULL",
+      "codigo_glosa": "NULL",
+      "erro_tiss": "0.00",
+      "situacao_item": "PAGO"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnumero_guia\tcodigo_item\tdescricao_item\tvalor_pago\tvalor_glosa\tcodigo_glosa\terro_tiss\tsituacao_item\n761626\t2573412\t0000004917\tAGUA PARA INJECAO/AGUA DESTILADA\t0.42\tNULL\tNULL\t0.00\tPAGO\n",
+  "stderr": "",
+  "execution_time_ms": 65
+}

@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, arquivo_id, numero_guia, item, item_desc, valor_pagamento, valor_glosa, codigo_glosa FROM recebimentos_excel WHERE numero_guia = '2573412' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, arquivo_id, numero_guia, item, item_desc, valor_pagamento, valor_glosa, codigo_glosa FROM recebimentos_excel WHERE numero_guia = '2573412' LIMIT 1;",
+  "rows": [
+    {
+      "id": "390778",
+      "arquivo_id": "1350010",
+      "numero_guia": "2573412",
+      "item": "0000004917",
+      "item_desc": "AGUA PARA INJECAO/AGUA DESTILADA",
+      "valor_pagamento": "0.42",
+      "valor_glosa": "NULL",
+      "codigo_glosa": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tarquivo_id\tnumero_guia\titem\titem_desc\tvalor_pagamento\tvalor_glosa\tcodigo_glosa\n390778\t1350010\t2573412\t0000004917\tAGUA PARA INJECAO/AGUA DESTILADA\t0.42\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 146
+}

@@ -79,7 +79,12 @@ export async function syncDemonstrativoByArquivo(
         // Se é glosado, o valor vai para valorGlosa e valorPago = 0
         // Se não é glosado, o valor vai para valorPago
         const valorPago = isGlosado ? '0.00' : String(valorOriginalNum.toFixed(2));
-        const valorGlosa = isGlosado ? String(valorOriginalNum.toFixed(2)) : null;
+        
+        // Usar valorGlosa direto de recebimentos_excel se existir, senão calcular
+        let valorGlosa = item.valorGlosa ? String(item.valorGlosa) : null;
+        if (isGlosado && !valorGlosa) {
+          valorGlosa = String(valorOriginalNum.toFixed(2));
+        }
         
         return {
           arquivoId: item.arquivoId,
@@ -100,9 +105,10 @@ export async function syncDemonstrativoByArquivo(
           // Detalhes do Item
           sequencialItem: item.seq,
           codigoItem: item.item,
-          descricaoItem: item.itemDesc,
+          descricaoItem: item.itemDesc || null,
           dataExecucao: item.dataExecucao,
           quantidade: item.quantidade ? String(item.quantidade) : null,
+          valorInformado: item.valorInformado ? String(item.valorInformado) : '0.00',
           
           // Valores - CORRIGIDO: separar pago vs glosado
           valorPago,
@@ -112,7 +118,7 @@ export async function syncDemonstrativoByArquivo(
           tipoLancamento: item.tipoLancamento,
           erroTiss: item.erroTiss,
           situacaoItem: item.situacaoItem,
-          codigoGlosa: isGlosado ? item.erroTiss : null, // Erro TISS é o código da glosa
+          codigoGlosa: item.codigoGlosa || null, // Usar codigoGlosa direto de recebimentos_excel
           
           // Data de referência - normalizar para evitar problemas de fuso horário
           dataReferencia: normalizeDateForDB(item.dataReferencia),
