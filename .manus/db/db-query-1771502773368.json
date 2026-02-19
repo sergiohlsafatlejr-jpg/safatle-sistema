@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, item, item_desc, valor_pagamento, erro_tiss, situacao_item FROM recebimentos_excel WHERE arquivo_id IN (SELECT id FROM arquivos WHERE nome LIKE '%analise_contas%') LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, item, item_desc, valor_pagamento, erro_tiss, situacao_item FROM recebimentos_excel WHERE arquivo_id IN (SELECT id FROM arquivos WHERE nome LIKE '%analise_contas%') LIMIT 5;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 421
+}

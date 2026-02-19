@@ -6101,6 +6101,25 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getDemonstrativoCompetencias(input || {});
       }),
+    
+    sincronizar: protectedProcedure
+      .input(z.object({
+        arquivoId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const { syncDemonstrativoByArquivo } = await import('./syncDemonstrativo');
+          const result = await syncDemonstrativoByArquivo(input.arquivoId, 'excel');
+          return result;
+        } catch (error) {
+          console.error('[Demonstrativo.Sincronizar] Erro:', error);
+          return {
+            success: false,
+            total: 0,
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+          };
+        }
+      }),
   }),
 
   recebimentosExcel: router({

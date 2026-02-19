@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, nome, tipoArquivo, direcao, convenioId, status FROM arquivos WHERE convenioId IN (SELECT id FROM convenios WHERE nome LIKE '%Vivacom%') ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, tipoArquivo, direcao, convenioId, status FROM arquivos WHERE convenioId IN (SELECT id FROM convenios WHERE nome LIKE '%Vivacom%') ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "1350004",
+      "nome": "analise_contas_medicas20260203112034.xls",
+      "tipoArquivo": "excel",
+      "direcao": "retornado",
+      "convenioId": "60008",
+      "status": "processado"
+    },
+    {
+      "id": "1290003",
+      "nome": "00000000000000087711_0569bfe51dad9c00182eaf3466eb7cd2.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "convenioId": "60008",
+      "status": "processado"
+    },
+    {
+      "id": "1290002",
+      "nome": "00000000000000087738_cf7ac9cbafe0b7663db8efb9e76aec4c.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "convenioId": "60008",
+      "status": "processado"
+    },
+    {
+      "id": "1290001",
+      "nome": "00000000000000087713_59aea69c63b969cf12062543f89cc4be.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "convenioId": "60008",
+      "status": "processado"
+    },
+    {
+      "id": "1260017",
+      "nome": "00000000000000203473_0BC0ED8F9B99EBD9D8C4E52CACFF1420.xml",
+      "tipoArquivo": "xml",
+      "direcao": "enviado",
+      "convenioId": "60008",
+      "status": "processado"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ttipoArquivo\tdirecao\tconvenioId\tstatus\n1350004\tanalise_contas_medicas20260203112034.xls\texcel\tretornado\t60008\tprocessado\n1290003\t00000000000000087711_0569bfe51dad9c00182eaf3466eb7cd2.xml\txml\tenviado\t60008\tprocessado\n1290002\t00000000000000087738_cf7ac9cbafe0b7663db8efb9e76aec4c.xml\txml\tenviado\t60008\tprocessado\n1290001\t00000000000000087713_59aea69c63b969cf12062543f89cc4be.xml\txml\tenviado\t60008\tprocessado\n1260017\t00000000000000203473_0BC0ED8F9B99EBD9D8C4E52CACFF1420.xml\txml\tenviado\t60008\tprocessado\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

@@ -1,0 +1,14 @@
+{
+  "query": "SELECT id, nome FROM convenios WHERE nome LIKE '%Vivacom%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome FROM convenios WHERE nome LIKE '%Vivacom%';",
+  "rows": [
+    {
+      "id": "60008",
+      "nome": "Vivacom"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\n60008\tVivacom\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

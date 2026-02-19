@@ -1944,3 +1944,13 @@
 - [ ] Validar que 361 registros foram inseridos com situacao_item correto
 - [ ] Verificar sincronização com tabela demonstrativo
 - [ ] Verificar dados nos gráficos de Relatórios BI
+
+- [x] Testar com arquivo Demostrativo 12-2025.xls
+- [x] Verificar que dados foram importados em recebimentos_excel
+- [x] Identificar que sincronizacao automatica nao funcionava
+- [x] Sincronizar manualmente dados para tabela demonstrativo
+- [x] Adicionar rota tRPC demonstrativo.sincronizar para sincronizacao manual
+- [x] Criar testes para validar sincronizacao
+- [ ] Reimportar arquivo com novo parser corrigido
+- [ ] Validar que dados aparecem na tela de Demonstrativo
+- [ ] Verificar dados nos graficos de Relatorios BI

@@ -1,0 +1,15 @@
+{
+  "query": "SELECT a.id, a.nome, COUNT(re.id) as total_recebimentos FROM arquivos a LEFT JOIN recebimentos_excel re ON a.id = re.arquivo_id WHERE a.nome LIKE '%Demostrativo 12-2025%' GROUP BY a.id, a.nome;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, COUNT(re.id) as total_recebimentos FROM arquivos a LEFT JOIN recebimentos_excel re ON a.id = re.arquivo_id WHERE a.nome LIKE '%Demostrativo 12-2025%' GROUP BY a.id, a.nome;",
+  "rows": [
+    {
+      "id": "1350005",
+      "nome": "Demostrativo 12-2025.xls",
+      "total_recebimentos": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ttotal_recebimentos\n1350005\tDemostrativo 12-2025.xls\t0\n",
+  "stderr": "",
+  "execution_time_ms": 115
+}

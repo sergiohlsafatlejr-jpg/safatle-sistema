@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, nome, tipoArquivo, direcao, status FROM arquivos WHERE nome LIKE '%Demostrativo%' ORDER BY id DESC LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome, tipoArquivo, direcao, status FROM arquivos WHERE nome LIKE '%Demostrativo%' ORDER BY id DESC LIMIT 3;",
+  "rows": [
+    {
+      "id": "1350005",
+      "nome": "Demostrativo 12-2025.xls",
+      "tipoArquivo": "excel",
+      "direcao": "retornado",
+      "status": "processado"
+    },
+    {
+      "id": "1110263",
+      "nome": "Demostrativo Psi-12-2025 .xlsx",
+      "tipoArquivo": "excel",
+      "direcao": "retornado",
+      "status": "processado"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ttipoArquivo\tdirecao\tstatus\n1350005\tDemostrativo 12-2025.xls\texcel\tretornado\tprocessado\n1110263\tDemostrativo Psi-12-2025 .xlsx\texcel\tretornado\tprocessado\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}
