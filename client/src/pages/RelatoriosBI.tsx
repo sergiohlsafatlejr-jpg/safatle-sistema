@@ -49,33 +49,34 @@ import {
 import { useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { exportToExcel, exportToPDF, exportToCSV } from "@/lib/exportUtils";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement,
-} from 'chart.js';
-import { Bar as ChartJSBar, Pie as ChartJSPie, Line as ChartJSLine, Doughnut } from 'react-chartjs-2';
+// Chart.js imports removidos - usando Recharts exclusivamente
+// import {
+//   Chart as ChartJS,
+//   CategoryScale,
+//   LinearScale,
+//   BarElement,
+//   Title,
+//   Tooltip,
+//   Legend,
+//   ArcElement,
+//   PointElement,
+//   LineElement,
+// } from 'chart.js';
+// import { Bar as ChartJSBar, Pie as ChartJSPie, Line as ChartJSLine, Doughnut } from 'react-chartjs-2';
 import { toast } from "sonner";
 
-// Registrar componentes do Chart.js
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement
-);
+// Registrar componentes do Chart.js - comentado pois usando Recharts
+// ChartJS.register(
+//   CategoryScale,
+//   LinearScale,
+//   BarElement,
+//   Title,
+//   Tooltip,
+//   Legend,
+//   ArcElement,
+//   PointElement,
+//   LineElement
+// );
 
 // Cores para gráficos
 const coresGraficos = [
@@ -768,6 +769,48 @@ export default function RelatoriosBI() {
               <CardDescription>Personalize a visualização</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Filtro de Período */}
+              <div className="space-y-3 pb-4 border-b">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Período
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={mesSelecionado.toString()} onValueChange={(val) => setMesSelecionado(parseInt(val))}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Todos</SelectItem>
+                      <SelectItem value="1">Janeiro</SelectItem>
+                      <SelectItem value="2">Fevereiro</SelectItem>
+                      <SelectItem value="3">Março</SelectItem>
+                      <SelectItem value="4">Abril</SelectItem>
+                      <SelectItem value="5">Maio</SelectItem>
+                      <SelectItem value="6">Junho</SelectItem>
+                      <SelectItem value="7">Julho</SelectItem>
+                      <SelectItem value="8">Agosto</SelectItem>
+                      <SelectItem value="9">Setembro</SelectItem>
+                      <SelectItem value="10">Outubro</SelectItem>
+                      <SelectItem value="11">Novembro</SelectItem>
+                      <SelectItem value="12">Dezembro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={anoSelecionado.toString()} onValueChange={(val) => setAnoSelecionado(parseInt(val))}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {anos.map(ano => (
+                        <SelectItem key={ano} value={ano.toString()}>
+                          {ano}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
               {/* Dimensão */}
               <div>
                 <Label className="text-sm font-medium">Agrupar por</Label>
@@ -913,10 +956,7 @@ export default function RelatoriosBI() {
                 </div>
               ) : (
                 <div className="h-[400px]">
-                  {tipoGrafico === 'bar' && <ChartJSBar data={dadosGrafico} options={opcoesGrafico} />}
-                  {tipoGrafico === 'line' && <ChartJSLine data={dadosGrafico} options={opcoesGrafico} />}
-                  {tipoGrafico === 'pie' && <ChartJSPie data={dadosGrafico} options={opcoesGrafico} />}
-                  {tipoGrafico === 'doughnut' && <Doughnut data={dadosGrafico} options={opcoesGrafico} />}
+                  <p className="text-center text-muted-foreground mt-8">Gráficos integrados nas abas de relatórios</p>
                 </div>
               )}
             </CardContent>
@@ -1069,6 +1109,21 @@ export default function RelatoriosBI() {
                 <CardDescription>Análise detalhada de motivos de glosa</CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Gráfico de Barras */}
+                {glosasPorMotivo && glosasPorMotivo.length > 0 && (
+                  <div className="h-80 w-full mb-8">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsBarChart data={glosasPorMotivo}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="motivo" angle={-45} textAnchor="end" height={100} />
+                        <YAxis />
+                        <RechartsTooltip formatter={(value: any) => formatCurrency(value)} />
+                        <RechartsLegend />
+                        <RechartsBar dataKey="valor" fill="#ef4444" name="Valor Glosado" />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
                 <div className="space-y-4">
                   {glosasPorMotivo?.map((item: any, idx: number) => (
                     <div key={idx} className="p-4 border border-red-200 bg-red-50 rounded-lg">
@@ -1105,6 +1160,23 @@ export default function RelatoriosBI() {
                 <CardDescription>Análise de faturamento e taxa de glosa</CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Gráfico de Linha */}
+                {performanceMedico && performanceMedico.length > 0 && (
+                  <div className="h-80 w-full mb-8">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsLineChart data={performanceMedico}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="medicoNome" angle={-45} textAnchor="end" height={100} />
+                        <YAxis />
+                        <RechartsTooltip formatter={(value: any) => formatCurrency(value)} />
+                        <RechartsLegend />
+                        <RechartsLine type="monotone" dataKey="faturado" stroke="#3b82f6" name="Faturado" strokeWidth={2} />
+                        <RechartsLine type="monotone" dataKey="recebido" stroke="#10b981" name="Recebido" strokeWidth={2} />
+                        <RechartsLine type="monotone" dataKey="glosado" stroke="#ef4444" name="Glosado" strokeWidth={2} />
+                      </RechartsLineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
                 <div className="rounded-md border overflow-hidden">
                   <Table>
                     <TableHeader>
