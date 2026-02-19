@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { exportToExcel, exportToPDF, exportToCSV } from "@/lib/exportUtils";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -873,15 +874,27 @@ export default function RelatoriosBI() {
           {/* Gráfico Principal */}
           <Card className="lg:col-span-3">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
                 {tipoGrafico === 'bar' && <BarChart3 className="h-5 w-5" />}
                 {tipoGrafico === 'line' && <LineChart className="h-5 w-5" />}
                 {tipoGrafico === 'pie' && <PieChart className="h-5 w-5" />}
                 {tipoGrafico === 'doughnut' && <Activity className="h-5 w-5" />}
-                {metricasSelecionadas.length === 1 
-                  ? camposAnalise.metricas.find(m => m.id === metricasSelecionadas[0])?.label 
-                  : `${metricasSelecionadas.length} métricas`} por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
-              </CardTitle>
+                  {metricasSelecionadas.length === 1 
+                    ? camposAnalise.metricas.find(m => m.id === metricasSelecionadas[0])?.label 
+                    : `${metricasSelecionadas.length} métricas`} por {camposAnalise.dimensoes.find(d => d.id === dimensaoSelecionada)?.label}
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => exportToExcel(dadosAgrupados, 'relatorio-dashboard')}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => exportToPDF(dadosAgrupados, 'relatorio-dashboard', 'Relatório Dashboard')}>
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                </div>
+              </div>
               <CardDescription>
                 Clique em uma barra/fatia para ver os detalhes
               </CardDescription>

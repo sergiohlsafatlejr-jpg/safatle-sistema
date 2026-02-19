@@ -1,5 +1,6 @@
 import { eq, and, desc, like, sql, gte, lte, lt, gt, or, inArray, count, isNull, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+export { getItemsPorCategoria, getGlosasPorMotivo, getPerformanceMedico } from './db-queries-reais';
 import {
   InsertUser,
   users,
@@ -17368,35 +17369,3 @@ export async function excluirAvisoInterno(id: number) {
 
 // ============ NOVOS RELATÓRIOS BI ============
 
-/**
- * Obter itens agrupados por categoria
- */
-export async function getItemsPorCategoria(input: any): Promise<any[]> {
-  return [
-    { categoria: 'Procedimentos', quantidade: 580, valor: 290000, percentual: 23 },
-    { categoria: 'Medicamentos', quantidade: 1250, valor: 62500, percentual: 5 },
-    { categoria: 'Materiais', quantidade: 890, valor: 89000, percentual: 7 },
-    { categoria: 'Diarias', quantidade: 150, valor: 180000, percentual: 14 },
-    { categoria: 'Taxas', quantidade: 320, valor: 537000, percentual: 43 },
-  ];
-}
-
-export async function getGlosasPorMotivo(input: any): Promise<any[]> {
-  return [
-    { motivo: 'Falta de Documentacao', quantidade: 45, valor: 67500, percentual: 34 },
-    { motivo: 'Valor Acima Tabelado', quantidade: 32, valor: 48000, percentual: 24 },
-    { motivo: 'Nao Autorizado', quantidade: 28, valor: 42000, percentual: 21 },
-    { motivo: 'Duplicidade', quantidade: 15, valor: 22500, percentual: 11 },
-    { motivo: 'Fora do Periodo', quantidade: 8, valor: 12000, percentual: 6 },
-  ];
-}
-
-export async function getPerformanceMedico(input: any): Promise<any[]> {
-  return [
-    { medicoNome: 'Dr. Joao Silva', faturado: 180000, recebido: 165000, glosado: 15000, taxaGlosa: 8 },
-    { medicoNome: 'Dra. Maria Santos', faturado: 200000, recebido: 172000, glosado: 28000, taxaGlosa: 14 },
-    { medicoNome: 'Dr. Pedro Costa', faturado: 195000, recebido: 164000, glosado: 31000, taxaGlosa: 16 },
-    { medicoNome: 'Dra. Ana Oliveira', faturado: 185000, recebido: 172000, glosado: 13000, taxaGlosa: 7 },
-    { medicoNome: 'Dr. Carlos Lima', faturado: 175000, recebido: 140000, glosado: 35000, taxaGlosa: 20 },
-  ];
-}

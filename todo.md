@@ -1902,3 +1902,16 @@
 - [ ] Adicionar filtros por prestador e mês de referência
 - [ ] Implementar export para Excel/PDF
 - [ ] Validar integração com dados reais do banco
+
+
+## Fase 9 - Implementar Queries SQL Reais, Graficos e Export (Semana 10-11)
+
+- [x] Criar arquivo db-queries-reais.ts com Drizzle ORM queries
+- [x] Implementar getItemsPorCategoria - agrupar por tipo_lancamento
+- [x] Implementar getGlosasPorMotivo - agrupar por motivo de glosa
+- [x] Implementar getPerformanceMedico - calcular faturado/recebido/glosado por médico
+- [x] Instalar Recharts, xlsx e jsPDF via pnpm
+- [x] Criar utilitario exportUtils.ts com funcoes export
+- [x] Adicionar botoes de export na aba Dashboard
+- [ ] Integrar graficos Recharts nas abas (proximo passo)
+- [ ] Testar queries com dados reais do banco
