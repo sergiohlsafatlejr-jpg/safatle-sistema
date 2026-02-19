@@ -286,7 +286,7 @@ export const motorRegrasRouter = router({
         offset: z.number().min(0).default(0),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       const cacheKey = generateMotorRegrasKey(
         input.estabelecimentoId,
         "historico"
@@ -359,7 +359,7 @@ export const motorRegrasRouter = router({
         dataFim: z.date().optional(),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       const cacheKey = generateMotorRegrasKey(
         input.estabelecimentoId,
         "estatisticas"
@@ -484,10 +484,10 @@ export const motorRegrasRouter = router({
       z.object({
         estabelecimentoId: z.number().positive(),
         convenioId: z.number().optional(),
-        mesesHistorico: z.number().min(1).max(60).default(12),
+        mesesHistorico: z.number().default(12),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       try {
         logger.info({
           message: "Iniciando análise de padrões de recebimento",
@@ -535,10 +535,10 @@ export const motorRegrasRouter = router({
             valorFaturado: z.number().positive(),
           })
         ),
-        mesesHistorico: z.number().min(1).max(60).default(12),
+        mesesHistorico: z.number().default(12),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       try {
         logger.info({
           message: "Iniciando análise de risco de conta",
@@ -578,7 +578,7 @@ export const motorRegrasRouter = router({
         limiteRisco: z.enum(["alto", "critico"]).default("alto"),
       })
     )
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       try {
         logger.info({
           message: "Identificando contas com risco",
