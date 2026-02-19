@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb } from "../db";
 import { logger } from "../_core/logger";
 import { sql } from "drizzle-orm";
+import { AnalisadorRiscoGlosa } from "../analisadorRiscoGlosa";
 import {
   cacheGetOrSet,
   invalidateMotorRegrasCache,
@@ -469,6 +470,139 @@ export const motorRegrasRouter = router({
           message: "Erro ao deletar validação",
           error: String(error),
           input,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Analisar padrões de recebimento histórico
+   * Calcula taxa de glosa por item baseado nos últimos N meses
+   */
+  analisarPadroesRecebimento: trackedProtectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number().positive(),
+        convenioId: z.number().optional(),
+        mesesHistorico: z.number().min(1).max(60).default(12),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        logger.info({
+          message: "Iniciando análise de padrões de recebimento",
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          mesesHistorico: input.mesesHistorico,
+        });
+
+        const padroes = await AnalisadorRiscoGlosa.analisarPadroesRecebimento(
+          input.estabelecimentoId,
+          input.convenioId,
+          input.mesesHistorico
+        );
+
+        return {
+          padroes,
+          total: padroes.length,
+          timestamp: new Date(),
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao analisar padrões de recebimento",
+          error: String(error),
+          input,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Analisar risco de glosa de uma conta específica
+   * Retorna score de risco (0-100) e motivos prováveis de glosa
+   */
+  analisarRiscoConta: trackedProtectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number().positive(),
+        convenioId: z.number().positive(),
+        numeroGuia: z.string().min(1),
+        itens: z.array(
+          z.object({
+            codigoItem: z.string(),
+            descricaoItem: z.string(),
+            quantidade: z.number().positive(),
+            valorFaturado: z.number().positive(),
+          })
+        ),
+        mesesHistorico: z.number().min(1).max(60).default(12),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        logger.info({
+          message: "Iniciando análise de risco de conta",
+          numeroGuia: input.numeroGuia,
+          totalItens: input.itens.length,
+        });
+
+        const analise = await AnalisadorRiscoGlosa.analisarRiscoConta(
+          input.estabelecimentoId,
+          input.convenioId,
+          input.numeroGuia,
+          input.itens,
+          input.mesesHistorico
+        );
+
+        return analise;
+      } catch (error) {
+        logger.error({
+          message: "Erro ao analisar risco de conta",
+          error: String(error),
+          numeroGuia: input.numeroGuia,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Identificar contas com risco em arquivo importado
+   * Analisa todas as guias e retorna apenas as com risco acima do limite
+   */
+  identificarContasComRisco: trackedProtectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number().positive(),
+        convenioId: z.number().positive(),
+        arquivoId: z.number().positive(),
+        limiteRisco: z.enum(["alto", "critico"]).default("alto"),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        logger.info({
+          message: "Identificando contas com risco",
+          arquivoId: input.arquivoId,
+          limiteRisco: input.limiteRisco,
+        });
+
+        const contas = await AnalisadorRiscoGlosa.identificarContasComRisco(
+          input.estabelecimentoId,
+          input.convenioId,
+          input.arquivoId,
+          input.limiteRisco
+        );
+
+        return {
+          contas,
+          total: contas.length,
+          timestamp: new Date(),
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao identificar contas com risco",
+          error: String(error),
+          arquivoId: input.arquivoId,
         });
         throw error;
       }

@@ -125,6 +125,7 @@ const menuItems: MenuItem[] = [
   { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
+  { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
   
   // Atendimentos (PostgreSQL externo) - apenas Instituto do Rim (ID 4)

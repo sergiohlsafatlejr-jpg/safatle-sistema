@@ -48,6 +48,7 @@ import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
 import AuditDashboard from "./pages/AuditDashboard";
+import { PrevisaoGlosa } from "./pages/PrevisaoGlosa";
 import CacheDashboard from "./pages/CacheDashboard";
 import { HistoricoValidacaoXml } from "./pages/HistoricoValidacaoXml";
 import { PopularHistoricoXml } from "./pages/PopularHistoricoXml";
@@ -99,6 +100,7 @@ function Router() {
       <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
       <Route path={"/regras-ia"} component={RegrasIA} />
       <Route path={"/relatorios-bi"} component={RelatoriosBI} />
+      <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
       <Route path={"/conciliacao-contas-pagas"} component={ConciliacaoContasPagas} />
       <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
