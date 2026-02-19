@@ -274,9 +274,9 @@ export function PrevisaoGlosa() {
                         <tr key={padrao.codigoItem} className="border-b hover:bg-gray-50">
                           <td className="px-4 py-2 font-mono">{padrao.codigoItem}</td>
                           <td className="px-4 py-2 text-gray-700">{padrao.descricaoItem}</td>
-                          <td className="px-4 py-2 text-right font-semibold">{padrao.taxaGlosa.toFixed(2)}%</td>
-                          <td className="px-4 py-2 text-right">R$ {padrao.totalFaturado.toLocaleString('pt-BR')}</td>
-                          <td className="px-4 py-2 text-right text-red-600">R$ {padrao.totalGlosado.toLocaleString('pt-BR')}</td>
+                          <td className="px-4 py-2 text-right font-semibold">{isNaN(padrao.taxaGlosa) ? '0.00' : padrao.taxaGlosa.toFixed(2)}%</td>
+                          <td className="px-4 py-2 text-right">R$ {isNaN(padrao.totalFaturado) ? '0' : padrao.totalFaturado.toLocaleString('pt-BR')}</td>
+                          <td className="px-4 py-2 text-right text-red-600">R$ {isNaN(padrao.totalGlosado) ? '0' : padrao.totalGlosado.toLocaleString('pt-BR')}</td>
                           <td className="px-4 py-2">
                             <Badge className={getRiscoBadgeColor(padrao.risco)}>
                               {getRiscoIcon(padrao.risco)}
@@ -337,7 +337,7 @@ export function PrevisaoGlosa() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Score de Risco</p>
-                    <p className="text-2xl font-bold">{analiseRisco.scoreRisco}</p>
+                    <p className="text-2xl font-bold">{isNaN(analiseRisco.scoreRisco) ? '0' : analiseRisco.scoreRisco}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Classificação</p>
@@ -347,7 +347,7 @@ export function PrevisaoGlosa() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Valor Faturado</p>
-                    <p className="text-lg font-semibold">R$ {analiseRisco.valorFaturado.toLocaleString('pt-BR')}</p>
+                    <p className="text-lg font-semibold">R$ {isNaN(analiseRisco.valorFaturado) ? '0' : analiseRisco.valorFaturado.toLocaleString('pt-BR')}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Itens</p>
@@ -387,9 +387,9 @@ export function PrevisaoGlosa() {
                           <tr key={idx} className="border-b">
                             <td className="px-4 py-2 font-mono">{item.codigoItem}</td>
                             <td className="px-4 py-2">{item.descricaoItem}</td>
-                            <td className="px-4 py-2 text-right">{item.quantidade}</td>
-                            <td className="px-4 py-2 text-right">R$ {item.valorFaturado.toLocaleString('pt-BR')}</td>
-                            <td className="px-4 py-2 text-right">{item.taxaGlosaEsperada.toFixed(2)}%</td>
+                            <td className="px-4 py-2 text-right">{isNaN(item.quantidade) ? '0' : item.quantidade}</td>
+                            <td className="px-4 py-2 text-right">R$ {isNaN(item.valorFaturado) ? '0' : item.valorFaturado.toLocaleString('pt-BR')}</td>
+                            <td className="px-4 py-2 text-right">{isNaN(item.taxaGlosaEsperada) ? '0.00' : item.taxaGlosaEsperada.toFixed(2)}%</td>
                             <td className="px-4 py-2">
                               <Badge className={getRiscoBadgeColor(item.riscoPrevisto)}>
                                 {item.riscoPrevisto.toUpperCase()}
