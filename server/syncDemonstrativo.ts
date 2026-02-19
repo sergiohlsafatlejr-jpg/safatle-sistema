@@ -73,11 +73,13 @@ export async function syncDemonstrativoByArquivo(
         const situacao = (item.situacaoItem || '').toString().toUpperCase();
         const isGlosado = situacao === 'GLOSADO' || situacao.includes('GLOS');
         
+        // Converter valores para números decimais
+        const valorOriginalNum = parseFloat(String(item.valorPagamento || 0));
+        
         // Se é glosado, o valor vai para valorGlosa e valorPago = 0
         // Se não é glosado, o valor vai para valorPago
-        const valorOriginal = item.valorPagamento;
-        const valorPago = isGlosado ? '0' : valorOriginal;
-        const valorGlosa = isGlosado ? valorOriginal : null;
+        const valorPago = isGlosado ? '0.00' : String(valorOriginalNum.toFixed(2));
+        const valorGlosa = isGlosado ? String(valorOriginalNum.toFixed(2)) : null;
         
         return {
           arquivoId: item.arquivoId,

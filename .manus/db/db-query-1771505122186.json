@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(DISTINCT arquivo_id) as arquivos FROM recebimentos_excel WHERE arquivo_id = 32;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, COUNT(DISTINCT arquivo_id) as arquivos FROM recebimentos_excel WHERE arquivo_id = 32;",
+  "rows": [
+    {
+      "total": "0",
+      "arquivos": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tarquivos\n0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 101
+}
