@@ -1951,6 +1951,9 @@
 - [x] Sincronizar manualmente dados para tabela demonstrativo
 - [x] Adicionar rota tRPC demonstrativo.sincronizar para sincronizacao manual
 - [x] Criar testes para validar sincronizacao
-- [ ] Reimportar arquivo com novo parser corrigido
-- [ ] Validar que dados aparecem na tela de Demonstrativo
+- [x] Corrigir validacao de dados no parser para reconhecer colunas Vivacom
+- [x] Reimportar arquivo com novo parser corrigido
+- [x] Validar que 361 registros foram importados em recebimentos_excel
+- [x] Validar que dados foram sincronizados em demonstrativo
+- [ ] Verificar dados na tela de Demonstrativo de Retorno
 - [ ] Verificar dados nos graficos de Relatorios BI

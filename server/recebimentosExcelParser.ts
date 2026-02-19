@@ -283,7 +283,9 @@ export function parseExcelRecebimentosExcel(
   
   for (const row of rows) {
     // Verificar se a linha tem dados relevantes (pelo menos número da guia ou beneficiário)
-    const hasData = row['Número Guia'] || row['Beneficiário'] || row['Item'];
+    // Suportar múltiplos formatos: padrão e Vivacom
+    const hasData = row['Número Guia'] || row['Beneficiário'] || row['Item'] || 
+                    row['GUIA'] || row['ASSOCIADO'] || row['CODIGO'];
     if (!hasData) continue;
     
     const record = extractRecebimentoExcelFromRow(row, arquivoId, convenioId, dataReferencia, dataPagamento, estabelecimentoId);

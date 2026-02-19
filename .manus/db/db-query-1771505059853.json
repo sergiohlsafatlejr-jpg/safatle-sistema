@@ -1,0 +1,15 @@
+{
+  "query": "SELECT a.id, a.nome, COUNT(d.id) as total_demonstrativo FROM arquivos a LEFT JOIN demonstrativo d ON a.id = d.arquivo_id WHERE a.nome LIKE '%Demostrativo 12-2025%' GROUP BY a.id, a.nome;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, COUNT(d.id) as total_demonstrativo FROM arquivos a LEFT JOIN demonstrativo d ON a.id = d.arquivo_id WHERE a.nome LIKE '%Demostrativo 12-2025%' GROUP BY a.id, a.nome;",
+  "rows": [
+    {
+      "id": "1350007",
+      "nome": "Demostrativo 12-2025.xls",
+      "total_demonstrativo": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\ttotal_demonstrativo\n1350007\tDemostrativo 12-2025.xls\t0\n",
+  "stderr": "",
+  "execution_time_ms": 112
+}
