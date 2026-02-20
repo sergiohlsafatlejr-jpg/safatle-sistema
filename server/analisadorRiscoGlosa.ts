@@ -71,19 +71,16 @@ export class AnalisadorRiscoGlosa {
       });
 
       // 1. Buscar dados de recebimento dos últimos N meses
-      const dataLimite = new Date();
-      dataLimite.setMonth(dataLimite.getMonth() - mesesHistorico);
-      // Converter para ISO string (YYYY-MM-DD)
-      const dataLimiteStr = dataLimite.toISOString().split('T')[0];
-
       logger.info({
-        message: "Data limite para análise",
-        dataLimite: dataLimiteStr,
+        message: "Iniciando busca de dados",
+        estabelecimentoId,
+        convenioId,
         mesesHistorico,
       });
 
       // Query simplificada - busca dados brutos sem GROUP BY
       // Usando tabela demonstrativo que tem dados mais completos
+      // Usar DATE_SUB para comparação de data (compatível com TiDB)
       const query = sql`
         SELECT 
           d.codigo_item as codigoItem,
@@ -94,7 +91,7 @@ export class AnalisadorRiscoGlosa {
         FROM demonstrativo d
         WHERE d.estabelecimentoId = ${estabelecimentoId}
           ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
-          AND d.data_importacao_sistema >= ${dataLimiteStr}
+          AND d.data_importacao_sistema >= DATE_SUB(NOW(), INTERVAL ${mesesHistorico} MONTH)
       `;
 
       let resultados = await db.execute(query);
@@ -226,7 +223,7 @@ export class AnalisadorRiscoGlosa {
             AND d.estabelecimentoId = ${estabelecimentoId}
             ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
             AND d.valor_glosa > 0
-            AND d.data_importacao_sistema >= ${dataLimite.toISOString().split('T')[0]}
+            AND d.data_importacao_sistema >= DATE_SUB(NOW(), INTERVAL ${mesesHistorico} MONTH)
           GROUP BY d.codigo_glosa, d.situacao_item
           ORDER BY frequencia DESC
           LIMIT 5
