@@ -77,17 +77,18 @@ export class AnalisadorRiscoGlosa {
       const dataLimiteStr = dataLimite.toISOString().split('T')[0];
 
       // Query simplificada - busca dados brutos sem GROUP BY
+      // Usando tabela demonstrativo que tem dados mais completos
       const query = sql`
         SELECT 
-          rt.codigo_item,
-          rt.descricao_item,
-          rt.valor_faturado,
-          rt.valor_liberado,
-          rt.valor_glosado
-        FROM recebimento_tiss rt
-        WHERE rt.estabelecimentoId = ${estabelecimentoId}
-          ${convenioId ? sql`AND rt.convenioId = ${convenioId}` : sql``}
-          AND rt.data_importacao >= ${dataLimiteStr}
+          d.codigo_item,
+          d.descricao_item,
+          d.valor_faturado,
+          d.valor_liberado,
+          d.valor_glosado
+        FROM demonstrativo d
+        WHERE d.estabelecimentoId = ${estabelecimentoId}
+          ${convenioId ? sql`AND d.convenioId = ${convenioId}` : sql``}
+          AND d.data_importacao >= ${dataLimiteStr}
       `;
 
       const resultados = await db.execute(query);

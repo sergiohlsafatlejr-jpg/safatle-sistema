@@ -1,0 +1,17 @@
+{
+  "query": "SELECT COUNT(*) as total, MIN(data_importacao) as data_minima, MAX(data_importacao) as data_maxima, COUNT(DISTINCT estabelecimentoId) as estabelecimentos, COUNT(DISTINCT convenioId) as convenios FROM recebimento_tiss;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, MIN(data_importacao) as data_minima, MAX(data_importacao) as data_maxima, COUNT(DISTINCT estabelecimentoId) as estabelecimentos, COUNT(DISTINCT convenioId) as convenios FROM recebimento_tiss;",
+  "rows": [
+    {
+      "total": "24727",
+      "data_minima": "2026-02-10 08:23:47",
+      "data_maxima": "2026-02-19 16:03:49",
+      "estabelecimentos": "2",
+      "convenios": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tdata_minima\tdata_maxima\testabelecimentos\tconvenios\n24727\t2026-02-10 08:23:47\t2026-02-19 16:03:49\t2\t4\n",
+  "stderr": "",
+  "execution_time_ms": 116
+}

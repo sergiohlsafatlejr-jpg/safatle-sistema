@@ -1,0 +1,22 @@
+{
+  "query": "SELECT DISTINCT convenioId, COUNT(*) as total FROM recebimento_tiss WHERE estabelecimentoId = 1 GROUP BY convenioId LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT DISTINCT convenioId, COUNT(*) as total FROM recebimento_tiss WHERE estabelecimentoId = 1 GROUP BY convenioId LIMIT 10;",
+  "rows": [
+    {
+      "convenioId": "60006",
+      "total": "3"
+    },
+    {
+      "convenioId": "60001",
+      "total": "169"
+    },
+    {
+      "convenioId": "60004",
+      "total": "551"
+    }
+  ],
+  "messages": [],
+  "stdout": "convenioId\ttotal\n60006\t3\n60001\t169\n60004\t551\n",
+  "stderr": "",
+  "execution_time_ms": 72
+}
