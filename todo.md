@@ -1974,3 +1974,12 @@
 - [ ] Gráfico comparativo de valores por mês
 - [ ] Exportação de análises por trimestre em Excel
 - [ ] Comparativo de ticket médio entre períodos
+
+## Sistema de Tema (Dark/Light Mode)
+
+- [x] Criar contexto de tema e hook useTheme
+- [x] Implementar toggle de tema no header/menu
+- [x] Atualizar CSS e cores para suportar ambos os temas
+- [x] Salvar preferência de tema no localStorage
+- [x] Testar alternância entre temas
+- [x] Validar cores em ambos os temas

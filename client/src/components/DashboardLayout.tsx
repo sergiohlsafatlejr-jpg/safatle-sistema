@@ -60,12 +60,15 @@ import {
   Users,
   Megaphone,
   Home,
-  Wrench
+  Wrench,
+  Moon,
+  Sun
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { useTheme } from "@/contexts/ThemeContext";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 
@@ -297,6 +300,31 @@ export default function DashboardLayout({
   );
 }
 
+function ThemeToggleMenuItem() {
+  const { theme, toggleTheme } = useTheme();
+  
+  if (!toggleTheme) return null;
+  
+  return (
+    <DropdownMenuItem
+      onClick={toggleTheme}
+      className="cursor-pointer"
+    >
+      {theme === 'light' ? (
+        <>
+          <Moon className="mr-2 h-4 w-4" />
+          <span>Modo Escuro</span>
+        </>
+      ) : (
+        <>
+          <Sun className="mr-2 h-4 w-4" />
+          <span>Modo Claro</span>
+        </>
+      )}
+    </DropdownMenuItem>
+  );
+}
+
 type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
@@ -511,6 +539,8 @@ function DashboardLayoutContent({
                   <KeyRound className="mr-2 h-4 w-4" />
                   <span>Alterar Senha</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <ThemeToggleMenuItem />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
