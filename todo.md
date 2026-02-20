@@ -1988,3 +1988,5 @@
 
 - [x] Corrigir contraste de cores no tema dark - header e textos muito claros
 - [x] Validar visibilidade de todos os elementos em tema dark
+
+- [ ] Redesenhar tema dark com fundo preto e cards em cinza escuro (estilo EasyVision - fundo #000000, cards #1a1a1a, texto #ffffff)
