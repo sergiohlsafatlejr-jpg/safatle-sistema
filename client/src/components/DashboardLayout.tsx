@@ -563,11 +563,11 @@ function DashboardLayoutContent({
         />
       </div>
 
-      <SidebarInset className="bg-slate-50">
+      <SidebarInset className="bg-background">
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-white px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex border-b h-14 items-center justify-between bg-background px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
+              <SidebarTrigger className="h-9 w-9 rounded-lg bg-card" />
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground font-medium">
@@ -585,10 +585,10 @@ function DashboardLayoutContent({
           </div>
         )}
         {!isMobile && estabelecimentoAtual && estabelecimentoAtual.id > 0 && (
-          <div className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary/5 to-transparent border-b">
+          <div className="flex items-center gap-2 px-6 py-3 bg-card border-b">
             <Building2 className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-primary">Visualizando:</span>
-            <span className="text-sm font-semibold text-slate-700">{estabelecimentoAtual.nome}</span>
+            <span className="text-sm font-semibold text-foreground">{estabelecimentoAtual.nome}</span>
           </div>
         )}
         <main className="flex-1 p-6">

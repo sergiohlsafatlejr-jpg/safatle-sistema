@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* Define custom dark variant for Tailwind 4 */
+@custom-variant dark (&:is(.dark, .dark *));
 
 /* Safatle Brand Colors - Custom Theme */
 @theme inline {
@@ -51,6 +52,7 @@
   --color-safatle-red-light: oklch(0.65 0.20 25);
 }
 
+/* Light theme (default) */
 :root {
   /* Safatle Navy Blue as Primary */
   --primary: oklch(0.30 0.08 250);
@@ -91,7 +93,10 @@
   --sidebar-ring: oklch(0.55 0.18 240);
 }
 
-.dark {
+/* Dark theme - Applied when .dark class is on html or any parent */
+.dark,
+html.dark,
+html:is(.dark) {
   /* Professional Dark Theme - Black background with dark gray cards */
   --primary: #00d9ff;
   --primary-foreground: #000000;
@@ -135,9 +140,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  
+  html,
+  html.dark {
+    @apply bg-background text-foreground;
+  }
+  
   body {
     @apply bg-background text-foreground;
   }
+  
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
