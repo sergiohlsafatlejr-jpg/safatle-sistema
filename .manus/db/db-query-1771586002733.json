@@ -1,0 +1,45 @@
+{
+  "query": "SELECT codigo_item, descricao_item, valor_informado, valor_pago, valor_glosa FROM demonstrativo WHERE estabelecimentoId = 1 AND convenio_id = 1 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT codigo_item, descricao_item, valor_informado, valor_pago, valor_glosa FROM demonstrativo WHERE estabelecimentoId = 1 AND convenio_id = 1 LIMIT 5;",
+  "rows": [
+    {
+      "codigo_item": "10101039",
+      "descricao_item": "Consulta Em Pronto Socorro",
+      "valor_informado": "0.00",
+      "valor_pago": "109.20",
+      "valor_glosa": "NULL"
+    },
+    {
+      "codigo_item": "10101039",
+      "descricao_item": "Consulta Em Pronto Socorro",
+      "valor_informado": "0.00",
+      "valor_pago": "84.00",
+      "valor_glosa": "NULL"
+    },
+    {
+      "codigo_item": "40808025",
+      "descricao_item": "Rx - Abdome Agudo",
+      "valor_informado": "0.00",
+      "valor_pago": "35.27",
+      "valor_glosa": "NULL"
+    },
+    {
+      "codigo_item": "40301630",
+      "descricao_item": "Creatinina - Pesquisa E / Ou Dosagem",
+      "valor_informado": "0.00",
+      "valor_pago": "3.48",
+      "valor_glosa": "NULL"
+    },
+    {
+      "codigo_item": "40302580",
+      "descricao_item": "Uréia - Pesquisa E / Ou Dosagem",
+      "valor_informado": "0.00",
+      "valor_pago": "3.48",
+      "valor_glosa": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "codigo_item\tdescricao_item\tvalor_informado\tvalor_pago\tvalor_glosa\n10101039\tConsulta Em Pronto Socorro\t0.00\t109.20\tNULL\n10101039\tConsulta Em Pronto Socorro\t0.00\t84.00\tNULL\n40808025\tRx - Abdome Agudo\t0.00\t35.27\tNULL\n40301630\tCreatinina - Pesquisa E / Ou Dosagem\t0.00\t3.48\tNULL\n40302580\tUréia - Pesquisa E / Ou Dosagem\t0.00\t3.48\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 83
+}

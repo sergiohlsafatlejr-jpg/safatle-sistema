@@ -487,7 +487,7 @@ export const motorRegrasRouter = router({
         mesesHistorico: z.number().default(12),
       })
     )
-    .mutation(async ({ input }) => {
+    .query(async ({ input }) => {
       try {
         logger.info({
           message: "Iniciando análise de padrões de recebimento",

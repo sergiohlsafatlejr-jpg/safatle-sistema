@@ -65,22 +65,48 @@ export function PrevisaoGlosa() {
   const [analiseRisco, setAnaliseRisco] = useState<AnaliseRiscoConta | null>(null);
   const [contasRisco, setContasRisco] = useState<any[]>([]);
 
-  // Mutations
-  const padroesMutation = trpc.motorRegras.analisarPadroesRecebimento.useMutation({
-    onSuccess: (data) => {
-      setPadroes(data.padroes || []);
-    },
-  });
+  // Estado para controlar quando buscar padrões
+  const [shouldFetchPadroes, setShouldFetchPadroes] = useState(false);
 
+  // Query para padrões de recebimento
+  const padroesMutation = trpc.motorRegras.analisarPadroesRecebimento.useQuery(
+    {
+      estabelecimentoId: estabelecimentoId || 0,
+      convenioId: convenioId || undefined,
+      mesesHistorico: mesesHistorico,
+    },
+    {
+      enabled: shouldFetchPadroes && !!estabelecimentoId && !!convenioId,
+    }
+  );
+
+  // Atualizar padrões quando dados chegam
+  useEffect(() => {
+    if (padroesMutation.data) {
+      console.log("Padrões recebidos:", padroesMutation.data);
+      setPadroes(padroesMutation.data.padroes || []);
+      setShouldFetchPadroes(false);
+    }
+  }, [padroesMutation.data]);
+
+  // Mutations
   const riscoConta = trpc.motorRegras.analisarRiscoConta.useMutation({
     onSuccess: (data) => {
+      console.log("Análise de risco recebida:", data);
       setAnaliseRisco(data);
+    },
+    onError: (error) => {
+      console.error("Erro ao analisar risco:", error);
     },
   });
 
   const contasComRisco = trpc.motorRegras.identificarContasComRisco.useMutation({
     onSuccess: (data) => {
+      console.log("Contas com risco recebidas:", data);
       setContasRisco(data.contas || []);
+    },
+    onError: (error) => {
+      console.error("Erro ao identificar contas com risco:", error);
     },
   });
 
@@ -122,12 +148,12 @@ export function PrevisaoGlosa() {
   const coresPizza = ["#dc2626", "#f97316", "#eab308", "#22c55e"];
 
   const handleAnalisarPadroes = () => {
-    if (!convenioId || !estabelecimentoId) return;
-    padroesMutation.mutate({
-      estabelecimentoId,
-      convenioId,
-      mesesHistorico,
-    });
+    console.log("Iniciando análise com:", { estabelecimentoId, convenioId, mesesHistorico });
+    if (!convenioId || !estabelecimentoId) {
+      console.error("Faltam parâmetros: estabelecimentoId ou convenioId");
+      return;
+    }
+    setShouldFetchPadroes(true);
   };
 
   const handleAnalisarRisco = () => {
@@ -200,10 +226,10 @@ export function PrevisaoGlosa() {
               <div className="flex items-end">
                 <Button
                   onClick={handleAnalisarPadroes}
-                  disabled={!convenioId || padroesMutation.isPending}
+                  disabled={!convenioId || padroesMutation.isLoading}
                   className="w-full"
                 >
-                  {padroesMutation.isPending ? (
+                  {padroesMutation.isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Analisando...
@@ -214,6 +240,13 @@ export function PrevisaoGlosa() {
                 </Button>
               </div>
             </div>
+
+            {padroesMutation.error && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800">
+                <p className="font-semibold">Erro ao carregar padrões:</p>
+                <p className="text-sm">{String(padroesMutation.error)}</p>
+              </div>
+            )}
 
             {padroes.length > 0 && (
               <div className="space-y-4">
@@ -293,23 +326,36 @@ export function PrevisaoGlosa() {
           </CardContent>
         </Card>
 
-        {/* SEÇÃO 2: ANÁLISE DE CONTA */}
+        {/* SEÇÃO 2: ANÁLISE DE RISCO DE CONTA */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
               Análise de Risco de Conta
             </CardTitle>
             <CardDescription>
-              Analise o risco de glosa de uma guia/conta específica
+              Analise o risco de glosa de uma conta específica
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
+                <label className="text-sm font-medium">Convênio</label>
+                <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um convênio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Unimed</SelectItem>
+                    <SelectItem value="2">Bradesco Saúde</SelectItem>
+                    <SelectItem value="3">Amil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="text-sm font-medium">Número da Guia</label>
                 <Input
-                  placeholder="Ex: 12345678"
+                  placeholder="Ex: 123456"
                   value={numeroGuia}
                   onChange={(e) => setNumeroGuia(e.target.value)}
                 />
@@ -333,37 +379,31 @@ export function PrevisaoGlosa() {
             </div>
 
             {analiseRisco && (
-              <div className="space-y-4 mt-4 p-4 bg-gray-50 rounded-lg border">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
                     <p className="text-sm text-gray-600">Score de Risco</p>
-                    <p className="text-2xl font-bold">{isNaN(analiseRisco.scoreRisco) ? '0' : analiseRisco.scoreRisco}</p>
+                    <p className="text-3xl font-bold text-blue-600">{analiseRisco.scoreRisco}</p>
                   </div>
-                  <div>
+                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
                     <p className="text-sm text-gray-600">Classificação</p>
-                    <Badge className={getRiscoBadgeColor(analiseRisco.riscoConta)}>
-                      {analiseRisco.riscoConta.toUpperCase()}
+                    <Badge className={`mt-2 ${getRiscoBadgeColor(analiseRisco.riscoConta)}`}>
+                      {getRiscoIcon(analiseRisco.riscoConta)}
+                      <span className="ml-1">{analiseRisco.riscoConta.toUpperCase()}</span>
                     </Badge>
                   </div>
-                  <div>
+                  <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
                     <p className="text-sm text-gray-600">Valor Faturado</p>
-                    <p className="text-lg font-semibold">R$ {isNaN(analiseRisco.valorFaturado) ? '0' : analiseRisco.valorFaturado.toLocaleString('pt-BR')}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Itens</p>
-                    <p className="text-lg font-semibold">{analiseRisco.itens.length}</p>
+                    <p className="text-2xl font-bold text-green-600">R$ {analiseRisco.valorFaturado.toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
 
                 {analiseRisco.motivosAlerta.length > 0 && (
-                  <div>
-                    <p className="font-semibold mb-2">Alertas:</p>
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="font-semibold text-yellow-800 mb-2">Alertas:</p>
                     <ul className="space-y-1">
-                      {analiseRisco.motivosAlerta.map((motivo, idx) => (
-                        <li key={idx} className="text-sm text-red-600 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          {motivo}
-                        </li>
+                      {analiseRisco.motivosAlerta.map((alerta, idx) => (
+                        <li key={idx} className="text-sm text-yellow-700">{alerta}</li>
                       ))}
                     </ul>
                   </div>
@@ -372,27 +412,28 @@ export function PrevisaoGlosa() {
                 {analiseRisco.itens.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-200 border-b">
+                      <thead className="bg-gray-100 border-b">
                         <tr>
                           <th className="px-4 py-2 text-left">Código</th>
                           <th className="px-4 py-2 text-left">Descrição</th>
-                          <th className="px-4 py-2 text-right">Qtd</th>
+                          <th className="px-4 py-2 text-right">Quantidade</th>
                           <th className="px-4 py-2 text-right">Valor</th>
-                          <th className="px-4 py-2 text-right">Taxa Glosa Esperada</th>
+                          <th className="px-4 py-2 text-right">Taxa Glosa</th>
                           <th className="px-4 py-2">Risco</th>
                         </tr>
                       </thead>
                       <tbody>
                         {analiseRisco.itens.map((item, idx) => (
-                          <tr key={idx} className="border-b">
+                          <tr key={idx} className="border-b hover:bg-gray-50">
                             <td className="px-4 py-2 font-mono">{item.codigoItem}</td>
                             <td className="px-4 py-2">{item.descricaoItem}</td>
-                            <td className="px-4 py-2 text-right">{isNaN(item.quantidade) ? '0' : item.quantidade}</td>
-                            <td className="px-4 py-2 text-right">R$ {isNaN(item.valorFaturado) ? '0' : item.valorFaturado.toLocaleString('pt-BR')}</td>
-                            <td className="px-4 py-2 text-right">{isNaN(item.taxaGlosaEsperada) ? '0.00' : item.taxaGlosaEsperada.toFixed(2)}%</td>
+                            <td className="px-4 py-2 text-right">{item.quantidade}</td>
+                            <td className="px-4 py-2 text-right">R$ {item.valorFaturado.toLocaleString('pt-BR')}</td>
+                            <td className="px-4 py-2 text-right">{item.taxaGlosaEsperada.toFixed(2)}%</td>
                             <td className="px-4 py-2">
                               <Badge className={getRiscoBadgeColor(item.riscoPrevisto)}>
-                                {item.riscoPrevisto.toUpperCase()}
+                                {getRiscoIcon(item.riscoPrevisto)}
+                                <span className="ml-1">{item.riscoPrevisto.toUpperCase()}</span>
                               </Badge>
                             </td>
                           </tr>
@@ -406,19 +447,32 @@ export function PrevisaoGlosa() {
           </CardContent>
         </Card>
 
-        {/* SEÇÃO 3: CONTAS COM RISCO */}
+        {/* SEÇÃO 3: IDENTIFICAR CONTAS COM RISCO */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Contas com Risco (Arquivo Importado)
+              <AlertCircle className="w-5 h-5" />
+              Identificar Contas com Risco
             </CardTitle>
             <CardDescription>
-              Identifique contas de risco em um arquivo XML recém-importado
+              Identifique todas as contas com risco de glosa em um arquivo
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="text-sm font-medium">Convênio</label>
+                <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um convênio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Unimed</SelectItem>
+                    <SelectItem value="2">Bradesco Saúde</SelectItem>
+                    <SelectItem value="3">Amil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <label className="text-sm font-medium">ID do Arquivo</label>
                 <Input
@@ -435,7 +489,7 @@ export function PrevisaoGlosa() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="alto">Alto e Crítico</SelectItem>
+                    <SelectItem value="alto_critico">Alto e Crítico</SelectItem>
                     <SelectItem value="critico">Apenas Crítico</SelectItem>
                   </SelectContent>
                 </Select>
@@ -449,7 +503,7 @@ export function PrevisaoGlosa() {
                   {contasComRisco.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Identificando...
+                      Buscando...
                     </>
                   ) : (
                     "Identificar Contas"
@@ -463,7 +517,7 @@ export function PrevisaoGlosa() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100 border-b">
                     <tr>
-                      <th className="px-4 py-2 text-left">Guia</th>
+                      <th className="px-4 py-2 text-left">Número Guia</th>
                       <th className="px-4 py-2 text-right">Score Risco</th>
                       <th className="px-4 py-2">Classificação</th>
                       <th className="px-4 py-2 text-right">Valor Faturado</th>
@@ -477,13 +531,13 @@ export function PrevisaoGlosa() {
                         <td className="px-4 py-2 font-mono">{conta.numeroGuia}</td>
                         <td className="px-4 py-2 text-right font-bold">{conta.scoreRisco}</td>
                         <td className="px-4 py-2">
-                          <Badge className={getRiscoBadgeColor(conta.riscoConta)}>
-                            {getRiscoIcon(conta.riscoConta)}
-                            <span className="ml-1">{conta.riscoConta.toUpperCase()}</span>
+                          <Badge className={getRiscoBadgeColor(conta.risco)}>
+                            {getRiscoIcon(conta.risco)}
+                            <span className="ml-1">{conta.risco.toUpperCase()}</span>
                           </Badge>
                         </td>
                         <td className="px-4 py-2 text-right">R$ {conta.valorFaturado.toLocaleString('pt-BR')}</td>
-                        <td className="px-4 py-2 text-right">{conta.itens.length}</td>
+                        <td className="px-4 py-2 text-right">{conta.itensProblematicos}</td>
                         <td className="px-4 py-2">
                           <Button size="sm" variant="outline">
                             Detalhes
