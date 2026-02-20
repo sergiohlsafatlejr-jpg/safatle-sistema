@@ -86,8 +86,8 @@ export class AnalisadorRiscoGlosa {
       // Usando tabela demonstrativo que tem dados mais completos
       const query = sql`
         SELECT 
-          d.codigo_item,
-          d.descricao_item,
+          d.codigo_item as codigoItem,
+          d.descricao_item as descricaoItem,
           d.valor_informado as valor_faturado,
           d.valor_pago as valor_liberado,
           d.valor_glosa as valor_glosado
@@ -100,6 +100,12 @@ export class AnalisadorRiscoGlosa {
       let resultados = await db.execute(query);
       let linhas = (resultados as any[]) || [];
 
+      logger.info({
+        message: "Resultado da query inicial",
+        linhas: linhas.length,
+        primeireLinha: linhas[0],
+      });
+
       // Se não houver dados com filtro de data, busca todos os dados
       if (linhas.length === 0) {
         logger.info({
@@ -110,8 +116,8 @@ export class AnalisadorRiscoGlosa {
 
         const queryTodos = sql`
           SELECT 
-            d.codigo_item,
-            d.descricao_item,
+            d.codigo_item as codigoItem,
+            d.descricao_item as descricaoItem,
             d.valor_informado as valor_faturado,
             d.valor_pago as valor_liberado,
             d.valor_glosa as valor_glosado

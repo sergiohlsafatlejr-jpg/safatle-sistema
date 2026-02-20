@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, MIN(convenio_id) as min_convenio, MAX(convenio_id) as max_convenio FROM demonstrativo WHERE estabelecimentoId = 1 LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, MIN(convenio_id) as min_convenio, MAX(convenio_id) as max_convenio FROM demonstrativo WHERE estabelecimentoId = 1 LIMIT 1;",
+  "rows": [
+    {
+      "total": "50179",
+      "min_convenio": "1",
+      "max_convenio": "60008"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tmin_convenio\tmax_convenio\n50179\t1\t60008\n",
+  "stderr": "",
+  "execution_time_ms": 169
+}
