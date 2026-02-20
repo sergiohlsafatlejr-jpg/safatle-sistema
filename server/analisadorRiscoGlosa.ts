@@ -76,23 +76,59 @@ export class AnalisadorRiscoGlosa {
       // Converter para ISO string (YYYY-MM-DD)
       const dataLimiteStr = dataLimite.toISOString().split('T')[0];
 
+      logger.info({
+        message: "Data limite para análise",
+        dataLimite: dataLimiteStr,
+        mesesHistorico,
+      });
+
       // Query simplificada - busca dados brutos sem GROUP BY
       // Usando tabela demonstrativo que tem dados mais completos
       const query = sql`
         SELECT 
           d.codigo_item,
           d.descricao_item,
-          d.valor_faturado,
-          d.valor_liberado,
-          d.valor_glosado
+          d.valor_informado as valor_faturado,
+          d.valor_pago as valor_liberado,
+          d.valor_glosa as valor_glosado
         FROM demonstrativo d
         WHERE d.estabelecimentoId = ${estabelecimentoId}
-          ${convenioId ? sql`AND d.convenioId = ${convenioId}` : sql``}
-          AND d.data_importacao >= ${dataLimiteStr}
+          ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
+          AND d.data_importacao_sistema >= ${dataLimiteStr}
       `;
 
-      const resultados = await db.execute(query);
-      const linhas = (resultados as any[]) || [];
+      let resultados = await db.execute(query);
+      let linhas = (resultados as any[]) || [];
+
+      // Se não houver dados com filtro de data, busca todos os dados
+      if (linhas.length === 0) {
+        logger.info({
+          message: "Nenhum dado encontrado com filtro de data, buscando todos os dados",
+          estabelecimentoId,
+          convenioId,
+        });
+
+        const queryTodos = sql`
+          SELECT 
+            d.codigo_item,
+            d.descricao_item,
+            d.valor_informado as valor_faturado,
+            d.valor_pago as valor_liberado,
+            d.valor_glosa as valor_glosado
+          FROM demonstrativo d
+          WHERE d.estabelecimentoId = ${estabelecimentoId}
+            ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
+        `;
+
+        resultados = await db.execute(queryTodos);
+        linhas = (resultados as any[]) || [];
+      }
+
+      logger.info({
+        message: "Dados de demonstrativo recuperados",
+        estabelecimentoId,
+        linhas: linhas.length,
+      });
 
       // Processar dados em JavaScript (GROUP BY manual)
       const mapa = new Map<string, any>();
@@ -176,16 +212,16 @@ export class AnalisadorRiscoGlosa {
         // 3. Buscar motivos de glosa mais frequentes para este item
         const motivosQuery = sql`
           SELECT 
-            rt.codigo_glosa as codigo,
-            rt.descricao_glosa as descricao,
+            d.codigo_glosa as codigo,
+            d.situacao_item as descricao,
             COUNT(*) as frequencia
-          FROM recebimento_tiss rt
-          WHERE rt.codigo_item = ${String(row.codigoItem).trim()}
-            AND rt.estabelecimentoId = ${estabelecimentoId}
-            ${convenioId ? sql`AND rt.convenioId = ${convenioId}` : sql``}
-            AND rt.valor_glosado > 0
-            AND DATE(rt.data_importacao) >= DATE('${dataLimite.toISOString().split('T')[0]}')
-          GROUP BY rt.codigo_glosa, rt.descricao_glosa
+          FROM demonstrativo d
+          WHERE d.codigo_item = ${String(row.codigoItem).trim()}
+            AND d.estabelecimentoId = ${estabelecimentoId}
+            ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
+            AND d.valor_glosa > 0
+            AND d.data_importacao_sistema >= ${dataLimite.toISOString().split('T')[0]}
+          GROUP BY d.codigo_glosa, d.situacao_item
           ORDER BY frequencia DESC
           LIMIT 5
         `;
@@ -283,13 +319,13 @@ export class AnalisadorRiscoGlosa {
         const padraoQuery = sql`
           SELECT 
             COUNT(*) as total,
-            COUNT(CASE WHEN valor_glosado > 0 THEN 1 END) as glosado,
-            AVG(CASE WHEN valor_glosado > 0 THEN valor_glosado ELSE 0 END) as mediaGlosa
-          FROM recebimento_tiss
+            COUNT(CASE WHEN valor_glosa > 0 THEN 1 END) as glosado,
+            AVG(CASE WHEN valor_glosa > 0 THEN valor_glosa ELSE 0 END) as mediaGlosa
+          FROM demonstrativo
           WHERE codigo_item = ${item.codigoItem}
             AND estabelecimentoId = ${estabelecimentoId}
-            AND convenioId = ${convenioId}
-            AND DATE(data_importacao) >= DATE('${dataLimite.toISOString().split('T')[0]}')
+            AND convenio_id = ${convenioId}
+            AND data_importacao_sistema >= ${dataLimite.toISOString().split('T')[0]}
         `;
 
         const padrao = (await db.execute(padraoQuery)) as any[];
@@ -311,18 +347,18 @@ export class AnalisadorRiscoGlosa {
 
         // Buscar motivos de glosa frequentes
         const motivosQuery = sql`
-          SELECT DISTINCT descricao_glosa
-          FROM recebimento_tiss
+          SELECT DISTINCT situacao_item
+          FROM demonstrativo
           WHERE codigo_item = ${item.codigoItem}
             AND estabelecimentoId = ${estabelecimentoId}
-            AND convenioId = ${convenioId}
-            AND valor_glosado > 0
-            AND DATE(data_importacao) >= DATE('${dataLimite.toISOString().split('T')[0]}')
+            AND convenio_id = ${convenioId}
+            AND valor_glosa > 0
+            AND data_importacao_sistema >= ${dataLimite.toISOString().split('T')[0]}
           LIMIT 3
         `;
 
         const motivos = (await db.execute(motivosQuery)) as any[];
-        const motivosProvaveis = motivos.map((m: any) => m.descricao_glosa || "Motivo não informado");
+        const motivosProvaveis = motivos.map((m: any) => m.situacao_item || "Motivo não informado");
 
         itensComRisco.push({
           codigoItem: item.codigoItem,
@@ -397,16 +433,16 @@ export class AnalisadorRiscoGlosa {
       // Buscar contas com risco
       const query = sql`
         SELECT 
-          rt.numero_guia as numeroGuia,
-          rt.convenioId,
-          COUNT(DISTINCT rt.id) as totalItens,
-          COUNT(CASE WHEN rt.valor_glosado > 0 THEN 1 END) as itensGlosados,
-          SUM(rt.valor_glosado) as valorGlosado,
-          ROUND(COUNT(CASE WHEN rt.valor_glosado > 0 THEN 1 END) * 100.0 / COUNT(DISTINCT rt.id), 2) as taxaGlosa
-        FROM recebimento_tiss rt
-        WHERE rt.estabelecimentoId = ${estabelecimentoId}
-          ${arquivoId ? sql`AND rt.arquivo_id = ${arquivoId}` : sql``}
-        GROUP BY rt.numero_guia, rt.convenioId
+          d.numero_guia as numeroGuia,
+          d.convenio_id,
+          COUNT(DISTINCT d.id) as totalItens,
+          COUNT(CASE WHEN d.valor_glosa > 0 THEN 1 END) as itensGlosados,
+          SUM(d.valor_glosa) as valorGlosado,
+          ROUND(COUNT(CASE WHEN d.valor_glosa > 0 THEN 1 END) * 100.0 / COUNT(DISTINCT d.id), 2) as taxaGlosa
+        FROM demonstrativo d
+        WHERE d.estabelecimentoId = ${estabelecimentoId}
+          ${arquivoId ? sql`AND d.arquivo_id = ${arquivoId}` : sql``}
+        GROUP BY d.numero_guia, d.convenio_id
         HAVING taxaGlosa >= ${limiteScore / 100 * 100}
         ORDER BY taxaGlosa DESC
       `;

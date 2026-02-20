@@ -424,7 +424,7 @@ export function PrevisaoGlosa() {
                 <Input
                   placeholder="Ex: 123"
                   type="number"
-                  value={arquivoId || ""}
+                  value={arquivoId ? String(arquivoId) : ""}
                   onChange={(e) => setArquivoId(e.target.value ? parseInt(e.target.value) : null)}
                 />
               </div>
