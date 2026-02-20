@@ -94,8 +94,8 @@ export class AnalisadorRiscoGlosa {
           AND d.data_importacao_sistema >= DATE_SUB(NOW(), INTERVAL ${mesesHistorico} MONTH)
       `;
 
-      let resultados = await db.execute(query);
-      let linhas = (resultados as any[]) || [];
+      const resultados = await db.execute(query);
+      let linhas = Array.isArray(resultados) ? resultados : (resultados as any)?.rows || [];
 
       logger.info({
         message: "Resultado da query inicial",
@@ -123,8 +123,8 @@ export class AnalisadorRiscoGlosa {
             ${convenioId ? sql`AND d.convenio_id = ${convenioId}` : sql``}
         `;
 
-        resultados = await db.execute(queryTodos);
-        linhas = (resultados as any[]) || [];
+        const resultados2 = await db.execute(queryTodos);
+        linhas = Array.isArray(resultados2) ? resultados2 : (resultados2 as any)?.rows || [];
       }
 
       logger.info({
@@ -137,11 +137,11 @@ export class AnalisadorRiscoGlosa {
       const mapa = new Map<string, any>();
       
       for (const linha of linhas) {
-        const chave = `${linha.codigo_item}|${linha.descricao_item}`;
+        const chave = `${linha.codigoItem}|${linha.descricaoItem}`;
         if (!mapa.has(chave)) {
           mapa.set(chave, {
-            codigoItem: linha.codigo_item,
-            descricaoItem: linha.descricao_item,
+            codigoItem: linha.codigoItem,
+            descricaoItem: linha.descricaoItem,
             totalFaturado: 0,
             valorTotalFaturado: 0,
             valorMedioFaturado: 0,
@@ -230,7 +230,7 @@ export class AnalisadorRiscoGlosa {
         `;
 
         const motivosResultados = await db.execute(motivosQuery);
-        const motivos = (motivosResultados as any[]) || [];
+        const motivos = Array.isArray(motivosResultados) ? motivosResultados : (motivosResultados as any)?.rows || [];
 
         const motivosGlosaFrequentes = motivos.map((m: any) => ({
           codigo: m.codigo || "N/A",
