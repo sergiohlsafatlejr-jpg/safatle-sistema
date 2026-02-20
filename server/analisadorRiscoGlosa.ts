@@ -82,16 +82,16 @@ export class AnalisadorRiscoGlosa {
           rt.codigo_item as codigoItem,
           rt.descricao_item as descricaoItem,
           COUNT(*) as totalFaturado,
-          SUM(CAST(rt.valor_faturado AS DECIMAL(12,2))) as valorTotalFaturado,
-          AVG(CAST(rt.valor_faturado AS DECIMAL(12,2))) as valorMedioFaturado,
+          SUM(rt.valor_faturado) as valorTotalFaturado,
+          AVG(rt.valor_faturado) as valorMedioFaturado,
           
-          COUNT(CASE WHEN rt.valor_liberado > 0 THEN 1 END) as totalRecebido,
-          SUM(CASE WHEN rt.valor_liberado > 0 THEN CAST(rt.valor_liberado AS DECIMAL(12,2)) ELSE 0 END) as valorTotalRecebido,
-          AVG(CASE WHEN rt.valor_liberado > 0 THEN CAST(rt.valor_liberado AS DECIMAL(12,2)) ELSE NULL END) as valorMedioRecebido,
+          SUM(CASE WHEN rt.valor_liberado > 0 THEN 1 ELSE 0 END) as totalRecebido,
+          SUM(CASE WHEN rt.valor_liberado > 0 THEN rt.valor_liberado ELSE 0 END) as valorTotalRecebido,
+          AVG(CASE WHEN rt.valor_liberado > 0 THEN rt.valor_liberado ELSE NULL END) as valorMedioRecebido,
           
-          COUNT(CASE WHEN rt.valor_glosado > 0 THEN 1 END) as totalGlosado,
-          SUM(CASE WHEN rt.valor_glosado > 0 THEN CAST(rt.valor_glosado AS DECIMAL(12,2)) ELSE 0 END) as valorTotalGlosado,
-          AVG(CASE WHEN rt.valor_glosado > 0 THEN CAST(rt.valor_glosado AS DECIMAL(12,2)) ELSE NULL END) as valorMedioGlosado
+          SUM(CASE WHEN rt.valor_glosado > 0 THEN 1 ELSE 0 END) as totalGlosado,
+          SUM(CASE WHEN rt.valor_glosado > 0 THEN rt.valor_glosado ELSE 0 END) as valorTotalGlosado,
+          AVG(CASE WHEN rt.valor_glosado > 0 THEN rt.valor_glosado ELSE NULL END) as valorMedioGlosado
           
         FROM recebimento_tiss rt
         
