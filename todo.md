@@ -1983,3 +1983,8 @@
 - [x] Salvar preferência de tema no localStorage
 - [x] Testar alternância entre temas
 - [x] Validar cores em ambos os temas
+
+## Bugs - Sistema de Tema
+
+- [x] Corrigir contraste de cores no tema dark - header e textos muito claros
+- [x] Validar visibilidade de todos os elementos em tema dark
