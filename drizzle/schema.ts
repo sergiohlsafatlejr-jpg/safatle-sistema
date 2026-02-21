@@ -688,6 +688,16 @@ export const regrasNegocio = mysqlTable("regrasNegocio", {
   // Prioridade (1 = mais alta)
   prioridade: int("prioridade").default(5),
   
+  // Campos para Padrões de Procedimentos (FASE 1.5A)
+  tipoRegra: mysqlEnum("tipoRegra", ["validacao_geral", "padrao_procedimento"]).default("validacao_geral"),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  nomeProcedimento: varchar("nomeProcedimento", { length: 255 }),
+  tolerancia_percentual: varchar("tolerancia_percentual", { length: 10 }),
+  tolerancia_absoluta: decimal("tolerancia_absoluta", { precision: 12, scale: 2 }),
+  diaria_obrigatoria: int("diaria_obrigatoria").default(0),
+  diaria_esperada_por_dia: int("diaria_esperada_por_dia"),
+  score_minimo_aceitavel: int("score_minimo_aceitavel").default(70),
+  
   // Controle
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   
@@ -730,6 +740,12 @@ export const itensRegraNegocio = mysqlTable("itensRegraNegocio", {
   
   // Obrigatoriedade
   obrigatorio: mysqlEnum("obrigatorio", ["sim", "nao"]).default("sim").notNull(),
+  
+  // Campos para Padrões de Procedimentos (FASE 1.5A)
+  tabelaPrecoCodigo: varchar("tabelaPrecoCodigo", { length: 50 }),
+  tolerancia_percentual: varchar("tolerancia_percentual", { length: 10 }),
+  tolerancia_absoluta: decimal("tolerancia_absoluta", { precision: 12, scale: 2 }),
+  ordem: int("ordem").default(0),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

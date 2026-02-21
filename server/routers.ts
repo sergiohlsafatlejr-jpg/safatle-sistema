@@ -13,6 +13,7 @@ import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } fro
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
+import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6452,6 +6453,9 @@ export const appRouter = router({
 
   // ============ MOTOR DE REGRAS ============
   motorRegras: motorRegrasRouter,
+
+  // ============ PADRÕES DE PROCEDIMENTOS ============
+  padroesProcedimentos: padroesProcedimentosRouter,
 
   // ============ AVISOS INTERNOS ============
   avisosInternos: router({
