@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -6,9 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertCircle, TrendingUp, AlertTriangle, Loader2, Download, RefreshCw, Info, CheckCircle2, AlertOctagon } from "lucide-react";
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 interface PadraoRecebimento {
   codigoItem: string;
@@ -50,125 +54,131 @@ interface AnaliseRiscoConta {
   motivosAlerta: string[];
 }
 
+// Dados de exemplo de convênios
+const CONVENIOS = [
+  { id: 1, nome: "Unimed" },
+  { id: 2, nome: "Bradesco Saúde" },
+  { id: 3, nome: "Amil" },
+  { id: 4, nome: "SulAmérica" },
+  { id: 5, nome: "Vivacom" },
+];
+
+const getRiscoBadgeColor = (risco: string) => {
+  switch (risco) {
+    case "critico":
+      return "bg-red-600 text-white";
+    case "alto":
+      return "bg-orange-500 text-white";
+    case "medio":
+      return "bg-yellow-500 text-white";
+    case "baixo":
+      return "bg-green-500 text-white";
+    default:
+      return "bg-gray-500 text-white";
+  }
+};
+
+const getRiscoIcon = (risco: string) => {
+  switch (risco) {
+    case "critico":
+      return <AlertOctagon className="w-4 h-4 text-red-600" />;
+    case "alto":
+      return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+    case "medio":
+      return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+    case "baixo":
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    default:
+      return <Info className="w-4 h-4 text-gray-500" />;
+  }
+};
+
 export function PrevisaoGlosa() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id;
 
+  // Estados
   const [convenioId, setConvenioId] = useState<number | null>(null);
   const [mesesHistorico, setMesesHistorico] = useState(12);
   const [numeroGuia, setNumeroGuia] = useState("");
+  const [itensGuia, setItensGuia] = useState<Array<{ codigoItem: string; descricaoItem: string; quantidade: number; valorFaturado: number }>>([]);
   const [arquivoId, setArquivoId] = useState<number | null>(null);
   const [limiteRisco, setLimiteRisco] = useState<"alto_critico" | "critico">("alto_critico");
 
-  // Estados para resultados
+  // Resultados
   const [padroes, setPadroes] = useState<PadraoRecebimento[]>([]);
   const [analiseRisco, setAnaliseRisco] = useState<AnaliseRiscoConta | null>(null);
   const [contasRisco, setContasRisco] = useState<any[]>([]);
-
-  // Estado para controlar quando buscar padrões
   const [shouldFetchPadroes, setShouldFetchPadroes] = useState(false);
 
-  // Query para padrões de recebimento
+  // Queries e Mutations
   const padroesMutation = trpc.motorRegras.analisarPadroesRecebimento.useQuery(
     {
       estabelecimentoId: estabelecimentoId || 0,
       convenioId: convenioId || undefined,
-      mesesHistorico: mesesHistorico,
+      mesesHistorico,
     },
     {
       enabled: shouldFetchPadroes && !!estabelecimentoId && !!convenioId,
     }
   );
 
-  // Atualizar padrões quando dados chegam
   useEffect(() => {
     if (padroesMutation.data) {
-      console.log("Padrões recebidos:", padroesMutation.data);
       setPadroes(padroesMutation.data.padroes || []);
       setShouldFetchPadroes(false);
+      toast.success(`${padroesMutation.data.padroes?.length || 0} padrões carregados`);
     }
   }, [padroesMutation.data]);
 
-  // Mutations
   const riscoConta = trpc.motorRegras.analisarRiscoConta.useMutation({
     onSuccess: (data) => {
-      console.log("Análise de risco recebida:", data);
       setAnaliseRisco(data);
+      toast.success("Análise de risco concluída");
     },
     onError: (error) => {
-      console.error("Erro ao analisar risco:", error);
+      toast.error("Erro ao analisar risco: " + error.message);
     },
   });
 
   const contasComRisco = trpc.motorRegras.identificarContasComRisco.useMutation({
     onSuccess: (data) => {
-      console.log("Contas com risco recebidas:", data);
       setContasRisco(data.contas || []);
+      toast.success(`${data.total} contas com risco identificadas`);
     },
     onError: (error) => {
-      console.error("Erro ao identificar contas com risco:", error);
+      toast.error("Erro ao identificar contas: " + error.message);
     },
   });
 
-  const getRiscoBadgeColor = (risco: string) => {
-    switch (risco) {
-      case "critico":
-        return "bg-red-600 text-white";
-      case "alto":
-        return "bg-orange-500 text-white";
-      case "medio":
-        return "bg-yellow-500 text-white";
-      case "baixo":
-        return "bg-green-500 text-white";
-      default:
-        return "bg-gray-500 text-white";
-    }
-  };
-
-  const getRiscoIcon = (risco: string) => {
-    switch (risco) {
-      case "critico":
-      case "alto":
-        return <AlertTriangle className="w-4 h-4" />;
-      case "medio":
-        return <AlertCircle className="w-4 h-4" />;
-      default:
-        return <TrendingUp className="w-4 h-4" />;
-    }
-  };
-
-  // Dados para gráficos
-  const distribuicaoRisco = [
-    { name: "Crítico", value: padroes.filter((p) => p.risco === "critico").length },
-    { name: "Alto", value: padroes.filter((p) => p.risco === "alto").length },
-    { name: "Médio", value: padroes.filter((p) => p.risco === "medio").length },
-    { name: "Baixo", value: padroes.filter((p) => p.risco === "baixo").length },
-  ];
-
-  const coresPizza = ["#dc2626", "#f97316", "#eab308", "#22c55e"];
-
+  // Handlers
   const handleAnalisarPadroes = () => {
-    console.log("Iniciando análise com:", { estabelecimentoId, convenioId, mesesHistorico });
     if (!convenioId || !estabelecimentoId) {
-      console.error("Faltam parâmetros: estabelecimentoId ou convenioId");
+      toast.error("Selecione um convênio");
       return;
     }
     setShouldFetchPadroes(true);
   };
 
   const handleAnalisarRisco = () => {
-    if (!convenioId || !numeroGuia || !estabelecimentoId) return;
+    if (!convenioId || !numeroGuia || !estabelecimentoId) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
     riscoConta.mutate({
       estabelecimentoId,
       convenioId,
       numeroGuia,
-      itens: [],
+      itens: itensGuia.length > 0 ? itensGuia : [{ codigoItem: "", descricaoItem: "", quantidade: 1, valorFaturado: 0 }],
       mesesHistorico,
     });
   };
 
   const handleIdentificarContas = () => {
-    if (!convenioId || !arquivoId || !estabelecimentoId) return;
+    if (!convenioId || !arquivoId || !estabelecimentoId) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
     contasComRisco.mutate({
       estabelecimentoId,
       convenioId,
@@ -177,381 +187,563 @@ export function PrevisaoGlosa() {
     });
   };
 
+  const handleExportarPadroes = () => {
+    const dados = padroes.map((p) => ({
+      "Código": p.codigoItem,
+      "Descrição": p.descricaoItem,
+      "Taxa Glosa (%)": p.taxaGlosa.toFixed(2),
+      "Total Faturado": p.totalFaturado,
+      "Total Glosado": p.totalGlosado,
+      "Risco": p.risco,
+      "Valor Médio Faturado": p.valorMedioFaturado.toFixed(2),
+      "Motivos Frequentes": p.motivosGlosaFrequentes.map((m) => `${m.descricao} (${m.frequencia}x)`).join("; "),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Padrões");
+    XLSX.writeFile(wb, `padroes-glosa-${convenioId}-${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast.success("Arquivo exportado com sucesso");
+  };
+
+  // Dados para gráficos
+  const distribuicaoRisco = [
+    { name: "Crítico", value: padroes.filter((p) => p.risco === "critico").length, color: "#dc2626" },
+    { name: "Alto", value: padroes.filter((p) => p.risco === "alto").length, color: "#f97316" },
+    { name: "Médio", value: padroes.filter((p) => p.risco === "medio").length, color: "#eab308" },
+    { name: "Baixo", value: padroes.filter((p) => p.risco === "baixo").length, color: "#22c55e" },
+  ].filter((d) => d.value > 0);
+
+  const top10Padroes = padroes.slice(0, 10);
+
   return (
     <DashboardLayout>
       <div className="space-y-6 p-6">
-        <div>
-          <h1 className="text-3xl font-bold">Previsão de Risco de Glosa</h1>
-          <p className="text-gray-600 mt-2">
-            Analise padrões de recebimento e identifique contas com risco de glosa
-          </p>
+        {/* Header */}
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold">Motor de Regras</h1>
+            <p className="text-gray-600 mt-2">
+              Análise inteligente de risco de glosa baseada em padrões históricos
+            </p>
+          </div>
+          <div className="text-sm text-gray-500">
+            Estabelecimento: <span className="font-semibold">{estabelecimentoAtual?.nome}</span>
+          </div>
         </div>
 
-        {/* SEÇÃO 1: PADRÕES DE RECEBIMENTO */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Padrões de Recebimento
-            </CardTitle>
-            <CardDescription>
-              Análise de taxa de glosa por item baseada em histórico de faturamento e recebimento
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um convênio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Unimed</SelectItem>
-                    <SelectItem value="2">Bradesco Saúde</SelectItem>
-                    <SelectItem value="3">Amil</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Período (meses)</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={mesesHistorico}
-                  onChange={(e) => setMesesHistorico(parseInt(e.target.value))}
-                />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleAnalisarPadroes}
-                  disabled={!convenioId || padroesMutation.isLoading}
-                  className="w-full"
-                >
-                  {padroesMutation.isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Analisando...
-                    </>
-                  ) : (
-                    "Analisar Padrões"
-                  )}
-                </Button>
-              </div>
-            </div>
+        {/* Tabs */}
+        <Tabs defaultValue="padroes" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="padroes">Padrões de Recebimento</TabsTrigger>
+            <TabsTrigger value="risco-conta">Análise de Conta</TabsTrigger>
+            <TabsTrigger value="contas-risco">Contas com Risco</TabsTrigger>
+          </TabsList>
 
-            {padroesMutation.error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800">
-                <p className="font-semibold">Erro ao carregar padrões:</p>
-                <p className="text-sm">{String(padroesMutation.error)}</p>
-              </div>
-            )}
-
-            {padroes.length > 0 && (
-              <div className="space-y-4">
-                {/* Gráfico de Distribuição de Risco */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-white p-4 rounded-lg border">
-                    <h3 className="font-semibold mb-4">Distribuição de Risco</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={distribuicaoRisco}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, value }) => `${name}: ${value}`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {coresPizza.map((cor, index) => (
-                            <Cell key={`cell-${index}`} fill={cor} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-lg border">
-                    <h3 className="font-semibold mb-4">Taxa de Glosa por Item</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={padroes.slice(0, 5)}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="codigoItem" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="taxaGlosa" fill="#f97316" name="Taxa Glosa (%)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Tabela de Padrões */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-100 border-b">
-                      <tr>
-                        <th className="px-4 py-2 text-left">Código</th>
-                        <th className="px-4 py-2 text-left">Descrição</th>
-                        <th className="px-4 py-2 text-right">Taxa Glosa</th>
-                        <th className="px-4 py-2 text-right">Total Faturado</th>
-                        <th className="px-4 py-2 text-right">Total Glosado</th>
-                        <th className="px-4 py-2">Risco</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {padroes.map((padrao) => (
-                        <tr key={padrao.codigoItem} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-2 font-mono">{padrao.codigoItem}</td>
-                          <td className="px-4 py-2 text-gray-700">{padrao.descricaoItem}</td>
-                          <td className="px-4 py-2 text-right font-semibold">{isNaN(padrao.taxaGlosa) ? '0.00' : padrao.taxaGlosa.toFixed(2)}%</td>
-                          <td className="px-4 py-2 text-right">R$ {isNaN(padrao.totalFaturado) ? '0' : padrao.totalFaturado.toLocaleString('pt-BR')}</td>
-                          <td className="px-4 py-2 text-right text-red-600">R$ {isNaN(padrao.totalGlosado) ? '0' : padrao.totalGlosado.toLocaleString('pt-BR')}</td>
-                          <td className="px-4 py-2">
-                            <Badge className={getRiscoBadgeColor(padrao.risco)}>
-                              {getRiscoIcon(padrao.risco)}
-                              <span className="ml-1">{padrao.risco.toUpperCase()}</span>
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* SEÇÃO 2: ANÁLISE DE RISCO DE CONTA */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Análise de Risco de Conta
-            </CardTitle>
-            <CardDescription>
-              Analise o risco de glosa de uma conta específica
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um convênio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Unimed</SelectItem>
-                    <SelectItem value="2">Bradesco Saúde</SelectItem>
-                    <SelectItem value="3">Amil</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Número da Guia</label>
-                <Input
-                  placeholder="Ex: 123456"
-                  value={numeroGuia}
-                  onChange={(e) => setNumeroGuia(e.target.value)}
-                />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleAnalisarRisco}
-                  disabled={!convenioId || !numeroGuia || riscoConta.isPending}
-                  className="w-full"
-                >
-                  {riscoConta.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Analisando...
-                    </>
-                  ) : (
-                    "Analisar Risco"
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {analiseRisco && (
-              <div className="space-y-4">
+          {/* TAB 1: PADRÕES DE RECEBIMENTO */}
+          <TabsContent value="padroes" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Padrões de Recebimento
+                </CardTitle>
+                <CardDescription>
+                  Análise de taxa de glosa por item baseada em histórico de faturamento
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Filtros */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                    <p className="text-sm text-gray-600">Score de Risco</p>
-                    <p className="text-3xl font-bold text-blue-600">{analiseRisco.scoreRisco}</p>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Convênio</label>
+                    <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um convênio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONVENIOS.map((conv) => (
+                          <SelectItem key={conv.id} value={conv.id.toString()}>
+                            {conv.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-                    <p className="text-sm text-gray-600">Classificação</p>
-                    <Badge className={`mt-2 ${getRiscoBadgeColor(analiseRisco.riscoConta)}`}>
-                      {getRiscoIcon(analiseRisco.riscoConta)}
-                      <span className="ml-1">{analiseRisco.riscoConta.toUpperCase()}</span>
-                    </Badge>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Período (meses)</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={mesesHistorico}
+                      onChange={(e) => setMesesHistorico(parseInt(e.target.value))}
+                    />
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-                    <p className="text-sm text-gray-600">Valor Faturado</p>
-                    <p className="text-2xl font-bold text-green-600">R$ {analiseRisco.valorFaturado.toLocaleString('pt-BR')}</p>
+
+                  <div className="flex items-end gap-2">
+                    <Button
+                      onClick={handleAnalisarPadroes}
+                      disabled={!convenioId || padroesMutation.isLoading}
+                      className="flex-1"
+                    >
+                      {padroesMutation.isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Analisando...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Analisar
+                        </>
+                      )}
+                    </Button>
+
+                    {padroes.length > 0 && (
+                      <Button variant="outline" onClick={handleExportarPadroes} size="icon">
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
-                {analiseRisco.motivosAlerta.length > 0 && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
-                    <p className="font-semibold text-yellow-800 mb-2">Alertas:</p>
-                    <ul className="space-y-1">
-                      {analiseRisco.motivosAlerta.map((alerta, idx) => (
-                        <li key={idx} className="text-sm text-yellow-700">{alerta}</li>
-                      ))}
-                    </ul>
+                {/* Erro */}
+                {padroesMutation.error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
+                    <p className="font-semibold">Erro ao carregar padrões</p>
+                    <p>{String(padroesMutation.error)}</p>
                   </div>
                 )}
 
-                {analiseRisco.itens.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100 border-b">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Código</th>
-                          <th className="px-4 py-2 text-left">Descrição</th>
-                          <th className="px-4 py-2 text-right">Quantidade</th>
-                          <th className="px-4 py-2 text-right">Valor</th>
-                          <th className="px-4 py-2 text-right">Taxa Glosa</th>
-                          <th className="px-4 py-2">Risco</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analiseRisco.itens.map((item, idx) => (
-                          <tr key={idx} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-2 font-mono">{item.codigoItem}</td>
-                            <td className="px-4 py-2">{item.descricaoItem}</td>
-                            <td className="px-4 py-2 text-right">{item.quantidade}</td>
-                            <td className="px-4 py-2 text-right">R$ {item.valorFaturado.toLocaleString('pt-BR')}</td>
-                            <td className="px-4 py-2 text-right">{item.taxaGlosaEsperada.toFixed(2)}%</td>
-                            <td className="px-4 py-2">
-                              <Badge className={getRiscoBadgeColor(item.riscoPrevisto)}>
-                                {getRiscoIcon(item.riscoPrevisto)}
-                                <span className="ml-1">{item.riscoPrevisto.toUpperCase()}</span>
-                              </Badge>
-                            </td>
-                          </tr>
+                {/* Resultados */}
+                {padroes.length > 0 && (
+                  <div className="space-y-4">
+                    {/* KPIs */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card className="bg-gradient-to-br from-red-50 to-red-100">
+                        <CardContent className="pt-4">
+                          <p className="text-sm text-gray-600">Crítico</p>
+                          <p className="text-2xl font-bold text-red-600">
+                            {padroes.filter((p) => p.risco === "critico").length}
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-orange-50 to-orange-100">
+                        <CardContent className="pt-4">
+                          <p className="text-sm text-gray-600">Alto</p>
+                          <p className="text-2xl font-bold text-orange-600">
+                            {padroes.filter((p) => p.risco === "alto").length}
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100">
+                        <CardContent className="pt-4">
+                          <p className="text-sm text-gray-600">Médio</p>
+                          <p className="text-2xl font-bold text-yellow-600">
+                            {padroes.filter((p) => p.risco === "medio").length}
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-green-50 to-green-100">
+                        <CardContent className="pt-4">
+                          <p className="text-sm text-gray-600">Baixo</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {padroes.filter((p) => p.risco === "baixo").length}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Gráficos */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {distribuicaoRisco.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">Distribuição de Risco</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ResponsiveContainer width="100%" height={250}>
+                              <PieChart>
+                                <Pie
+                                  data={distribuicaoRisco}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={({ name, value }) => `${name}: ${value}`}
+                                  outerRadius={80}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                >
+                                  {distribuicaoRisco.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Top 10 - Taxa de Glosa</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <BarChart data={top10Padroes}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="codigoItem" angle={-45} height={80} />
+                              <YAxis />
+                              <RechartsTooltip />
+                              <Bar dataKey="taxaGlosa" fill="#f97316" name="Taxa Glosa (%)" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Tabela */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Detalhes dos Padrões</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Código</TableHead>
+                                <TableHead>Descrição</TableHead>
+                                <TableHead className="text-right">Taxa Glosa</TableHead>
+                                <TableHead className="text-right">Total Faturado</TableHead>
+                                <TableHead className="text-right">Total Glosado</TableHead>
+                                <TableHead>Risco</TableHead>
+                                <TableHead>Motivos</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {padroes.map((padrao) => (
+                                <TableRow key={padrao.codigoItem}>
+                                  <TableCell className="font-mono text-sm">{padrao.codigoItem}</TableCell>
+                                  <TableCell className="text-sm">{padrao.descricaoItem}</TableCell>
+                                  <TableCell className="text-right font-semibold">{padrao.taxaGlosa.toFixed(2)}%</TableCell>
+                                  <TableCell className="text-right">{padrao.totalFaturado}</TableCell>
+                                  <TableCell className="text-right">{padrao.totalGlosado}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      {getRiscoIcon(padrao.risco)}
+                                      <Badge className={getRiscoBadgeColor(padrao.risco)}>
+                                        {padrao.risco}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    {padrao.motivosGlosaFrequentes.slice(0, 2).map((m) => (
+                                      <div key={m.codigo}>{m.descricao} ({m.frequencia}x)</div>
+                                    ))}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* TAB 2: ANÁLISE DE RISCO DE CONTA */}
+          <TabsContent value="risco-conta" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Análise de Risco de Conta
+                </CardTitle>
+                <CardDescription>
+                  Analise o risco de glosa de uma guia específica
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Filtros */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Convênio</label>
+                    <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um convênio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONVENIOS.map((conv) => (
+                          <SelectItem key={conv.id} value={conv.id.toString()}>
+                            {conv.nome}
+                          </SelectItem>
                         ))}
-                      </tbody>
-                    </table>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Número da Guia</label>
+                    <Input
+                      placeholder="Ex: 123456789"
+                      value={numeroGuia}
+                      onChange={(e) => setNumeroGuia(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      onClick={handleAnalisarRisco}
+                      disabled={!convenioId || !numeroGuia || riscoConta.isPending}
+                      className="w-full"
+                    >
+                      {riscoConta.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Analisando...
+                        </>
+                      ) : (
+                        "Analisar Risco"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Resultado */}
+                {analiseRisco && (
+                  <div className="space-y-4">
+                    {/* Score Card */}
+                    <Card className={`border-2 ${
+                      analiseRisco.riscoConta === "critico"
+                        ? "border-red-500 bg-red-50"
+                        : analiseRisco.riscoConta === "alto"
+                        ? "border-orange-500 bg-orange-50"
+                        : analiseRisco.riscoConta === "medio"
+                        ? "border-yellow-500 bg-yellow-50"
+                        : "border-green-500 bg-green-50"
+                    }`}>
+                      <CardContent className="pt-6">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-sm text-gray-600">Score de Risco</p>
+                            <p className="text-4xl font-bold">{analiseRisco.scoreRisco}</p>
+                            <p className="text-sm text-gray-600 mt-1">de 100</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-600">Classificação</p>
+                            <Badge className={`${getRiscoBadgeColor(analiseRisco.riscoConta)} text-lg px-4 py-2`}>
+                              {analiseRisco.riscoConta.toUpperCase()}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Alertas */}
+                    {analiseRisco.motivosAlerta.length > 0 && (
+                      <Card className="border-red-200 bg-red-50">
+                        <CardHeader>
+                          <CardTitle className="text-lg text-red-800">Alertas</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {analiseRisco.motivosAlerta.map((alerta, idx) => (
+                              <li key={idx} className="flex gap-2 text-sm text-red-700">
+                                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                {alerta}
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Itens */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Itens Analisados</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Código</TableHead>
+                                <TableHead>Descrição</TableHead>
+                                <TableHead className="text-right">Valor</TableHead>
+                                <TableHead>Risco</TableHead>
+                                <TableHead className="text-right">Taxa Glosa Esperada</TableHead>
+                                <TableHead>Motivos Prováveis</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {analiseRisco.itens.map((item) => (
+                                <TableRow key={item.codigoItem}>
+                                  <TableCell className="font-mono text-sm">{item.codigoItem}</TableCell>
+                                  <TableCell className="text-sm">{item.descricaoItem}</TableCell>
+                                  <TableCell className="text-right">R$ {item.valorFaturado.toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      {getRiscoIcon(item.riscoPrevisto)}
+                                      <Badge className={getRiscoBadgeColor(item.riscoPrevisto)}>
+                                        {item.riscoPrevisto}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right">{item.taxaGlosaEsperada.toFixed(2)}%</TableCell>
+                                  <TableCell className="text-xs">
+                                    {item.motivosGlosaProvaveis.join(", ")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* SEÇÃO 3: IDENTIFICAR CONTAS COM RISCO */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              Identificar Contas com Risco
-            </CardTitle>
-            <CardDescription>
-              Identifique todas as contas com risco de glosa em um arquivo
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um convênio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Unimed</SelectItem>
-                    <SelectItem value="2">Bradesco Saúde</SelectItem>
-                    <SelectItem value="3">Amil</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">ID do Arquivo</label>
-                <Input
-                  placeholder="Ex: 123"
-                  type="number"
-                  value={arquivoId ? String(arquivoId) : ""}
-                  onChange={(e) => setArquivoId(e.target.value ? parseInt(e.target.value) : null)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Limite de Risco</label>
-                <Select value={limiteRisco} onValueChange={(v: any) => setLimiteRisco(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alto_critico">Alto e Crítico</SelectItem>
-                    <SelectItem value="critico">Apenas Crítico</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleIdentificarContas}
-                  disabled={!convenioId || !arquivoId || contasComRisco.isPending}
-                  className="w-full"
-                >
-                  {contasComRisco.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Buscando...
-                    </>
-                  ) : (
-                    "Identificar Contas"
-                  )}
-                </Button>
-              </div>
-            </div>
+          {/* TAB 3: CONTAS COM RISCO */}
+          <TabsContent value="contas-risco" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertOctagon className="w-5 h-5" />
+                  Identificar Contas com Risco
+                </CardTitle>
+                <CardDescription>
+                  Identifique todas as contas com risco em um arquivo importado
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Filtros */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Convênio</label>
+                    <Select value={convenioId?.toString() || ""} onValueChange={(v) => setConvenioId(parseInt(v))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um convênio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONVENIOS.map((conv) => (
+                          <SelectItem key={conv.id} value={conv.id.toString()}>
+                            {conv.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {contasRisco.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Número Guia</th>
-                      <th className="px-4 py-2 text-right">Score Risco</th>
-                      <th className="px-4 py-2">Classificação</th>
-                      <th className="px-4 py-2 text-right">Valor Faturado</th>
-                      <th className="px-4 py-2 text-right">Itens</th>
-                      <th className="px-4 py-2">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contasRisco.map((conta, idx) => (
-                      <tr key={idx} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2 font-mono">{conta.numeroGuia}</td>
-                        <td className="px-4 py-2 text-right font-bold">{conta.scoreRisco}</td>
-                        <td className="px-4 py-2">
-                          <Badge className={getRiscoBadgeColor(conta.risco)}>
-                            {getRiscoIcon(conta.risco)}
-                            <span className="ml-1">{conta.risco.toUpperCase()}</span>
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-2 text-right">R$ {conta.valorFaturado.toLocaleString('pt-BR')}</td>
-                        <td className="px-4 py-2 text-right">{conta.itensProblematicos}</td>
-                        <td className="px-4 py-2">
-                          <Button size="sm" variant="outline">
-                            Detalhes
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">ID do Arquivo</label>
+                    <Input
+                      type="number"
+                      placeholder="Ex: 123"
+                      value={arquivoId || ""}
+                      onChange={(e) => setArquivoId(e.target.value ? parseInt(e.target.value) : null)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Limite de Risco</label>
+                    <Select value={limiteRisco} onValueChange={(v) => setLimiteRisco(v as any)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alto_critico">Alto ou Crítico</SelectItem>
+                        <SelectItem value="critico">Apenas Crítico</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      onClick={handleIdentificarContas}
+                      disabled={!convenioId || !arquivoId || contasComRisco.isPending}
+                      className="w-full"
+                    >
+                      {contasComRisco.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Identificando...
+                        </>
+                      ) : (
+                        "Identificar"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Resultado */}
+                {contasRisco.length > 0 && (
+                  <div className="space-y-4">
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="pt-4">
+                        <p className="text-sm text-gray-600">Total de Contas com Risco</p>
+                        <p className="text-3xl font-bold text-blue-600">{contasRisco.length}</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Contas Identificadas</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Guia</TableHead>
+                                <TableHead className="text-right">Score de Risco</TableHead>
+                                <TableHead>Risco</TableHead>
+                                <TableHead className="text-right">Alertas</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {contasRisco.map((conta) => (
+                                <TableRow key={conta.numeroGuia}>
+                                  <TableCell className="font-mono">{conta.numeroGuia}</TableCell>
+                                  <TableCell className="text-right font-semibold">{conta.scoreRisco}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      {getRiscoIcon(conta.riscoConta)}
+                                      <Badge className={getRiscoBadgeColor(conta.riscoConta)}>
+                                        {conta.riscoConta}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right">{conta.motivosAlerta?.length || 0}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
 }
+
+export default PrevisaoGlosa;

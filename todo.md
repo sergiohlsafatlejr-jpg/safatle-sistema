@@ -1990,3 +1990,47 @@
 - [x] Validar visibilidade de todos os elementos em tema dark
 
 - [ ] Redesenhar tema dark com fundo preto e cards em cinza escuro (estilo EasyVision - fundo #000000, cards #1a1a1a, texto #ffffff)
+
+
+## Motor de Regras - Guia de Uso e Melhorias
+
+### Fase 1: Guia de Uso Completo
+- [ ] Criar documentação MOTOR_REGRAS_GUIA.md com exemplos de código
+- [ ] Documentar API de análise de padrões de recebimento
+- [ ] Documentar API de análise de risco de conta
+- [ ] Documentar API de identificação de contas com risco
+- [ ] Incluir exemplos de uso em TypeScript/React
+- [ ] Criar seção de melhores práticas
+
+### Fase 2: Melhorar Página PrevisaoGlosa
+- [ ] Refatorar interface para ser mais intuitiva
+- [ ] Adicionar seletor de convênio com validação
+- [ ] Implementar visualização de padrões em tabela
+- [ ] Adicionar gráficos de taxa de glosa por item
+- [ ] Implementar análise de risco de conta com formulário
+- [ ] Adicionar identificação de contas com risco
+- [ ] Melhorar feedback visual (loading, erros, sucesso)
+- [ ] Adicionar exportação de resultados
+
+### Fase 3: Novo Dashboard de Alertas em Tempo Real
+- [ ] Criar página DashboardMotorRegras.tsx
+- [ ] Implementar widget de estatísticas de conformidade
+- [ ] Implementar widget de contas com risco crítico
+- [ ] Implementar widget de padrões de glosa por motivo
+- [ ] Implementar widget de histórico de validações
+- [ ] Adicionar filtros por data e estabelecimento
+- [ ] Implementar auto-refresh de dados
+- [ ] Adicionar notificações de alertas críticos
+
+### Fase 4: Testes e Validação
+- [ ] Testar análise de padrões de recebimento
+- [ ] Testar análise de risco de conta
+- [ ] Testar identificação de contas com risco
+- [ ] Validar performance com grandes volumes
+- [ ] Testar filtros e buscas
+- [ ] Validar exportação de dados
+
+### Fase 5: Entrega
+- [ ] Revisar documentação
+- [ ] Criar checkpoint final
+- [ ] Apresentar resultados ao usuário
