@@ -2034,3 +2034,13 @@
 - [ ] Revisar documentação
 - [ ] Criar checkpoint final
 - [ ] Apresentar resultados ao usuário
+
+
+## Motor de Regras - Integração e Notificações
+
+- [ ] Adicionar link "Dashboard Motor de Regras" ao menu lateral do DashboardLayout
+- [ ] Implementar sistema de notificações em tempo real com WebSocket
+- [ ] Criar hook useMotorRegrasNotifications para polling de alertas
+- [ ] Adicionar badge de alertas críticos no menu
+- [ ] Testar integração com importação de arquivos
+- [ ] Validar notificações em tempo real

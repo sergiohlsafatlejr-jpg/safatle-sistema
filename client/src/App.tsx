@@ -49,6 +49,7 @@ import AtendimentosFaturar from "./pages/AtendimentosFaturar";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
 import AuditDashboard from "./pages/AuditDashboard";
 import { PrevisaoGlosa } from "./pages/PrevisaoGlosa";
+import DashboardMotorRegras from "./pages/DashboardMotorRegras";
 import CacheDashboard from "./pages/CacheDashboard";
 import { HistoricoValidacaoXml } from "./pages/HistoricoValidacaoXml";
 import { PopularHistoricoXml } from "./pages/PopularHistoricoXml";
@@ -101,6 +102,7 @@ function Router() {
       <Route path={"/regras-ia"} component={RegrasIA} />
       <Route path={"/relatorios-bi"} component={RelatoriosBI} />
       <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
+      <Route path={"/motor-regras"} component={DashboardMotorRegras} />
       <Route path={"/conciliacao-contas-pagas"} component={ConciliacaoContasPagas} />
       <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />

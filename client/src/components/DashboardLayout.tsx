@@ -69,6 +69,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
+import { MotorRegrasNotificationBell } from "./MotorRegrasNotificationBell";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 
@@ -129,6 +130,7 @@ const menuItems: MenuItem[] = [
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
   { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
+  { icon: Activity, label: "Motor de Regras", path: "/motor-regras", modulo: "relatoriosBi" },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
   
   // Atendimentos (PostgreSQL externo) - apenas Instituto do Rim (ID 4)
@@ -576,19 +578,30 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
-            {estabelecimentoAtual && estabelecimentoAtual.id > 0 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/5 px-3 py-1 rounded-full">
-                <Building2 className="h-3.5 w-3.5 text-primary" />
-                <span className="truncate max-w-[150px] font-medium text-primary">{estabelecimentoAtual.nome}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <MotorRegrasNotificationBell />
+              {estabelecimentoAtual && estabelecimentoAtual.id > 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/5 px-3 py-1 rounded-full">
+                  <Building2 className="h-3.5 w-3.5 text-primary" />
+                  <span className="truncate max-w-[150px] font-medium text-primary">{estabelecimentoAtual.nome}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
         {!isMobile && estabelecimentoAtual && estabelecimentoAtual.id > 0 && (
-          <div className="flex items-center gap-2 px-6 py-3 bg-card border-b">
-            <Building2 className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-primary">Visualizando:</span>
-            <span className="text-sm font-semibold text-foreground">{estabelecimentoAtual.nome}</span>
+          <div className="flex items-center justify-between px-6 py-3 bg-card border-b">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Visualizando:</span>
+              <span className="text-sm font-semibold text-foreground">{estabelecimentoAtual.nome}</span>
+            </div>
+            <MotorRegrasNotificationBell />
+          </div>
+        )}
+        {!isMobile && (!estabelecimentoAtual || estabelecimentoAtual.id <= 0) && (
+          <div className="flex items-center justify-end px-6 py-3 bg-card border-b">
+            <MotorRegrasNotificationBell />
           </div>
         )}
         <main className="flex-1 p-6">
