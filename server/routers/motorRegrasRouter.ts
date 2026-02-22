@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { logger } from "../_core/logger";
 import { sql } from "drizzle-orm";
 import { AnalisadorRiscoGlosa } from "../analisadorRiscoGlosa";
+import { AnalisadorConformidadePadrao } from "../analisadorConformidadePadrao";
 import {
   cacheGetOrSet,
   invalidateMotorRegrasCache,
@@ -602,6 +603,200 @@ export const motorRegrasRouter = router({
           message: "Erro ao identificar contas com risco",
           error: String(error),
           arquivoId: input.arquivoId,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Auditar uma conta contra padrões de procedimentos
+   * FASE 1.5A: Integração com padrões de procedimentos
+   */
+  auditarContaPorPadrao: protectedProcedure
+    .input(
+      z.object({
+        contaId: z.number().positive(),
+        codigoProcedimento: z.string().min(1),
+        convenioId: z.number().positive(),
+        estabelecimentoId: z.number().positive().optional(),
+        itens: z.array(
+          z.object({
+            codigoItem: z.string().min(1),
+            descricaoItem: z.string().optional(),
+            tipoItem: z.string(),
+            quantidade: z.number().min(0),
+            valor: z.number().min(0),
+          })
+        ),
+        valorTotal: z.number().min(0),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const relatorio = await AnalisadorConformidadePadrao.auditarConta({
+          id: input.contaId,
+          codigoProcedimento: input.codigoProcedimento,
+          descricaoProcedimento: "",
+          convenioId: input.convenioId,
+          estabelecimentoId: input.estabelecimentoId,
+          itens: input.itens,
+          valorTotal: input.valorTotal,
+        });
+
+        logger.info({
+          message: "Auditoria de conta concluída",
+          contaId: input.contaId,
+          scoreConformidade: relatorio.scoreConformidade,
+          statusGeral: relatorio.statusGeral,
+          usuarioId: ctx.user.id,
+        });
+
+        return relatorio;
+      } catch (error) {
+        logger.error({
+          message: "Erro ao auditar conta por padrão",
+          error: String(error),
+          contaId: input.contaId,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Auditar arquivo inteiro contra padrões
+   * FASE 1.5A: Integração com padrões de procedimentos
+   */
+  auditarArquivoPorPadrao: protectedProcedure
+    .input(
+      z.object({
+        arquivoId: z.number().positive(),
+        contas: z.array(
+          z.object({
+            contaId: z.number().positive(),
+            codigoProcedimento: z.string().min(1),
+            convenioId: z.number().positive(),
+            estabelecimentoId: z.number().positive().optional(),
+            itens: z.array(
+              z.object({
+                codigoItem: z.string().min(1),
+                descricaoItem: z.string().optional(),
+                tipoItem: z.string(),
+                quantidade: z.number().min(0),
+                valor: z.number().min(0),
+              })
+            ),
+            valorTotal: z.number().min(0),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const resultado = await AnalisadorConformidadePadrao.auditarArquivo(
+          input.contas.map((c) => ({
+            id: c.contaId,
+            codigoProcedimento: c.codigoProcedimento,
+            descricaoProcedimento: "",
+            convenioId: c.convenioId,
+            estabelecimentoId: c.estabelecimentoId,
+            itens: c.itens,
+            valorTotal: c.valorTotal,
+          }))
+        );
+
+        logger.info({
+          message: "Auditoria de arquivo concluída",
+          arquivoId: input.arquivoId,
+          totalContas: resultado.totalContas,
+          scoreConformidadeMedia: resultado.scoreConformidadeMedia,
+          usuarioId: ctx.user.id,
+        });
+
+        return resultado;
+      } catch (error) {
+        logger.error({
+          message: "Erro ao auditar arquivo por padrão",
+          error: String(error),
+          arquivoId: input.arquivoId,
+        });
+        throw error;
+      }
+    }),
+
+  /**
+   * Gerar relatório consolidado de conformidade
+   * FASE 1.5A: Integração com padrões de procedimentos
+   */
+  gerarRelatorioConformidade: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number().positive(),
+        dataInicio: z.date().optional(),
+        dataFim: z.date().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Buscar relatórios de auditoria do período
+        let query = sql`
+          SELECT * FROM historicoValidacaoXml 
+          WHERE estabelecimentoId = ${input.estabelecimentoId}
+        `;
+
+        if (input.dataInicio) {
+          query = sql`${query} AND dataProcessamento >= ${input.dataInicio}`;
+        }
+
+        if (input.dataFim) {
+          query = sql`${query} AND dataProcessamento <= ${input.dataFim}`;
+        }
+
+        const resultado = await db.execute(query);
+
+        // Se houver dados de auditoria, processar
+        if (Array.isArray(resultado) && resultado.length > 0) {
+          // Converter dados do histórico em relatórios
+          const relatorios = resultado.map((r: any) => ({
+            contaId: r.id,
+            codigoProcedimento: "",
+            padraoId: 0,
+            scoreConformidade: parseFloat(r.scoreConformidadeMedio) || 0,
+            statusGeral: parseFloat(r.scoreConformidadeMedio) >= 70 ? "conforme" : "nao_conforme",
+            divergencias: [],
+            itensConformes: r.contasValidas || 0,
+            itensDivergentes: r.contasInvalidas || 0,
+            recomendacoes: [],
+          }));
+
+          const consolidado = AnalisadorConformidadePadrao.gerarRelatorioConsolidado(relatorios);
+
+          logger.info({
+            message: "Relatório de conformidade gerado",
+            estabelecimentoId: input.estabelecimentoId,
+            totalContas: consolidado.totalContas,
+            scoreConformidadeMedia: consolidado.scoreConformidadeMedia,
+          });
+
+          return consolidado;
+        }
+
+        return {
+          totalContas: 0,
+          contasConformes: 0,
+          contasParcialmenteConformes: 0,
+          contasNaoConformes: 0,
+          scoreConformidadeMedia: 0,
+          divergenciasMaisFrequentes: [],
+          recomendacoesGerais: [],
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao gerar relatório de conformidade",
+          error: String(error),
+          estabelecimentoId: input.estabelecimentoId,
         });
         throw error;
       }
