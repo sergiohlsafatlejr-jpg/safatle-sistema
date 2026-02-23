@@ -210,10 +210,10 @@ export function IntegradorDados() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => handleSync(config.chave)}
-                                  disabled={syncingConfig === config.chave}
+                                  onClick={() => handleSync(config.id)}
+                                  disabled={syncingConfig === config.id}
                                 >
-                                  {syncingConfig === config.chave ? (
+                                  {syncingConfig === config.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   ) : (
                                     <Play className="h-4 w-4" />
@@ -222,7 +222,7 @@ export function IntegradorDados() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => setDeleteConfirmation(config.chave)}
+                                  onClick={() => setDeleteConfirmation(config.id)}
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
