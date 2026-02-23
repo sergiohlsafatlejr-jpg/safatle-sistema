@@ -14,6 +14,7 @@ import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
+import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6456,6 +6457,9 @@ export const appRouter = router({
 
   // ============ PADRÕES DE PROCEDIMENTOS ============
   padroesProcedimentos: padroesProcedimentosRouter,
+
+  // ============ INTEGRADOR DE DADOS ============
+  integradorDados: integradorDadosRouter,
 
   // ============ AVISOS INTERNOS ============
   avisosInternos: router({
