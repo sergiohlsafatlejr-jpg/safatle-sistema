@@ -3,15 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Users, Building2, Stethoscope, FlaskConical,
-  ArrowUpDown, Download, RefreshCw, Search, ArrowLeft, Clock
+  ArrowUpDown, Download, RefreshCw, Search, ArrowLeft, Clock, BarChart3
 } from "lucide-react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 import { useState, useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 type SortColumn = "numero_atendimento" | "paciente" | "convenio" | "data_entrada" | "data_saida" | "diasParado" | "descricao_atendimento" | "codigo_servico";
 type SortOrder = "asc" | "desc";
@@ -45,8 +45,11 @@ export default function AtendimentosParadosUnificados() {
   const [filtroTipo, setFiltroTipo] = useState<string>("");
   const [filtroConvenio, setFiltroConvenio] = useState<string>("");
 
-  // Buscar dados da procedure
+  // Buscar dados
   const { data: atendimentos = [], isLoading, refetch } = trpc.atendimentos.listarParadosUnificados.useQuery();
+  const { data: kpis, isLoading: loadingKPIs } = trpc.atendimentos.getKPIs.useQuery();
+  const { data: quantidadePorPlano, isLoading: loadingPlano } = trpc.atendimentos.getQuantidadePorPlano.useQuery();
+  const { data: quantidadePorServico, isLoading: loadingServico } = trpc.atendimentos.getQuantidadePorServico.useQuery();
 
   // Calcular estatísticas
   const stats = useMemo(() => {
@@ -139,15 +142,15 @@ export default function AtendimentosParadosUnificados() {
   const exportToExcel = () => {
     const ws = XLSX.utils.json_to_sheet(sortedData.map(a => ({
       "Nº Atendimento": a.numero_atendimento,
+      "Plano": a.convenio,
       "Paciente": a.paciente,
-      "Convênio": a.convenio,
+      "Caráter": a.caracter_atendimento,
       "Data Entrada": a.data_entrada,
       "Data Saída": a.data_saida,
       "Dias Parado": a.diasParado,
       "Tipo": a.tipo_atendimento,
-      "Descrição": a.descricao_atendimento,
       "Serviço": a.codigo_servico,
-      "Origem": a.origemSistema,
+      "Proc. Principal": a.codigo_procedimento,
     })));
 
     const wb = XLSX.utils.book_new();
@@ -158,9 +161,9 @@ export default function AtendimentosParadosUnificados() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -173,7 +176,7 @@ export default function AtendimentosParadosUnificados() {
             <div>
               <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                 <Clock className="w-8 h-8 text-blue-400" />
-                Atendimentos Parados Unificados
+                Atendimentos Parados
               </h1>
               <p className="text-slate-400 mt-1">Consolidado de todos os sistemas</p>
             </div>
@@ -189,54 +192,109 @@ export default function AtendimentosParadosUnificados() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-slate-800 border-slate-700">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-900 to-blue-800 border-0 text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Total de Atendimentos</p>
-                  <p className="text-3xl font-bold text-white mt-2">{stats.total}</p>
+                  <p className="text-sm font-medium opacity-90">Total a Faturar</p>
+                  <p className="text-4xl font-bold mt-2">{kpis?.totalAFaturar || 0}</p>
                 </div>
-                <Users className="w-8 h-8 text-blue-400" />
+                <Users className="w-12 h-12 opacity-50" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gradient-to-br from-orange-900 to-orange-800 border-0 text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Dias Parado (Total)</p>
-                  <p className="text-3xl font-bold text-white mt-2">{stats.diasParado}</p>
+                  <p className="text-sm font-medium opacity-90">Internação</p>
+                  <p className="text-4xl font-bold mt-2">{kpis?.internacao || 0}</p>
                 </div>
-                <Clock className="w-8 h-8 text-orange-400" />
+                <Stethoscope className="w-12 h-12 opacity-50" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gradient-to-br from-purple-900 to-purple-800 border-0 text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Média de Dias</p>
-                  <p className="text-3xl font-bold text-white mt-2">{stats.mediaDias}</p>
+                  <p className="text-sm font-medium opacity-90">Exame</p>
+                  <p className="text-4xl font-bold mt-2">{kpis?.exame || 0}</p>
                 </div>
-                <Stethoscope className="w-8 h-8 text-green-400" />
+                <FlaskConical className="w-12 h-12 opacity-50" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gradient-to-br from-cyan-900 to-cyan-800 border-0 text-white">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Sistemas</p>
-                  <p className="text-3xl font-bold text-white mt-2">
-                    {new Set(atendimentos.map(a => a.origemSistema)).size}
-                  </p>
+                  <p className="text-sm font-medium opacity-90">Ambulatório</p>
+                  <p className="text-4xl font-bold mt-2">{kpis?.ambulatorio || 0}</p>
                 </div>
-                <Building2 className="w-8 h-8 text-purple-400" />
+                <Building2 className="w-12 h-12 opacity-50" />
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Gráficos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Gráfico por Plano */}
+          <Card className="bg-slate-800 border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Quantidade por Plano (Convênio)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingPlano ? (
+                <div className="text-center text-slate-400">Carregando...</div>
+              ) : quantidadePorPlano && quantidadePorPlano.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={quantidadePorPlano}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                    <XAxis dataKey="plano" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "8px" }} />
+                    <Bar dataKey="quantidade" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center text-slate-400">Sem dados</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Gráfico por Serviço */}
+          <Card className="bg-slate-800 border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Quantidade por Serviço
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingServico ? (
+                <div className="text-center text-slate-400">Carregando...</div>
+              ) : quantidadePorServico && quantidadePorServico.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={quantidadePorServico}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                    <XAxis dataKey="servico" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "8px" }} />
+                    <Bar dataKey="quantidade" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center text-slate-400">Sem dados</div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -248,11 +306,11 @@ export default function AtendimentosParadosUnificados() {
           </CardHeader>
           <CardContent>
             {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
                 <Input
-                  placeholder="Pesquisar por nº atendimento, paciente ou convênio..."
+                  placeholder="Pesquisar por nº atend, paciente ou plano..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
@@ -280,15 +338,11 @@ export default function AtendimentosParadosUnificados() {
                   <option key={convenio} value={convenio}>{convenio}</option>
                 ))}
               </select>
-            </div>
 
-            {/* Botões de Ação */}
-            <div className="flex gap-2 mb-6">
               <Button
                 onClick={exportToExcel}
                 disabled={sortedData.length === 0}
-                variant="outline"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                className="bg-green-600 hover:bg-green-700"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Exportar Excel
@@ -302,7 +356,13 @@ export default function AtendimentosParadosUnificados() {
                   <tr className="border-b border-slate-700">
                     <th className="text-left py-3 px-4 text-slate-300 font-semibold cursor-pointer hover:text-white" onClick={() => handleSort("numero_atendimento")}>
                       <div className="flex items-center gap-2">
-                        Nº Atendimento
+                        Nº Atend
+                        <ArrowUpDown className="w-4 h-4" />
+                      </div>
+                    </th>
+                    <th className="text-left py-3 px-4 text-slate-300 font-semibold cursor-pointer hover:text-white" onClick={() => handleSort("convenio")}>
+                      <div className="flex items-center gap-2">
+                        Plano
                         <ArrowUpDown className="w-4 h-4" />
                       </div>
                     </th>
@@ -312,18 +372,14 @@ export default function AtendimentosParadosUnificados() {
                         <ArrowUpDown className="w-4 h-4" />
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-slate-300 font-semibold cursor-pointer hover:text-white" onClick={() => handleSort("convenio")}>
-                      <div className="flex items-center gap-2">
-                        Convênio
-                        <ArrowUpDown className="w-4 h-4" />
-                      </div>
-                    </th>
+                    <th className="text-left py-3 px-4 text-slate-300 font-semibold">Caráter</th>
                     <th className="text-left py-3 px-4 text-slate-300 font-semibold cursor-pointer hover:text-white" onClick={() => handleSort("data_entrada")}>
                       <div className="flex items-center gap-2">
                         Data Entrada
                         <ArrowUpDown className="w-4 h-4" />
                       </div>
                     </th>
+                    <th className="text-left py-3 px-4 text-slate-300 font-semibold">Data Saída</th>
                     <th className="text-left py-3 px-4 text-slate-300 font-semibold cursor-pointer hover:text-white" onClick={() => handleSort("diasParado")}>
                       <div className="flex items-center gap-2">
                         Dias Parado
@@ -331,19 +387,20 @@ export default function AtendimentosParadosUnificados() {
                       </div>
                     </th>
                     <th className="text-left py-3 px-4 text-slate-300 font-semibold">Tipo</th>
-                    <th className="text-left py-3 px-4 text-slate-300 font-semibold">Origem</th>
+                    <th className="text-left py-3 px-4 text-slate-300 font-semibold">Serviço</th>
+                    <th className="text-left py-3 px-4 text-slate-300 font-semibold">Proc. Principal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-400">
+                      <td colSpan={10} className="text-center py-8 text-slate-400">
                         Carregando dados...
                       </td>
                     </tr>
                   ) : sortedData.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-400">
+                      <td colSpan={10} className="text-center py-8 text-slate-400">
                         Nenhum atendimento encontrado
                       </td>
                     </tr>
@@ -351,10 +408,14 @@ export default function AtendimentosParadosUnificados() {
                     sortedData.map((atendimento) => (
                       <tr key={atendimento.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
                         <td className="py-3 px-4 text-white font-mono">{atendimento.numero_atendimento}</td>
-                        <td className="py-3 px-4 text-slate-300">{atendimento.paciente}</td>
                         <td className="py-3 px-4 text-slate-300">{atendimento.convenio}</td>
+                        <td className="py-3 px-4 text-slate-300">{atendimento.paciente}</td>
+                        <td className="py-3 px-4 text-slate-300">{atendimento.caracter_atendimento}</td>
                         <td className="py-3 px-4 text-slate-300">
                           {atendimento.data_entrada ? new Date(atendimento.data_entrada).toLocaleDateString("pt-BR") : "-"}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">
+                          {atendimento.data_saida ? new Date(atendimento.data_saida).toLocaleDateString("pt-BR") : "-"}
                         </td>
                         <td className="py-3 px-4">
                           <Badge
@@ -365,11 +426,8 @@ export default function AtendimentosParadosUnificados() {
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-slate-300">{atendimento.tipo_atendimento}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline" className="text-xs">
-                            {atendimento.origemSistema}
-                          </Badge>
-                        </td>
+                        <td className="py-3 px-4 text-slate-300">{atendimento.codigo_servico}</td>
+                        <td className="py-3 px-4 text-slate-300">{atendimento.codigo_procedimento}</td>
                       </tr>
                     ))
                   )}

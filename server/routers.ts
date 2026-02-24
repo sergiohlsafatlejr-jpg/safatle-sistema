@@ -12,7 +12,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
-import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado } from "./atendimentosUnificados";
+import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsPorTipo, getQuantidadePorPlano, getQuantidadePorServico } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
@@ -6370,12 +6370,51 @@ export const appRouter = router({
           const dados = await getAtendimentosParadosUnificados();
           return dados.map(d => ({
             ...d,
-            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
+            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida || undefined),
           }));
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `Erro ao buscar atendimentos parados unificados: ${err.message}`,
+          });
+        }
+      }),
+
+    getKPIs: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const kpis = await getKPIsPorTipo();
+          return kpis;
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar KPIs: ${err.message}`,
+          });
+        }
+      }),
+
+    getQuantidadePorPlano: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const dados = await getQuantidadePorPlano();
+          return dados;
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar quantidade por plano: ${err.message}`,
+          });
+        }
+      }),
+
+    getQuantidadePorServico: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const dados = await getQuantidadePorServico();
+          return dados;
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar quantidade por servico: ${err.message}`,
           });
         }
       }),

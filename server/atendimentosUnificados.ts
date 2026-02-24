@@ -145,6 +145,99 @@ export async function getEstatisticasAtendimentosParadosUnificados(estabelecimen
 }
 
 /**
+ * Calcula KPIs por tipo de atendimento
+ * @returns KPIs agrupados por tipo
+ */
+export async function getKPIsPorTipo() {
+  try {
+    const atendimentosParados = await getAtendimentosParadosUnificados();
+    
+    const kpis = {
+      totalAFaturar: 0,
+      internacao: 0,
+      exame: 0,
+      ambulatorio: 0,
+    };
+
+    atendimentosParados.forEach(a => {
+      const tipo = a.tipo_atendimento?.toLowerCase() || '';
+      
+      if (tipo.includes('internacao') || tipo.includes('internação')) {
+        kpis.internacao++;
+      } else if (tipo.includes('exame')) {
+        kpis.exame++;
+      } else if (tipo.includes('ambulatorio') || tipo.includes('ambulatório')) {
+        kpis.ambulatorio++;
+      }
+      
+      kpis.totalAFaturar++;
+    });
+
+    return kpis;
+  } catch (error) {
+    console.error("Erro ao calcular KPIs por tipo:", error);
+    return {
+      totalAFaturar: 0,
+      internacao: 0,
+      exame: 0,
+      ambulatorio: 0,
+    };
+  }
+}
+
+/**
+ * Calcula quantidade de atendimentos por plano (convênio)
+ * @returns Dados agregados por plano
+ */
+export async function getQuantidadePorPlano() {
+  try {
+    const atendimentosParados = await getAtendimentosParadosUnificados();
+    
+    const porPlano: Record<string, number> = {};
+
+    atendimentosParados.forEach(a => {
+      const plano = a.convenio || 'Sem Plano';
+      porPlano[plano] = (porPlano[plano] || 0) + 1;
+    });
+
+    // Ordenar por quantidade decrescente e pegar top 10
+    return Object.entries(porPlano)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([plano, quantidade]) => ({ plano, quantidade }));
+  } catch (error) {
+    console.error("Erro ao calcular quantidade por plano:", error);
+    return [];
+  }
+}
+
+/**
+ * Calcula quantidade de atendimentos por serviço
+ * @returns Dados agregados por serviço
+ */
+export async function getQuantidadePorServico() {
+  try {
+    const atendimentosParados = await getAtendimentosParadosUnificados();
+    
+    const porServico: Record<string, number> = {};
+
+    atendimentosParados.forEach(a => {
+      const servico = a.codigo_servico || 'Sem Serviço';
+      porServico[servico] = (porServico[servico] || 0) + 1;
+    });
+
+    // Ordenar por quantidade decrescente e pegar top 10
+    return Object.entries(porServico)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([servico, quantidade]) => ({ servico, quantidade }));
+  } catch (error) {
+    console.error("Erro ao calcular quantidade por serviço:", error);
+    return [];
+  }
+}
+
+/**
  * Busca atendimentos parados com filtros
  * @param estabelecimentoId - ID do estabelecimento
  * @param filtros - Filtros opcionais

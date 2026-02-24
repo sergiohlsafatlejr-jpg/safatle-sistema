@@ -694,7 +694,7 @@ export const integradorDadosRouter = router({
           })
           .where(eq(queryConfiguracoes.id, input.configId));
 
-        const { updateJobSchedule } = await import("../../../server/_core/jobScheduler");
+        const { updateJobSchedule } = await import("../_core/jobScheduler");
         await updateJobSchedule(input.configId, input.frequencia, input.ativo);
 
         return {
