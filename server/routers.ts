@@ -12,7 +12,6 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
-import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
@@ -6366,12 +6365,11 @@ export const appRouter = router({
     listarParadosUnificados: protectedProcedure
       .query(async ({ ctx }) => {
         try {
-          // Se o usuário não tem estabelecimentoId, retorna todos os dados
-          const estabelecimentoId = ctx.user?.estabelecimentoId;
-          const dados = await getAtendimentosParadosUnificados(estabelecimentoId || undefined);
-          return dados.map((d: any) => ({
+          const estabelecimentoId = ctx.user?.estabelecimentoId || 1;
+          const dados = await getAtendimentosParadosUnificados(estabelecimentoId);
+          return dados.map(d => ({
             ...d,
-            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida || undefined),
+            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
           }));
         } catch (err: any) {
           throw new TRPCError({

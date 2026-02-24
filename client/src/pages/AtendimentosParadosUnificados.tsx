@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Users, Building2, Stethoscope, FlaskConical,
-  ArrowUpDown, Download, RefreshCw, Search, ArrowLeft, Clock
+  ArrowUpDown, Download, RefreshCw, Search, ArrowLeft
 } from "lucide-react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
