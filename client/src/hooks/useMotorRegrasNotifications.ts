@@ -35,7 +35,7 @@ export function useMotorRegrasNotifications(options: UseMotorRegrasNotifications
   // Query para obter estatísticas
   const { data: stats, refetch: refetchStats } = trpc.motorRegras.obterEstatisticas.useQuery(
     {
-      estabelecimentoId: estabelecimentoId || 0,
+      estabelecimentoId: estabelecimentoId || 1,
     },
     {
       enabled: !!estabelecimentoId && enabled,

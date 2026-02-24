@@ -61,7 +61,7 @@ export function IntegradorDados() {
   const listarConfiguracoes = trpc.integradorDados.listarConfiguracoes.useQuery();
   const obterStatus = trpc.integradorDados.obterStatus.useQuery();
   const obterLogs = trpc.integradorDados.obterLogs.useQuery(
-    { limite: 50 },
+    { configId: undefined, limite: 50 },
     { enabled: !!estabelecimentoId }
   );
 
