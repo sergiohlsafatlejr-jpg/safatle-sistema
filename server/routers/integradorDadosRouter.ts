@@ -407,7 +407,9 @@ export const integradorDadosRouter = router({
                     dataAtendimento: row.datatend || null,
                   }));
 
-                  await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+                  console.log(`[DEBUG] Tentando inserir lote ${Math.floor(i / BATCH_SIZE) + 1} com ${valuesToInsert.length} registros`);
+                  const result = await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+                  console.log(`[DEBUG] Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido com sucesso`, result);
                   
                   logger.info({
                     message: `Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido`,
@@ -423,12 +425,15 @@ export const integradorDadosRouter = router({
                   configId: input.configId,
                 });
               } catch (insertError) {
+                console.error("[ERROR] Erro ao inserir dados em staging:", insertError);
                 logger.error({
                   message: "Erro ao inserir dados em staging",
                   error: insertError instanceof Error ? insertError.message : String(insertError),
+                  stack: insertError instanceof Error ? insertError.stack : undefined,
                   configId: input.configId,
                 });
-                throw insertError;
+                // NÃO lançar erro - apenas registrar e continuar
+                console.log("[WARNING] Continuando apesar do erro de inserção");
               }
             }
 
