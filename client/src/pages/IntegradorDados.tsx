@@ -29,7 +29,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle } from "lucide-react";
-import { useState } from "react";
 import { QueryConfigForm } from "@/components/QueryConfigForm";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";

@@ -1,8 +1,8 @@
 import cron from "node-cron";
 import { getDb } from "../db";
-import { warleineAtendimentosStaging } from "../../drizzle/schema-integracao";
-import { atendimentos } from "../../drizzle/schema";
+import { warleineAtendimentosStaging, atendimentos, queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq } from "drizzle-orm";
+import { WarleineConnector } from "../connectors/WarleineConnector";
 
 const activeJobs: Map<number, ReturnType<typeof cron.schedule>> = new Map();
 
@@ -10,11 +10,15 @@ export async function initializeJobScheduler() {
   console.log("[JobScheduler] Inicializando agendador de tarefas...");
 
   try {
-    // Exemplo de job que roda diariamente às 2 da manhã
-    scheduleJob(1, "0 2 * * *", async () => {
-      console.log("[JobScheduler] Executando sincronização diária...");
-      // Sincronização será disparada manualmente via UI por enquanto
-    });
+    // Carregar configurações ativas do banco
+    const db = await getDb();
+    const configs = await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.ativo, true));
+
+    for (const config of configs) {
+      if (config.frequencia) {
+        await updateJobSchedule(config.id, config.frequencia, true);
+      }
+    }
 
     console.log("[JobScheduler] Jobs agendados com sucesso!");
   } catch (error) {
@@ -82,10 +86,112 @@ export async function updateJobSchedule(
     }
 
     scheduleJob(configId, cronExpression, async () => {
-      console.log(`[JobScheduler] Executando sincronização para config ${configId}...`);
-      // Sincronização será disparada manualmente via UI
+      await executarSincronizacaoAutomatica(configId);
     });
   } else {
     stopJob(configId);
+  }
+}
+
+/**
+ * Executa sincronização + transformação automaticamente
+ */
+async function executarSincronizacaoAutomatica(configId: number) {
+  console.log(`[JobScheduler] Iniciando sincronização automática para config ${configId}...`);
+
+  try {
+    const db = await getDb();
+
+    // 1. Obter configuração
+    const config = await db
+      .select()
+      .from(queryConfiguracoes)
+      .where(eq(queryConfiguracoes.id, configId))
+      .then((rows) => rows[0]);
+
+    if (!config) {
+      console.error(`[JobScheduler] Configuração ${configId} não encontrada`);
+      return;
+    }
+
+    // 2. SINCRONIZAR: Extrair dados do WARLEINE
+    console.log(`[JobScheduler] Sincronizando dados do WARLEINE...`);
+    const connector = new WarleineConnector();
+    const dados = await connector.executarQuery(config.query);
+
+    if (!dados || dados.length === 0) {
+      console.log(`[JobScheduler] Nenhum dado encontrado para sincronizar`);
+      return;
+    }
+
+    // Limpar staging anterior
+    await db.delete(warleineAtendimentosStaging).where(
+      eq(warleineAtendimentosStaging.configId, configId)
+    );
+
+    // Inserir dados em lotes
+    const BATCH_SIZE = 100;
+    let registrosSincronizados = 0;
+
+    for (let i = 0; i < dados.length; i += BATCH_SIZE) {
+      const batch = dados.slice(i, i + BATCH_SIZE);
+      const valuesToInsert = batch.map((row: any) => ({
+        estabelecimentoId: config.estabelecimentoId,
+        configId: config.id,
+        dadosBrutos: row,
+      }));
+
+      await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+      registrosSincronizados += valuesToInsert.length;
+    }
+
+    console.log(`[JobScheduler] ${registrosSincronizados} registros sincronizados`);
+
+    // 3. TRANSFORMAR: Converter staging para tabela unificada
+    console.log(`[JobScheduler] Transformando dados para tabela unificada...`);
+
+    const stagingData = await db
+      .select()
+      .from(warleineAtendimentosStaging)
+      .where(eq(warleineAtendimentosStaging.configId, configId));
+
+    let registrosTransformados = 0;
+
+    for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
+      const batch = stagingData.slice(i, i + BATCH_SIZE);
+      const valuesToInsert = batch.map((row: any) => {
+        const dados = typeof row.dadosBrutos === "string" 
+          ? JSON.parse(row.dadosBrutos) 
+          : row.dadosBrutos;
+
+        return {
+          estabelecimentoId: row.estabelecimentoId,
+          origemSistema: "WARLEINE",
+          origemId: dados?.id || null,
+          numeroAtendimento: dados?.numeroAtendimento || null,
+          paciente: dados?.paciente || null,
+          dataAtendimento: dados?.dataAtendimento ? new Date(dados.dataAtendimento) : null,
+          tipoAtendimento: dados?.tipoAtendimento || null,
+          servico: dados?.servico || null,
+          procedimentoPrincipal: dados?.procedimentoPrincipal || null,
+          dadosBrutos: row.dadosBrutos,
+        };
+      });
+
+      await db.insert(atendimentos).values(valuesToInsert);
+      registrosTransformados += valuesToInsert.length;
+    }
+
+    console.log(`[JobScheduler] ${registrosTransformados} registros transformados`);
+
+    // 4. Atualizar timestamp de última sincronização
+    await db
+      .update(queryConfiguracoes)
+      .set({ ultimaSincronizacao: new Date() })
+      .where(eq(queryConfiguracoes.id, configId));
+
+    console.log(`[JobScheduler] Sincronização automática concluída com sucesso!`);
+  } catch (error) {
+    console.error(`[JobScheduler] Erro ao executar sincronização automática:`, error);
   }
 }
