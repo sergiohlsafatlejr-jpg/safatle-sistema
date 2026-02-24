@@ -434,27 +434,21 @@ export const integradorDadosRouter = router({
   listarEstabelecimentos: protectedProcedure.query(async ({ ctx }) => {
     try {
       if (ctx.user?.role !== "admin") {
-        return {
-          estabelecimentos: [],
-        };
+        return [];
       }
 
       const db = await getDb();
       if (!db) {
-        return {
-          estabelecimentos: [],
-        };
+        return [];
       }
 
       const estabs = await db.select().from(estabelecimentos);
 
-      return {
-        estabelecimentos: estabs.map((e) => ({
-          id: e.id,
-          nome: e.nome,
-          cnpj: e.cnpj,
-        })),
-      };
+      return estabs.map((e) => ({
+        id: e.id,
+        nome: e.nome,
+        cnpj: e.cnpj,
+      }));
     } catch (error) {
       logger.error({
         message: "Erro ao listar estabelecimentos",
