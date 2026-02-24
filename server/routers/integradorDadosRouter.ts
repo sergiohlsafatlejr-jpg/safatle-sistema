@@ -394,17 +394,27 @@ export const integradorDadosRouter = router({
             // Armazenar em tabela de staging
             if (registrosProcessados > 0) {
               try {
-                // Inserir dados na tabela de staging usando Drizzle ORM
-                const valuesToInsert = dados.map((row: any) => ({
-                  estabelecimentoId: config.estabelecimentoId,
-                  configuracaoId: config.id,
-                  dadosBrutos: row,
-                  atendimentoId: row.numatend || null,
-                  pacienteId: row.codpac || null,
-                  dataAtendimento: row.datatend || null,
-                }));
+                // Inserir dados em lotes para evitar erro de query muito grande
+                const BATCH_SIZE = 100;
+                for (let i = 0; i < dados.length; i += BATCH_SIZE) {
+                  const batch = dados.slice(i, i + BATCH_SIZE);
+                  const valuesToInsert = batch.map((row: any) => ({
+                    estabelecimentoId: config.estabelecimentoId,
+                    configuracaoId: config.id,
+                    dadosBrutos: row,
+                    atendimentoId: row.numatend || null,
+                    pacienteId: row.codpac || null,
+                    dataAtendimento: row.datatend || null,
+                  }));
 
-                await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+                  await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+                  
+                  logger.info({
+                    message: `Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido`,
+                    registrosNoLote: batch.length,
+                    configId: input.configId,
+                  });
+                }
 
                 logger.info({
                   message: "Dados armazenados em staging",
