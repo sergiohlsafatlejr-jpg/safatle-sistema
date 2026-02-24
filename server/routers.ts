@@ -12,6 +12,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
+import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
@@ -6367,9 +6368,9 @@ export const appRouter = router({
         try {
           const estabelecimentoId = ctx.user?.estabelecimentoId || 1;
           const dados = await getAtendimentosParadosUnificados(estabelecimentoId);
-          return dados.map(d => ({
+          return dados.map((d: any) => ({
             ...d,
-            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
+            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida || undefined),
           }));
         } catch (err: any) {
           throw new TRPCError({
