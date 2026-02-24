@@ -386,23 +386,42 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Sistema</label>
-                  <Select
-                    value={configForm.watch("sistema") || ""}
-                    onValueChange={(v) => configForm.setValue("sistema", v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
-                      <SelectItem value="tasy">TASY (Oracle)</SelectItem>
-                      <SelectItem value="omni">OMNI (Firebird)</SelectItem>
-                      <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <label className="text-sm font-medium">Estabelecimento *</label>
+                <Select
+                  value={String(configForm.watch("estabelecimentoId") || "")}
+                  onValueChange={(v) => configForm.setValue("estabelecimentoId", parseInt(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um estabelecimento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estabelecimentos?.map((est: any) => (
+                      <SelectItem key={est.id} value={String(est.id)}>
+                        {est.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Sistema</label>
+                <Select
+                  value={configForm.watch("sistema") || ""}
+                  onValueChange={(v) => configForm.setValue("sistema", v as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
+                    <SelectItem value="tasy">TASY (Oracle)</SelectItem>
+                    <SelectItem value="omni">OMNI (Firebird)</SelectItem>
+                    <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
                 <div>
                   <label className="text-sm font-medium">Tipo de Dados</label>
