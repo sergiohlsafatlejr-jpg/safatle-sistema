@@ -76,7 +76,7 @@ export function IntegradorDados() {
   });
 
   const handleDelete = async (configId: number) => {
-    await deletarConfiguracao.mutateAsync({ id: configId });
+    await deletarConfiguracao.mutateAsync({ configId });
   };
 
   return (
@@ -146,11 +146,9 @@ export function IntegradorDados() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {obterStatus.data?.proximaSincronizacao
-                    ? new Date(obterStatus.data.proximaSincronizacao).toLocaleTimeString()
-                    : "-"}
+                  {obterStatus.data?.ativas || 0}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Horário agendado</p>
+                <p className="text-xs text-muted-foreground mt-2">Sincronizações ativas</p>
               </CardContent>
             </Card>
 

@@ -1,483 +1,472 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
-const queryConfigSchema = z.object({
+const connectionSchema = z.object({
+  host: z.string().min(1, "Host é obrigatório"),
+  port: z.number().min(1, "Port deve ser um número válido"),
+  database: z.string().min(1, "Database é obrigatório"),
+  user: z.string().min(1, "Usuário é obrigatório"),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
+
+const querySchema = z.object({
+  querySql: z.string().min(10, "Query deve ter pelo menos 10 caracteres"),
+});
+
+const configSchema = z.object({
   estabelecimentoId: z.number().min(1, "Estabelecimento é obrigatório"),
   sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
   tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes"]),
-  querySql: z.string().min(10, "Query deve ter pelo menos 10 caracteres"),
+  frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
   descricao: z.string().optional(),
-  frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]).default("tempo_real"),
-  conexaoConfig: z
-    .object({
-      host: z.string().min(1, "Host é obrigatório"),
-      port: z.number().min(1, "Porta é obrigatória"),
-      database: z.string().min(1, "Banco de dados é obrigatório"),
-      user: z.string().min(1, "Usuário é obrigatório"),
-      password: z.string().min(1, "Senha é obrigatória"),
-    })
-    .optional(),
 });
 
-type QueryConfig = z.infer<typeof queryConfigSchema>;
-
-interface Estabelecimento {
-  id: number;
-  nome: string;
-  cnpj?: string;
-  endereco?: string;
-  ativo?: string;
-}
+type ConnectionFormData = z.infer<typeof connectionSchema>;
+type QueryFormData = z.infer<typeof querySchema>;
+type ConfigFormData = z.infer<typeof configSchema>;
 
 interface QueryConfigFormProps {
   onSuccess?: () => void;
-  initialData?: Partial<QueryConfig>;
+  onCancel?: () => void;
 }
 
-export function QueryConfigForm({
-  onSuccess,
-  initialData,
-}: QueryConfigFormProps) {
-  const defaultFormData: QueryConfig = {
-    estabelecimentoId: 0,
-    sistema: "warleine",
-    tipoDados: "atendimentos",
-    querySql: "",
-    descricao: "",
-    frequencia: "tempo_real",
-    conexaoConfig: {
+export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
+  const [step, setStep] = useState<"connection" | "query" | "config">("connection");
+  const [connectionData, setConnectionData] = useState<ConnectionFormData | null>(null);
+  const [queryData, setQueryData] = useState<QueryFormData | null>(null);
+  const [connectionTested, setConnectionTested] = useState(false);
+  const [queryTested, setQueryTested] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testingQuery, setTestingQuery] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const connectionForm = useForm<ConnectionFormData>({
+    resolver: zodResolver(connectionSchema),
+    defaultValues: {
       host: "hup.safatle.net.br",
       port: 55333,
       database: "db1",
       user: "TI",
       password: "",
     },
-  };
-
-  const [formData, setFormData] = useState<QueryConfig>({
-    ...defaultFormData,
-    ...initialData,
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [testResult, setTestResult] = useState<{
-    sucesso: boolean;
-    mensagem: string;
-    totalRegistros?: number;
-  } | null>(null);
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryForm = useForm<QueryFormData>({
+    resolver: zodResolver(querySchema),
+  });
 
-  // Carregar estabelecimentos
-  const { data: estabelecimentosData, isLoading: isLoadingEstabelecimentos } =
-    trpc.integradorDados.listarEstabelecimentos.useQuery();
+  const configForm = useForm<ConfigFormData>({
+    resolver: zodResolver(configSchema),
+  });
 
-  const estabelecimentos: Estabelecimento[] = estabelecimentosData?.estabelecimentos || [];
+  const testarConexaoMutation = trpc.integradorDados.testarConexaoWarleine.useMutation();
+  const salvarConfigMutation = trpc.integradorDados.salvarConfiguracao.useMutation();
+  const { data: estabelecimentos } = trpc.integradorDados.listarEstabelecimentos.useQuery();
 
-  const testarConexao = trpc.integradorDados.testarConexaoWarleine.useMutation();
-  const salvarConfiguracao = trpc.integradorDados.salvarConfiguracao.useMutation();
+  const handleTestConnection = async (data: ConnectionFormData) => {
+    setTestingConnection(true);
+    setTestResult(null);
 
-  const handleInputChange = (
-    field: keyof QueryConfig,
-    value: any
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    if (errors[field]) {
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }));
-    }
-  };
-
-  const handleConnectionConfigChange = (
-    field: keyof NonNullable<QueryConfig["conexaoConfig"]>,
-    value: any
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      conexaoConfig: {
-        ...prev.conexaoConfig,
-        [field]: value,
-      },
-    }));
-  };
-
-  const handleTestConnection = async () => {
-    if (!formData.conexaoConfig) {
-      setTestResult({
-        sucesso: false,
-        mensagem: "Configure a conexão antes de testar",
-      });
-      return;
-    }
-
-    setIsTestingConnection(true);
     try {
-      const result = await testarConexao.mutateAsync({
-        ...formData.conexaoConfig,
-        querySql: formData.querySql,
+      const result = await testarConexaoMutation.mutateAsync({
+        ...data,
+        querySql: "SELECT 1",
       });
-      setTestResult(result);
-    } catch (error) {
-      setTestResult({
-        sucesso: false,
-        mensagem: error instanceof Error ? error.message : "Erro ao testar conexão",
-      });
-    } finally {
-      setIsTestingConnection(false);
-    }
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validar formulário
-    try {
-      queryConfigSchema.parse(formData);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
-        (error as any).errors.forEach((err: any) => {
-          const path = err.path.join(".");
-          newErrors[path] = err.message;
-        });
-        setErrors(newErrors);
-      }
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await salvarConfiguracao.mutateAsync(formData);
       if (result.sucesso) {
-        setFormData(defaultFormData);
-        setErrors({});
-        onSuccess?.();
+        setConnectionTested(true);
+        setConnectionData(data);
+        setTestResult({
+          success: true,
+          message: "Conexão testada com sucesso!",
+        });
+        toast.success("Conexão validada!");
+        setStep("query");
+      } else {
+        setTestResult({
+          success: false,
+          message: result.mensagem || "Erro ao conectar",
+        });
+        toast.error("Erro na conexão: " + result.mensagem);
       }
     } catch (error) {
-      setErrors({
-        submit: error instanceof Error ? error.message : "Erro ao salvar",
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      setTestResult({
+        success: false,
+        message: errorMessage,
       });
+      toast.error("Erro: " + errorMessage);
     } finally {
-      setIsSubmitting(false);
+      setTestingConnection(false);
+    }
+  };
+
+  const handleTestQuery = async (data: QueryFormData) => {
+    if (!connectionData) {
+      toast.error("Teste a conexão primeiro!");
+      return;
+    }
+
+    setTestingQuery(true);
+    setTestResult(null);
+
+    try {
+      const result = await testarConexaoMutation.mutateAsync({
+        ...connectionData,
+        querySql: data.querySql,
+      });
+
+      if (result.sucesso) {
+        setQueryTested(true);
+        setQueryData(data);
+        setTestResult({
+          success: true,
+          message: `Query testada com sucesso! ${result.totalRegistros || 0} registros encontrados.`,
+        });
+        toast.success("Query validada!");
+        setStep("config");
+      } else {
+        setTestResult({
+          success: false,
+          message: result.mensagem || "Erro ao executar query",
+        });
+        toast.error("Erro na query: " + result.mensagem);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      setTestResult({
+        success: false,
+        message: errorMessage,
+      });
+      toast.error("Erro: " + errorMessage);
+    } finally {
+      setTestingQuery(false);
+    }
+  };
+
+  const handleSaveConfig = async (data: ConfigFormData) => {
+    if (!connectionData || !queryData) {
+      toast.error("Complete os testes de conexão e query primeiro!");
+      return;
+    }
+
+    setSavingConfig(true);
+
+    try {
+      const result = await salvarConfigMutation.mutateAsync({
+        ...data,
+        querySql: queryData.querySql,
+        conexaoConfig: {
+          host: connectionData.host,
+          port: connectionData.port,
+          database: connectionData.database,
+          user: connectionData.user,
+          password: connectionData.password,
+        },
+      });
+
+      if (result.sucesso) {
+        toast.success("Configuração salva com sucesso!");
+        onSuccess?.();
+      } else {
+        toast.error("Erro ao salvar: " + result.mensagem);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      toast.error("Erro: " + errorMessage);
+    } finally {
+      setSavingConfig(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuração Básica</CardTitle>
-          <CardDescription>
-            Configure o estabelecimento e tipo de dados para sincronizar
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="estabelecimento">Estabelecimento *</Label>
-              <Select
-                value={String(formData.estabelecimentoId)}
-                onValueChange={(value) =>
-                  handleInputChange("estabelecimentoId", parseInt(value))
-                }
-              >
-                <SelectTrigger id="estabelecimento">
-                  <SelectValue placeholder="Selecione um estabelecimento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isLoadingEstabelecimentos ? (
-                    <div className="p-2 text-sm text-muted-foreground">
-                      Carregando estabelecimentos...
-                    </div>
-                  ) : estabelecimentos.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">
-                      Nenhum estabelecimento encontrado
-                    </div>
-                  ) : (
-                    estabelecimentos.map((est) => (
-                      <SelectItem key={est.id} value={String(est.id)}>
-                        {est.nome}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {errors.estabelecimentoId && (
-                <p className="text-sm text-red-500 mt-1">{errors.estabelecimentoId}</p>
-              )}
-            </div>
+    <div className="w-full max-w-2xl mx-auto">
+      <Tabs value={step} onValueChange={(v) => setStep(v as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="connection" disabled={!connectionTested && step !== "connection"}>
+            1. Conexão
+          </TabsTrigger>
+          <TabsTrigger value="query" disabled={!queryTested && step !== "query"}>
+            2. Query
+          </TabsTrigger>
+          <TabsTrigger value="config" disabled={!queryTested && step !== "config"}>
+            3. Configuração
+          </TabsTrigger>
+        </TabsList>
 
-            <div>
-              <Label htmlFor="sistema">Sistema *</Label>
-              <Select
-                value={formData.sistema}
-                onValueChange={(value) =>
-                  handleInputChange("sistema", value as QueryConfig["sistema"])
-                }
-              >
-                <SelectTrigger id="sistema">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
-                  <SelectItem value="tasy">TASY (Oracle)</SelectItem>
-                  <SelectItem value="omni">OMNI (Firebird)</SelectItem>
-                  <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.sistema && (
-                <p className="text-sm text-red-500 mt-1">{errors.sistema}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="tipoDados">Tipo de Dados *</Label>
-              <Select
-                value={formData.tipoDados}
-                onValueChange={(value) =>
-                  handleInputChange("tipoDados", value as QueryConfig["tipoDados"])
-                }
-              >
-                <SelectTrigger id="tipoDados">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="atendimentos">Atendimentos</SelectItem>
-                  <SelectItem value="faturamento">Faturamento</SelectItem>
-                  <SelectItem value="procedimentos">Procedimentos</SelectItem>
-                  <SelectItem value="pacientes">Pacientes</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.tipoDados && (
-                <p className="text-sm text-red-500 mt-1">{errors.tipoDados}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="frequencia">Frequência de Sincronização *</Label>
-              <Select
-                value={formData.frequencia}
-                onValueChange={(value) =>
-                  handleInputChange("frequencia", value as QueryConfig["frequencia"])
-                }
-              >
-                <SelectTrigger id="frequencia">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tempo_real">Tempo Real (5 min)</SelectItem>
-                  <SelectItem value="1x_dia">Uma vez ao dia (02:00 AM)</SelectItem>
-                  <SelectItem value="1x_semana">Uma vez por semana (seg 02:00 AM)</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.frequencia && (
-                <p className="text-sm text-red-500 mt-1">{errors.frequencia}</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="descricao">Descrição (Opcional)</Label>
-            <Textarea
-              id="descricao"
-              placeholder="Ex: Query para sincronizar atendimentos dos últimos 30 dias"
-              value={formData.descricao || ""}
-              onChange={(e) => handleInputChange("descricao", e.target.value)}
-              className="min-h-20"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuração de Conexão</CardTitle>
-          <CardDescription>
-            Configure os dados de conexão com o banco de dados externo
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="host">Host *</Label>
-              <Input
-                id="host"
-                value={formData.conexaoConfig?.host || ""}
-                onChange={(e) => handleConnectionConfigChange("host", e.target.value)}
-                placeholder="hup.safatle.net.br"
-              />
-              {errors["conexaoConfig.host"] && (
-                <p className="text-sm text-red-500 mt-1">{errors["conexaoConfig.host"]}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="port">Porta *</Label>
-              <Input
-                id="port"
-                type="number"
-                value={formData.conexaoConfig?.port || ""}
-                onChange={(e) =>
-                  handleConnectionConfigChange("port", parseInt(e.target.value))
-                }
-                placeholder="55333"
-              />
-              {errors["conexaoConfig.port"] && (
-                <p className="text-sm text-red-500 mt-1">{errors["conexaoConfig.port"]}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="database">Banco de Dados *</Label>
-              <Input
-                id="database"
-                value={formData.conexaoConfig?.database || ""}
-                onChange={(e) =>
-                  handleConnectionConfigChange("database", e.target.value)
-                }
-                placeholder="db1"
-              />
-              {errors["conexaoConfig.database"] && (
-                <p className="text-sm text-red-500 mt-1">
-                  {errors["conexaoConfig.database"]}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="user">Usuário *</Label>
-              <Input
-                id="user"
-                value={formData.conexaoConfig?.user || ""}
-                onChange={(e) => handleConnectionConfigChange("user", e.target.value)}
-                placeholder="TI"
-              />
-              {errors["conexaoConfig.user"] && (
-                <p className="text-sm text-red-500 mt-1">{errors["conexaoConfig.user"]}</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="password">Senha *</Label>
-            <Input
-              id="password"
-              type="password"
-              value={formData.conexaoConfig?.password || ""}
-              onChange={(e) =>
-                handleConnectionConfigChange("password", e.target.value)
-              }
-              placeholder="••••••••"
-            />
-            {errors["conexaoConfig.password"] && (
-              <p className="text-sm text-red-500 mt-1">
-                {errors["conexaoConfig.password"]}
-              </p>
-            )}
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleTestConnection}
-            disabled={isTestingConnection}
-            className="w-full"
-          >
-            {isTestingConnection && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Testar Conexão
-          </Button>
-
-          {testResult && (
-            <Alert className={testResult.sucesso ? "bg-green-50" : "bg-red-50"}>
-              <div className="flex items-start gap-3">
-                {testResult.sucesso ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                )}
+        {/* STEP 1: CONNECTION */}
+        <TabsContent value="connection" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurar Conexão</CardTitle>
+              <CardDescription>Configure os dados de conexão com o banco de dados</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="font-medium">
-                    {testResult.sucesso ? "Conexão bem-sucedida!" : "Erro na conexão"}
-                  </p>
-                  <AlertDescription>{testResult.mensagem}</AlertDescription>
-                  {testResult.totalRegistros !== undefined && (
-                    <AlertDescription className="mt-2">
-                      Total de registros: {testResult.totalRegistros}
-                    </AlertDescription>
+                  <label className="text-sm font-medium">Host</label>
+                  <Input {...connectionForm.register("host")} placeholder="localhost" />
+                  {connectionForm.formState.errors.host && (
+                    <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.host.message}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Port</label>
+                  <Input {...connectionForm.register("port")} type="number" placeholder="5432" />
+                  {connectionForm.formState.errors.port && (
+                    <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.port.message}</p>
                   )}
                 </div>
               </div>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Query SQL</CardTitle>
-          <CardDescription>
-            Cole a query SQL que será executada para extrair os dados
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={formData.querySql}
-            onChange={(e) => handleInputChange("querySql", e.target.value)}
-            placeholder="SELECT * FROM atendimentos WHERE data >= ?"
-            className="font-mono text-sm min-h-32"
-          />
-          {errors.querySql && (
-            <p className="text-sm text-red-500 mt-2">{errors.querySql}</p>
-          )}
-        </CardContent>
-      </Card>
+              <div>
+                <label className="text-sm font-medium">Database</label>
+                <Input {...connectionForm.register("database")} placeholder="db1" />
+                {connectionForm.formState.errors.database && (
+                  <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.database.message}</p>
+                )}
+              </div>
 
-      {errors.submit && (
-        <Alert className="bg-red-50">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <AlertDescription>{errors.submit}</AlertDescription>
-        </Alert>
-      )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Usuário</label>
+                  <Input {...connectionForm.register("user")} placeholder="TI" />
+                  {connectionForm.formState.errors.user && (
+                    <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.user.message}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Senha</label>
+                  <Input {...connectionForm.register("password")} type="password" placeholder="••••••••" />
+                  {connectionForm.formState.errors.password && (
+                    <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+              </div>
 
-      <Button
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="w-full"
-        size="lg"
-      >
-        {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-        Salvar Configuração
-      </Button>
+              {testResult && (
+                <Alert variant={testResult.success ? "default" : "destructive"}>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{testResult.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {connectionTested && (
+                <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">Conexão validada com sucesso!</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                {onCancel && <Button variant="outline" onClick={onCancel}>Cancelar</Button>}
+                <Button
+                  onClick={connectionForm.handleSubmit(handleTestConnection as any)}
+                  disabled={testingConnection || connectionTested}
+                >
+                  {testingConnection ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testando...
+                    </>
+                  ) : connectionTested ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Testado
+                    </>
+                  ) : (
+                    "Testar Conexão"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* STEP 2: QUERY */}
+        <TabsContent value="query" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurar Query</CardTitle>
+              <CardDescription>Defina a query SQL para extrair dados</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Query SQL</label>
+                <Textarea
+                  {...queryForm.register("querySql")}
+                  placeholder="SELECT * FROM atendimentos WHERE data >= NOW() - INTERVAL '60 days'"
+                  className="font-mono text-xs"
+                  rows={10}
+                />
+                {queryForm.formState.errors.querySql && (
+                  <p className="text-xs text-red-500 mt-1">{queryForm.formState.errors.querySql.message}</p>
+                )}
+              </div>
+
+              {testResult && (
+                <Alert variant={testResult.success ? "default" : "destructive"}>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{testResult.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {queryTested && (
+                <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">Query validada com sucesso!</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setStep("connection")}>
+                  Voltar
+                </Button>
+                <Button
+                  onClick={queryForm.handleSubmit(handleTestQuery as any)}
+                  disabled={testingQuery || queryTested}
+                >
+                  {testingQuery ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testando...
+                    </>
+                  ) : queryTested ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Testada
+                    </>
+                  ) : (
+                    "Testar Query"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* STEP 3: CONFIG */}
+        <TabsContent value="config" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Salvar Configuração</CardTitle>
+              <CardDescription>Configure os detalhes da sincronização</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Estabelecimento</label>
+                <Select
+                  value={configForm.watch("estabelecimentoId")?.toString() || ""}
+                  onValueChange={(v) => configForm.setValue("estabelecimentoId", parseInt(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um estabelecimento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estabelecimentos?.estabelecimentos?.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {e.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Sistema</label>
+                  <Select
+                    value={configForm.watch("sistema") || ""}
+                    onValueChange={(v) => configForm.setValue("sistema", v as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
+                      <SelectItem value="tasy">TASY (Oracle)</SelectItem>
+                      <SelectItem value="omni">OMNI (Firebird)</SelectItem>
+                      <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Tipo de Dados</label>
+                  <Select
+                    value={configForm.watch("tipoDados") || ""}
+                    onValueChange={(v) => configForm.setValue("tipoDados", v as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="atendimentos">Atendimentos</SelectItem>
+                      <SelectItem value="faturamento">Faturamento</SelectItem>
+                      <SelectItem value="procedimentos">Procedimentos</SelectItem>
+                      <SelectItem value="pacientes">Pacientes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Frequência de Sincronização</label>
+                <Select
+                  value={configForm.watch("frequencia") || ""}
+                  onValueChange={(v) => configForm.setValue("frequencia", v as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tempo_real">Tempo Real (a cada 5 minutos)</SelectItem>
+                    <SelectItem value="1x_dia">1x ao Dia (02:00 AM)</SelectItem>
+                    <SelectItem value="1x_semana">1x por Semana (Segunda 02:00 AM)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Descrição (Opcional)</label>
+                <Input {...configForm.register("descricao")} placeholder="Ex: Query para sincronizar atendimentos dos últimos 60 dias" />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setStep("query")}>
+                  Voltar
+                </Button>
+                <Button
+                  onClick={configForm.handleSubmit(handleSaveConfig as any)}
+                  disabled={savingConfig}
+                >
+                  {savingConfig ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    "Salvar Configuração"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

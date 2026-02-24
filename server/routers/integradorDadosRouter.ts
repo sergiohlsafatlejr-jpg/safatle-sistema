@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -321,7 +322,7 @@ export const integradorDadosRouter = router({
         const configs = await db
           .select()
           .from(queryConfiguracoes)
-          .where((qc) => qc.id === input.configId);
+          .where(eq(queryConfiguracoes.id, input.configId));
 
         if (configs.length === 0) {
           return {
@@ -337,7 +338,8 @@ export const integradorDadosRouter = router({
         let registrosProcessados = 0;
 
         if (config.sistema === "warleine") {
-          const conexao = config.conexaoConfig ? JSON.parse(config.conexaoConfig) : {};
+          const conexaoStr = typeof config.conexaoConfig === 'string' ? config.conexaoConfig : JSON.stringify(config.conexaoConfig || {});
+          const conexao = JSON.parse(conexaoStr);
           const connector = new WarleineConnector(conexao);
 
           const resultado = await connector.testarConexaoEQuery(config.querySql);
@@ -348,7 +350,7 @@ export const integradorDadosRouter = router({
             await db
               .update(queryConfiguracoes)
               .set({ ultimaSincronizacao: new Date() })
-              .where((qc) => qc.id === input.configId);
+              .where(eq(queryConfiguracoes.id, input.configId));
           }
         }
 
@@ -402,7 +404,7 @@ export const integradorDadosRouter = router({
 
         await db
           .delete(queryConfiguracoes)
-          .where((qc) => qc.id === input.configId);
+          .where(eq(queryConfiguracoes.id, input.configId));
 
         logger.info({
           message: "Configuração deletada",
