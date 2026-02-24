@@ -267,9 +267,11 @@ AND (X.codcc_destino NOT in ('BN2028', '000022', 'BN100') OR X.codcc_destino IS 
       }
 
       // Testa query (com LIMIT para não trazer muitos dados)
-      const queryComLimit = querySql.includes("LIMIT")
-        ? querySql
-        : `${querySql} LIMIT 1`;
+      // Limpar a query de espaços extras e quebras de linha
+      const queryLimpa = querySql.trim().replace(/\s+/g, ' ');
+      const queryComLimit = queryLimpa.toUpperCase().includes("LIMIT")
+        ? queryLimpa
+        : `${queryLimpa} LIMIT 1`;
 
       const resultado = await this.executarQuery(queryComLimit);
 
