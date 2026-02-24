@@ -673,4 +673,41 @@ export const integradorDadosRouter = router({
         };
       }
     }),
+
+  atualizarAgendamento: protectedProcedure
+    .input(
+      z.object({
+        configId: z.number(),
+        frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana", "1x_mes"]),
+        ativo: z.boolean(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const db = await getDb();
+
+        await db
+          .update(queryConfiguracoes)
+          .set({
+            frequencia: input.frequencia,
+            ativo: input.ativo,
+            proximaSincronizacao: new Date(),
+          })
+          .where(eq(queryConfiguracoes.id, input.configId));
+
+        const { updateJobSchedule } = await import("../../../server/_core/jobScheduler");
+        await updateJobSchedule(input.configId, input.frequencia, input.ativo);
+
+        return {
+          sucesso: true,
+          mensagem: `Agendamento atualizado: ${input.frequencia}`,
+        };
+      } catch (error) {
+        console.error("[ERROR]", error);
+        return {
+          sucesso: false,
+          mensagem: error instanceof Error ? error.message : "Erro ao atualizar agendamento",
+        };
+      }
+    }),
 });

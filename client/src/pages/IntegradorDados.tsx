@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle } from "lucide-react";
+import { useState } from "react";
 import { QueryConfigForm } from "@/components/QueryConfigForm";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
@@ -134,6 +135,34 @@ export function IntegradorDados() {
 
   const handleDelete = async (configId: number) => {
     await deletarConfiguracao.mutateAsync({ configId });
+  };
+
+  const atualizarAgendamento = trpc.integradorDados.atualizarAgendamento.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Agendamento Atualizado", {
+          description: data.mensagem,
+        });
+        listarConfiguracoes.refetch();
+      } else {
+        toast.error("Erro ao Atualizar Agendamento", {
+          description: data.mensagem,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao Atualizar Agendamento", {
+        description: error.message,
+      });
+    },
+  });
+
+  const handleAtualizarAgendamento = async (configId: number, frequencia: string, ativo: boolean) => {
+    await atualizarAgendamento.mutateAsync({
+      configId,
+      frequencia: frequencia as any,
+      ativo,
+    });
   };
 
   return (
@@ -284,7 +313,16 @@ export function IntegradorDados() {
                         {TIPO_DADOS_LABELS[config.tipoDados] || config.tipoDados}
                       </TableCell>
                       <TableCell>
-                        {FREQUENCIA_LABELS[config.frequencia] || config.frequencia}
+                        <select
+                          value={config.frequencia}
+                          onChange={(e) => handleAtualizarAgendamento(config.id, e.target.value, config.ativo)}
+                          className="text-sm border rounded px-2 py-1 bg-background"
+                        >
+                          <option value="tempo_real">Tempo Real</option>
+                          <option value="1x_dia">1x ao Dia</option>
+                          <option value="1x_semana">1x por Semana</option>
+                          <option value="1x_mes">1x por Mês</option>
+                        </select>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {config.descricao || "-"}
