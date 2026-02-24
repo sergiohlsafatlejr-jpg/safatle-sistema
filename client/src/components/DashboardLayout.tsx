@@ -71,6 +71,7 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
 import { MotorRegrasNotificationBell } from "./MotorRegrasNotificationBell";
+import { SettingsMenu } from "./SettingsMenu";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 
@@ -142,7 +143,6 @@ const menuItems: MenuItem[] = [
   { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar", estabelecimentoIds: [4] },
   { icon: AlertCircle, label: "Atendimentos Parados", path: "/atendimentos-parados-unificados", modulo: "atendimentos" },
   { icon: Megaphone, label: "Avisos Internos", path: "/gerenciar-avisos", adminOnly: true },
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -516,6 +516,7 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
+              <SettingsMenu />
             </SidebarMenu>
           </SidebarContent>
 
