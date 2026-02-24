@@ -12,6 +12,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
+import { getAtendimentosParadosUnificados, calcularDiasParado } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
@@ -6365,11 +6366,11 @@ export const appRouter = router({
     listarParadosUnificados: protectedProcedure
       .query(async ({ ctx }) => {
         try {
-          const estabelecimentoId = ctx.user?.estabelecimentoId || 1;
-          const dados = await getAtendimentosParadosUnificados(estabelecimentoId);
+          // Buscar todos os atendimentos parados da tabela unificada
+          const dados = await getAtendimentosParadosUnificados();
           return dados.map(d => ({
             ...d,
-            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
+            diasParado: calcularDiasParado(d.data_entrada, d.data_saida),
           }));
         } catch (err: any) {
           throw new TRPCError({

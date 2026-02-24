@@ -3,11 +3,10 @@ import { atendimentos } from "../drizzle/schema-integracao";
 import { eq, and, isNull } from "drizzle-orm";
 
 /**
- * Busca atendimentos parados (sem data de saída) da tabela unificada
- * @param estabelecimentoId - ID do estabelecimento
+ * Busca todos os atendimentos parados (sem data de saída) da tabela unificada
  * @returns Lista de atendimentos parados
  */
-export async function getAtendimentosParadosUnificados(estabelecimentoId: number) {
+export async function getAtendimentosParadosUnificados() {
   try {
     const db = await getDb();
     if (!db) {
@@ -15,7 +14,34 @@ export async function getAtendimentosParadosUnificados(estabelecimentoId: number
       return [];
     }
 
-    // Buscar atendimentos que não têm data_saida (parados)
+    // Buscar todos os atendimentos que não têm data_saida (parados)
+    const result = await db
+      .select()
+      .from(atendimentos)
+      .where(isNull(atendimentos.data_saida))
+      .orderBy(atendimentos.data_entrada);
+
+    return result;
+  } catch (error) {
+    console.error("Erro ao buscar atendimentos parados unificados:", error);
+    return [];
+  }
+}
+
+/**
+ * Busca atendimentos parados (sem data de saída) da tabela unificada por estabelecimento
+ * @param estabelecimentoId - ID do estabelecimento
+ * @returns Lista de atendimentos parados
+ */
+export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId: number) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.error("Banco de dados não disponível");
+      return [];
+    }
+
+    // Buscar atendimentos que não têm data_saida (parados) para um estabelecimento específico
     const result = await db
       .select()
       .from(atendimentos)
@@ -29,7 +55,7 @@ export async function getAtendimentosParadosUnificados(estabelecimentoId: number
 
     return result;
   } catch (error) {
-    console.error("Erro ao buscar atendimentos parados unificados:", error);
+    console.error("Erro ao buscar atendimentos parados por estabelecimento:", error);
     return [];
   }
 }
@@ -57,9 +83,11 @@ export function calcularDiasParadoUnificado(dataEntrada?: string | Date, dataSai
  * @param estabelecimentoId - ID do estabelecimento
  * @returns Estatísticas
  */
-export async function getEstatisticasAtendimentosParadosUnificados(estabelecimentoId: number) {
+export async function getEstatisticasAtendimentosParadosUnificados(estabelecimentoId?: number) {
   try {
-    const atendimentosParados = await getAtendimentosParadosUnificados(estabelecimentoId);
+    const atendimentosParados = estabelecimentoId 
+      ? await getAtendimentosParadosPorEstabelecimento(estabelecimentoId)
+      : await getAtendimentosParadosUnificados();
 
     if (atendimentosParados.length === 0) {
       return {
@@ -123,16 +151,18 @@ export async function getEstatisticasAtendimentosParadosUnificados(estabelecimen
  * @returns Lista de atendimentos parados filtrados
  */
 export async function getAtendimentosParadosComFiltros(
-  estabelecimentoId: number,
   filtros?: {
     tipo?: string;
     convenio?: string;
     origem?: string;
     diasMinimoParado?: number;
+    estabelecimentoId?: number;
   }
 ) {
   try {
-    let atendimentosParados = await getAtendimentosParadosUnificados(estabelecimentoId);
+    let atendimentosParados = filtros?.estabelecimentoId
+      ? await getAtendimentosParadosPorEstabelecimento(filtros.estabelecimentoId)
+      : await getAtendimentosParadosUnificados();
 
     if (filtros?.tipo) {
       atendimentosParados = atendimentosParados.filter(
