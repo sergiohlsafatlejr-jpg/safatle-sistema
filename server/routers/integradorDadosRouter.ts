@@ -709,4 +709,78 @@ export const integradorDadosRouter = router({
         };
       }
     }),
+
+  limparSincronizacao: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        if (ctx.user?.role !== "admin") {
+          throw new Error("Acesso negado");
+        }
+
+        const db = await getDb();
+        if (!db) throw new Error("Banco de dados nao disponivel");
+
+        const config = await db
+          .select()
+          .from(queryConfiguracoes)
+          .where(eq(queryConfiguracoes.id, input.configId))
+          .limit(1)
+          .then((rows) => rows[0]);
+
+        if (!config) throw new Error("Configuracao nao encontrada");
+
+        const stagingData = await db
+          .select()
+          .from(warleineAtendimentosStaging)
+          .where(eq(warleineAtendimentosStaging.configId, input.configId));
+
+        const stagingIds = stagingData.map((row) => row.id);
+        console.log(
+          `[DEBUG] Encontrados ${stagingIds.length} registros de staging para limpar`
+        );
+
+        let registrosRemovidosUnificados = 0;
+        if (stagingIds.length > 0) {
+          const origemIds = stagingIds.map(
+            (id) => `${input.configId}-${id}`
+          );
+
+          const BATCH_SIZE = 100;
+          for (let i = 0; i < origemIds.length; i += BATCH_SIZE) {
+            const batch = origemIds.slice(i, i + BATCH_SIZE);
+            const placeholders = batch.map(() => "?").join(",");
+            await db.execute(
+              sql.raw(`DELETE FROM atendimentos_unificados WHERE origemId IN (${placeholders})`)
+            );
+            registrosRemovidosUnificados += batch.length;
+          }
+        }
+
+        await db.execute(
+          sql.raw(`DELETE FROM warleine_atendimentos_staging WHERE configId = ${input.configId}`)
+        );
+
+        await db
+          .update(queryConfiguracoes)
+          .set({
+            ultimaSincronizacao: null,
+            totalRegistrosSincronizados: 0,
+          })
+          .where(eq(queryConfiguracoes.id, input.configId));
+
+        return {
+          sucesso: true,
+          mensagem: `Sincronizacao limpa. ${registrosRemovidosUnificados} registros removidos.`,
+          registrosRemovidos: registrosRemovidosUnificados + stagingIds.length,
+        };
+      } catch (error) {
+        console.error("[ERROR]", error);
+        return {
+          sucesso: false,
+          mensagem: error instanceof Error ? error.message : "Erro ao limpar sincronizacao",
+          registrosRemovidos: 0,
+        };
+      }
+    }),
 });

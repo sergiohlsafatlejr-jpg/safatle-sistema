@@ -164,6 +164,30 @@ export function IntegradorDados() {
     });
   };
 
+  const limparSincronizacao = trpc.integradorDados.limparSincronizacao.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Sincronizacao Limpa", {
+          description: data.mensagem,
+        });
+        listarConfiguracoes.refetch();
+      } else {
+        toast.error("Erro ao Limpar", {
+          description: data.mensagem,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao Limpar Sincronizacao", {
+        description: error.message,
+      });
+    },
+  });
+
+  const handleLimparSincronizacao = async (configId: number) => {
+    await limparSincronizacao.mutateAsync({ configId });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -351,6 +375,20 @@ export function IntegradorDados() {
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleLimparSincronizacao(config.id)}
+                          disabled={limparSincronizacao.isPending}
+                          title="Limpar sincronizacao e remover duplicatas"
+                          className="text-orange-600 hover:text-orange-700"
+                        >
+                          {limparSincronizacao.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
                           )}
                         </Button>
                         <Button
