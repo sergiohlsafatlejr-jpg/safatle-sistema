@@ -749,9 +749,9 @@ export const integradorDadosRouter = router({
           const BATCH_SIZE = 100;
           for (let i = 0; i < origemIds.length; i += BATCH_SIZE) {
             const batch = origemIds.slice(i, i + BATCH_SIZE);
-            const placeholders = batch.map(() => "?").join(",");
+            const values = batch.map((id) => `'${id}'`).join(",");
             await db.execute(
-              sql.raw(`DELETE FROM atendimentos_unificados WHERE origemId IN (${placeholders})`)
+              sql.raw(`DELETE FROM atendimentos_unificados WHERE origemId IN (${values})`)
             );
             registrosRemovidosUnificados += batch.length;
           }
