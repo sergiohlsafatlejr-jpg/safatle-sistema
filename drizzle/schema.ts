@@ -2587,3 +2587,62 @@ export const auditLog = mysqlTable('auditLog', {
   estabelecimentoId: int('estabelecimentoId'),
   criadoEm: timestamp('criadoEm').defaultNow(),
 });
+
+
+/**
+ * Atendimentos Consolidados
+ * Tabela unificada para armazenar atendimentos de múltiplos sistemas (WARLEINE, TASY, etc)
+ * com rastreabilidade de origem
+ */
+export const atendimentos = mysqlTable("atendimentos", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Rastreabilidade de origem
+  origemSistema: varchar("origemSistema", { length: 50 }).notNull(), // 'WARLEINE', 'TASY', etc
+  origemId: varchar("origemId", { length: 100 }).notNull(), // ID único no sistema de origem
+  
+  // Dados do atendimento
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  pacienteId: varchar("pacienteId", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  
+  // Datas importantes
+  dataAdmissao: timestamp("dataAdmissao"),
+  dataAlta: timestamp("dataAlta"),
+  dataAtendimento: timestamp("dataAtendimento"),
+  
+  // Informações clínicas
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }), // 'Internação', 'Ambulatório', 'Emergência'
+  tipoSaida: varchar("tipoSaida", { length: 50 }), // 'Alta', 'Óbito', 'Transferência'
+  
+  // Localização
+  local: varchar("local", { length: 100 }), // Setor, ala, leito
+  
+  // Profissionais
+  carater: varchar("carater", { length: 100 }), // Caráter do atendimento
+  servico: varchar("servico", { length: 100 }),
+  
+  // Procedimentos e custos
+  procedimentoPrincipal: varchar("procedimentoPrincipal", { length: 255 }),
+  centroCusto: varchar("centroCusto", { length: 100 }),
+  
+  // Dados brutos originais (para auditoria)
+  dadosBrutos: json("dadosBrutos"),
+  
+  // Rastreamento
+  sincronizadoEm: timestamp("sincronizadoEm").defaultNow().notNull(),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  origemIdx: index("idx_atend_origem").on(table.origemSistema, table.origemId),
+  pacienteIdx: index("idx_atend_paciente").on(table.pacienteId),
+  estabelecimentoIdx: index("idx_atend_estabelecimento").on(table.estabelecimentoId),
+  dataAtendimentoIdx: index("idx_atend_data").on(table.dataAtendimento),
+}));
+
+export type Atendimento = typeof atendimentos.$inferSelect;
+export type InsertAtendimento = typeof atendimentos.$inferInsert;
+
+export type AuditLog = typeof auditLog.$inferSelect;
+export type InsertAuditLog = typeof auditLog.$inferInsert;

@@ -603,4 +603,74 @@ export const integradorDadosRouter = router({
       return [];
     }
   }),
+
+  transformarParaAtendimentos: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        if (ctx.user?.role !== "admin") {
+          throw new Error("Acesso negado");
+        }
+        const db = await getDb();
+        if (!db) throw new Error("Banco de dados nao disponivel");
+        const config = await db
+          .select()
+          .from(queryConfiguracoes)
+          .where(eq(queryConfiguracoes.id, input.configId))
+          .limit(1)
+          .then((rows) => rows[0]);
+        if (!config) throw new Error("Configuracao nao encontrada");
+        const stagingData = await db
+          .select()
+          .from(warleineAtendimentosStaging)
+          .where(eq(warleineAtendimentosStaging.configId, input.configId));
+        console.log(`[DEBUG] Transformando ${stagingData.length} registros`);
+        const { atendimentos } = await import("../../drizzle/schema");
+        let registrosTransformados = 0;
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
+          const batch = stagingData.slice(i, i + BATCH_SIZE);
+          const valuesToInsert = batch.map((row) => {
+            const dados = row.dadosBrutos as any;
+            return {
+              origemSistema: "WARLEINE",
+              origemId: `${config.id}-${row.id}`,
+              estabelecimentoId: row.estabelecimentoId,
+              pacienteId: dados?.codpac || null,
+              pacienteNome: dados?.nomepac || null,
+              numeroAtendimento: dados?.numatend || null,
+              dataAdmissao: dados?.dataadm ? new Date(dados.dataadm) : null,
+              dataAlta: dados?.datalta ? new Date(dados.datalta) : null,
+              dataAtendimento: dados?.datatend ? new Date(dados.datatend) : null,
+              tipoAtendimento: dados?.tipointernacao || null,
+              tipoSaida: dados?.tiposaida || null,
+              local: dados?.local || null,
+              carater: dados?.carater || null,
+              servico: dados?.servico || null,
+              procedimentoPrincipal: dados?.procedprincipal || null,
+              centroCusto: dados?.centrocusto || null,
+              dadosBrutos: row.dadosBrutos,
+            };
+          });
+          const result = await db.insert(atendimentos).values(valuesToInsert);
+          registrosTransformados += valuesToInsert.length;
+        }
+        await db
+          .update(queryConfiguracoes)
+          .set({ ultimaSincronizacao: new Date() })
+          .where(eq(queryConfiguracoes.id, input.configId));
+        return {
+          sucesso: true,
+          mensagem: `${registrosTransformados} registros transformados`,
+          registrosTransformados,
+        };
+      } catch (error) {
+        console.error("[ERROR]", error);
+        return {
+          sucesso: false,
+          mensagem: error instanceof Error ? error.message : "Erro ao transformar",
+          registrosTransformados: 0,
+        };
+      }
+    }),
 });

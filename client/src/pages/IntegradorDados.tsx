@@ -281,10 +281,23 @@ export function IntegradorDados() {
                         </Button>
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={() => handleTransformar(config.id)}
+                          disabled={transformarParaAtendimentos.isPending}
+                          title="Transformar para tabela unificada"
+                        >
+                          {transformarParaAtendimentos.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="ghost"
                           onClick={() => setDeleteConfirmation(config.id)}
                           disabled={sincronizar.isPending}
-                          title="Deletar configuração"
+                          title="Deletar configuracao"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
