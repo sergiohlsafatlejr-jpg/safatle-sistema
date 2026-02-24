@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -98,6 +98,7 @@ export const integradorDadosRouter = router({
         }
 
         const db = await getDb();
+
         if (!db) {
           return {
             sucesso: false,
@@ -342,15 +343,78 @@ export const integradorDadosRouter = router({
           const conexao = JSON.parse(conexaoStr);
           const connector = new WarleineConnector(conexao);
 
-          const resultado = await connector.testarConexaoEQuery(config.querySql);
-          if (resultado.sucesso) {
-            registrosProcessados = resultado.totalRegistros || 0;
+          try {
+            // Conectar ao WARLEINE
+            const conectado = await connector.conectar();
+            if (!conectado) {
+              return {
+                sucesso: false,
+                mensagem: "Falha ao conectar ao banco WARLEINE",
+                registrosProcessados: 0,
+              };
+            }
+
+            // Executar query SEM LIMIT para trazer todos os dados
+            const dados = await connector.executarQuery(config.querySql);
+            registrosProcessados = dados.length;
+
+            logger.info({
+              message: "Dados extraídos do WARLEINE",
+              registrosProcessados,
+            });
+
+            // Armazenar em tabela de staging
+            if (registrosProcessados > 0) {
+              const tableName = `${config.sistema}_${config.tipoDados}_staging`;
+              
+              // Construir INSERT com múltiplas linhas
+              const placeholders = dados.map(() => 
+                '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+              ).join(',');
+
+              const values: any[] = [];
+              dados.forEach((row: any) => {
+                values.push(
+                  config.estabelecimentoId,
+                  config.id,
+                  row.numatend || null,
+                  row.codtipsai || null,
+                  row.nomeplaco || null,
+                  row.nomepac || null,
+                  row.carater || null,
+                  row.datatend || null,
+                  row.datasai || null,
+                  row.tipoatendimentodescricao || null,
+                  row.codserv || null,
+                  row.procprin || null,
+                  row.codcc_destino || null,
+                  JSON.stringify(row)
+                );
+              });
+
+              const insertSql = `
+                INSERT INTO ${tableName} 
+                (estabelecimentoId, configId, numeroAtendimento, tipoSaida, local, paciente, carater, dataAdmissao, dataAlta, tipoAtendimento, servico, procedimentoPrincipal, centroCusto, dadosBrutos, criadoEm)
+                VALUES ${placeholders}
+              `;
+
+              // Executar insert usando raw query
+              await db.execute(sql.raw(insertSql));
+
+              logger.info({
+                message: "Dados armazenados em staging",
+                tabela: tableName,
+                registros: registrosProcessados,
+              });
+            }
 
             // Atualizar última sincronização
             await db
               .update(queryConfiguracoes)
               .set({ ultimaSincronizacao: new Date() })
               .where(eq(queryConfiguracoes.id, input.configId));
+          } finally {
+            await connector.desconectar();
           }
         }
 
@@ -429,7 +493,52 @@ export const integradorDadosRouter = router({
     }),
 
   /**
-   * Lista estabelecimentos disponíveis
+   * Obtém estatísticas de sincronização
+   */
+  obterEstatisticas: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        if (ctx.user?.role !== "admin") {
+          return {
+            totalConfiguracoes: 0,
+            ultimaSincronizacao: null,
+            proximaSincronizacao: null,
+          };
+        }
+
+        const db = await getDb();
+        if (!db) {
+          return {
+            totalConfiguracoes: 0,
+            ultimaSincronizacao: null,
+            proximaSincronizacao: null,
+          };
+        }
+
+        const configs = await db.select().from(queryConfiguracoes);
+
+        return {
+          totalConfiguracoes: configs.length,
+          ultimaSincronizacao: configs.length > 0 ? configs[0].ultimaSincronizacao : null,
+          proximaSincronizacao: configs.length > 0 ? configs[0].proximaSincronizacao : null,
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao obter estatísticas",
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        return {
+          totalConfiguracoes: 0,
+          ultimaSincronizacao: null,
+          proximaSincronizacao: null,
+        };
+      }
+    }),
+
+  /**
+   * Lista estabelecimentos
    */
   listarEstabelecimentos: protectedProcedure.query(async ({ ctx }) => {
     try {
@@ -442,9 +551,9 @@ export const integradorDadosRouter = router({
         return [];
       }
 
-      const estabs = await db.select().from(estabelecimentos);
+      const estabelecimentosList = await db.select().from(estabelecimentos);
 
-      return estabs.map((e) => ({
+      return estabelecimentosList.map((e) => ({
         id: e.id,
         nome: e.nome,
         cnpj: e.cnpj,
@@ -455,9 +564,7 @@ export const integradorDadosRouter = router({
         error: error instanceof Error ? error.message : String(error),
       });
 
-      return {
-        estabelecimentos: [],
-      };
+      return [];
     }
   }),
 });
