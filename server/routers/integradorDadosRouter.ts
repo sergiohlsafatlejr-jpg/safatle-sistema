@@ -644,7 +644,7 @@ export const integradorDadosRouter = router({
               caracter_atendimento: dados?.carater || null,
               data_entrada: dados?.datatend ? new Date(dados.datatend) : null,
               data_saida: dados?.datasai ? new Date(dados.datasai) : null,
-              tipo_atendimento: dados?.tipoatend || null,
+              tipo_atendimento: dados?.tipoatendimentodescricao || null,
               descricao_atendimento: dados?.tipoatendimentodescricao || null,
               codigo_servico: dados?.codserv || null,
               codigo_procedimento: dados?.procprin || null,
