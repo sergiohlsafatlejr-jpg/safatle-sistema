@@ -104,8 +104,32 @@ export function IntegradorDados() {
     },
   });
 
+  const transformarParaAtendimentos = trpc.integradorDados.transformarParaAtendimentos.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Transformacao Concluida", {
+          description: data.mensagem,
+        });
+        listarConfiguracoes.refetch();
+      } else {
+        toast.error("Erro na Transformacao", {
+          description: data.mensagem,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao Transformar", {
+        description: error.message || "Erro durante transformacao",
+      });
+    },
+  });
+
   const handleSincronizar = async (configId: number) => {
     await sincronizar.mutateAsync({ configId });
+  };
+
+  const handleTransformar = async (configId: number) => {
+    await transformarParaAtendimentos.mutateAsync({ configId });
   };
 
   const handleDelete = async (configId: number) => {
