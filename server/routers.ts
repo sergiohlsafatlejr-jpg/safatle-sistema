@@ -6361,6 +6361,23 @@ export const appRouter = router({
           });
         }
       }),
+
+    listarParadosUnificados: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const estabelecimentoId = ctx.user?.estabelecimentoId || 1;
+          const dados = await getAtendimentosParadosUnificados(estabelecimentoId);
+          return dados.map(d => ({
+            ...d,
+            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
+          }));
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar atendimentos parados unificados: ${err.message}`,
+          });
+        }
+      }),
   }),
 
   // ===== ATENDIMENTOS A FATURAR (PostgreSQL externo) =====
