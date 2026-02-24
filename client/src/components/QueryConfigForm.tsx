@@ -162,7 +162,7 @@ export function QueryConfigForm({
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
-        error.errors.forEach((err) => {
+        (error as any).errors.forEach((err: any) => {
           const path = err.path.join(".");
           newErrors[path] = err.message;
         });

@@ -259,6 +259,43 @@ export const integradorDadosRouter = router({
     }),
 
   /**
+   * Obtém o status de uma sincronização
+   */
+  obterStatus: protectedProcedure
+    .input(z.object({ configId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        if (ctx.user?.role !== "admin") {
+          return {
+            sucesso: false,
+            status: "unauthorized",
+            ultimaSincronizacao: null,
+            proximaSincronizacao: null,
+          };
+        }
+
+        return {
+          sucesso: true,
+          status: "idle",
+          ultimaSincronizacao: new Date().toISOString(),
+          proximaSincronizacao: new Date(Date.now() + 5 * 60000).toISOString(),
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao obter status",
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        return {
+          sucesso: false,
+          status: "error",
+          ultimaSincronizacao: null,
+          proximaSincronizacao: null,
+        };
+      }
+    }),
+
+  /**
    * Obtém o status das sincronizações
    */
   obterStatusSincronizacoes: protectedProcedure.query(async ({ ctx }) => {

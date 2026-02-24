@@ -29,14 +29,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle } from "lucide-react";
 import { QueryConfigForm } from "@/components/QueryConfigForm";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
-
-// Mock de estabelecimentos - substituir por dados reais
-const MOCK_ESTABELECIMENTOS = [
-  { id: 1, nome: "Pronto Socorro Infantil" },
-  { id: 2, nome: "Maternidade Ela" },
-  { id: 3, nome: "Hospital Central" },
-];
 
 const SISTEMA_LABELS: Record<string, string> = {
   warleine: "WARLEINE",
@@ -58,37 +52,18 @@ const FREQUENCIA_LABELS: Record<string, string> = {
   "1x_semana": "1x por Semana",
 };
 
-const SISTEMA_FREQUENCIA: Record<string, string> = {
-  warleine: "tempo_real",
-  tasy: "tempo_real",
-  omni: "tempo_real",
-  gesthor: "1x_dia",
-};
-
 export function IntegradorDados() {
   const [showForm, setShowForm] = useState(false);
-  const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
-  const [syncingConfig, setSyncingConfig] = useState<string | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<number | null>(null);
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id || 1;
 
-  const listarConfiguracoes = trpc.integradorDados.listarConfiguracoes.useQuery({
-    estabelecimentoId: 1, // TODO: Obter do contexto do usuário
-  });
-
+  const listarConfiguracoes = trpc.integradorDados.listarConfiguracoes.useQuery();
   const obterStatus = trpc.integradorDados.obterStatus.useQuery();
-  const obterLogs = trpc.integradorDados.obterLogs.useQuery({
-    estabelecimentoId: 1,
-    limite: 50,
-  });
-
-  const sincronizar = trpc.integradorDados.sincronizar.useMutation({
-    onSuccess: () => {
-      setSyncingConfig(null);
-      // Recarregar status e logs
-      obterStatus.refetch();
-      obterLogs.refetch();
-    },
-  });
+  const obterLogs = trpc.integradorDados.obterLogs.useQuery(
+    { limite: 50 },
+    { enabled: !!estabelecimentoId }
+  );
 
   const deletarConfiguracao = trpc.integradorDados.deletarConfiguracao.useMutation({
     onSuccess: () => {
@@ -97,260 +72,234 @@ export function IntegradorDados() {
     },
   });
 
-  const handleSync = async (configId: string) => {
-    setSyncingConfig(configId);
-    // TODO: Implementar sincronização
-  };
-
-  const handleDelete = async (configId: string) => {
-    await deletarConfiguracao.mutateAsync({ configId: parseInt(configId) });
+  const handleDelete = async (configId: number) => {
+    await deletarConfiguracao.mutateAsync({ id: configId });
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Integrador de Dados</h1>
+          <h1 className="text-3xl font-bold">Integrador de Dados</h1>
           <p className="text-muted-foreground mt-2">
-            Gerencie as integrações de dados de múltiplos sistemas
+            Gerencie integrações de dados de múltiplos sistemas
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
+        <Button onClick={() => setShowForm(!showForm)} size="lg">
+          <Plus className="w-4 h-4 mr-2" />
           Nova Configuração
         </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="configuracoes" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cadastrar Nova Query</CardTitle>
+            <CardDescription>
+              Configure uma nova query para sincronizar dados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <QueryConfigForm onSuccess={() => setShowForm(false)} />
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs defaultValue="status" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="status">Status</TabsTrigger>
           <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
-          <TabsTrigger value="monitoramento">Monitoramento</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Configurações */}
-        <TabsContent value="configuracoes" className="space-y-4">
-          {showForm ? (
+        <TabsContent value="status" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Nova Configuração de Query</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Status Geral</CardTitle>
               </CardHeader>
               <CardContent>
-                <QueryConfigForm
-                  estabelecimentos={MOCK_ESTABELECIMENTOS}
-                  onSuccess={() => {
-                    setShowForm(false);
-                    listarConfiguracoes.refetch();
-                  }}
-                />
+                <div className="text-2xl font-bold">
+                  {obterStatus.data?.status === "running" ? (
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Em Andamento
+                    </span>
+                  ) : (
+                    <span className="text-green-600">Inativo</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {obterStatus.data?.ultimaSincronizacao
+                    ? `Última: ${new Date(obterStatus.data.ultimaSincronizacao).toLocaleString()}`
+                    : "Nunca sincronizado"}
+                </p>
               </CardContent>
             </Card>
-          ) : (
-            <>
-              {listarConfiguracoes.isLoading ? (
-                <Card>
-                  <CardContent className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              ) : listarConfiguracoes.data?.configuracoes.length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium">Nenhuma configuração cadastrada</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Clique em "Nova Configuração" para começar
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Configurações de Query</CardTitle>
-                    <CardDescription>
-                      Total: {listarConfiguracoes.data?.total} configuração(ões)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Sistema</TableHead>
-                            <TableHead>Tipo de Dados</TableHead>
-                            <TableHead>Frequência</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Última Sincronização</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {listarConfiguracoes.data?.configuracoes.map((config) => (
-                            <TableRow key={config.chave}>
-                              <TableCell className="font-medium">
-                                {SISTEMA_LABELS[config.sistema]}
-                              </TableCell>
-                              <TableCell>
-                                {TIPO_DADOS_LABELS[config.tipoDados]}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">
-                                  {FREQUENCIA_LABELS[config.sistema]}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary">Ativo</Badge>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                -
-                              </TableCell>
-                              <TableCell className="text-right space-x-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleSync(config.id)}
-                                  disabled={syncingConfig === config.id}
-                                >
-                                  {syncingConfig === config.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Play className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setDeleteConfirmation(config.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Próxima Sincronização</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {obterStatus.data?.proximaSincronizacao
+                    ? new Date(obterStatus.data.proximaSincronizacao).toLocaleTimeString()
+                    : "-"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Horário agendado</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Configurações Ativas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {listarConfiguracoes.data?.total || 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Queries configuradas</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {obterStatus.data?.status === "running" && (
+            <Alert>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Uma sincronização está em andamento. Aguarde a conclusão.
+              </AlertDescription>
+            </Alert>
           )}
         </TabsContent>
 
-        {/* Tab 2: Monitoramento */}
-        <TabsContent value="monitoramento" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Status de Sincronização</CardTitle>
-              <CardDescription>
-                Acompanhe o status das sincronizações em tempo real
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {obterStatus.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <TabsContent value="configuracoes" className="space-y-4">
+          {listarConfiguracoes.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : listarConfiguracoes.data?.configuracoes &&
+            listarConfiguracoes.data.configuracoes.length > 0 ? (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sistema</TableHead>
+                    <TableHead>Tipo de Dados</TableHead>
+                    <TableHead>Frequência</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listarConfiguracoes.data.configuracoes.map((config: any) => (
+                    <TableRow key={config.id}>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {SISTEMA_LABELS[config.sistema] || config.sistema}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {TIPO_DADOS_LABELS[config.tipoDados] || config.tipoDados}
+                      </TableCell>
+                      <TableCell>
+                        {FREQUENCIA_LABELS[config.frequencia] || config.frequencia}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {config.descricao || "-"}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button size="sm" variant="ghost">
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setDeleteConfirmation(config.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">Nenhuma configuração encontrada</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => setShowForm(true)}
+                  >
+                    Criar Primeira Configuração
+                  </Button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-muted">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">Total de Configurações</p>
-                          <p className="text-3xl font-bold">
-                            {obterStatus.data?.totalConfigs || 0}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-muted">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">Sincronização em Andamento</p>
-                          <p className="text-3xl font-bold">
-                            {obterStatus.data?.isRunning ? "Sim" : "Não"}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-muted">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">Próxima Sincronização</p>
-                          <p className="text-lg font-bold">-</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {obterStatus.data?.isRunning && (
-                    <Alert>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <AlertDescription>
-                        Uma sincronização está em andamento. Aguarde a conclusão.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
-        {/* Tab 3: Logs */}
         <TabsContent value="logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Histórico de Sincronizações</CardTitle>
-              <CardDescription>
-                Últimas 50 sincronizações realizadas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {obterLogs.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : obterLogs.data?.logs.length === 0 ? (
+          {obterLogs.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : obterLogs.data?.logs && obterLogs.data.logs.length > 0 ? (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Sistema</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Mensagem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {obterLogs.data.logs.map((log: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell className="text-sm">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {SISTEMA_LABELS[log.sistema] || log.sistema}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={log.status === "sucesso" ? "default" : "destructive"}
+                        >
+                          {log.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {log.mensagem}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">Nenhum log disponível</p>
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data/Hora</TableHead>
-                        <TableHead>Sistema</TableHead>
-                        <TableHead>Tipo de Dados</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Registros</TableHead>
-                        <TableHead>Duração</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {/* TODO: Implementar renderização de logs */}
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          Nenhum log disponível
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* Dialog de Confirmação de Exclusão */}
-      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
+      <AlertDialog open={deleteConfirmation !== null} onOpenChange={() => setDeleteConfirmation(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Deletar Configuração</AlertDialogTitle>
@@ -361,7 +310,11 @@ export function IntegradorDados() {
           <div className="flex gap-3 justify-end">
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteConfirmation && handleDelete(deleteConfirmation)}
+              onClick={() => {
+                if (deleteConfirmation !== null) {
+                  handleDelete(deleteConfirmation);
+                }
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Deletar

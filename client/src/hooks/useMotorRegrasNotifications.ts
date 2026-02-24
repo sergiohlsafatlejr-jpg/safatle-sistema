@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { toast } from "sonner";
@@ -30,7 +30,7 @@ export function useMotorRegrasNotifications(options: UseMotorRegrasNotifications
 
   const [alerts, setAlerts] = useState<MotorRegrasAlert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isPolling, setIsPolling] = useState(false);
+  const lastAlertsRef = useRef<string>("");
 
   // Query para obter estatísticas
   const { data: stats, refetch: refetchStats } = trpc.motorRegras.obterEstatisticas.useQuery(
@@ -108,9 +108,7 @@ export function useMotorRegrasNotifications(options: UseMotorRegrasNotifications
 
   // Polling automático
   useEffect(() => {
-    if (!enabled || !estabelecimentoId || isPolling) return;
-
-    setIsPolling(true);
+    if (!enabled || !estabelecimentoId) return;
 
     const interval = setInterval(async () => {
       try {
@@ -122,15 +120,22 @@ export function useMotorRegrasNotifications(options: UseMotorRegrasNotifications
 
     return () => {
       clearInterval(interval);
-      setIsPolling(false);
     };
-  }, [enabled, estabelecimentoId, intervalMs, refetchStats, isPolling]);
+  }, [enabled, estabelecimentoId, intervalMs, refetchStats]);
 
   // Atualizar alertas quando stats mudar
   useEffect(() => {
     if (!stats) return;
 
     const newAlerts = generateAlerts(stats);
+    const alertsJson = JSON.stringify(newAlerts);
+
+    // Evitar atualizar se os alertas são iguais
+    if (lastAlertsRef.current === alertsJson) {
+      return;
+    }
+
+    lastAlertsRef.current = alertsJson;
     setAlerts(newAlerts);
 
     // Contar alertas não lidos
