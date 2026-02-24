@@ -400,7 +400,7 @@ export const integradorDadosRouter = router({
                   const batch = dados.slice(i, i + BATCH_SIZE);
                   const valuesToInsert = batch.map((row: any) => ({
                     estabelecimentoId: config.estabelecimentoId,
-                    configuracaoId: config.id,
+                    configId: config.id,
                     dadosBrutos: row,
                     atendimentoId: row.numatend || null,
                     pacienteId: row.codpac || null,

@@ -51,7 +51,7 @@ export const warleineAtendimentosStaging = mysqlTable(
   {
     id: int().primaryKey().autoincrement(),
     estabelecimentoId: int().notNull(),
-    configuracaoId: int().notNull(),
+    configId: int().notNull(),
     
     // Dados brutos em JSON (preserva estrutura original)
     dadosBrutos: json().notNull(),
@@ -68,7 +68,7 @@ export const warleineAtendimentosStaging = mysqlTable(
   },
   (table) => ({
     estabelecimentoIdx: index("idx_warleine_atend_estab").on(table.estabelecimentoId),
-    configuracaoIdx: index("idx_warleine_atend_config").on(table.configuracaoId),
+    configuracaoIdx: index("idx_warleine_atend_config").on(table.configId),
     atendimentoIdIdx: index("idx_warleine_atend_id").on(table.atendimentoId),
   })
 );
