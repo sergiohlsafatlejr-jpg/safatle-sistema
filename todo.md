@@ -2103,3 +2103,20 @@
 - [x] Filtrar configurações por estabelecimento logado (queries do Hospital Urológico aparecem no Instituto do Rim)
 - [x] Corrigir bug de duplicação ao atualizar query (ao clicar em atualizar, gera as duas queries da tela) - resolvido pelo filtro de estabelecimento
 - [x] Corrigir erro de query na tabela historicoValidacaoXml que não existe no banco (página /integracao)
+
+## Unificação de Telas de Atendimentos
+
+- [x] Unificar tela Atendimentos e Atendimentos Parados em uma única tela (manter a mais completa)
+- [x] Filtrar dados de Atendimentos por estabelecimento selecionado
+- [x] Filtrar dados de Atendimentos a Faturar por estabelecimento selecionado
+- [x] Remover tela Atendimentos Parados (duplicada) do menu e rotas
+- [x] Disponibilizar tela Atendimentos para todos os estabelecimentos (não só Instituto do Rim)
+- [x] Disponibilizar tela Atendimentos a Faturar para todos os estabelecimentos
+
+## Unificação de Telas de Atendimentos
+
+- [x] Remover tela Atendimentos Parados do menu e rotas (duplicada da tela Atendimentos)
+- [x] Filtrar dados de Atendimentos por estabelecimento selecionado
+- [x] Filtrar dados de Atendimentos a Faturar por estabelecimento selecionado
+- [x] Disponibilizar tela Atendimentos para todos os estabelecimentos (não só Instituto do Rim)
+- [x] Disponibilizar tela Atendimentos a Faturar para todos os estabelecimentos

@@ -138,10 +138,9 @@ const menuItems: MenuItem[] = [
   // Integração de Dados
   { icon: Database, label: "Integrador de Dados", path: "/integracao", adminOnly: true },
   
-  // Atendimentos (PostgreSQL externo)
-  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", estabelecimentoIds: [4] },
-  { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar", estabelecimentoIds: [4] },
-  { icon: AlertCircle, label: "Atendimentos Parados", path: "/atendimentos-parados-unificados", modulo: "atendimentos" },
+  // Atendimentos
+  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
+  { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
   { icon: Megaphone, label: "Avisos Internos", path: "/gerenciar-avisos", adminOnly: true },
 ];
 

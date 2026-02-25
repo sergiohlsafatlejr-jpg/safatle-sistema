@@ -47,7 +47,6 @@ import RecebimentosXml from "./pages/RecebimentosXml";
 import RecebimentosExcel from "./pages/RecebimentosExcel";
 import Atendimentos from "./pages/Atendimentos";
 import AtendimentosFaturar from "./pages/AtendimentosFaturar";
-import AtendimentosParadosUnificados from "./pages/AtendimentosParadosUnificados";
 import GerenciarAvisos from "./pages/GerenciarAvisos";
 import AuditDashboard from "./pages/AuditDashboard";
 import { PrevisaoGlosa } from "./pages/PrevisaoGlosa";
@@ -114,7 +113,6 @@ function Router() {
       <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
       <Route path={"/atendimentos"} component={Atendimentos} />
       <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
-      <Route path={"/atendimentos-parados-unificados"} component={AtendimentosParadosUnificados} />
       <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
       <Route path={"/auditoria"} component={AuditDashboard} />
       <Route path={"/cache-dashboard"} component={CacheDashboard} />

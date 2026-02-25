@@ -17,6 +17,7 @@ import {
   CheckSquare, FileText
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -390,9 +391,12 @@ export default function Atendimentos() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
   const [tempoRestante, setTempoRestante] = useState<string>("");
 
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id;
+
   const POLLING_INTERVAL = 60 * 60 * 1000; // 60 minutos em ms
 
-  const { data: atendimentos, isLoading, refetch, isFetching, dataUpdatedAt } = trpc.atendimentos.listar.useQuery(undefined, {
+  const { data: atendimentos, isLoading, refetch, isFetching, dataUpdatedAt } = trpc.atendimentos.listar.useQuery({ estabelecimentoId: estabelecimentoId || undefined }, {
     refetchOnWindowFocus: false,
     refetchInterval: POLLING_INTERVAL,
     refetchIntervalInBackground: false,
@@ -750,7 +754,7 @@ export default function Atendimentos() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Atendimentos Parados - Instituto do Rim</h1>
+            <h1 className="text-2xl font-bold">Atendimentos Parados{estabelecimentoAtual ? ` - ${estabelecimentoAtual.nome}` : ""}</h1>
             <p className="text-muted-foreground text-sm mt-1">
               Monitoramento de atendimentos pendentes de faturamento
             </p>

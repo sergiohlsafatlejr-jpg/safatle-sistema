@@ -11,6 +11,7 @@ import {
   Search, AlertTriangle, Clock, Timer, FileText, ArrowLeft, Shield
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
 
 type SortColumn = "numatend" | "nomeplaco" | "nomepac" | "datatend" | "datasai" | "diasParado" | "tipoatendimentodescricao" | "codserv" | "carater" | "procprin";
@@ -39,13 +40,15 @@ export default function AtendimentosFaturar() {
   const [filtroServico, setFiltroServico] = useState<string | null>(null);
   const [filtroPlano, setFiltroPlano] = useState<string | null>(null);
   const [, navigate] = useLocation();
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id;
 
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
   const [tempoRestante, setTempoRestante] = useState<string>("");
 
   const POLLING_INTERVAL = 60 * 60 * 1000; // 60 minutos em ms
 
-  const { data: atendimentos, isLoading, refetch, isFetching, dataUpdatedAt } = trpc.atendimentosFaturar.listar.useQuery(undefined, {
+  const { data: atendimentos, isLoading, refetch, isFetching, dataUpdatedAt } = trpc.atendimentosFaturar.listar.useQuery({ estabelecimentoId: estabelecimentoId || undefined }, {
     refetchOnWindowFocus: false,
     refetchInterval: POLLING_INTERVAL,
     refetchIntervalInBackground: false,
@@ -226,7 +229,7 @@ export default function AtendimentosFaturar() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <FileText className="w-7 h-7 text-primary" />
-              Atendimentos a Faturar - Instituto do Rim
+              Atendimentos a Faturar{estabelecimentoAtual ? ` - ${estabelecimentoAtual.nome}` : ""}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               Atendimentos com alta nos últimos 90 dias pendentes de faturamento

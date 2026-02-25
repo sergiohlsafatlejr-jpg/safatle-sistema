@@ -6210,37 +6210,38 @@ export const appRouter = router({
   // ===== ATENDIMENTOS (banco interno com fallback para PostgreSQL externo) =====
   atendimentos: router({
     listar: protectedProcedure
-      .query(async () => {
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
         try {
-          // Primeiro tenta buscar do banco interno (atendimentos_sem_conta)
+          const estabId = input?.estabelecimentoId;
+          // Buscar do banco interno (atendimentos_sem_conta) filtrado por estabelecimento
           const dbInstance = await getDb();
           if (dbInstance) {
             const { atendimentosSemConta } = await import("../drizzle/schema-integracao");
-            const dadosInternos = await dbInstance.select().from(atendimentosSemConta);
-            if (dadosInternos.length > 0) {
-              return dadosInternos.map(d => ({
-                numatend: d.numatend,
-                nomeplaco: d.nomeplaco || "",
-                nomepac: d.nomepac || "",
-                carater: d.carater || "",
-                datatend: d.datatend ? new Date(d.datatend).toISOString() : "",
-                datasai: d.datasai ? new Date(d.datasai).toISOString() : null,
-                tipoatend: d.tipoatend || "",
-                tipoatendimentodescricao: d.tipoatendimentodescricao || "",
-                codserv: d.codserv || "",
-                procprin: d.procprin || "",
-                codcc_destino: d.codcc_destino || "",
-                motivo: d.motivo || null,
-                diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
-              }));
+            const { eq } = await import("drizzle-orm");
+            let query = dbInstance.select().from(atendimentosSemConta);
+            if (estabId) {
+              query = query.where(eq(atendimentosSemConta.estabelecimentoId, estabId)) as any;
             }
+            const dadosInternos = await query;
+            return dadosInternos.map(d => ({
+              numatend: d.numatend,
+              nomeplaco: d.nomeplaco || "",
+              nomepac: d.nomepac || "",
+              carater: d.carater || "",
+              datatend: d.datatend ? new Date(d.datatend).toISOString() : "",
+              datasai: d.datasai ? new Date(d.datasai).toISOString() : null,
+              tipoatend: d.tipoatend || "",
+              tipoatendimentodescricao: d.tipoatendimentodescricao || "",
+              codserv: d.codserv || "",
+              procprin: d.procprin || "",
+              codcc_destino: d.codcc_destino || "",
+              motivo: d.motivo || null,
+              diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
+            }));
           }
-          // Fallback: buscar direto do PostgreSQL externo
-          const dados = await getAtendimentosParados();
-          return dados.map(d => ({
-            ...d,
-            diasParado: calcularDiasParado(d.datasai),
-          }));
+          // Fallback: banco interno indisponível, retornar vazio
+          return [];
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -6448,35 +6449,36 @@ export const appRouter = router({
   // ===== ATENDIMENTOS A FATURAR (banco interno com fallback para PostgreSQL externo) =====
   atendimentosFaturar: router({
     listar: protectedProcedure
-      .query(async () => {
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
         try {
-          // Primeiro tenta buscar do banco interno (atendimentos_a_faturar)
+          const estabId = input?.estabelecimentoId;
+          // Buscar do banco interno (atendimentos_a_faturar) filtrado por estabelecimento
           const dbInstance = await getDb();
           if (dbInstance) {
             const { atendimentosAFaturar } = await import("../drizzle/schema-integracao");
-            const dadosInternos = await dbInstance.select().from(atendimentosAFaturar);
-            if (dadosInternos.length > 0) {
-              return dadosInternos.map(d => ({
-                numatend: d.numatend,
-                nomeplaco: d.nomeplaco || "",
-                nomepac: d.nomepac || "",
-                carater: d.carater || "",
-                datatend: d.datatend ? new Date(d.datatend).toISOString() : "",
-                datasai: d.datasai ? new Date(d.datasai).toISOString() : null,
-                tipoatend: d.tipoatend || "",
-                tipoatendimentodescricao: d.tipoatendimentodescricao || "",
-                codserv: d.codserv || "",
-                procprin: d.procprin || "",
-                diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
-              }));
+            const { eq } = await import("drizzle-orm");
+            let query = dbInstance.select().from(atendimentosAFaturar);
+            if (estabId) {
+              query = query.where(eq(atendimentosAFaturar.estabelecimentoId, estabId)) as any;
             }
+            const dadosInternos = await query;
+            return dadosInternos.map(d => ({
+              numatend: d.numatend,
+              nomeplaco: d.nomeplaco || "",
+              nomepac: d.nomepac || "",
+              carater: d.carater || "",
+              datatend: d.datatend ? new Date(d.datatend).toISOString() : "",
+              datasai: d.datasai ? new Date(d.datasai).toISOString() : null,
+              tipoatend: d.tipoatend || "",
+              tipoatendimentodescricao: d.tipoatendimentodescricao || "",
+              codserv: d.codserv || "",
+              procprin: d.procprin || "",
+              diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
+            }));
           }
-          // Fallback: buscar direto do PostgreSQL externo
-          const dados = await getAtendimentosAFaturar();
-          return dados.map(d => ({
-            ...d,
-            diasParado: calcularDiasParado(d.datasai),
-          }));
+          // Fallback: banco interno indisponível, retornar vazio
+          return [];
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
