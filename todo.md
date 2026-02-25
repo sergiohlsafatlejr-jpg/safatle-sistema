@@ -2140,3 +2140,4 @@
 - [x] Corrigir sincronização WARLEINE: query tipo faturamento salva em warleine_faturamento_staging
 - [x] Corrigir procedure transformarParaAtendimentos para filtrar por configId/tipoDados
 - [x] Limpar registros de faturamento da warleine_atendimentos_staging após migração
+- [x] Testar fluxo completo: Hospital Urológico 406 atendimentos, Instituto do Rim 697 atendimentos
