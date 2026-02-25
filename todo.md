@@ -2134,3 +2134,9 @@
 - [x] Tela Atendimentos consulta apenas atendimentos_unificados (sem conta)
 - [x] Tela Atendimentos a Faturar consulta apenas atendimentos_a_faturar (não atendimentos_unificados)
 - [x] Corrigir contagem de tipos (Internação/Exame/Ambulatório) para reconhecer sufixo SEM_CONTA
+- [x] Criar tabela warleine_faturamento_staging no schema Drizzle
+- [x] Criar tabela faturamento_geral para dados transformados do faturamento
+- [x] Migrar 221.627 registros de faturamento (configId 30001) da warleine_atendimentos_staging para warleine_faturamento_staging
+- [x] Corrigir sincronização WARLEINE: query tipo faturamento salva em warleine_faturamento_staging
+- [x] Corrigir procedure transformarParaAtendimentos para filtrar por configId/tipoDados
+- [x] Limpar registros de faturamento da warleine_atendimentos_staging após migração

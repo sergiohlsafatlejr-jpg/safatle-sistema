@@ -7,7 +7,7 @@ import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { estabelecimentos } from "../../drizzle/schema";
-import { queryConfiguracoes, warleineAtendimentosStaging, atendimentosSemConta, atendimentosAFaturar } from "../../drizzle/schema-integracao";
+import { queryConfiguracoes, warleineAtendimentosStaging, warleineFaturamentoStaging, faturamentoGeral, atendimentosSemConta, atendimentosAFaturar } from "../../drizzle/schema-integracao";
 import { atendimentos } from "../../drizzle/schema-integracao"; // atendimentos_unificados
 import { ENV } from "../_core/env";
 
@@ -399,6 +399,11 @@ export const integradorDadosRouter = router({
               configId: input.configId,
             });
 
+            // Determinar tabela de staging com base no tipoDados
+            const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
+            const stagingTable = isFaturamento ? warleineFaturamentoStaging : warleineAtendimentosStaging;
+            const stagingTableName = isFaturamento ? 'warleine_faturamento_staging' : 'warleine_atendimentos_staging';
+
             // Armazenar em tabela de staging
             if (registrosProcessados > 0) {
               try {
@@ -412,8 +417,8 @@ export const integradorDadosRouter = router({
                     dadosBrutos: row,
                   }));
 
-                  console.log(`[DEBUG] Tentando inserir lote ${Math.floor(i / BATCH_SIZE) + 1} com ${valuesToInsert.length} registros`);
-                  const result = await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
+                  console.log(`[DEBUG] Tentando inserir lote ${Math.floor(i / BATCH_SIZE) + 1} com ${valuesToInsert.length} registros na ${stagingTableName}`);
+                  const result = await db.insert(stagingTable).values(valuesToInsert);
                   console.log(`[DEBUG] Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido com sucesso`, result);
                   
                   logger.info({
@@ -425,7 +430,7 @@ export const integradorDadosRouter = router({
 
                 logger.info({
                   message: "Dados armazenados em staging",
-                  tabela: "warleine_atendimentos_staging",
+                  tabela: stagingTableName,
                   registros: registrosProcessados,
                   configId: input.configId,
                 });
@@ -628,48 +633,125 @@ export const integradorDadosRouter = router({
           .limit(1)
           .then((rows) => rows[0]);
         if (!config) throw new Error("Configuracao nao encontrada");
-        const stagingData = await db
-          .select()
-          .from(warleineAtendimentosStaging)
-          .where(eq(warleineAtendimentosStaging.configId, input.configId));
-        console.log(`[DEBUG] Transformando ${stagingData.length} registros`);
-        // atendimentos já foi importado no topo do arquivo
-        let registrosTransformados = 0;
-        const BATCH_SIZE = 100;
-        for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
-          const batch = stagingData.slice(i, i + BATCH_SIZE);
-          const valuesToInsert = batch.map((row) => {
-            const dados = row.dadosBrutos as any;
-            return {
-              origemSistema: "WARLEINE",
-              origemId: `${config.id}-${row.id}`,
-              estabelecimentoId: row.estabelecimentoId,
-              numero_atendimento: dados?.numatend || null,
-              codigo_saida: dados?.codtipsai || null,
-              convenio: dados?.nomeplaco || null,
-              paciente: dados?.nomepac || null,
-              caracter_atendimento: dados?.carater || null,
-              data_entrada: dados?.datatend ? new Date(dados.datatend) : null,
-              data_saida: dados?.datasai ? new Date(dados.datasai) : null,
-              tipo_atendimento: dados?.tipoatendimentodescricao || null,
-              descricao_atendimento: dados?.tipoatendimentodescricao || null,
-              codigo_servico: dados?.codserv || null,
-              codigo_procedimento: dados?.procprin || null,
-              destino_conta: dados?.codcc_destino || null,
-            };
-          });
-          const result = await db.insert(atendimentos).values(valuesToInsert);
-          registrosTransformados += valuesToInsert.length;
+
+        // Verificar o tipoDados para direcionar para a tabela correta
+        const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
+
+        if (isFaturamento) {
+          // FATURAMENTO: transformar de warleine_faturamento_staging para faturamento_geral
+          const stagingData = await db
+            .select()
+            .from(warleineFaturamentoStaging)
+            .where(eq(warleineFaturamentoStaging.configId, input.configId));
+          console.log(`[DEBUG] Transformando ${stagingData.length} registros de FATURAMENTO`);
+          let registrosTransformados = 0;
+          const BATCH_SIZE = 100;
+          for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
+            const batch = stagingData.slice(i, i + BATCH_SIZE);
+            const valuesToInsert = batch.map((row) => {
+              const dados = row.dadosBrutos as any;
+              return {
+                origemSistema: "WARLEINE",
+                estabelecimentoId: row.estabelecimentoId,
+                configId: config.id,
+                aihguia: dados?.aihguia || null,
+                codcc: dados?.codcc || null,
+                codconv: dados?.codconv || null,
+                codgrufi: dados?.codgrufi || null,
+                codproprio: dados?.codproprio || null,
+                codrecur: dados?.codrecur || null,
+                codtiss: dados?.codtiss || null,
+                complrecur: dados?.complrecur || null,
+                data: dados?.data ? new Date(dados.data) : null,
+                dataint: dados?.dataint ? new Date(dados.dataint) : null,
+                datasai: dados?.datasai ? new Date(dados.datasai) : null,
+                descmotivo: dados?.descmotivo || null,
+                descricao: dados?.descricao || null,
+                funcaotiss: dados?.funcaotiss || null,
+                gl_aceita: dados?.gl_aceita || null,
+                gl_analise: dados?.gl_analise || null,
+                gl_recuperada: dados?.gl_recuperada || null,
+                gl_recurso: dados?.gl_recurso || null,
+                guiacobra: dados?.guiacobra || null,
+                matricula: dados?.matricula || null,
+                mesprod: dados?.mesprod || null,
+                nomecc: dados?.nomecc || null,
+                nomeconv: dados?.nomeconv || null,
+                nomeprest: dados?.nomeprest || null,
+                numconta: dados?.numconta || null,
+                numfatura: dados?.numfatura || null,
+                prestexe: dados?.prestexe || null,
+                procdisco: dados?.procdisco || null,
+                protocolo: dados?.protocolo || null,
+                quantidade: dados?.quantidade || null,
+                receber: dados?.receber || null,
+                tipoatend: dados?.tipoatend || null,
+                tipoproc: dados?.tipoproc || null,
+                vl_aberto: dados?.vl_aberto || null,
+                vl_faturado: dados?.vl_faturado || null,
+                vl_glosas: dados?.vl_glosas || null,
+                vl_receb_a_maior: dados?.vl_receb_a_maior || null,
+                vl_recebido: dados?.vl_recebido || null,
+                vl_total_recebido: dados?.vl_total_recebido || null,
+                vl_unitario: dados?.vl_unitario || null,
+              };
+            });
+            await db.insert(faturamentoGeral).values(valuesToInsert);
+            registrosTransformados += valuesToInsert.length;
+          }
+          await db
+            .update(queryConfiguracoes)
+            .set({ ultimaSincronizacao: new Date() })
+            .where(eq(queryConfiguracoes.id, input.configId));
+          return {
+            sucesso: true,
+            mensagem: `${registrosTransformados} registros de faturamento transformados`,
+            registrosTransformados,
+          };
+        } else {
+          // ATENDIMENTOS: transformar de warleine_atendimentos_staging para atendimentos_unificados
+          const stagingData = await db
+            .select()
+            .from(warleineAtendimentosStaging)
+            .where(eq(warleineAtendimentosStaging.configId, input.configId));
+          console.log(`[DEBUG] Transformando ${stagingData.length} registros de ATENDIMENTOS`);
+          let registrosTransformados = 0;
+          const BATCH_SIZE = 100;
+          for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
+            const batch = stagingData.slice(i, i + BATCH_SIZE);
+            const valuesToInsert = batch.map((row) => {
+              const dados = row.dadosBrutos as any;
+              return {
+                origemSistema: "WARLEINE",
+                origemId: `${config.id}-${row.id}`,
+                estabelecimentoId: row.estabelecimentoId,
+                numero_atendimento: dados?.numatend || null,
+                codigo_saida: dados?.codtipsai || null,
+                convenio: dados?.nomeplaco || null,
+                paciente: dados?.nomepac || null,
+                caracter_atendimento: dados?.carater || null,
+                data_entrada: dados?.datatend ? new Date(dados.datatend) : null,
+                data_saida: dados?.datasai ? new Date(dados.datasai) : null,
+                tipo_atendimento: dados?.tipoatendimentodescricao || null,
+                descricao_atendimento: dados?.tipoatendimentodescricao || null,
+                codigo_servico: dados?.codserv || null,
+                codigo_procedimento: dados?.procprin || null,
+                destino_conta: dados?.codcc_destino || null,
+              };
+            });
+            await db.insert(atendimentos).values(valuesToInsert);
+            registrosTransformados += valuesToInsert.length;
+          }
+          await db
+            .update(queryConfiguracoes)
+            .set({ ultimaSincronizacao: new Date() })
+            .where(eq(queryConfiguracoes.id, input.configId));
+          return {
+            sucesso: true,
+            mensagem: `${registrosTransformados} registros de atendimentos transformados`,
+            registrosTransformados,
+          };
         }
-        await db
-          .update(queryConfiguracoes)
-          .set({ ultimaSincronizacao: new Date() })
-          .where(eq(queryConfiguracoes.id, input.configId));
-        return {
-          sucesso: true,
-          mensagem: `${registrosTransformados} registros transformados`,
-          registrosTransformados,
-        };
       } catch (error) {
         console.error("[ERROR]", error);
         return {
@@ -972,36 +1054,57 @@ export const integradorDadosRouter = router({
 
         if (!config) throw new Error("Configuracao nao encontrada");
 
-        const stagingData = await db
-          .select()
-          .from(warleineAtendimentosStaging)
-          .where(eq(warleineAtendimentosStaging.configId, input.configId));
-
-        const stagingIds = stagingData.map((row) => row.id);
-        console.log(
-          `[DEBUG] Encontrados ${stagingIds.length} registros de staging para limpar`
-        );
+        const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
 
         let registrosRemovidosUnificados = 0;
-        if (stagingIds.length > 0) {
-          const origemIds = stagingIds.map(
-            (id) => `${input.configId}-${id}`
+
+        if (isFaturamento) {
+          // Limpar faturamento_geral
+          await db.execute(
+            sql.raw(`DELETE FROM faturamento_geral WHERE configId = ${input.configId}`)
+          );
+          const [countResult] = await db.execute(
+            sql.raw(`SELECT ROW_COUNT() as cnt`)
+          );
+          registrosRemovidosUnificados = (countResult as any)?.cnt || 0;
+
+          // Limpar staging de faturamento
+          await db.execute(
+            sql.raw(`DELETE FROM warleine_faturamento_staging WHERE configId = ${input.configId}`)
+          );
+        } else {
+          // Limpar atendimentos_unificados
+          const stagingData = await db
+            .select()
+            .from(warleineAtendimentosStaging)
+            .where(eq(warleineAtendimentosStaging.configId, input.configId));
+
+          const stagingIds = stagingData.map((row) => row.id);
+          console.log(
+            `[DEBUG] Encontrados ${stagingIds.length} registros de staging para limpar`
           );
 
-          const BATCH_SIZE = 100;
-          for (let i = 0; i < origemIds.length; i += BATCH_SIZE) {
-            const batch = origemIds.slice(i, i + BATCH_SIZE);
-            const values = batch.map((id) => `'${id}'`).join(",");
-            await db.execute(
-              sql.raw(`DELETE FROM atendimentos_unificados WHERE origemId IN (${values})`)
+          if (stagingIds.length > 0) {
+            const origemIds = stagingIds.map(
+              (id) => `${input.configId}-${id}`
             );
-            registrosRemovidosUnificados += batch.length;
-          }
-        }
 
-        await db.execute(
-          sql.raw(`DELETE FROM warleine_atendimentos_staging WHERE configId = ${input.configId}`)
-        );
+            const BATCH_SIZE = 100;
+            for (let i = 0; i < origemIds.length; i += BATCH_SIZE) {
+              const batch = origemIds.slice(i, i + BATCH_SIZE);
+              const values = batch.map((id) => `'${id}'`).join(",");
+              await db.execute(
+                sql.raw(`DELETE FROM atendimentos_unificados WHERE origemId IN (${values})`)
+              );
+              registrosRemovidosUnificados += batch.length;
+            }
+          }
+
+          // Limpar staging de atendimentos
+          await db.execute(
+            sql.raw(`DELETE FROM warleine_atendimentos_staging WHERE configId = ${input.configId}`)
+          );
+        }
 
         await db
           .update(queryConfiguracoes)
@@ -1014,7 +1117,7 @@ export const integradorDadosRouter = router({
         return {
           sucesso: true,
           mensagem: `Sincronizacao limpa. ${registrosRemovidosUnificados} registros removidos.`,
-          registrosRemovidos: registrosRemovidosUnificados + stagingIds.length,
+          registrosRemovidos: registrosRemovidosUnificados,
         };
       } catch (error) {
         console.error("[ERROR]", error);

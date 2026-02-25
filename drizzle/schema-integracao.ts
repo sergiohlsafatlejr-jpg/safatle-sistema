@@ -65,6 +65,89 @@ export const warleineAtendimentosStaging = mysqlTable(
   })
 );
 
+// WARLEINE - Faturamento (Staging)
+export const warleineFaturamentoStaging = mysqlTable(
+  "warleine_faturamento_staging",
+  {
+    id: int().primaryKey().autoincrement(),
+    estabelecimentoId: int().notNull(),
+    configId: int().notNull(),
+    
+    // Dados brutos em JSON (preserva estrutura original)
+    dadosBrutos: json().notNull(),
+  },
+  (table) => ({
+    estabelecimentoIdx: index("idx_warleine_fatur_estab").on(table.estabelecimentoId),
+    configuracaoIdx: index("idx_warleine_fatur_config").on(table.configId),
+  })
+);
+
+// Faturamento Geral (dados transformados do faturamento WARLEINE)
+export const faturamentoGeral = mysqlTable(
+  "faturamento_geral",
+  {
+    id: int().primaryKey().autoincrement(),
+    
+    // Rastreamento de origem
+    origemSistema: varchar({ length: 50 }).notNull().default("WARLEINE"),
+    estabelecimentoId: int().notNull(),
+    configId: int(),
+    
+    // Campos do faturamento WARLEINE
+    aihguia: varchar({ length: 100 }),
+    codcc: varchar({ length: 50 }),
+    codconv: varchar({ length: 50 }),
+    codgrufi: varchar({ length: 50 }),
+    codproprio: varchar({ length: 100 }),
+    codrecur: varchar({ length: 100 }),
+    codtiss: varchar({ length: 100 }),
+    complrecur: text(),
+    data: timestamp(),
+    dataint: timestamp(),
+    datasai: timestamp(),
+    descmotivo: text(),
+    descricao: text(),
+    funcaotiss: varchar({ length: 50 }),
+    gl_aceita: varchar({ length: 50 }),
+    gl_analise: varchar({ length: 50 }),
+    gl_recuperada: varchar({ length: 50 }),
+    gl_recurso: varchar({ length: 50 }),
+    guiacobra: varchar({ length: 100 }),
+    matricula: varchar({ length: 100 }),
+    mesprod: varchar({ length: 20 }),
+    nomecc: varchar({ length: 255 }),
+    nomeconv: varchar({ length: 255 }),
+    nomeprest: varchar({ length: 255 }),
+    numconta: varchar({ length: 100 }),
+    numfatura: varchar({ length: 100 }),
+    prestexe: varchar({ length: 255 }),
+    procdisco: varchar({ length: 100 }),
+    protocolo: varchar({ length: 100 }),
+    quantidade: varchar({ length: 50 }),
+    receber: varchar({ length: 50 }),
+    tipoatend: varchar({ length: 50 }),
+    tipoproc: varchar({ length: 100 }),
+    vl_aberto: varchar({ length: 50 }),
+    vl_faturado: varchar({ length: 50 }),
+    vl_glosas: varchar({ length: 50 }),
+    vl_receb_a_maior: varchar({ length: 50 }),
+    vl_recebido: varchar({ length: 50 }),
+    vl_total_recebido: varchar({ length: 50 }),
+    vl_unitario: varchar({ length: 50 }),
+    
+    // Metadados
+    dataSincronizacao: timestamp().defaultNow(),
+    criadoEm: timestamp().defaultNow(),
+  },
+  (table) => ({
+    estabelecimentoIdx: index("idx_fatur_geral_estab").on(table.estabelecimentoId),
+    numcontaIdx: index("idx_fatur_geral_numconta").on(table.numconta),
+    nomeconvIdx: index("idx_fatur_geral_nomeconv").on(table.nomeconv),
+    mesprodIdx: index("idx_fatur_geral_mesprod").on(table.mesprod),
+    configIdx: index("idx_fatur_geral_config").on(table.configId),
+  })
+);
+
 // TASY - Atendimentos (Staging)
 export const tasyAtendimentosStaging = mysqlTable(
   "tasy_atendimentos_staging",
