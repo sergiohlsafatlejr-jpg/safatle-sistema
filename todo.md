@@ -2102,3 +2102,4 @@
 
 - [x] Filtrar configurações por estabelecimento logado (queries do Hospital Urológico aparecem no Instituto do Rim)
 - [x] Corrigir bug de duplicação ao atualizar query (ao clicar em atualizar, gera as duas queries da tela) - resolvido pelo filtro de estabelecimento
+- [x] Corrigir erro de query na tabela historicoValidacaoXml que não existe no banco (página /integracao)
