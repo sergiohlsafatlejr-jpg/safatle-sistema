@@ -897,40 +897,9 @@ export const integradorDadosRouter = router({
           registrosInseridos += values.length;
         }
 
-        // PASSO 3: Popular atendimentos_unificados a partir da staging
-        // Limpar registros EASYVISION antigos deste estabelecimento
-        await db.execute(
-          sql.raw(`DELETE FROM atendimentos_unificados WHERE origemSistema = 'EASYVISION' AND estabelecimentoId = ${input.estabelecimentoId} AND descricao_atendimento LIKE '%A_FATURAR%'`)
-        );
-
-        // Transformar staging -> unificados
-        let registrosUnificados = 0;
-        for (let i = 0; i < dados.length; i += BATCH_SIZE) {
-          const batch = dados.slice(i, i + BATCH_SIZE);
-          const unificados = batch.map((row) => ({
-            origemSistema: "EASYVISION",
-            origemId: `easyvision-a-faturar-${row.numatend}`,
-            estabelecimentoId: input.estabelecimentoId,
-            numero_atendimento: row.numatend || null,
-            codigo_saida: null,
-            convenio: row.nomeplaco || null,
-            paciente: row.nomepac || null,
-            caracter_atendimento: row.carater || null,
-            data_entrada: row.datatend ? new Date(row.datatend) : null,
-            data_saida: row.datasai ? new Date(row.datasai) : null,
-            tipo_atendimento: row.tipoatend || null,
-            descricao_atendimento: row.tipoatendimentodescricao ? `${row.tipoatendimentodescricao} - A_FATURAR` : "A_FATURAR",
-            codigo_servico: row.codserv || null,
-            codigo_procedimento: row.procprin || null,
-            destino_conta: null,
-          }));
-          await db.insert(atendimentos).values(unificados);
-          registrosUnificados += unificados.length;
-        }
-
         return {
           sucesso: true,
-          mensagem: `EASYVISION: ${registrosInseridos} atendimentos a faturar sincronizados (staging) e ${registrosUnificados} populados (unificados)`,
+          mensagem: `EASYVISION: ${registrosInseridos} atendimentos a faturar sincronizados na tabela atendimentos_a_faturar`,
           totalRegistros: registrosInseridos,
         };
       } catch (error) {

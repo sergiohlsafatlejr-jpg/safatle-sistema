@@ -1,0 +1,64 @@
+{
+  "query": "SELECT estabelecimentoId, origemSistema, descricao_atendimento, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema, descricao_atendimento ORDER BY total DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT estabelecimentoId, origemSistema, descricao_atendimento, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema, descricao_atendimento ORDER BY total DESC LIMIT 10",
+  "rows": [
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "EXAME - SEM_CONTA",
+      "total": "341"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "EXAME - A_FATURAR",
+      "total": "336"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "AMBULATORIO - SEM_CONTA",
+      "total": "291"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "AMBULATORIO - A_FATURAR",
+      "total": "272"
+    },
+    {
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "descricao_atendimento": "AMBULATORIO",
+      "total": "194"
+    },
+    {
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "descricao_atendimento": "EXAME",
+      "total": "169"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "INTERNACAO - SEM_CONTA",
+      "total": "65"
+    },
+    {
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "descricao_atendimento": "INTERNACAO",
+      "total": "43"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "descricao_atendimento": "INTERNACAO - A_FATURAR",
+      "total": "16"
+    }
+  ],
+  "messages": [],
+  "stdout": "estabelecimentoId\torigemSistema\tdescricao_atendimento\ttotal\n4\tEASYVISION\tEXAME - SEM_CONTA\t341\n4\tEASYVISION\tEXAME - A_FATURAR\t336\n4\tEASYVISION\tAMBULATORIO - SEM_CONTA\t291\n4\tEASYVISION\tAMBULATORIO - A_FATURAR\t272\n1260036\tWARLEINE\tAMBULATORIO\t194\n1260036\tWARLEINE\tEXAME\t169\n4\tEASYVISION\tINTERNACAO - SEM_CONTA\t65\n1260036\tWARLEINE\tINTERNACAO\t43\n4\tEASYVISION\tINTERNACAO - A_FATURAR\t16\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

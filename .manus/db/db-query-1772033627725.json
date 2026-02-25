@@ -1,0 +1,51 @@
+{
+  "query": "SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_sem_conta GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_a_faturar GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, COUNT(*) as total FROM warleine_atendimentos_staging GROUP BY estabelecimentoId ORDER BY estabelecimentoId; SELECT id, nome FROM estabelecimentos ORDER BY id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_sem_conta GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_a_faturar GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT estabelecimentoId, COUNT(*) as total FROM warleine_atendimentos_staging GROUP BY estabelecimentoId ORDER BY estabelecimentoId; SELECT id, nome FROM estabelecimentos ORDER BY id",
+  "rows": [
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "1321"
+    },
+    {
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "total": "406"
+    },
+    {
+      "estabelecimentoId": "estabelecimentoId",
+      "origemSistema": "origemSistema",
+      "total": "total"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "697"
+    },
+    {
+      "estabelecimentoId": "estabelecimentoId",
+      "origemSistema": "origemSistema",
+      "total": "total"
+    },
+    {
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "624"
+    }
+  ],
+  "messages": [
+    "estabelecimentoId\ttotal",
+    "1260036\t222033",
+    "id\tnome",
+    "1\tPronto Socorro Infantil",
+    "2\tMaternidade Ela",
+    "3\tOx Uti",
+    "4\tInstituto do Rim ",
+    "5\tHospital Nossa Senhora de Inhumas ",
+    "6\tHemolabor",
+    "1260036\tHospital Urologico "
+  ],
+  "stdout": "estabelecimentoId\torigemSistema\ttotal\n4\tEASYVISION\t1321\n1260036\tWARLEINE\t406\nestabelecimentoId\torigemSistema\ttotal\n4\tEASYVISION\t697\nestabelecimentoId\torigemSistema\ttotal\n4\tEASYVISION\t624\nestabelecimentoId\ttotal\n1260036\t222033\nid\tnome\n1\tPronto Socorro Infantil\n2\tMaternidade Ela\n3\tOx Uti\n4\tInstituto do Rim \n5\tHospital Nossa Senhora de Inhumas \n6\tHemolabor\n1260036\tHospital Urologico \n",
+  "stderr": "",
+  "execution_time_ms": 167
+}

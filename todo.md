@@ -2120,3 +2120,17 @@
 - [x] Filtrar dados de Atendimentos a Faturar por estabelecimento selecionado
 - [x] Disponibilizar tela Atendimentos para todos os estabelecimentos (não só Instituto do Rim)
 - [x] Disponibilizar tela Atendimentos a Faturar para todos os estabelecimentos
+
+## Correção Fluxo Atendimentos - Consultar atendimentos_unificados
+
+- [x] Alterar procedure atendimentos.listar para consultar atendimentos_unificados (não atendimentos_sem_conta)
+- [x] Alterar procedure atendimentosFaturar.listar para consultar atendimentos_unificados (filtrar por tipo)
+- [x] Verificar se WARLEINE popula atendimentos_unificados para Hospital Urológico (estabelecimentoId=1260036)
+- [x] Testar tela Atendimentos com dados do Hospital Urológico e Instituto do Rim
+
+## Separação de Tabelas: atendimentos_unificados vs atendimentos_a_faturar
+- [x] Remover registros A_FATURAR da tabela atendimentos_unificados (não devem estar misturados)
+- [x] Corrigir sincronização EASYVISION: atendimentos_a_faturar NÃO deve popular atendimentos_unificados
+- [x] Tela Atendimentos consulta apenas atendimentos_unificados (sem conta)
+- [x] Tela Atendimentos a Faturar consulta apenas atendimentos_a_faturar (não atendimentos_unificados)
+- [x] Corrigir contagem de tipos (Internação/Exame/Ambulatório) para reconhecer sufixo SEM_CONTA

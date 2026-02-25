@@ -1,0 +1,40 @@
+{
+  "query": "SELECT tabela, estabelecimentoId, origemSistema, total FROM (SELECT 'unificados' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'sem_conta' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_sem_conta GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'a_faturar' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_a_faturar GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'warleine_staging' as tabela, estabelecimentoId, 'WARLEINE' as origemSistema, COUNT(*) as total FROM warleine_atendimentos_staging GROUP BY estabelecimentoId) ORDER BY tabela, estabelecimentoId",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT tabela, estabelecimentoId, origemSistema, total FROM (SELECT 'unificados' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_unificados GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'sem_conta' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_sem_conta GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'a_faturar' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM atendimentos_a_faturar GROUP BY estabelecimentoId, origemSistema UNION ALL SELECT 'warleine_staging' as tabela, estabelecimentoId, 'WARLEINE' as origemSistema, COUNT(*) as total FROM warleine_atendimentos_staging GROUP BY estabelecimentoId) ORDER BY tabela, estabelecimentoId",
+  "rows": [
+    {
+      "tabela": "a_faturar",
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "624"
+    },
+    {
+      "tabela": "sem_conta",
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "697"
+    },
+    {
+      "tabela": "unificados",
+      "estabelecimentoId": "4",
+      "origemSistema": "EASYVISION",
+      "total": "1321"
+    },
+    {
+      "tabela": "unificados",
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "total": "406"
+    },
+    {
+      "tabela": "warleine_staging",
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "total": "222033"
+    }
+  ],
+  "messages": [],
+  "stdout": "tabela\testabelecimentoId\torigemSistema\ttotal\na_faturar\t4\tEASYVISION\t624\nsem_conta\t4\tEASYVISION\t697\nunificados\t4\tEASYVISION\t1321\nunificados\t1260036\tWARLEINE\t406\nwarleine_staging\t1260036\tWARLEINE\t222033\n",
+  "stderr": "",
+  "execution_time_ms": 143
+}

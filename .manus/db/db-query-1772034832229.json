@@ -1,0 +1,18 @@
+{
+  "query": "SELECT 'atendimentos_unificados' as tabela, COUNT(*) as total FROM atendimentos_unificados UNION ALL SELECT 'atendimentos_a_faturar' as tabela, COUNT(*) as total FROM atendimentos_a_faturar",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT 'atendimentos_unificados' as tabela, COUNT(*) as total FROM atendimentos_unificados UNION ALL SELECT 'atendimentos_a_faturar' as tabela, COUNT(*) as total FROM atendimentos_a_faturar",
+  "rows": [
+    {
+      "tabela": "atendimentos_a_faturar",
+      "total": "624"
+    },
+    {
+      "tabela": "atendimentos_unificados",
+      "total": "1103"
+    }
+  ],
+  "messages": [],
+  "stdout": "tabela\ttotal\natendimentos_a_faturar\t624\natendimentos_unificados\t1103\n",
+  "stderr": "",
+  "execution_time_ms": 2723
+}

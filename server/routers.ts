@@ -6214,30 +6214,33 @@ export const appRouter = router({
       .query(async ({ input }) => {
         try {
           const estabId = input?.estabelecimentoId;
-          // Buscar do banco interno (atendimentos_sem_conta) filtrado por estabelecimento
+          // Buscar da tabela atendimentos_unificados filtrado por estabelecimento
           const dbInstance = await getDb();
           if (dbInstance) {
-            const { atendimentosSemConta } = await import("../drizzle/schema-integracao");
-            const { eq } = await import("drizzle-orm");
-            let query = dbInstance.select().from(atendimentosSemConta);
+            const { atendimentos: atendimentosUnificados } = await import("../drizzle/schema-integracao");
+            const { eq, and, notLike } = await import("drizzle-orm");
+            // Filtrar por estabelecimento e excluir os que são "A_FATURAR" (esses vão para outra tela)
+            let conditions = [];
             if (estabId) {
-              query = query.where(eq(atendimentosSemConta.estabelecimentoId, estabId)) as any;
+              conditions.push(eq(atendimentosUnificados.estabelecimentoId, estabId));
             }
-            const dadosInternos = await query;
+            conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));
+            const dadosInternos = await dbInstance.select().from(atendimentosUnificados).where(and(...conditions));
             return dadosInternos.map(d => ({
-              numatend: d.numatend,
-              nomeplaco: d.nomeplaco || "",
-              nomepac: d.nomepac || "",
-              carater: d.carater || "",
-              datatend: d.datatend ? new Date(d.datatend).toISOString() : "",
-              datasai: d.datasai ? new Date(d.datasai).toISOString() : null,
-              tipoatend: d.tipoatend || "",
-              tipoatendimentodescricao: d.tipoatendimentodescricao || "",
-              codserv: d.codserv || "",
-              procprin: d.procprin || "",
-              codcc_destino: d.codcc_destino || "",
-              motivo: d.motivo || null,
-              diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
+              numatend: d.numero_atendimento || "",
+              nomeplaco: d.convenio || "",
+              nomepac: d.paciente || "",
+              carater: d.caracter_atendimento || "",
+              datatend: d.data_entrada ? new Date(d.data_entrada).toISOString() : "",
+              datasai: d.data_saida ? new Date(d.data_saida).toISOString() : null,
+              tipoatend: d.tipo_atendimento || "",
+              tipoatendimentodescricao: d.descricao_atendimento || "",
+              codserv: d.codigo_servico || "",
+              procprin: d.codigo_procedimento || "",
+              codcc_destino: d.destino_conta || "",
+              motivo: null,
+              diasParado: calcularDiasParado(d.data_saida ? new Date(d.data_saida).toISOString() : null),
+              origemSistema: d.origemSistema,
             }));
           }
           // Fallback: banco interno indisponível, retornar vazio
@@ -6453,7 +6456,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         try {
           const estabId = input?.estabelecimentoId;
-          // Buscar do banco interno (atendimentos_a_faturar) filtrado por estabelecimento
+          // Buscar da tabela atendimentos_a_faturar (tabela própria, separada da unificados)
           const dbInstance = await getDb();
           if (dbInstance) {
             const { atendimentosAFaturar } = await import("../drizzle/schema-integracao");
@@ -6463,8 +6466,8 @@ export const appRouter = router({
               query = query.where(eq(atendimentosAFaturar.estabelecimentoId, estabId)) as any;
             }
             const dadosInternos = await query;
-            return dadosInternos.map(d => ({
-              numatend: d.numatend,
+            return dadosInternos.map((d: any) => ({
+              numatend: d.numatend || "",
               nomeplaco: d.nomeplaco || "",
               nomepac: d.nomepac || "",
               carater: d.carater || "",
@@ -6475,6 +6478,7 @@ export const appRouter = router({
               codserv: d.codserv || "",
               procprin: d.procprin || "",
               diasParado: calcularDiasParado(d.datasai ? new Date(d.datasai).toISOString() : null),
+              origemSistema: d.origemSistema || "EASYVISION",
             }));
           }
           // Fallback: banco interno indisponível, retornar vazio

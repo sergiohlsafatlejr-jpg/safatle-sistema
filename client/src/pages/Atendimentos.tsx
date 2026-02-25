@@ -482,9 +482,9 @@ export default function Atendimentos() {
     if (!atendimentos) return { total: 0, internacao: 0, exame: 0, ambulatorio: 0 };
     return {
       total: atendimentos.length,
-      internacao: atendimentos.filter(d => d.tipoatendimentodescricao === "INTERNACAO").length,
-      exame: atendimentos.filter(d => d.tipoatendimentodescricao === "EXAME").length,
-      ambulatorio: atendimentos.filter(d => d.tipoatendimentodescricao === "AMBULATORIO").length,
+      internacao: atendimentos.filter(d => d.tipoatendimentodescricao?.toUpperCase().includes("INTERNACAO")).length,
+      exame: atendimentos.filter(d => d.tipoatendimentodescricao?.toUpperCase().includes("EXAME")).length,
+      ambulatorio: atendimentos.filter(d => d.tipoatendimentodescricao?.toUpperCase().includes("AMBULATORIO") || d.tipoatendimentodescricao?.toUpperCase().includes("AMBULATÓRIO")).length,
     };
   }, [atendimentos]);
 
@@ -516,7 +516,7 @@ export default function Atendimentos() {
     let filtrados = [...atendimentos] as AtendimentoData[];
 
     if (filtroTipo !== "todos") {
-      filtrados = filtrados.filter(d => d.tipoatendimentodescricao === filtroTipo);
+      filtrados = filtrados.filter(d => d.tipoatendimentodescricao?.toUpperCase().includes(filtroTipo.toUpperCase()));
     }
     if (filtroServico) {
       filtrados = filtrados.filter(d => (d.codserv || "Sem Serviço") === filtroServico);
