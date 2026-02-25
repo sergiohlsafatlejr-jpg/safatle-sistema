@@ -1,0 +1,130 @@
+{
+  "query": "SELECT * FROM users LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT * FROM users LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "e4xHgWwTNCZVN93GmfuEh6",
+      "name": "Sergio Safatle",
+      "email": "sergiohlsafatlejr@gmail.com",
+      "loginMethod": "google",
+      "role": "admin",
+      "createdAt": "2026-01-22 09:13:53",
+      "updatedAt": "2026-02-25 01:24:16",
+      "lastSignedIn": "2026-02-25 01:24:17",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "30767",
+      "openId": "HVmkyancYcVWL6tGmXsErA",
+      "name": "lorena.gabriela",
+      "email": "lorena.gabriela@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-01-22 11:39:54",
+      "updatedAt": "2026-02-12 11:47:19",
+      "lastSignedIn": "2026-02-12 11:47:19",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "3330212",
+      "openId": "ZtygSmyb8xmuV39Q7utD7t",
+      "name": "clauderisio.araujo",
+      "email": "clauderisio.araujo@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-04 13:17:49",
+      "updatedAt": "2026-02-24 19:00:53",
+      "lastSignedIn": "2026-02-24 19:00:53",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "4410384",
+      "openId": "Aoh7zLMKXwLwQjGcXteNs3",
+      "name": "thiago.dutra",
+      "email": "thiago.dutra@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-10 16:01:41",
+      "updatedAt": "2026-02-11 20:04:04",
+      "lastSignedIn": "2026-02-11 20:04:03",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "4410424",
+      "openId": "9gadSRZ7VfRGHwNhZtT5ZJ",
+      "name": "iury.barbosa",
+      "email": "iury.barbosa@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-10 16:08:39",
+      "updatedAt": "2026-02-25 00:33:43",
+      "lastSignedIn": "2026-02-25 00:33:43",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "5220235",
+      "openId": "2mdTVsSHrVvc3RVrvgYE76",
+      "name": "danilo.chaves",
+      "email": "danilo.chaves@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-12 13:11:40",
+      "updatedAt": "2026-02-24 14:54:08",
+      "lastSignedIn": "2026-02-24 14:54:08",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "5220349",
+      "openId": "dRtm3Ereem33deTrZi7iuw",
+      "name": "jackeline.caixeta",
+      "email": "jackeline.caixeta@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-12 13:28:59",
+      "updatedAt": "2026-02-12 16:38:34",
+      "lastSignedIn": "2026-02-12 16:38:35",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "5220981",
+      "openId": "WcJb7TXeH6tJET6mbspzru",
+      "name": "Controle de Contas",
+      "email": "controle.contas@irghospital.com.br",
+      "loginMethod": "microsoft",
+      "role": "user",
+      "createdAt": "2026-02-12 18:50:44",
+      "updatedAt": "2026-02-12 18:57:28",
+      "lastSignedIn": "2026-02-12 18:57:28",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "5430038",
+      "openId": "8i9cVN8NLe3pgMdMuVo8Xa",
+      "name": "paulo.borges",
+      "email": "paulo.borges@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-13 12:27:58",
+      "updatedAt": "2026-02-18 17:18:24",
+      "lastSignedIn": "2026-02-18 17:18:24",
+      "passwordHash": "NULL"
+    },
+    {
+      "id": "5430215",
+      "openId": "NWEvwLpxoVZtTqPXmRppg7",
+      "name": "luana.monteiro",
+      "email": "luana.monteiro@safatle.com.br",
+      "loginMethod": "email",
+      "role": "user",
+      "createdAt": "2026-02-13 13:35:27",
+      "updatedAt": "2026-02-20 14:16:14",
+      "lastSignedIn": "2026-02-20 14:16:15",
+      "passwordHash": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tloginMethod\trole\tcreatedAt\tupdatedAt\tlastSignedIn\tpasswordHash\n1\te4xHgWwTNCZVN93GmfuEh6\tSergio Safatle\tsergiohlsafatlejr@gmail.com\tgoogle\tadmin\t2026-01-22 09:13:53\t2026-02-25 01:24:16\t2026-02-25 01:24:17\tNULL\n30767\tHVmkyancYcVWL6tGmXsErA\tlorena.gabriela\tlorena.gabriela@safatle.com.br\temail\tuser\t2026-01-22 11:39:54\t2026-02-12 11:47:19\t2026-02-12 11:47:19\tNULL\n3330212\tZtygSmyb8xmuV39Q7utD7t\tclauderisio.araujo\tclauderisio.araujo@safatle.com.br\temail\tuser\t2026-02-04 13:17:49\t2026-02-24 19:00:53\t2026-02-24 19:00:53\tNULL\n4410384\tAoh7zLMKXwLwQjGcXteNs3\tthiago.dutra\tthiago.dutra@safatle.com.br\temail\tuser\t2026-02-10 16:01:41\t2026-02-11 20:04:04\t2026-02-11 20:04:03\tNULL\n4410424\t9gadSRZ7VfRGHwNhZtT5ZJ\tiury.barbosa\tiury.barbosa@safatle.com.br\temail\tuser\t2026-02-10 16:08:39\t2026-02-25 00:33:43\t2026-02-25 00:33:43\tNULL\n5220235\t2mdTVsSHrVvc3RVrvgYE76\tdanilo.chaves\tdanilo.chaves@safatle.com.br\temail\tuser\t2026-02-12 13:11:40\t2026-02-24 14:54:08\t2026-02-24 14:54:08\tNULL\n5220349\tdRtm3Ereem33deTrZi7iuw\tjackeline.caixeta\tjackeline.caixeta@safatle.com.br\temail\tuser\t2026-02-12 13:28:59\t2026-02-12 16:38:34\t2026-02-12 16:38:35\tNULL\n5220981\tWcJb7TXeH6tJET6mbspzru\tControle de Contas\tcontrole.contas@irghospital.com.br\tmicrosoft\tuser\t2026-02-12 18:50:44\t2026-02-12 18:57:28\t2026-02-12 18:57:28\tNULL\n5430038\t8i9cVN8NLe3pgMdMuVo8Xa\tpaulo.borges\tpaulo.borges@safatle.com.br\temail\tuser\t2026-02-13 12:27:58\t2026-02-18 17:18:24\t2026-02-18 17:18:24\tNULL\n5430215\tNWEvwLpxoVZtTqPXmRppg7\tluana.monteiro\tluana.monteiro@safatle.com.br\temail\tuser\t2026-02-13 13:35:27\t2026-02-20 14:16:14\t2026-02-20 14:16:15\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

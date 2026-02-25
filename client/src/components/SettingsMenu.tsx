@@ -2,12 +2,15 @@ import { useState } from "react";
 import {
   ChevronDown,
   Settings,
-  Sliders,
   Database,
   Users,
   Bell,
   Download,
   Cog,
+  Building2,
+  Shield,
+  DollarSign,
+  FileText,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -28,49 +31,78 @@ type SettingsMenuItem = {
   label: string;
   path: string;
   description?: string;
+  section?: string;
 };
 
 const settingsMenuItems: SettingsMenuItem[] = [
+  // Cadastros
   {
-    icon: Cog,
-    label: "Configurações Gerais",
-    path: "/configuracoes/geral",
-    description: "Nome, logo, tema",
+    icon: Building2,
+    label: "Estabelecimentos",
+    path: "/estabelecimentos",
+    description: "Gerenciar unidades e filiais",
+    section: "Cadastros",
   },
+  {
+    icon: FileText,
+    label: "Convênios",
+    path: "/convenios",
+    description: "Gerenciar convênios e planos",
+    section: "Cadastros",
+  },
+  {
+    icon: DollarSign,
+    label: "Tabelas de Preço",
+    path: "/tabelas-preco",
+    description: "Gerenciar tabelas de preços",
+    section: "Cadastros",
+  },
+  // Acesso
+  {
+    icon: Users,
+    label: "Usuários e Permissões",
+    path: "/gerenciar-permissoes",
+    description: "Gerenciar usuários, roles e permissões",
+    section: "Acesso",
+  },
+  // Sistema
   {
     icon: Database,
     label: "Integração de Dados",
     path: "/configuracoes/integracao",
     description: "WARLEINE, TASY, OMNI, GESTHOR",
-  },
-  {
-    icon: Users,
-    label: "Usuários e Permissões",
-    path: "/configuracoes/usuarios",
-    description: "Gerenciar usuários, roles e permissões",
+    section: "Sistema",
   },
   {
     icon: Bell,
     label: "Notificações",
     path: "/configuracoes/notificacoes",
     description: "Alertas e canais de notificação",
+    section: "Sistema",
   },
   {
     icon: Download,
     label: "Backup e Dados",
     path: "/configuracoes/backup",
     description: "Exportar, importar, limpar",
+    section: "Sistema",
   },
+];
+
+// Agrupar itens por seção
+const sections = [
+  { label: "Cadastros", items: settingsMenuItems.filter(i => i.section === "Cadastros") },
+  { label: "Acesso", items: settingsMenuItems.filter(i => i.section === "Acesso") },
+  { label: "Sistema", items: settingsMenuItems.filter(i => i.section === "Sistema") },
 ];
 
 export function SettingsMenu() {
   const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isSettingsActive = location.startsWith("/configuracoes");
-  const currentSettingsItem = settingsMenuItems.find(
-    (item) => item.path === location
-  );
+  // Verificar se alguma rota de configurações está ativa
+  const allPaths = settingsMenuItems.map(i => i.path);
+  const isSettingsActive = allPaths.some(p => location === p || location.startsWith("/configuracoes"));
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/collapsible">
@@ -102,31 +134,40 @@ export function SettingsMenu() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
-            {settingsMenuItems.map((item) => {
-              const isActive = location === item.path;
-              return (
-                <SidebarMenuSubItem key={item.path}>
-                  <SidebarMenuSubButton
-                    isActive={isActive}
-                    onClick={() => setLocation(item.path)}
-                    className={`transition-all font-normal text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent ${
-                      isActive
-                        ? "bg-primary/10 text-primary font-semibold"
-                        : ""
-                    }`}
-                  >
-                    <item.icon
-                      className={`h-4 w-4 ${
-                        isActive
-                          ? "text-primary"
-                          : "text-sidebar-foreground/50"
-                      }`}
-                    />
-                    <span>{item.label}</span>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              );
-            })}
+            {sections.map((section) => (
+              <div key={section.label}>
+                <div className="px-3 py-1.5 mt-1.5 first:mt-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/40">
+                    {section.label}
+                  </span>
+                </div>
+                {section.items.map((item) => {
+                  const isActive = location === item.path;
+                  return (
+                    <SidebarMenuSubItem key={item.path}>
+                      <SidebarMenuSubButton
+                        isActive={isActive}
+                        onClick={() => setLocation(item.path)}
+                        className={`transition-all font-normal text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent ${
+                          isActive
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : ""
+                        }`}
+                      >
+                        <item.icon
+                          className={`h-4 w-4 ${
+                            isActive
+                              ? "text-primary"
+                              : "text-sidebar-foreground/50"
+                          }`}
+                        />
+                        <span>{item.label}</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  );
+                })}
+              </div>
+            ))}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>

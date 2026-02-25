@@ -1,0 +1,220 @@
+{
+  "query": "SELECT id, name, email, role FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, name, email, role FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Sergio Safatle",
+      "email": "sergiohlsafatlejr@gmail.com",
+      "role": "admin"
+    },
+    {
+      "id": "30767",
+      "name": "lorena.gabriela",
+      "email": "lorena.gabriela@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "3330212",
+      "name": "clauderisio.araujo",
+      "email": "clauderisio.araujo@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "4410384",
+      "name": "thiago.dutra",
+      "email": "thiago.dutra@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "4410424",
+      "name": "iury.barbosa",
+      "email": "iury.barbosa@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5220235",
+      "name": "danilo.chaves",
+      "email": "danilo.chaves@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5220349",
+      "name": "jackeline.caixeta",
+      "email": "jackeline.caixeta@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5220981",
+      "name": "Controle de Contas",
+      "email": "controle.contas@irghospital.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5430038",
+      "name": "paulo.borges",
+      "email": "paulo.borges@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5430215",
+      "name": "luana.monteiro",
+      "email": "luana.monteiro@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "5430230",
+      "name": "adriana.silva",
+      "email": "adriana.silva@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "6000180",
+      "name": "Lorena Rocha",
+      "email": "lorenarochaauditoria@gmail.com",
+      "role": "user"
+    },
+    {
+      "id": "6000325",
+      "name": "Maicon Samuel",
+      "email": "maiconsamuel@gmail.com",
+      "role": "user"
+    },
+    {
+      "id": "6361491",
+      "name": "caio.mendes",
+      "email": "caio.mendes@safatle.com.br",
+      "role": "user"
+    },
+    {
+      "id": "7740030",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771945745621@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740031",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740032",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740055",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771946706597@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740056",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740057",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740174",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771951276371@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740175",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740176",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740178",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771951313448@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740180",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740181",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740218",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771956020107@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740219",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740220",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740350",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771960957157@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740351",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740352",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740354",
+      "name": "Usuário Teste Edição Estabelecimentos",
+      "email": "test-edit-estab-1771960973264@test.com",
+      "role": "user"
+    },
+    {
+      "id": "7740357",
+      "name": "Usuário Auto-Exclusão",
+      "email": "autoexclusao@test.com",
+      "role": "admin"
+    },
+    {
+      "id": "7740358",
+      "name": "Admin Teste",
+      "email": "admin@test.com",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n1\tSergio Safatle\tsergiohlsafatlejr@gmail.com\tadmin\n30767\tlorena.gabriela\tlorena.gabriela@safatle.com.br\tuser\n3330212\tclauderisio.araujo\tclauderisio.araujo@safatle.com.br\tuser\n4410384\tthiago.dutra\tthiago.dutra@safatle.com.br\tuser\n4410424\tiury.barbosa\tiury.barbosa@safatle.com.br\tuser\n5220235\tdanilo.chaves\tdanilo.chaves@safatle.com.br\tuser\n5220349\tjackeline.caixeta\tjackeline.caixeta@safatle.com.br\tuser\n5220981\tControle de Contas\tcontrole.contas@irghospital.com.br\tuser\n5430038\tpaulo.borges\tpaulo.borges@safatle.com.br\tuser\n5430215\tluana.monteiro\tluana.monteiro@safatle.com.br\tuser\n5430230\tadriana.silva\tadriana.silva@safatle.com.br\tuser\n6000180\tLorena Rocha\tlorenarochaauditoria@gmail.com\tuser\n6000325\tMaicon Samuel\tmaiconsamuel@gmail.com\tuser\n6361491\tcaio.mendes\tcaio.mendes@safatle.com.br\tuser\n7740030\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771945745621@test.com\tuser\n7740031\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740032\tAdmin Teste\tadmin@test.com\tadmin\n7740055\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771946706597@test.com\tuser\n7740056\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740057\tAdmin Teste\tadmin@test.com\tadmin\n7740174\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771951276371@test.com\tuser\n7740175\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740176\tAdmin Teste\tadmin@test.com\tadmin\n7740178\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771951313448@test.com\tuser\n7740180\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740181\tAdmin Teste\tadmin@test.com\tadmin\n7740218\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771956020107@test.com\tuser\n7740219\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740220\tAdmin Teste\tadmin@test.com\tadmin\n7740350\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771960957157@test.com\tuser\n7740351\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740352\tAdmin Teste\tadmin@test.com\tadmin\n7740354\tUsuário Teste Edição Estabelecimentos\ttest-edit-estab-1771960973264@test.com\tuser\n7740357\tUsuário Auto-Exclusão\tautoexclusao@test.com\tadmin\n7740358\tAdmin Teste\tadmin@test.com\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

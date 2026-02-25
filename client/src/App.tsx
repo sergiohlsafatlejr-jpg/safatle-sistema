@@ -23,6 +23,7 @@ import Demonstrativo from "./pages/Demonstrativo";
 import Repasse from "./pages/Repasse";
 import DicionarioGlosas from "./pages/DicionarioGlosas";
 import Estabelecimentos from "./pages/Estabelecimentos";
+import Convenios from "./pages/Convenios";
 import RegrasConciliacao from "./pages/RegrasConciliacao";
 import TabelasPreco from "./pages/TabelasPreco";
 import RegrasNegocio from "./pages/RegrasNegocio";
@@ -91,6 +92,7 @@ function Router() {
       <Route path={"/repasse"} component={Repasse} />
       <Route path={"/dicionario-glosas"} component={DicionarioGlosas} />
       <Route path={"/estabelecimentos"} component={Estabelecimentos} />
+      <Route path={"/convenios"} component={Convenios} />
       <Route path={"/tabelas-preco"} component={TabelasPreco} />
       <Route path={"/regras-negocio"} component={RegrasNegocio} />
       <Route path={"/dashboard-consolidado"} component={DashboardConsolidado} />

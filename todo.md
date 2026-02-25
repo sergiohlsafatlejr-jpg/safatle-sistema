@@ -2057,3 +2057,10 @@
 - [x] Corrigir conflito entre Configuracoes.tsx antigo e Configuracoes/index.tsx novo
 - [x] Adicionar DashboardLayout nas páginas de configuração
 - [x] Corrigir roteamento usando window.location.pathname com useLocation como dependência
+
+## Correções Menu de Configurações
+
+- [x] Restaurar telas de cadastro que sumiram do menu (Convênios, Estabelecimentos, Regras, Tabela de Preços)
+- [x] Verificar se usuários sumiram do banco de dados (35 usuários confirmados no banco)
+- [x] Reorganizar menu lateral com seções claras (Cadastros, Acesso, Sistema)
+- [x] Criar página dedicada de Convênios com CRUD completo e associação de prestadores por estabelecimento
