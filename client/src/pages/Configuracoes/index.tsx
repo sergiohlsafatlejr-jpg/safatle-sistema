@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { Route, Switch } from "wouter";
 import ConfiguracoesGeral from "./ConfiguracoesGeral";
 import ConfiguracoesIntegracao from "./ConfiguracoesIntegracao";
 import ConfiguracoesUsuarios from "./ConfiguracoesUsuarios";
@@ -6,20 +6,14 @@ import ConfiguracoesNotificacoes from "./ConfiguracoesNotificacoes";
 import ConfiguracoesBackup from "./ConfiguracoesBackup";
 
 export default function Configuracoes() {
-  const [location] = useLocation();
-
-  switch (location) {
-    case "/configuracoes/geral":
-      return <ConfiguracoesGeral />;
-    case "/configuracoes/integracao":
-      return <ConfiguracoesIntegracao />;
-    case "/configuracoes/usuarios":
-      return <ConfiguracoesUsuarios />;
-    case "/configuracoes/notificacoes":
-      return <ConfiguracoesNotificacoes />;
-    case "/configuracoes/backup":
-      return <ConfiguracoesBackup />;
-    default:
-      return <ConfiguracoesGeral />;
-  }
+  return (
+    <Switch>
+      <Route path="/configuracoes/geral" component={ConfiguracoesGeral} />
+      <Route path="/configuracoes/integracao" component={ConfiguracoesIntegracao} />
+      <Route path="/configuracoes/usuarios" component={ConfiguracoesUsuarios} />
+      <Route path="/configuracoes/notificacoes" component={ConfiguracoesNotificacoes} />
+      <Route path="/configuracoes/backup" component={ConfiguracoesBackup} />
+      <Route component={ConfiguracoesGeral} />
+    </Switch>
+  );
 }
