@@ -72,6 +72,7 @@ export function gerarHtmlNotificacaoAtendimentos(dados: {
     plano: string;
     diasParado: number;
     dataEntrada: string;
+    observacao?: string;
   }>;
   mensagemPersonalizada?: string;
 }): string {
@@ -89,6 +90,7 @@ export function gerarHtmlNotificacaoAtendimentos(dados: {
         </span>
       </td>
       <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb;">${a.dataEntrada}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">${a.observacao || '-'}</td>
     </tr>`
     )
     .join("");
@@ -138,6 +140,7 @@ export function gerarHtmlNotificacaoAtendimentos(dados: {
               <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #475569;">Plano</th>
               <th style="padding: 10px 12px; text-align: center; border-bottom: 2px solid #e5e7eb; color: #475569;">Dias Parado</th>
               <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #475569;">Data Entrada</th>
+              <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #475569;">Observação</th>
             </tr>
           </thead>
           <tbody>

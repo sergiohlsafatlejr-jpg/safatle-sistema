@@ -292,7 +292,7 @@ async function gerarPDFNotificacao(
 
   autoTable(doc, {
     startY: y,
-    head: [["Nº Atend.", "Paciente", "Plano", "Data Entrada", "Data Saída", "Dias", "Tipo", "Serviço", "Motivo"]],
+    head: [["Nº Atend.", "Paciente", "Plano", "Data Entrada", "Data Saída", "Dias", "Tipo", "Serviço", "Observação"]],
     body: atendimentos.map(d => [
       d.numatend,
       d.nomepac,
@@ -316,14 +316,14 @@ async function gerarPDFNotificacao(
     margin: { left: margin, right: margin },
     columnStyles: {
       0: { cellWidth: 16 },
-      1: { cellWidth: 34 },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 12, halign: "center" },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 22 },
-      8: { cellWidth: 14 },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 10, halign: "center" },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 20 },
+      8: { cellWidth: 30 },
     },
     didDrawPage: () => {
       drawHeader(doc);
@@ -523,6 +523,7 @@ export default function Atendimentos() {
         plano: a.nomeplaco || "Sem Plano",
         diasParado: a.diasParado || 0,
         dataEntrada: a.datatend ? new Date(a.datatend).toLocaleDateString("pt-BR") : "-",
+        observacao: a.motivo || undefined,
       })),
     });
   }

@@ -2173,3 +2173,8 @@
 - [x] Investigar como o campo motivo é exibido na tela de Análise de Recurso/Demonstrativo
 - [x] Corrigir para usar campo erro_tiss como fallback quando codigo_glosa for NULL (caso Unimed)
 - [x] Testar exibição do motivo para Unimed
+
+## Incluir campo Observação no E-mail e PDF de Notificação
+- [x] Adicionar coluna Observação na tabela HTML do e-mail de notificação
+- [x] Adicionar coluna Observação no PDF de notificação (renomeado Motivo para Observação)
+- [x] Garantir que a observação é passada corretamente do frontend para o backend

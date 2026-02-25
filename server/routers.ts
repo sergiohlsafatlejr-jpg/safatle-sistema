@@ -6524,6 +6524,7 @@ export const appRouter = router({
           plano: z.string(),
           diasParado: z.number(),
           dataEntrada: z.string(),
+          observacao: z.string().optional(),
         })),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -6531,7 +6532,10 @@ export const appRouter = router({
           const html = gerarHtmlNotificacaoAtendimentos({
             estabelecimentoNome: input.estabelecimentoNome,
             totalAtendimentos: input.atendimentos.length,
-            atendimentos: input.atendimentos,
+            atendimentos: input.atendimentos.map(a => ({
+              ...a,
+              observacao: a.observacao || undefined,
+            })),
             mensagemPersonalizada: input.mensagemPersonalizada,
           });
 
