@@ -2085,3 +2085,15 @@
 - [x] Adicionar métodos extrairAtendimentosSemConta e extrairAtendimentosAFaturar no WarleineConnector
 - [x] Adicionar procedures sincronizarAtendimentosSemConta e sincronizarAtendimentosAFaturar no Integrador
 - [x] Adicionar procedures listarAtendimentosSemConta e listarAtendimentosAFaturar no Integrador
+
+## Conector EASYVISION - Integrador de Dados
+
+- [x] Criar EasyVisionConnector.ts com conexão ao banco PG_ATENDIMENTOS
+- [x] Registrar EASYVISION como sistema no Integrador de Dados (labels, frontend)
+- [x] Corrigir fluxo de sincronização: view din_Atend_n_receb salva na tabela staging (atendimentos_sem_conta)
+- [x] Após staging, popular tabela atendimentos_unificados com dados do EASYVISION
+- [x] Corrigir fluxo de sincronização: view din_Atend_receb_s_faturar salva na tabela staging (atendimentos_a_faturar)
+- [x] Respeitar estabelecimentoId em todo o fluxo de sincronização
+- [x] Atualizar frontend do Integrador com cards EASYVISION
+- [x] Testar fluxo completo: EASYVISION -> staging -> atendimentos_unificados
+- [x] Escrever testes unitários para EasyVisionConnector

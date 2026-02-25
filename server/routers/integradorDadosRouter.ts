@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
+import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { estabelecimentos } from "../../drizzle/schema";
@@ -685,6 +686,7 @@ export const integradorDadosRouter = router({
     .mutation(async ({ input }) => {
       try {
         const db = await getDb();
+        if (!db) throw new Error("Database not available");
 
         await db
           .update(queryConfiguracoes)
@@ -712,12 +714,15 @@ export const integradorDadosRouter = router({
     }),
 
   // ============================================================
-  // SINCRONIZAÇÃO DAS VIEWS DO POSTGRESQL EXTERNO
+  // SINCRONIZAÇÃO EASYVISION (Views PostgreSQL Externo)
+  // Fluxo: EASYVISION -> staging (atendimentos_sem_conta / atendimentos_a_faturar) -> atendimentos_unificados
   // ============================================================
 
   /**
-   * Sincroniza atendimentos sem conta (view din_Atend_n_receb)
-   * Busca dados do PostgreSQL externo e grava no banco interno
+   * Sincroniza atendimentos sem conta (view din_Atend_n_receb) do EASYVISION
+   * 1. Busca dados do PostgreSQL externo (EASYVISION)
+   * 2. Grava na tabela staging (atendimentos_sem_conta)
+   * 3. Popula a tabela atendimentos_unificados
    */
   sincronizarAtendimentosSemConta: protectedProcedure
     .input(z.object({ estabelecimentoId: z.number() }))
@@ -730,36 +735,36 @@ export const integradorDadosRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Banco de dados nao disponivel");
 
-        // Usar credenciais WARLEINE (mesmo banco PostgreSQL)
-        const connector = new WarleineConnector({
-          host: ENV.warleineDbHost || ENV.pgAtendimentosHost,
-          port: parseInt(ENV.warleineDbPort || ENV.pgAtendimentosPort, 10),
-          database: ENV.warleineDbName || ENV.pgAtendimentosDatabase,
-          user: ENV.warleineDbUser || ENV.pgAtendimentosUser,
-          password: ENV.warleineDbPassword || ENV.pgAtendimentosPassword,
+        // Conectar ao EASYVISION (PG_ATENDIMENTOS)
+        const connector = new EasyVisionConnector({
+          host: ENV.pgAtendimentosHost,
+          port: parseInt(ENV.pgAtendimentosPort, 10),
+          database: ENV.pgAtendimentosDatabase,
+          user: ENV.pgAtendimentosUser,
+          password: ENV.pgAtendimentosPassword,
         });
 
         const conectado = await connector.conectar();
         if (!conectado) {
-          return { sucesso: false, mensagem: "Falha ao conectar ao PostgreSQL externo", totalRegistros: 0 };
+          return { sucesso: false, mensagem: "Falha ao conectar ao EASYVISION (PG_ATENDIMENTOS)", totalRegistros: 0 };
         }
 
-        // Extrair dados da view
+        // PASSO 1: Extrair dados da view
         const dados = await connector.extrairAtendimentosSemConta();
         await connector.desconectar();
 
-        // Limpar dados antigos do estabelecimento
+        // PASSO 2: Limpar dados antigos do estabelecimento na staging
         await db.delete(atendimentosSemConta)
           .where(eq(atendimentosSemConta.estabelecimentoId, input.estabelecimentoId));
 
-        // Inserir novos dados em lotes
+        // PASSO 2b: Inserir novos dados na staging em lotes
         let registrosInseridos = 0;
         const BATCH_SIZE = 100;
         for (let i = 0; i < dados.length; i += BATCH_SIZE) {
           const batch = dados.slice(i, i + BATCH_SIZE);
           const values = batch.map((row) => ({
             estabelecimentoId: input.estabelecimentoId,
-            origemSistema: "WARLEINE",
+            origemSistema: "EASYVISION",
             numatend: row.numatend || "",
             nomeplaco: row.nomeplaco || null,
             nomepac: row.nomepac || null,
@@ -778,9 +783,40 @@ export const integradorDadosRouter = router({
           registrosInseridos += values.length;
         }
 
+        // PASSO 3: Popular atendimentos_unificados a partir da staging
+        // Limpar registros EASYVISION antigos deste estabelecimento
+        await db.execute(
+          sql.raw(`DELETE FROM atendimentos_unificados WHERE origemSistema = 'EASYVISION' AND estabelecimentoId = ${input.estabelecimentoId} AND descricao_atendimento LIKE '%SEM_CONTA%'`)
+        );
+
+        // Transformar staging -> unificados
+        let registrosUnificados = 0;
+        for (let i = 0; i < dados.length; i += BATCH_SIZE) {
+          const batch = dados.slice(i, i + BATCH_SIZE);
+          const unificados = batch.map((row) => ({
+            origemSistema: "EASYVISION",
+            origemId: `easyvision-sem-conta-${row.numatend}`,
+            estabelecimentoId: input.estabelecimentoId,
+            numero_atendimento: row.numatend || null,
+            codigo_saida: null,
+            convenio: row.nomeplaco || null,
+            paciente: row.nomepac || null,
+            caracter_atendimento: row.carater || null,
+            data_entrada: row.datatend ? new Date(row.datatend) : null,
+            data_saida: row.datasai ? new Date(row.datasai) : null,
+            tipo_atendimento: row.tipoatend || null,
+            descricao_atendimento: row.tipoatendimentodescricao ? `${row.tipoatendimentodescricao} - SEM_CONTA` : "SEM_CONTA",
+            codigo_servico: row.codserv || null,
+            codigo_procedimento: row.procprin || null,
+            destino_conta: row.codcc_destino || null,
+          }));
+          await db.insert(atendimentos).values(unificados);
+          registrosUnificados += unificados.length;
+        }
+
         return {
           sucesso: true,
-          mensagem: `${registrosInseridos} atendimentos sem conta sincronizados`,
+          mensagem: `EASYVISION: ${registrosInseridos} atendimentos sem conta sincronizados (staging) e ${registrosUnificados} populados (unificados)`,
           totalRegistros: registrosInseridos,
         };
       } catch (error) {
@@ -794,8 +830,10 @@ export const integradorDadosRouter = router({
     }),
 
   /**
-   * Sincroniza atendimentos a faturar (view din_Atend_receb_s_faturar)
-   * Busca dados do PostgreSQL externo e grava no banco interno
+   * Sincroniza atendimentos a faturar (view din_Atend_receb_s_faturar) do EASYVISION
+   * 1. Busca dados do PostgreSQL externo (EASYVISION)
+   * 2. Grava na tabela staging (atendimentos_a_faturar)
+   * 3. Popula a tabela atendimentos_unificados
    */
   sincronizarAtendimentosAFaturar: protectedProcedure
     .input(z.object({ estabelecimentoId: z.number() }))
@@ -808,34 +846,36 @@ export const integradorDadosRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Banco de dados nao disponivel");
 
-        const connector = new WarleineConnector({
-          host: ENV.warleineDbHost || ENV.pgAtendimentosHost,
-          port: parseInt(ENV.warleineDbPort || ENV.pgAtendimentosPort, 10),
-          database: ENV.warleineDbName || ENV.pgAtendimentosDatabase,
-          user: ENV.warleineDbUser || ENV.pgAtendimentosUser,
-          password: ENV.warleineDbPassword || ENV.pgAtendimentosPassword,
+        // Conectar ao EASYVISION (PG_ATENDIMENTOS)
+        const connector = new EasyVisionConnector({
+          host: ENV.pgAtendimentosHost,
+          port: parseInt(ENV.pgAtendimentosPort, 10),
+          database: ENV.pgAtendimentosDatabase,
+          user: ENV.pgAtendimentosUser,
+          password: ENV.pgAtendimentosPassword,
         });
 
         const conectado = await connector.conectar();
         if (!conectado) {
-          return { sucesso: false, mensagem: "Falha ao conectar ao PostgreSQL externo", totalRegistros: 0 };
+          return { sucesso: false, mensagem: "Falha ao conectar ao EASYVISION (PG_ATENDIMENTOS)", totalRegistros: 0 };
         }
 
+        // PASSO 1: Extrair dados da view
         const dados = await connector.extrairAtendimentosAFaturar();
         await connector.desconectar();
 
-        // Limpar dados antigos do estabelecimento
+        // PASSO 2: Limpar dados antigos do estabelecimento na staging
         await db.delete(atendimentosAFaturar)
           .where(eq(atendimentosAFaturar.estabelecimentoId, input.estabelecimentoId));
 
-        // Inserir novos dados em lotes
+        // PASSO 2b: Inserir novos dados na staging em lotes
         let registrosInseridos = 0;
         const BATCH_SIZE = 100;
         for (let i = 0; i < dados.length; i += BATCH_SIZE) {
           const batch = dados.slice(i, i + BATCH_SIZE);
           const values = batch.map((row) => ({
             estabelecimentoId: input.estabelecimentoId,
-            origemSistema: "WARLEINE",
+            origemSistema: "EASYVISION",
             numatend: row.numatend || "",
             nomeplaco: row.nomeplaco || null,
             nomepac: row.nomepac || null,
@@ -852,9 +892,40 @@ export const integradorDadosRouter = router({
           registrosInseridos += values.length;
         }
 
+        // PASSO 3: Popular atendimentos_unificados a partir da staging
+        // Limpar registros EASYVISION antigos deste estabelecimento
+        await db.execute(
+          sql.raw(`DELETE FROM atendimentos_unificados WHERE origemSistema = 'EASYVISION' AND estabelecimentoId = ${input.estabelecimentoId} AND descricao_atendimento LIKE '%A_FATURAR%'`)
+        );
+
+        // Transformar staging -> unificados
+        let registrosUnificados = 0;
+        for (let i = 0; i < dados.length; i += BATCH_SIZE) {
+          const batch = dados.slice(i, i + BATCH_SIZE);
+          const unificados = batch.map((row) => ({
+            origemSistema: "EASYVISION",
+            origemId: `easyvision-a-faturar-${row.numatend}`,
+            estabelecimentoId: input.estabelecimentoId,
+            numero_atendimento: row.numatend || null,
+            codigo_saida: null,
+            convenio: row.nomeplaco || null,
+            paciente: row.nomepac || null,
+            caracter_atendimento: row.carater || null,
+            data_entrada: row.datatend ? new Date(row.datatend) : null,
+            data_saida: row.datasai ? new Date(row.datasai) : null,
+            tipo_atendimento: row.tipoatend || null,
+            descricao_atendimento: row.tipoatendimentodescricao ? `${row.tipoatendimentodescricao} - A_FATURAR` : "A_FATURAR",
+            codigo_servico: row.codserv || null,
+            codigo_procedimento: row.procprin || null,
+            destino_conta: null,
+          }));
+          await db.insert(atendimentos).values(unificados);
+          registrosUnificados += unificados.length;
+        }
+
         return {
           sucesso: true,
-          mensagem: `${registrosInseridos} atendimentos a faturar sincronizados`,
+          mensagem: `EASYVISION: ${registrosInseridos} atendimentos a faturar sincronizados (staging) e ${registrosUnificados} populados (unificados)`,
           totalRegistros: registrosInseridos,
         };
       } catch (error) {

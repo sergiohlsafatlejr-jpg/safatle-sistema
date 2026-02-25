@@ -247,7 +247,7 @@ export const atendimentosSemConta = mysqlTable(
     
     // Rastreamento
     estabelecimentoId: int().notNull(),
-    origemSistema: varchar({ length: 50 }).notNull().default("WARLEINE"),
+    origemSistema: varchar({ length: 50 }).notNull().default("EASYVISION"),
     
     // Campos da view din_Atend_n_receb
     numatend: varchar({ length: 100 }).notNull(),
@@ -283,7 +283,7 @@ export const atendimentosAFaturar = mysqlTable(
     
     // Rastreamento
     estabelecimentoId: int().notNull(),
-    origemSistema: varchar({ length: 50 }).notNull().default("WARLEINE"),
+    origemSistema: varchar({ length: 50 }).notNull().default("EASYVISION"),
     
     // Campos da view din_Atend_receb_s_faturar
     numatend: varchar({ length: 100 }).notNull(),

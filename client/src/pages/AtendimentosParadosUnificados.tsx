@@ -21,20 +21,21 @@ interface AtendimentoUnificado {
   origemSistema: string;
   origemId: string;
   estabelecimentoId: number;
-  numero_atendimento?: string;
-  codigo_saida?: string;
-  convenio?: string;
-  paciente?: string;
-  caracter_atendimento?: string;
-  data_entrada?: string;
-  data_saida?: string | null;
-  tipo_atendimento?: string;
-  descricao_atendimento?: string;
-  codigo_servico?: string;
-  codigo_procedimento?: string;
-  destino_conta?: string;
+  numero_atendimento?: string | null;
+  codigo_saida?: string | null;
+  convenio?: string | null;
+  paciente?: string | null;
+  caracter_atendimento?: string | null;
+  data_entrada?: string | Date | null;
+  data_saida?: string | Date | null;
+  tipo_atendimento?: string | null;
+  descricao_atendimento?: string | null;
+  codigo_servico?: string | null;
+  codigo_procedimento?: string | null;
+  destino_conta?: string | null;
   diasParado: number;
-  dataSincronizacao?: string;
+  dataSincronizacao?: string | Date | null;
+  atualizadoEm?: Date | null;
 }
 
 export default function AtendimentosParadosUnificados() {
@@ -78,7 +79,7 @@ export default function AtendimentosParadosUnificados() {
     filtered.sort((a, b) => {
       const aVal = a[sortColumn];
       const bVal = b[sortColumn];
-      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      const comparison = (aVal ?? '') < (bVal ?? '') ? -1 : (aVal ?? '') > (bVal ?? '') ? 1 : 0;
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
@@ -142,7 +143,7 @@ export default function AtendimentosParadosUnificados() {
     })).sort((a, b) => b.quantidade - a.quantidade);
   };
 
-  const getTypeColor = (tipo?: string) => {
+  const getTypeColor = (tipo?: string | null) => {
     const t = tipo?.toUpperCase() || '';
     if (t.includes('INTERNACAO') || t.includes('INTERNA\u00c7\u00c3O')) return 'bg-orange-500 hover:bg-orange-600';
     if (t.includes('EXAME')) return 'bg-purple-500 hover:bg-purple-600';
@@ -156,7 +157,7 @@ export default function AtendimentosParadosUnificados() {
     return "bg-yellow-100 text-yellow-800";
   };
 
-  const getTipoAtendimentoBadgeColor = (tipo?: string) => {
+  const getTipoAtendimentoBadgeColor = (tipo?: string | null) => {
     switch (tipo?.toUpperCase()) {
       case "INTERNACAO":
       case "INTERNA\u00c7\u00c3O":
@@ -210,7 +211,7 @@ export default function AtendimentosParadosUnificados() {
               {getQuantidadePorTipo().map(({ tipo, quantidade }) => (
                 <button
                   key={tipo}
-                  onClick={() => setFiltroTipo(tipo)}
+                  onClick={() => setFiltroTipo(tipo || '')}
                   className={`px-4 py-2 rounded-lg font-medium transition-all ${
                     filtroTipo === tipo
                       ? `${getTypeColor(tipo)} text-white shadow-lg`
@@ -244,7 +245,7 @@ export default function AtendimentosParadosUnificados() {
               {getQuantidadePorPlano().map(({ plano, quantidade }) => (
                 <button
                   key={plano}
-                  onClick={() => setFiltroConvenio(plano)}
+                  onClick={() => setFiltroConvenio(plano || '')}
                   className={`px-4 py-2 rounded-lg font-medium transition-all ${
                     filtroConvenio === plano
                       ? 'bg-green-600 text-white shadow-lg'
@@ -278,7 +279,7 @@ export default function AtendimentosParadosUnificados() {
               {getQuantidadePorServico().map(({ servico, quantidade }) => (
                 <button
                   key={servico}
-                  onClick={() => setFiltroServico(servico)}
+                  onClick={() => setFiltroServico(servico || '')}
                   className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                     filtroServico === servico
                       ? 'bg-indigo-600 text-white shadow-lg'
@@ -378,7 +379,7 @@ export default function AtendimentosParadosUnificados() {
                     {filteredData.map((atendimento, idx) => (
                       <tr
                         key={idx}
-                        onClick={() => setSelectedRow(atendimento)}
+                        onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
                         className="border-b border-slate-700 hover:bg-slate-700 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 text-slate-200 font-mono">{atendimento.numero_atendimento}</td>

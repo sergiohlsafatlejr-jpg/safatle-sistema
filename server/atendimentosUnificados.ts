@@ -66,7 +66,7 @@ export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId
  * @param dataSaida - Data de saída (null se parado)
  * @returns Número de dias parado
  */
-export function calcularDiasParadoUnificado(dataEntrada?: string | Date, dataSaida?: string | Date): number {
+export function calcularDiasParadoUnificado(dataEntrada?: string | Date | null, dataSaida?: string | Date | null): number {
   if (!dataEntrada) return 0;
 
   const entrada = new Date(dataEntrada);

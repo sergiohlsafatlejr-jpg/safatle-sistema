@@ -376,7 +376,7 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                     <SelectValue placeholder="Selecione um estabelecimento" />
                   </SelectTrigger>
                   <SelectContent>
-                    {estabelecimentos?.estabelecimentos?.map((e: any) => (
+                    {(estabelecimentos as any)?.estabelecimentos?.map((e: any) => (
                       <SelectItem key={e.id} value={e.id.toString()}>
                         {e.nome}
                       </SelectItem>

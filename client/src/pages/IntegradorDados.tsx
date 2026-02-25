@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle } from "lucide-react";
+import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText, Download } from "lucide-react";
 import { QueryConfigForm } from "@/components/QueryConfigForm";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
@@ -38,6 +38,7 @@ const SISTEMA_LABELS: Record<string, string> = {
   tasy: "TASY",
   omni: "OMNI",
   gesthor: "GESTHOR",
+  easyvision: "EASYVISION",
 };
 
 const TIPO_DADOS_LABELS: Record<string, string> = {
@@ -164,6 +165,62 @@ export function IntegradorDados() {
     });
   };
 
+  // === Sincronização de Views (Atendimentos Sem Conta e A Faturar) ===
+  const sincronizarSemConta = trpc.integradorDados.sincronizarAtendimentosSemConta.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Sincronização Concluída", {
+          description: data.mensagem,
+        });
+      } else {
+        toast.error("Erro na Sincronização", {
+          description: data.mensagem,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao Sincronizar Atendimentos Sem Conta", {
+        description: error.message,
+      });
+    },
+  });
+
+  const sincronizarAFaturar = trpc.integradorDados.sincronizarAtendimentosAFaturar.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Sincronização Concluída", {
+          description: data.mensagem,
+        });
+      } else {
+        toast.error("Erro na Sincronização", {
+          description: data.mensagem,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao Sincronizar Atendimentos a Faturar", {
+        description: error.message,
+      });
+    },
+  });
+
+  const handleSincronizarSemConta = async () => {
+    await sincronizarSemConta.mutateAsync({ estabelecimentoId });
+  };
+
+  const handleSincronizarAFaturar = async () => {
+    await sincronizarAFaturar.mutateAsync({ estabelecimentoId });
+  };
+
+  const handleSincronizarTodas = async () => {
+    toast.info("Iniciando sincronização de todas as views...");
+    await Promise.all([
+      sincronizarSemConta.mutateAsync({ estabelecimentoId }),
+      sincronizarAFaturar.mutateAsync({ estabelecimentoId }),
+    ]);
+    toast.success("Todas as sincronizações concluídas!");
+  };
+
   const limparSincronizacao = trpc.integradorDados.limparSincronizacao.useMutation({
     onSuccess: (data) => {
       if (data.sucesso) {
@@ -283,6 +340,106 @@ export function IntegradorDados() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Sincronização EASYVISION */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="w-5 h-5" />
+                    EASYVISION - Sincronização de Views
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Busca dados das views do sistema EASYVISION (PostgreSQL externo), grava no staging e popula atendimentos unificados
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleSincronizarTodas}
+                  disabled={sincronizarSemConta.isPending || sincronizarAFaturar.isPending}
+                  size="sm"
+                >
+                  {(sincronizarSemConta.isPending || sincronizarAFaturar.isPending) ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Sincronizar Todas
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card Atendimentos Sem Conta */}
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
+                      <h4 className="font-semibold">Atendimentos Sem Conta</h4>
+                    </div>
+                    <Badge variant="outline" className="text-orange-600 border-orange-300">
+                      din_Atend_n_receb
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Atendimentos parados que não tiveram conta aberta no sistema.
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      Tabela: atendimentos_sem_conta
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSincronizarSemConta}
+                      disabled={sincronizarSemConta.isPending}
+                    >
+                      {sincronizarSemConta.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      Sincronizar
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Card Atendimentos a Faturar */}
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-500" />
+                      <h4 className="font-semibold">Atendimentos a Faturar</h4>
+                    </div>
+                    <Badge variant="outline" className="text-blue-600 border-blue-300">
+                      din_Atend_receb_s_faturar
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Atendimentos recebidos mas que ainda não foram faturados.
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      Tabela: atendimentos_a_faturar
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSincronizarAFaturar}
+                      disabled={sincronizarAFaturar.isPending}
+                    >
+                      {sincronizarAFaturar.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      Sincronizar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="dados" className="space-y-4">

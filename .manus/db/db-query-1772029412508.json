@@ -1,0 +1,19 @@
+{
+  "query": "SHOW TABLES LIKE 'atendimentos%'; SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'atendimentos%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SHOW TABLES LIKE 'atendimentos%'; SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'atendimentos%';",
+  "rows": [
+    {
+      "Tables_in_98MRdVE9Uf2ZRMz25bPSye (atendimentos%)": "atendimentos_unificados"
+    },
+    {
+      "Tables_in_98MRdVE9Uf2ZRMz25bPSye (atendimentos%)": "TABLE_NAME"
+    },
+    {
+      "Tables_in_98MRdVE9Uf2ZRMz25bPSye (atendimentos%)": "atendimentos_unificados"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_98MRdVE9Uf2ZRMz25bPSye (atendimentos%)\natendimentos_unificados\nTABLE_NAME\natendimentos_unificados\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}
