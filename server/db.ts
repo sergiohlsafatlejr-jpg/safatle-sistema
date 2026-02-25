@@ -96,6 +96,10 @@ import {
   InsertRecebimentoExcel,
   avisosInternos,
   InsertAvisoInterno,
+  notificacoesAtendimento,
+  InsertNotificacaoAtendimento,
+  notificacoesAtendimentoItem,
+  InsertNotificacaoAtendimentoItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -17467,4 +17471,173 @@ export async function getRelatorioDemonstrativo(
     .select()
     .from(demonstrativo)
     .where(and(...conditions));
+}
+
+
+// ========================================
+// NOTIFICAÇÕES DE ATENDIMENTOS (MySQL interno)
+// ========================================
+
+export async function salvarNotificacaoAtendimento(dados: {
+  numatend: string;
+  estabelecimentoId?: number;
+  observacao: string;
+  usuario?: string;
+  itens: Array<{
+    motivo: string;
+    setor?: string;
+    medico?: string;
+  }>;
+}): Promise<number | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(notificacoesAtendimento).values({
+    numatend: dados.numatend,
+    estabelecimentoId: dados.estabelecimentoId ?? null,
+    observacao: dados.observacao || "",
+    usuario: dados.usuario ?? null,
+  });
+
+  const notificacaoId = result[0].insertId;
+
+  if (dados.itens && dados.itens.length > 0) {
+    await db.insert(notificacoesAtendimentoItem).values(
+      dados.itens.map((item) => ({
+        notificacaoId,
+        motivo: item.motivo,
+        setor: item.setor || "",
+        medico: item.medico || "",
+      }))
+    );
+  }
+
+  return notificacaoId;
+}
+
+export async function salvarNotificacoesAtendimentoEmLote(dados: Array<{
+  numatend: string;
+  estabelecimentoId?: number;
+  observacao: string;
+  usuario?: string;
+  itens: Array<{
+    motivo: string;
+    setor?: string;
+    medico?: string;
+  }>;
+}>): Promise<{ salvos: number; erros: number }> {
+  let salvos = 0;
+  let erros = 0;
+
+  for (const notif of dados) {
+    try {
+      await salvarNotificacaoAtendimento(notif);
+      salvos++;
+    } catch (e) {
+      console.error(`[NotificacaoMySQL] Erro ao salvar notificação para ${notif.numatend}:`, e);
+      erros++;
+    }
+  }
+
+  return { salvos, erros };
+}
+
+export async function buscarNotificacoesAtendimento(numatends: string[]): Promise<Record<string, {
+  motivo: string;
+  observacao: string;
+  usuario: string | null;
+  criadoEm: Date;
+}>> {
+  const db = await getDb();
+  if (!db) return {};
+
+  if (numatends.length === 0) return {};
+
+  // Buscar notificações mais recentes para cada numatend
+  const notificacoes = await db
+    .select()
+    .from(notificacoesAtendimento)
+    .where(inArray(notificacoesAtendimento.numatend, numatends))
+    .orderBy(desc(notificacoesAtendimento.criadoEm));
+
+  if (notificacoes.length === 0) return {};
+
+  // Agrupar por numatend (pegar a mais recente de cada)
+  const maisRecentePorAtend: Record<string, typeof notificacoes[0]> = {};
+  for (const n of notificacoes) {
+    if (!maisRecentePorAtend[n.numatend]) {
+      maisRecentePorAtend[n.numatend] = n;
+    }
+  }
+
+  // Buscar itens das notificações mais recentes
+  const notifIds = Object.values(maisRecentePorAtend).map((n) => n.id);
+  const itens = await db
+    .select()
+    .from(notificacoesAtendimentoItem)
+    .where(inArray(notificacoesAtendimentoItem.notificacaoId, notifIds));
+
+  // Montar resultado
+  const resultado: Record<string, {
+    motivo: string;
+    observacao: string;
+    usuario: string | null;
+    criadoEm: Date;
+  }> = {};
+
+  for (const [numatend, notif] of Object.entries(maisRecentePorAtend)) {
+    const itensNotif = itens.filter((i) => i.notificacaoId === notif.id);
+    const motivos = itensNotif.map((i) => i.motivo);
+    resultado[numatend] = {
+      motivo: motivos.length > 0 ? motivos[0] : "notificado",
+      observacao: notif.observacao,
+      usuario: notif.usuario,
+      criadoEm: notif.criadoEm,
+    };
+  }
+
+  return resultado;
+}
+
+export async function getHistoricoNotificacoesAtendimento(numatend: string): Promise<Array<{
+  id: number;
+  observacao: string;
+  usuario: string | null;
+  criadoEm: Date;
+  itens: Array<{
+    motivo: string;
+    setor: string;
+    medico: string;
+  }>;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const notificacoes = await db
+    .select()
+    .from(notificacoesAtendimento)
+    .where(eq(notificacoesAtendimento.numatend, numatend))
+    .orderBy(desc(notificacoesAtendimento.criadoEm));
+
+  if (notificacoes.length === 0) return [];
+
+  const notifIds = notificacoes.map((n) => n.id);
+  const itens = await db
+    .select()
+    .from(notificacoesAtendimentoItem)
+    .where(inArray(notificacoesAtendimentoItem.notificacaoId, notifIds));
+
+  return notificacoes.map((n) => ({
+    id: n.id,
+    observacao: n.observacao,
+    usuario: n.usuario,
+    criadoEm: n.criadoEm,
+    itens: itens
+      .filter((i) => i.notificacaoId === n.id)
+      .map((i) => ({
+        motivo: i.motivo,
+        setor: i.setor,
+        medico: i.medico,
+      })),
+  }));
 }

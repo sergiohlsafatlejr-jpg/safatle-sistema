@@ -13,6 +13,7 @@ import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } fro
 import * as db from "./db";
 import { getDb } from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes, buscarMotivosNotificacao } from "./pgAtendimentos";
+import { salvarNotificacaoAtendimento, salvarNotificacoesAtendimentoEmLote, buscarNotificacoesAtendimento, getHistoricoNotificacoesAtendimento } from "./db";
 import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsPorTipo, getQuantidadePorPlano, getQuantidadePorServico } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } from "./emailService";
@@ -6228,14 +6229,22 @@ export const appRouter = router({
             conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));
             const dadosInternos = await dbInstance.select().from(atendimentosUnificados).where(and(...conditions));
             
-            // Buscar motivos de notificação do PostgreSQL externo
+            // Buscar motivos de notificação do MySQL interno
             const numatends = dadosInternos.map(d => d.numero_atendimento || "").filter(n => n !== "");
             let motivosMap: Record<string, string> = {};
             try {
-              motivosMap = await buscarMotivosNotificacao(numatends);
+              const notificacoesMySQL = await buscarNotificacoesAtendimento(numatends);
+              for (const [numatend, notif] of Object.entries(notificacoesMySQL)) {
+                motivosMap[numatend] = notif.motivo;
+              }
             } catch (err) {
-              console.error("[atendimentos.listar] Erro ao buscar motivos de notificação:", err);
-              // Não falhar a operação principal se não conseguir buscar motivos
+              console.error("[atendimentos.listar] Erro ao buscar motivos de notificação do MySQL:", err);
+              // Fallback: tentar buscar do PostgreSQL externo
+              try {
+                motivosMap = await buscarMotivosNotificacao(numatends);
+              } catch (err2) {
+                console.error("[atendimentos.listar] Erro ao buscar motivos do PostgreSQL:", err2);
+              }
             }
             
             return dadosInternos.map(d => ({
@@ -6275,18 +6284,36 @@ export const appRouter = router({
           medico: z.string(),
         })),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
-          const id = await salvarNotificacao(
-            input.numatend,
-            input.observacao,
-            input.notificacoes
-          );
-          return { success: true, id };
+          // Salvar no MySQL interno (fonte principal)
+          const mysqlId = await salvarNotificacaoAtendimento({
+            numatend: input.numatend,
+            observacao: input.observacao,
+            usuario: ctx.user?.name || "Usu\u00e1rio",
+            itens: input.notificacoes.map(n => ({
+              motivo: n.motivo,
+              setor: n.setor,
+              medico: n.medico,
+            })),
+          });
+
+          // Tentar salvar tamb\u00e9m no PostgreSQL externo (backup)
+          try {
+            await salvarNotificacao(
+              input.numatend,
+              input.observacao,
+              input.notificacoes
+            );
+          } catch (pgErr) {
+            console.warn("[registrarNotificacao] Falha ao salvar no PostgreSQL externo (backup):", pgErr);
+          }
+
+          return { success: true, id: mysqlId };
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: `Erro ao registrar notificação: ${err.message}`,
+            message: `Erro ao registrar notifica\u00e7\u00e3o: ${err.message}`,
           });
         }
       }),
@@ -6305,18 +6332,37 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          const ids = await salvarNotificacaoEmLote(
-            input.atendimentos,
-            input.observacao,
-            input.notificacoes
-          );
+          // Salvar no MySQL interno (fonte principal)
+          const dadosLote = input.atendimentos.map(a => ({
+            numatend: a.numatend,
+            observacao: input.observacao,
+            usuario: ctx.user?.name || "Usu\u00e1rio",
+            itens: input.notificacoes.map(n => ({
+              motivo: n.motivo,
+              setor: n.setor,
+              medico: n.medico,
+            })),
+          }));
 
-          // Salvar no histórico para persistência
+          const resultadoMySQL = await salvarNotificacoesAtendimentoEmLote(dadosLote);
+
+          // Tentar salvar tamb\u00e9m no PostgreSQL externo (backup)
+          try {
+            await salvarNotificacaoEmLote(
+              input.atendimentos,
+              input.observacao,
+              input.notificacoes
+            );
+          } catch (pgErr) {
+            console.warn("[registrarNotificacaoEmLote] Falha ao salvar no PostgreSQL externo (backup):", pgErr);
+          }
+
+          // Salvar no hist\u00f3rico para persist\u00eancia
           try {
             await salvarHistoricoNotificacao(
               input.atendimentos.length,
               input.observacao,
-              ctx.user?.name || "Usuário",
+              ctx.user?.name || "Usu\u00e1rio",
               input.atendimentos.map(a => ({
                 numatend: a.numatend,
                 nomepac: a.nomepac,
@@ -6330,15 +6376,14 @@ export const appRouter = router({
               input.notificacoes
             );
           } catch (histErr) {
-            // Não falhar a operação principal se o histórico falhar
-            console.error("Erro ao salvar histórico de notificação:", histErr);
+            console.error("Erro ao salvar hist\u00f3rico de notifica\u00e7\u00e3o:", histErr);
           }
 
-          return { success: true, ids, count: ids.length };
+          return { success: true, ids: [], count: resultadoMySQL.salvos };
         } catch (err: any) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: `Erro ao registrar notificações em lote: ${err.message}`,
+            message: `Erro ao registrar notifica\u00e7\u00f5es em lote: ${err.message}`,
           });
         }
       }),

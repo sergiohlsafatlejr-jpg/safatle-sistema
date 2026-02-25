@@ -2159,3 +2159,12 @@
 
 ## Bugs Reportados
 - [x] Notificações registradas na tela de Atendimentos não estão sendo salvas/exibidas na coluna Motivo
+
+## Notificações no Banco MySQL Interno
+- [x] Criar tabela notificacoes_atendimento no schema MySQL (schema.ts)
+- [x] Fazer migration (SQL direto)
+- [x] Criar helpers de banco para salvar e buscar notificações do MySQL (db.ts)
+- [x] Atualizar procedure registrarNotificacao para salvar no MySQL
+- [x] Atualizar procedure registrarNotificacaoEmLote para salvar no MySQL
+- [x] Atualizar procedure atendimentos.listar para buscar motivos do MySQL
+- [x] Testar fluxo completo de notificação e exibição

@@ -2646,3 +2646,49 @@ export type InsertAtendimento = typeof atendimentos.$inferInsert;
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
+
+/**
+ * NOTIFICAÇÕES DE ATENDIMENTOS
+ * Armazena as notificações registradas para cada atendimento (banco interno MySQL)
+ */
+
+export const notificacoesAtendimento = mysqlTable("notificacoes_atendimento", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência ao atendimento
+  numatend: varchar("numatend", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Dados da notificação
+  observacao: text("observacao").notNull().default(""),
+  usuario: varchar("usuario", { length: 255 }),
+  
+  // Metadados
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  numatendIdx: index("idx_notif_atend_numatend").on(table.numatend),
+  estabelecimentoIdx: index("idx_notif_atend_estab").on(table.estabelecimentoId),
+  criadoEmIdx: index("idx_notif_atend_criado").on(table.criadoEm),
+}));
+
+export const notificacoesAtendimentoItem = mysqlTable("notificacoes_atendimento_item", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência à notificação pai
+  notificacaoId: int("notificacaoId").notNull(),
+  
+  // Dados do item
+  motivo: varchar("motivo", { length: 255 }).notNull(),
+  setor: varchar("setor", { length: 255 }).notNull().default(""),
+  medico: varchar("medico", { length: 255 }).notNull().default(""),
+  
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  notificacaoIdx: index("idx_notif_item_notificacao").on(table.notificacaoId),
+  motivoIdx: index("idx_notif_item_motivo").on(table.motivo),
+}));
+
+export type NotificacaoAtendimento = typeof notificacoesAtendimento.$inferSelect;
+export type InsertNotificacaoAtendimento = typeof notificacoesAtendimento.$inferInsert;
+export type NotificacaoAtendimentoItem = typeof notificacoesAtendimentoItem.$inferSelect;
+export type InsertNotificacaoAtendimentoItem = typeof notificacoesAtendimentoItem.$inferInsert;
