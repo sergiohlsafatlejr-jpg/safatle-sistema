@@ -2168,3 +2168,8 @@
 - [x] Atualizar procedure registrarNotificacaoEmLote para salvar no MySQL
 - [x] Atualizar procedure atendimentos.listar para buscar motivos do MySQL
 - [x] Testar fluxo completo de notificação e exibição
+
+## Bug: Motivo de Glosa Unimed no Demonstrativo
+- [x] Investigar como o campo motivo é exibido na tela de Análise de Recurso/Demonstrativo
+- [x] Corrigir para usar campo erro_tiss como fallback quando codigo_glosa for NULL (caso Unimed)
+- [x] Testar exibição do motivo para Unimed

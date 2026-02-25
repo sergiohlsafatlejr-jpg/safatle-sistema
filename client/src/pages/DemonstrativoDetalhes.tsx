@@ -606,17 +606,17 @@ export default function DemonstrativoDetalhes() {
                               {hasGlosa ? formatCurrency(item.valorGlosa) : "-"}
                             </TableCell>
                             <TableCell>
-                              {item.codigoGlosa ? (
+                              {(item.codigoGlosa || item.erroTiss) ? (
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger>
                                       <Badge variant="destructive" className="text-xs cursor-help">
-                                        {item.codigoGlosa}
+                                        {item.codigoGlosa || (item.erroTiss ? item.erroTiss.split('-')[0] : '-')}
                                       </Badge>
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px]">
-                                      <p className="font-semibold">Glosa: {item.codigoGlosa}</p>
-                                      <p className="text-sm">{item.erroTiss || "Sem descrição"}</p>
+                                      <p className="font-semibold">Glosa: {item.codigoGlosa || (item.erroTiss ? item.erroTiss.split('-')[0] : 'N/A')}</p>
+                                      <p className="text-sm">{item.erroTiss || item.codigoGlosa || "Sem descrição"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>

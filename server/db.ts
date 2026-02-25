@@ -4228,14 +4228,29 @@ export async function getItensGlosados(filters: {
     const tipo = TIPO_MAP[(row.tipoLancamento || '').toUpperCase()] || determinarTipoProcedimento(row.codigoItem || '', row.descricaoItem || undefined);
     if (filters.tipo && filters.tipo !== "todos" && tipo !== filters.tipo) continue;
 
+    // Para Unimed: quando codigoGlosa é NULL, usar erroTiss como fonte do motivo
+    const erroTissStr = (row as any).erroTiss || '';
     const codigoGlosaStr = row.codigoGlosa || '';
-    const codigoGlosaNum = codigoGlosaStr.match(/^(\d+)/)?.[1] || '';
+    // Se codigoGlosa estiver vazio mas erroTiss tiver valor, extrair código do erroTiss
+    const codigoGlosaEfetivo = codigoGlosaStr || erroTissStr;
+    const codigoGlosaNum = codigoGlosaEfetivo.match(/^(\d+)/)?.[1] || '';
     if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosaNum !== filters.codigoGlosa) continue;
 
     const valorGlosa = parseFloat(String(row.valorGlosa || '0'));
     const valorPago = parseFloat(String(row.valorPago || '0'));
     const valorCobrado = valorGlosa + valorPago;
     const arq = arquivoMap.get(row.arquivoId);
+
+    // Determinar motivoGlosa: priorizar codigoGlosa, fallback para erroTiss
+    let motivoGlosaFinal: string;
+    if (codigoGlosaStr) {
+      motivoGlosaFinal = enriquecerCodigoGlosa(codigoGlosaStr);
+    } else if (erroTissStr) {
+      // erroTiss da Unimed vem no formato "CODIGO-DESCRICAO" ex: "2012-COBRANÇA DE MATERIAL INCOMPATÍVEL..."
+      motivoGlosaFinal = erroTissStr;
+    } else {
+      motivoGlosaFinal = 'Não informado';
+    }
 
     itensGlosados.push({
       id: row.id,
@@ -4249,7 +4264,7 @@ export async function getItensGlosados(filters: {
       valorCobrado,
       valorPago,
       valorGlosado: valorGlosa,
-      motivoGlosa: enriquecerCodigoGlosa(codigoGlosaStr),
+      motivoGlosa: motivoGlosaFinal,
       codigoGlosa: codigoGlosaNum,
       convenioId: row.convenioId || 0,
       convenioNome: convenioMap.get(row.convenioId || 0) || 'Desconhecido',
@@ -5345,8 +5360,20 @@ export async function getItensGlosadosAceitos(filters: {
     const valorPago = parseFloat(String(row.valorPago || '0'));
     const tipo = TIPO_MAP[(row.tipoLancamento || '').toUpperCase()] || determinarTipoProcedimento(row.codigoItem || '', row.descricaoItem || undefined);
 
+    // Para Unimed: quando codigoGlosa é NULL, usar erroTiss como fonte do motivo
+    const erroTissStrAceito = (row as any).erroTiss || '';
     const codigoGlosaStr = row.codigoGlosa || '';
-    const codigoGlosaNum = codigoGlosaStr.match(/^(\d+)/)?.[1] || '';
+    const codigoGlosaEfetivoAceito = codigoGlosaStr || erroTissStrAceito;
+    const codigoGlosaNum = codigoGlosaEfetivoAceito.match(/^(\d+)/)?.[1] || '';
+    
+    let motivoGlosaAceito: string;
+    if (codigoGlosaStr) {
+      motivoGlosaAceito = enriquecerCodigoGlosa(codigoGlosaStr);
+    } else if (erroTissStrAceito) {
+      motivoGlosaAceito = erroTissStrAceito;
+    } else {
+      motivoGlosaAceito = 'Não informado';
+    }
     
     itensAceitos.push({
       id: row.id,
@@ -5359,7 +5386,7 @@ export async function getItensGlosadosAceitos(filters: {
       dataExecucao: row.dataExecucao ? new Date(row.dataExecucao) : null,
       valorCobrado: valorGlosa + valorPago,
       valorGlosado: valorGlosa,
-      motivoGlosa: enriquecerCodigoGlosa(codigoGlosaStr),
+      motivoGlosa: motivoGlosaAceito,
       codigoGlosa: codigoGlosaNum,
       convenioId: row.convenioId || 0,
       convenioNome: convenioMap.get(row.convenioId || 0) || 'Desconhecido',
