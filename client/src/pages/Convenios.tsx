@@ -1,3 +1,4 @@
+// Tela de Convênios - CRUD completo com associação de prestadores
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
