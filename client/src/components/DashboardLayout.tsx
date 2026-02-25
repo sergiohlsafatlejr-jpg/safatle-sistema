@@ -126,7 +126,7 @@ const menuItems: MenuItem[] = [
   { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
   
   // Administração
-  { icon: Shield, label: "Gerenciar Permissões", path: "/gerenciar-permissoes", modulo: "permissoes" },
+
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
   { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },

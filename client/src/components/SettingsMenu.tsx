@@ -47,13 +47,13 @@ const settingsMenuItems: SettingsMenuItem[] = [
     icon: Users,
     label: "Usuários e Permissões",
     path: "/configuracoes/usuarios",
-    description: "Gerenciar usuários e roles",
+    description: "Gerenciar usuários, roles e permissões",
   },
   {
     icon: Bell,
     label: "Notificações",
     path: "/configuracoes/notificacoes",
-    description: "Alertas e canais",
+    description: "Alertas e canais de notificação",
   },
   {
     icon: Download,
