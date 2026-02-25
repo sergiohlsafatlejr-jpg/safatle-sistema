@@ -76,12 +76,7 @@ function Router() {
       <Route path={"/arquivos"} component={Arquivos} />
       <Route path={"/comparacoes"} component={Comparacoes} />
       <Route path={"/relatorios"} component={Relatorios} />
-      <Route path={"/configuracoes"} component={Configuracoes} />
-      <Route path={"/configuracoes/geral"} component={Configuracoes} />
-      <Route path={"/configuracoes/integracao"} component={Configuracoes} />
-      <Route path={"/configuracoes/usuarios"} component={Configuracoes} />
-      <Route path={"/configuracoes/notificacoes"} component={Configuracoes} />
-      <Route path={"/configuracoes/backup"} component={Configuracoes} />
+      <Route path={"/configuracoes/:rest*"} component={Configuracoes} />
       <Route path={"/conta-convenio"} component={ContaConvenio} />
       <Route path={"/conta-convenio-detalhes"} component={ContaConvenioDetalhes} />
       <Route path={"/demonstrativo-detalhes"} component={DemonstrativoDetalhes} />
