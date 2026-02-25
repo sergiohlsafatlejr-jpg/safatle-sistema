@@ -14,7 +14,7 @@ import {
   Users, Building2, Stethoscope, FlaskConical,
   ArrowUpDown, Download, Plus, X, RefreshCw,
   Search, Bell, AlertTriangle, Clock, Timer, ArrowLeft, Shield,
-  CheckSquare, FileText
+  CheckSquare, FileText, Mail, Send
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -360,6 +360,11 @@ export default function Atendimentos() {
   const [loteNotificacaoLinhas, setLoteNotificacaoLinhas] = useState<NotificacaoLinha[]>([{ motivo: "", setor: "", medico: "" }]);
   const [loteObservacao, setLoteObservacao] = useState("");
 
+  // E-mail
+  const [emailDestinatario, setEmailDestinatario] = useState("");
+  const [emailMensagem, setEmailMensagem] = useState("");
+  const [emailExpandido, setEmailExpandido] = useState(false);
+
   // Aba ativa
   const [abaAtiva, setAbaAtiva] = useState("atendimentos");
 
@@ -474,6 +479,53 @@ export default function Atendimentos() {
       toast.error(`Erro ao registrar notificações: ${err.message}`);
     },
   });
+
+  // Mutation de envio de e-mail
+  const enviarEmailMutation = trpc.atendimentos.enviarNotificacaoEmail.useMutation({
+    onSuccess: (result) => {
+      toast.success(`E-mail enviado com sucesso!`);
+      setEmailDestinatario("");
+      setEmailMensagem("");
+      setEmailExpandido(false);
+    },
+    onError: (err) => {
+      toast.error(`Erro ao enviar e-mail: ${err.message}`);
+    },
+  });
+
+  function enviarEmailSelecionados() {
+    if (selecionados.size === 0) {
+      toast.error("Selecione pelo menos um atendimento");
+      return;
+    }
+    if (!emailDestinatario.trim()) {
+      toast.error("Informe o e-mail do destinatário");
+      return;
+    }
+    // Validação básica de e-mail
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailDestinatario.trim())) {
+      toast.error("E-mail inválido. Verifique o endereço informado.");
+      return;
+    }
+
+    const atendimentosSelecionadosData = dadosFiltrados.filter(d => selecionados.has(d.numatend));
+    const nomeEstab = estabelecimentoAtual?.nome || "Estabelecimento";
+
+    enviarEmailMutation.mutate({
+      destinatarioEmail: emailDestinatario.trim(),
+      estabelecimentoNome: nomeEstab,
+      mensagemPersonalizada: emailMensagem.trim() || undefined,
+      atendimentos: atendimentosSelecionadosData.map(a => ({
+        paciente: a.nomepac || "",
+        numatend: a.numatend || "",
+        tipoAtendimento: a.tipoatendimentodescricao || "-",
+        plano: a.nomeplaco || "Sem Plano",
+        diasParado: a.diasParado || 0,
+        dataEntrada: a.datatend ? new Date(a.datatend).toLocaleDateString("pt-BR") : "-",
+      })),
+    });
+  }
 
   const [, navigate] = useLocation();
 
@@ -904,36 +956,105 @@ export default function Atendimentos() {
 
           {/* Barra de seleção */}
           {selecionados.size > 0 && (
-            <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 animate-in fade-in slide-in-from-top-2">
-              <CheckSquare className="w-5 h-5 text-primary" />
-              <span className="text-sm font-medium">
-                {selecionados.size} atendimento{selecionados.size > 1 ? "s" : ""} selecionado{selecionados.size > 1 ? "s" : ""}
-              </span>
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 h-8"
-                  onClick={baixarPDFSelecionados}
-                >
-                  <FileText className="w-3.5 h-3.5" /> Baixar PDF
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-700"
-                  onClick={abrirModalLote}
-                >
-                  <Bell className="w-3.5 h-3.5" /> Notificar Selecionados
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-muted-foreground"
-                  onClick={() => setSelecionados(new Set())}
-                >
-                  <X className="w-3.5 h-3.5" /> Limpar
-                </Button>
+            <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 animate-in fade-in slide-in-from-top-2 space-y-3">
+              <div className="flex items-center gap-3">
+                <CheckSquare className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium">
+                  {selecionados.size} atendimento{selecionados.size > 1 ? "s" : ""} selecionado{selecionados.size > 1 ? "s" : ""}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8"
+                    onClick={baixarPDFSelecionados}
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Baixar PDF
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-700"
+                    onClick={abrirModalLote}
+                  >
+                    <Bell className="w-3.5 h-3.5" /> Notificar Selecionados
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={emailExpandido ? "default" : "outline"}
+                    className={`gap-1.5 h-8 ${emailExpandido ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                    onClick={() => setEmailExpandido(!emailExpandido)}
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Enviar por E-mail
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-muted-foreground"
+                    onClick={() => setSelecionados(new Set())}
+                  >
+                    <X className="w-3.5 h-3.5" /> Limpar
+                  </Button>
+                </div>
               </div>
+
+              {/* Painel de envio por e-mail expandível */}
+              {emailExpandido && (
+                <div className="bg-background/60 rounded-lg border border-border/50 p-4 space-y-3 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-blue-400">
+                    <Mail className="w-4 h-4" />
+                    Enviar {selecionados.size} atendimento{selecionados.size > 1 ? 's' : ''} por e-mail
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">E-mail do destinatário *</label>
+                      <Input
+                        type="email"
+                        placeholder="exemplo@email.com"
+                        value={emailDestinatario}
+                        onChange={e => setEmailDestinatario(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">Mensagem personalizada (opcional)</label>
+                      <Input
+                        placeholder="Mensagem adicional para o e-mail..."
+                        value={emailMensagem}
+                        onChange={e => setEmailMensagem(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      O e-mail será enviado via <strong>notificacoes@safatle.com.br</strong> com a lista dos atendimentos selecionados.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => { setEmailExpandido(false); setEmailDestinatario(""); setEmailMensagem(""); }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 h-8 bg-blue-600 hover:bg-blue-700"
+                        onClick={enviarEmailSelecionados}
+                        disabled={enviarEmailMutation.isPending || !emailDestinatario.trim()}
+                      >
+                        {enviarEmailMutation.isPending ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        {enviarEmailMutation.isPending ? 'Enviando...' : 'Enviar E-mail'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -2141,3 +2141,18 @@
 - [x] Corrigir procedure transformarParaAtendimentos para filtrar por configId/tipoDados
 - [x] Limpar registros de faturamento da warleine_atendimentos_staging após migração
 - [x] Testar fluxo completo: Hospital Urológico 406 atendimentos, Instituto do Rim 697 atendimentos
+
+## Notificação por E-mail (SMTP)
+- [x] Solicitar e configurar credenciais SMTP (host, porta, usuário, senha, remetente)
+- [x] Instalar pacote nodemailer para envio de e-mail
+- [x] Criar serviço de envio de e-mail no backend (server/emailService.ts)
+- [x] Criar procedure tRPC para envio de notificação por e-mail
+- [x] Adicionar campo de e-mail do destinatário na tela de notificação
+- [x] Formatar o conteúdo da notificação em HTML para o e-mail
+- [ ] Testar envio de e-mail real
+- [x] Escrever testes vitest para o serviço de e-mail
+
+## Envio de E-mail na Barra de Seleção da Tela de Atendimentos
+- [x] Criar procedure de envio de e-mail com atendimentos selecionados no backend
+- [x] Adicionar campo de e-mail e botão "Enviar por E-mail" na barra de seleção do frontend
+- [ ] Testar envio de e-mail com atendimentos selecionados

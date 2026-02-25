@@ -15,6 +15,7 @@ import { getDb } from "./db";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
 import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsPorTipo, getQuantidadePorPlano, getQuantidadePorServico } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
+import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } from "./emailService";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 
@@ -6444,6 +6445,56 @@ export const appRouter = router({
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `Erro ao buscar quantidade por servico: ${err.message}`,
+          });
+        }
+      }),
+
+    // Verificar conexão SMTP
+    verificarSMTP: protectedProcedure
+      .query(async () => {
+        return await verificarConexaoSMTP();
+      }),
+
+    // Enviar notificação por e-mail
+    enviarNotificacaoEmail: protectedProcedure
+      .input(z.object({
+        destinatarioEmail: z.string().email(),
+        estabelecimentoNome: z.string(),
+        mensagemPersonalizada: z.string().optional(),
+        atendimentos: z.array(z.object({
+          paciente: z.string(),
+          numatend: z.string(),
+          tipoAtendimento: z.string(),
+          plano: z.string(),
+          diasParado: z.number(),
+          dataEntrada: z.string(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const html = gerarHtmlNotificacaoAtendimentos({
+            estabelecimentoNome: input.estabelecimentoNome,
+            totalAtendimentos: input.atendimentos.length,
+            atendimentos: input.atendimentos,
+            mensagemPersonalizada: input.mensagemPersonalizada,
+          });
+
+          const resultado = await enviarEmail({
+            destinatario: input.destinatarioEmail,
+            assunto: `[Portal Safatle] Notificação de ${input.atendimentos.length} Atendimento${input.atendimentos.length > 1 ? 's' : ''} Parado${input.atendimentos.length > 1 ? 's' : ''} - ${input.estabelecimentoNome}`,
+            conteudoHtml: html,
+            conteudoTexto: `Notificação de ${input.atendimentos.length} atendimentos parados no ${input.estabelecimentoNome}. Acesse o Portal Safatle para mais detalhes.`,
+          });
+
+          if (!resultado.ok) {
+            throw new Error(resultado.error || "Erro desconhecido ao enviar e-mail");
+          }
+
+          return { success: true, messageId: resultado.messageId };
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao enviar e-mail: ${err.message}`,
           });
         }
       }),

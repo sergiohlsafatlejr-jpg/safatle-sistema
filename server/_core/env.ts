@@ -17,4 +17,9 @@ export const ENV = {
   warleineDbName: process.env.WARLEINE_DB_NAME ?? "",
   warleineDbUser: process.env.WARLEINE_DB_USER ?? "",
   warleineDbPassword: process.env.WARLEINE_DB_PASSWORD ?? "",
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: process.env.SMTP_PORT ?? "587",
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  smtpFrom: process.env.SMTP_FROM ?? "",
 };
