@@ -156,7 +156,9 @@ export const integradorDadosRouter = router({
   /**
    * Lista todas as configurações
    */
-  listarConfiguracoes: protectedProcedure.query(async ({ ctx }) => {
+  listarConfiguracoes: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
     try {
       if (ctx.user?.role !== "admin") {
         return {
@@ -173,7 +175,10 @@ export const integradorDadosRouter = router({
         };
       }
 
-      const configs = await db.select().from(queryConfiguracoes);
+      const estabId = input?.estabelecimentoId;
+      const configs = estabId
+        ? await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.estabelecimentoId, estabId))
+        : await db.select().from(queryConfiguracoes);
 
       return {
         configuracoes: configs.map((c) => ({

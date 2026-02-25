@@ -2097,3 +2097,8 @@
 - [x] Atualizar frontend do Integrador com cards EASYVISION
 - [x] Testar fluxo completo: EASYVISION -> staging -> atendimentos_unificados
 - [x] Escrever testes unitários para EasyVisionConnector
+
+## Bugs - Integrador de Dados
+
+- [x] Filtrar configurações por estabelecimento logado (queries do Hospital Urológico aparecem no Instituto do Rim)
+- [x] Corrigir bug de duplicação ao atualizar query (ao clicar em atualizar, gera as duas queries da tela) - resolvido pelo filtro de estabelecimento

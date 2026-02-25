@@ -60,7 +60,10 @@ export function IntegradorDados() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 1;
 
-  const listarConfiguracoes = trpc.integradorDados.listarConfiguracoes.useQuery();
+  const listarConfiguracoes = trpc.integradorDados.listarConfiguracoes.useQuery(
+    { estabelecimentoId },
+    { enabled: !!estabelecimentoId }
+  );
   const obterStatus = trpc.integradorDados.obterStatus.useQuery(
     { configId: undefined },
     { enabled: !!estabelecimentoId }
