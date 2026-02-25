@@ -12,7 +12,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getDb } from "./db";
-import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes } from "./pgAtendimentos";
+import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes, buscarMotivosNotificacao } from "./pgAtendimentos";
 import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsPorTipo, getQuantidadePorPlano, getQuantidadePorServico } from "./atendimentosUnificados";
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } from "./emailService";
@@ -6227,6 +6227,17 @@ export const appRouter = router({
             }
             conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));
             const dadosInternos = await dbInstance.select().from(atendimentosUnificados).where(and(...conditions));
+            
+            // Buscar motivos de notificação do PostgreSQL externo
+            const numatends = dadosInternos.map(d => d.numero_atendimento || "").filter(n => n !== "");
+            let motivosMap: Record<string, string> = {};
+            try {
+              motivosMap = await buscarMotivosNotificacao(numatends);
+            } catch (err) {
+              console.error("[atendimentos.listar] Erro ao buscar motivos de notificação:", err);
+              // Não falhar a operação principal se não conseguir buscar motivos
+            }
+            
             return dadosInternos.map(d => ({
               numatend: d.numero_atendimento || "",
               nomeplaco: d.convenio || "",
@@ -6239,7 +6250,7 @@ export const appRouter = router({
               codserv: d.codigo_servico || "",
               procprin: d.codigo_procedimento || "",
               codcc_destino: d.destino_conta || "",
-              motivo: null,
+              motivo: motivosMap[d.numero_atendimento || ""] || null,
               diasParado: calcularDiasParado(d.data_saida ? new Date(d.data_saida).toISOString() : null),
               origemSistema: d.origemSistema,
             }));

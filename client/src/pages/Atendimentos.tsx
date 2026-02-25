@@ -1178,9 +1178,11 @@ export default function Atendimentos() {
                         </td>
                         <td className="px-4 py-3">{d.codserv}</td>
                         <td className="px-4 py-3">{d.codcc_destino || "-"}</td>
-                        <td className="px-4 py-3 max-w-[150px] truncate" title={d.motivo || ""}>
+                        <td className="px-4 py-3 max-w-[150px] truncate" title={d.motivo ? getMotivoLabel(d.motivo) : ""}>
                           {d.motivo ? (
-                            <span className="text-amber-400">{d.motivo}</span>
+                            <Badge variant="secondary" className="text-xs bg-amber-500/20 text-amber-400 border-amber-500/30">
+                              {getMotivoLabel(d.motivo)}
+                            </Badge>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}

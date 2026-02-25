@@ -280,6 +280,41 @@ export async function listarHistoricoNotificacoes(): Promise<HistoricoNotificaca
   }
 }
 
+/**
+ * Buscar motivos de notificação mais recentes para uma lista de atendimentos
+ * Retorna um mapa { numatend: motivo }
+ */
+export async function buscarMotivosNotificacao(
+  numatends: string[]
+): Promise<Record<string, string>> {
+  if (numatends.length === 0) return {};
+  const client = await getPool().connect();
+  try {
+    // Buscar a notificação mais recente de cada atendimento com seu motivo
+    const result = await client.query<{ numatend: string; motivo: string }>(`
+      SELECT DISTINCT ON (rn.numatend::text)
+        rn.numatend::text AS numatend,
+        rni.motivo
+      FROM c33581562000206.registro_notificacao rn
+      INNER JOIN c33581562000206.registro_notificacao_item rni
+        ON rni.notificacao_id = rn.id
+      WHERE rn.numatend::text = ANY($1)
+      ORDER BY rn.numatend::text, rn.id DESC
+    `, [numatends]);
+
+    const mapa: Record<string, string> = {};
+    for (const row of result.rows) {
+      mapa[row.numatend] = row.motivo;
+    }
+    return mapa;
+  } catch (err) {
+    console.error("[pgAtendimentos] Erro ao buscar motivos de notificação:", err);
+    return {};
+  } finally {
+    client.release();
+  }
+}
+
 export async function testConnection(): Promise<boolean> {
   const client = await getPool().connect();
   try {

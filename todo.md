@@ -2156,3 +2156,6 @@
 - [x] Criar procedure de envio de e-mail com atendimentos selecionados no backend
 - [x] Adicionar campo de e-mail e botão "Enviar por E-mail" na barra de seleção do frontend
 - [ ] Testar envio de e-mail com atendimentos selecionados
+
+## Bugs Reportados
+- [x] Notificações registradas na tela de Atendimentos não estão sendo salvas/exibidas na coluna Motivo
