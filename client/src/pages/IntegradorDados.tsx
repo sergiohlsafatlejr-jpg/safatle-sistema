@@ -32,6 +32,9 @@ import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText
 import { QueryConfigForm } from "@/components/QueryConfigForm";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
+import { ConexoesTab } from "@/components/integrador/ConexoesTab";
+import { TabelasTab } from "@/components/integrador/TabelasTab";
+import { MapeamentosTab } from "@/components/integrador/MapeamentosTab";
 
 const SISTEMA_LABELS: Record<string, string> = {
   warleine: "WARLEINE",
@@ -280,6 +283,9 @@ export function IntegradorDados() {
       <Tabs defaultValue="status" className="space-y-4">
         <TabsList>
           <TabsTrigger value="status">Status</TabsTrigger>
+          <TabsTrigger value="conexoes">Conexões</TabsTrigger>
+          <TabsTrigger value="tabelas">Tabelas</TabsTrigger>
+          <TabsTrigger value="mapeamentos">Mapeamentos</TabsTrigger>
           <TabsTrigger value="dados">Dados Sincronizados</TabsTrigger>
           <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
@@ -443,6 +449,18 @@ export function IntegradorDados() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="conexoes" className="space-y-4">
+          <ConexoesTab estabelecimentoId={estabelecimentoId} />
+        </TabsContent>
+
+        <TabsContent value="tabelas" className="space-y-4">
+          <TabelasTab estabelecimentoId={estabelecimentoId} />
+        </TabsContent>
+
+        <TabsContent value="mapeamentos" className="space-y-4">
+          <MapeamentosTab estabelecimentoId={estabelecimentoId} />
         </TabsContent>
 
         <TabsContent value="dados" className="space-y-4">

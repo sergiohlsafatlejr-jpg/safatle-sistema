@@ -2178,3 +2178,17 @@
 - [x] Adicionar coluna Observação na tabela HTML do e-mail de notificação
 - [x] Adicionar coluna Observação no PDF de notificação (renomeado Motivo para Observação)
 - [x] Garantir que a observação é passada corretamente do frontend para o backend
+
+## Integrador de Dados - Tela de Gerenciamento
+- [x] Criar schema de metadados (integracao_conexoes, integracao_tabelas, integracao_campos, integracao_sincronizacoes)
+- [x] Fazer migration das tabelas de metadados
+- [x] Criar helpers de banco para CRUD de conexões, tabelas e mapeamentos
+- [x] Criar procedures tRPC para gerenciamento de integrações (admin only)
+- [x] Criar execução de DDL dinâmico para criar/alterar tabelas no MySQL
+- [x] Criar endpoints de recebimento de dados do agente local
+- [x] Criar tela frontend do Integrador de Dados com abas (Conexões, Tabelas, Mapeamentos, Sincronizações)
+- [x] Criar funcionalidade de criação de tabelas pela interface (nome, colunas, tipos)
+- [x] Criar funcionalidade de mapeamento de campos (origem → destino)
+- [x] Criar tela de monitoramento de sincronizações e logs
+- [x] Adicionar rota no menu lateral (admin only) - já existia
+- [x] Escrever testes vitest

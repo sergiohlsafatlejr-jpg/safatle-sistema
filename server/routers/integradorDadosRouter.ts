@@ -5,6 +5,7 @@ import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
 import { logger } from "../_core/logger";
+import * as dbIntegrador from "../db-integrador";
 import { getDb } from "../db";
 import { estabelecimentos } from "../../drizzle/schema";
 import { queryConfiguracoes, warleineAtendimentosStaging, warleineFaturamentoStaging, faturamentoGeral, atendimentosSemConta, atendimentosAFaturar } from "../../drizzle/schema-integracao";
@@ -1128,4 +1129,614 @@ export const integradorDadosRouter = router({
         };
       }
     }),
+
+  // ============================================================
+  // GERENCIAMENTO DE CONEXÕES (Novo Integrador)
+  // ============================================================
+
+  conexoes: router({
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return [];
+        return dbIntegrador.listarConexoes(input?.estabelecimentoId);
+      }),
+
+    obter: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return null;
+        return dbIntegrador.obterConexao(input.id);
+      }),
+
+    criar: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(1),
+        descricao: z.string().optional(),
+        tipo: z.enum(["postgresql", "mysql", "sqlserver", "oracle"]),
+        host: z.string().min(1),
+        porta: z.number(),
+        banco: z.string().min(1),
+        usuario: z.string().min(1),
+        senha: z.string().min(1),
+        ssl: z.enum(["sim", "nao"]).default("nao"),
+        estabelecimentoId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const id = await dbIntegrador.criarConexao({
+          nome: input.nome,
+          descricao: input.descricao || null,
+          tipo: input.tipo,
+          host: input.host,
+          porta: input.porta,
+          banco: input.banco,
+          usuario: input.usuario,
+          senhaEncriptada: Buffer.from(input.senha).toString("base64"),
+          ssl: input.ssl,
+          estabelecimentoId: input.estabelecimentoId || null,
+        });
+        return { sucesso: true, id };
+      }),
+
+    atualizar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().optional(),
+        descricao: z.string().optional(),
+        tipo: z.enum(["postgresql", "mysql", "sqlserver", "oracle"]).optional(),
+        host: z.string().optional(),
+        porta: z.number().optional(),
+        banco: z.string().optional(),
+        usuario: z.string().optional(),
+        senha: z.string().optional(),
+        ssl: z.enum(["sim", "nao"]).optional(),
+        estabelecimentoId: z.number().nullable().optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const { id, senha, ...rest } = input;
+        const dados: any = { ...rest };
+        if (senha) dados.senhaEncriptada = Buffer.from(senha).toString("base64");
+        await dbIntegrador.atualizarConexao(id, dados);
+        return { sucesso: true };
+      }),
+
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        await dbIntegrador.excluirConexao(input.id);
+        return { sucesso: true };
+      }),
+
+    testar: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const conexao = await dbIntegrador.obterConexao(input.id);
+        if (!conexao) throw new Error("Conexão não encontrada");
+        try {
+          const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+          if (conexao.tipo === "postgresql") {
+            const connector = new EasyVisionConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (ok) {
+              await connector.desconectar();
+              await dbIntegrador.atualizarStatusConexao(input.id, "ok");
+              return { sucesso: true, mensagem: "Conexão estabelecida com sucesso" };
+            }
+            throw new Error("Falha ao conectar");
+          } else {
+            // Para outros tipos, tentar via WarleineConnector (MySQL/SQL Server)
+            const connector = new WarleineConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (ok) {
+              await connector.desconectar();
+              await dbIntegrador.atualizarStatusConexao(input.id, "ok");
+              return { sucesso: true, mensagem: "Conexão estabelecida com sucesso" };
+            }
+            throw new Error("Falha ao conectar");
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Erro desconhecido";
+          await dbIntegrador.atualizarStatusConexao(input.id, "erro", msg);
+          return { sucesso: false, mensagem: msg };
+        }
+      }),
+  }),
+
+  // ============================================================
+  // GERENCIAMENTO DE TABELAS DINÂMICAS
+  // ============================================================
+
+  tabelas: router({
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return [];
+        return dbIntegrador.listarTabelas(input?.estabelecimentoId);
+      }),
+
+    obter: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return null;
+        const tabela = await dbIntegrador.obterTabela(input.id);
+        if (!tabela) return null;
+        const colunas = await dbIntegrador.listarColunas(input.id);
+        return { ...tabela, colunas };
+      }),
+
+    criar: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(1).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, "Nome deve conter apenas letras, números e underscore"),
+        nomeExibicao: z.string().min(1),
+        descricao: z.string().optional(),
+        estabelecimentoId: z.number().optional(),
+        colunas: z.array(z.object({
+          nome: z.string().min(1),
+          nomeExibicao: z.string().min(1),
+          tipo: z.enum(["varchar", "int", "bigint", "decimal", "text", "date", "datetime", "boolean"]),
+          tamanho: z.number().optional(),
+          precisao: z.number().optional(),
+          obrigatorio: z.enum(["sim", "nao"]).default("nao"),
+          chaveUnica: z.enum(["sim", "nao"]).default("nao"),
+          valorPadrao: z.string().optional(),
+        })).min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        
+        // 1. Criar registro na tabela de metadados
+        const tabelaId = await dbIntegrador.criarTabela({
+          nome: input.nome,
+          nomeExibicao: input.nomeExibicao,
+          descricao: input.descricao || null,
+          estabelecimentoId: input.estabelecimentoId || null,
+          criadaNoBanco: "nao",
+        });
+
+        // 2. Salvar colunas
+        await dbIntegrador.criarColunasEmLote(
+          input.colunas.map((col, idx) => ({
+            tabelaId,
+            nome: col.nome,
+            nomeExibicao: col.nomeExibicao,
+            tipo: col.tipo,
+            tamanho: col.tamanho || null,
+            precisao: col.precisao || null,
+            obrigatorio: col.obrigatorio,
+            chaveUnica: col.chaveUnica,
+            valorPadrao: col.valorPadrao || null,
+            ordem: idx,
+          }))
+        );
+
+        // 3. Criar tabela real no MySQL
+        try {
+          await dbIntegrador.executarDDLCriarTabela(input.nome, input.colunas.map(col => ({
+            nome: col.nome,
+            tipo: col.tipo,
+            tamanho: col.tamanho || null,
+            precisao: col.precisao || null,
+            obrigatorio: col.obrigatorio,
+            chaveUnica: col.chaveUnica,
+            valorPadrao: col.valorPadrao || null,
+          })));
+          await dbIntegrador.atualizarTabela(tabelaId, { criadaNoBanco: "sim" });
+        } catch (error) {
+          logger.error({ message: "Erro ao criar tabela no MySQL", error: error instanceof Error ? error.message : String(error) });
+          // Não falhar - a tabela de metadados foi criada
+        }
+
+        return { sucesso: true, id: tabelaId };
+      }),
+
+    adicionarColuna: protectedProcedure
+      .input(z.object({
+        tabelaId: z.number(),
+        nome: z.string().min(1),
+        nomeExibicao: z.string().min(1),
+        tipo: z.enum(["varchar", "int", "bigint", "decimal", "text", "date", "datetime", "boolean"]),
+        tamanho: z.number().optional(),
+        precisao: z.number().optional(),
+        obrigatorio: z.enum(["sim", "nao"]).default("nao"),
+        valorPadrao: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const tabela = await dbIntegrador.obterTabela(input.tabelaId);
+        if (!tabela) throw new Error("Tabela não encontrada");
+
+        // Adicionar coluna nos metadados
+        const colunas = await dbIntegrador.listarColunas(input.tabelaId);
+        await dbIntegrador.criarColuna({
+          tabelaId: input.tabelaId,
+          nome: input.nome,
+          nomeExibicao: input.nomeExibicao,
+          tipo: input.tipo,
+          tamanho: input.tamanho || null,
+          precisao: input.precisao || null,
+          obrigatorio: input.obrigatorio,
+          chaveUnica: "nao",
+          valorPadrao: input.valorPadrao || null,
+          ordem: colunas.length,
+        });
+
+        // Adicionar coluna na tabela real
+        if (tabela.criadaNoBanco === "sim") {
+          try {
+            await dbIntegrador.executarDDLAdicionarColuna(`integ_${tabela.nome}`, {
+              nome: input.nome,
+              tipo: input.tipo,
+              tamanho: input.tamanho || null,
+              precisao: input.precisao || null,
+              obrigatorio: input.obrigatorio,
+              valorPadrao: input.valorPadrao || null,
+            });
+          } catch (error) {
+            logger.error({ message: "Erro ao adicionar coluna", error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+
+        return { sucesso: true };
+      }),
+
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const tabela = await dbIntegrador.obterTabela(input.id);
+        if (!tabela) throw new Error("Tabela não encontrada");
+
+        // Remover tabela real se existir
+        if (tabela.criadaNoBanco === "sim") {
+          try {
+            await dbIntegrador.executarDDLRemoverTabela(`integ_${tabela.nome}`);
+          } catch (error) {
+            logger.error({ message: "Erro ao remover tabela", error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+
+        // Remover metadados
+        await dbIntegrador.excluirTabela(input.id);
+        return { sucesso: true };
+      }),
+
+    consultarDados: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        limite: z.number().default(100),
+        offset: z.number().default(0),
+      }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return { dados: [], total: 0 };
+        const tabela = await dbIntegrador.obterTabela(input.id);
+        if (!tabela || tabela.criadaNoBanco !== "sim") return { dados: [], total: 0 };
+
+        const nomeReal = `integ_${tabela.nome}`;
+        const [dados, total] = await Promise.all([
+          dbIntegrador.consultarDadosTabela(nomeReal, input.limite, input.offset),
+          dbIntegrador.contarRegistrosTabela(nomeReal),
+        ]);
+        return { dados, total };
+      }),
+  }),
+
+  // ============================================================
+  // GERENCIAMENTO DE MAPEAMENTOS
+  // ============================================================
+
+  mapeamentos: router({
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return [];
+        return dbIntegrador.listarMapeamentos(input?.estabelecimentoId);
+      }),
+
+    obter: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return null;
+        const mapeamento = await dbIntegrador.obterMapeamento(input.id);
+        if (!mapeamento) return null;
+        const campos = await dbIntegrador.listarCamposMapeamento(input.id);
+        return { ...mapeamento, campos };
+      }),
+
+    criar: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(1),
+        descricao: z.string().optional(),
+        conexaoOrigemId: z.number(),
+        tabelaDestinoId: z.number(),
+        queryOrigem: z.string().min(1),
+        campoChave: z.string().optional(),
+        frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual"),
+        estabelecimentoId: z.number().optional(),
+        campos: z.array(z.object({
+          colunaOrigemNome: z.string(),
+          colunaDestinoId: z.number(),
+          transformacao: z.string().optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const id = await dbIntegrador.criarMapeamento({
+          nome: input.nome,
+          descricao: input.descricao || null,
+          conexaoOrigemId: input.conexaoOrigemId,
+          tabelaDestinoId: input.tabelaDestinoId,
+          queryOrigem: input.queryOrigem,
+          campoChave: input.campoChave || null,
+          frequencia: input.frequencia,
+          estabelecimentoId: input.estabelecimentoId || null,
+        });
+
+        // Salvar campos se fornecidos
+        if (input.campos && input.campos.length > 0) {
+          await dbIntegrador.salvarCamposMapeamento(id, input.campos.map(c => ({
+            colunaOrigemNome: c.colunaOrigemNome,
+            colunaDestinoId: c.colunaDestinoId,
+            transformacao: c.transformacao || null,
+          })));
+        }
+
+        return { sucesso: true, id };
+      }),
+
+    atualizar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().optional(),
+        descricao: z.string().optional(),
+        queryOrigem: z.string().optional(),
+        campoChave: z.string().optional(),
+        frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).optional(),
+        ativo: z.enum(["sim", "nao"]).optional(),
+        campos: z.array(z.object({
+          colunaOrigemNome: z.string(),
+          colunaDestinoId: z.number(),
+          transformacao: z.string().optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const { id, campos, ...rest } = input;
+        await dbIntegrador.atualizarMapeamento(id, rest as any);
+        if (campos) {
+          await dbIntegrador.salvarCamposMapeamento(id, campos.map(c => ({
+            colunaOrigemNome: c.colunaOrigemNome,
+            colunaDestinoId: c.colunaDestinoId,
+            transformacao: c.transformacao || null,
+          })));
+        }
+        return { sucesso: true };
+      }),
+
+    excluir: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        await dbIntegrador.excluirMapeamento(input.id);
+        return { sucesso: true };
+      }),
+
+    executar: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const mapeamento = await dbIntegrador.obterMapeamento(input.id);
+        if (!mapeamento) throw new Error("Mapeamento não encontrado");
+
+        const conexao = await dbIntegrador.obterConexao(mapeamento.conexaoOrigemId);
+        if (!conexao) throw new Error("Conexão de origem não encontrada");
+
+        const tabela = await dbIntegrador.obterTabela(mapeamento.tabelaDestinoId);
+        if (!tabela) throw new Error("Tabela de destino não encontrada");
+
+        const campos = await dbIntegrador.listarCamposMapeamento(input.id);
+        const colunasDestino = await dbIntegrador.listarColunas(tabela.id);
+
+        // Criar log de sincronização
+        const syncId = await dbIntegrador.criarSincronizacao({
+          mapeamentoId: input.id,
+          status: "executando",
+          executadoPor: ctx.user?.name || "admin",
+        });
+
+        const inicio = Date.now();
+
+        try {
+          // Conectar à origem
+          const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+          let dadosOrigem: any[] = [];
+
+          if (conexao.tipo === "postgresql") {
+            const connector = new EasyVisionConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (!ok) throw new Error("Falha ao conectar à origem");
+            dadosOrigem = await connector.executarQuery(mapeamento.queryOrigem);
+            await connector.desconectar();
+          } else {
+            const connector = new WarleineConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (!ok) throw new Error("Falha ao conectar à origem");
+            dadosOrigem = await connector.executarQuery(mapeamento.queryOrigem);
+            await connector.desconectar();
+          }
+
+          // Mapear campos
+          const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
+          const registrosMapeados = dadosOrigem.map(row => {
+            const registro: Record<string, any> = {};
+            for (const campo of campos) {
+              const nomeDestino = colunasMap.get(campo.colunaDestinoId);
+              if (nomeDestino) {
+                let valor = row[campo.colunaOrigemNome];
+                // Aplicar transformação se houver
+                if (campo.transformacao) {
+                  try {
+                    if (campo.transformacao === "UPPER") valor = String(valor || "").toUpperCase();
+                    else if (campo.transformacao === "LOWER") valor = String(valor || "").toLowerCase();
+                    else if (campo.transformacao === "TRIM") valor = String(valor || "").trim();
+                  } catch { /* ignorar erro de transformação */ }
+                }
+                registro[nomeDestino] = valor;
+              }
+            }
+            return registro;
+          });
+
+          // Inserir dados na tabela destino
+          const nomeReal = `integ_${tabela.nome}`;
+          const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
+
+          // Atualizar contagem
+          const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
+          await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+
+          // Atualizar log
+          const duracao = Date.now() - inicio;
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "sucesso",
+            registrosLidos: dadosOrigem.length,
+            registrosInseridos: resultado.inseridos,
+            finalizadoEm: new Date(),
+            duracaoMs: duracao,
+          });
+
+          return {
+            sucesso: true,
+            mensagem: `Sincronização concluída: ${resultado.inseridos} registros inseridos em ${(duracao / 1000).toFixed(1)}s`,
+            registrosLidos: dadosOrigem.length,
+            registrosInseridos: resultado.inseridos,
+          };
+        } catch (error) {
+          const duracao = Date.now() - inicio;
+          const msg = error instanceof Error ? error.message : "Erro desconhecido";
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "erro",
+            erroMensagem: msg,
+            finalizadoEm: new Date(),
+            duracaoMs: duracao,
+          });
+          return { sucesso: false, mensagem: msg, registrosLidos: 0, registrosInseridos: 0 };
+        }
+      }),
+  }),
+
+  // ============================================================
+  // SINCRONIZAÇÕES (LOG)
+  // ============================================================
+
+  sincronizacoesLog: router({
+    listar: protectedProcedure
+      .input(z.object({ mapeamentoId: z.number().optional(), limite: z.number().default(50) }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return [];
+        return dbIntegrador.listarSincronizacoes(input?.mapeamentoId, input?.limite);
+      }),
+  }),
+
+  // ============================================================
+  // ENDPOINT PARA AGENTE LOCAL
+  // ============================================================
+
+  agenteLocal: router({
+    enviarDados: protectedProcedure
+      .input(z.object({
+        mapeamentoId: z.number(),
+        registros: z.array(z.record(z.string(), z.any())),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const mapeamento = await dbIntegrador.obterMapeamento(input.mapeamentoId);
+        if (!mapeamento) throw new Error("Mapeamento não encontrado");
+
+        const tabela = await dbIntegrador.obterTabela(mapeamento.tabelaDestinoId);
+        if (!tabela) throw new Error("Tabela de destino não encontrada");
+
+        const campos = await dbIntegrador.listarCamposMapeamento(input.mapeamentoId);
+        const colunasDestino = await dbIntegrador.listarColunas(tabela.id);
+        const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
+
+        // Criar log
+        const syncId = await dbIntegrador.criarSincronizacao({
+          mapeamentoId: input.mapeamentoId,
+          status: "executando",
+          executadoPor: "agente-local",
+        });
+
+        const inicio = Date.now();
+
+        try {
+          // Mapear campos
+          const registrosMapeados = input.registros.map(row => {
+            const registro: Record<string, any> = {};
+            for (const campo of campos) {
+              const nomeDestino = colunasMap.get(campo.colunaDestinoId);
+              if (nomeDestino) {
+                registro[nomeDestino] = row[campo.colunaOrigemNome];
+              }
+            }
+            return registro;
+          });
+
+          const nomeReal = `integ_${tabela.nome}`;
+          const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
+
+          const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
+          await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+
+          const duracao = Date.now() - inicio;
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "sucesso",
+            registrosLidos: input.registros.length,
+            registrosInseridos: resultado.inseridos,
+            finalizadoEm: new Date(),
+            duracaoMs: duracao,
+          });
+
+          return { sucesso: true, registrosInseridos: resultado.inseridos };
+        } catch (error) {
+          const duracao = Date.now() - inicio;
+          const msg = error instanceof Error ? error.message : "Erro desconhecido";
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "erro",
+            erroMensagem: msg,
+            finalizadoEm: new Date(),
+            duracaoMs: duracao,
+          });
+          return { sucesso: false, mensagem: msg, registrosInseridos: 0 };
+        }
+      }),
+  }),
 });

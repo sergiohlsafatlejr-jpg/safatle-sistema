@@ -2692,3 +2692,147 @@ export type NotificacaoAtendimento = typeof notificacoesAtendimento.$inferSelect
 export type InsertNotificacaoAtendimento = typeof notificacoesAtendimento.$inferInsert;
 export type NotificacaoAtendimentoItem = typeof notificacoesAtendimentoItem.$inferSelect;
 export type InsertNotificacaoAtendimentoItem = typeof notificacoesAtendimentoItem.$inferInsert;
+
+
+// =====================================================
+// INTEGRADOR DE DADOS - Metadados de Configuração
+// =====================================================
+
+/**
+ * Conexões de banco de dados externas configuradas pelo admin
+ */
+export const integracaoConexoes = mysqlTable("integracao_conexoes", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  tipo: mysqlEnum("tipo", ["postgresql", "mysql", "sqlserver", "oracle"]).notNull(),
+  host: varchar("host", { length: 255 }).notNull(),
+  porta: int("porta").notNull(),
+  banco: varchar("banco", { length: 255 }).notNull(),
+  usuario: varchar("usuario", { length: 255 }).notNull(),
+  senhaEncriptada: text("senhaEncriptada").notNull(),
+  ssl: mysqlEnum("ssl", ["sim", "nao"]).default("nao").notNull(),
+  estabelecimentoId: int("estabelecimentoId"),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  ultimoTesteConexao: timestamp("ultimoTesteConexao"),
+  statusConexao: mysqlEnum("statusConexao", ["ok", "erro", "nao_testado"]).default("nao_testado").notNull(),
+  erroConexao: text("erroConexao"),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabIdx: index("idx_integ_conexao_estab").on(table.estabelecimentoId),
+}));
+
+export type IntegracaoConexao = typeof integracaoConexoes.$inferSelect;
+export type InsertIntegracaoConexao = typeof integracaoConexoes.$inferInsert;
+
+/**
+ * Tabelas criadas dinamicamente pelo integrador
+ */
+export const integracaoTabelas = mysqlTable("integracao_tabelas", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  nomeExibicao: varchar("nomeExibicao", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  estabelecimentoId: int("estabelecimentoId"),
+  criadaNoBanco: mysqlEnum("criadaNoBanco", ["sim", "nao"]).default("nao").notNull(),
+  totalRegistros: int("totalRegistros").default(0).notNull(),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  nomeIdx: index("idx_integ_tabela_nome").on(table.nome),
+  estabIdx: index("idx_integ_tabela_estab").on(table.estabelecimentoId),
+}));
+
+export type IntegracaoTabela = typeof integracaoTabelas.$inferSelect;
+export type InsertIntegracaoTabela = typeof integracaoTabelas.$inferInsert;
+
+/**
+ * Colunas das tabelas criadas pelo integrador
+ */
+export const integracaoColunas = mysqlTable("integracao_colunas", {
+  id: int("id").autoincrement().primaryKey(),
+  tabelaId: int("tabelaId").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  nomeExibicao: varchar("nomeExibicao", { length: 255 }).notNull(),
+  tipo: mysqlEnum("tipo", ["varchar", "int", "bigint", "decimal", "text", "date", "datetime", "boolean"]).notNull(),
+  tamanho: int("tamanho"), // Para varchar
+  precisao: int("precisao"), // Para decimal
+  obrigatorio: mysqlEnum("obrigatorio", ["sim", "nao"]).default("nao").notNull(),
+  chaveUnica: mysqlEnum("chaveUnica", ["sim", "nao"]).default("nao").notNull(),
+  valorPadrao: varchar("valorPadrao", { length: 255 }),
+  ordem: int("ordem").default(0).notNull(),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  tabelaIdx: index("idx_integ_coluna_tabela").on(table.tabelaId),
+}));
+
+export type IntegracaoColuna = typeof integracaoColunas.$inferSelect;
+export type InsertIntegracaoColuna = typeof integracaoColunas.$inferInsert;
+
+/**
+ * Mapeamentos de campos (origem → destino) para sincronização
+ */
+export const integracaoMapeamentos = mysqlTable("integracao_mapeamentos", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  conexaoOrigemId: int("conexaoOrigemId").notNull(),
+  tabelaDestinoId: int("tabelaDestinoId").notNull(),
+  queryOrigem: text("queryOrigem").notNull(), // SQL para buscar dados na origem
+  campoChave: varchar("campoChave", { length: 255 }), // Campo usado como chave para upsert
+  frequencia: mysqlEnum("frequencia", ["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual").notNull(),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  estabelecimentoId: int("estabelecimentoId"),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  conexaoIdx: index("idx_integ_map_conexao").on(table.conexaoOrigemId),
+  tabelaIdx: index("idx_integ_map_tabela").on(table.tabelaDestinoId),
+  estabIdx: index("idx_integ_map_estab").on(table.estabelecimentoId),
+}));
+
+export type IntegracaoMapeamento = typeof integracaoMapeamentos.$inferSelect;
+export type InsertIntegracaoMapeamento = typeof integracaoMapeamentos.$inferInsert;
+
+/**
+ * Mapeamento de campos individuais (coluna origem → coluna destino)
+ */
+export const integracaoMapeamentoCampos = mysqlTable("integracao_mapeamento_campos", {
+  id: int("id").autoincrement().primaryKey(),
+  mapeamentoId: int("mapeamentoId").notNull(),
+  colunaOrigemNome: varchar("colunaOrigemNome", { length: 255 }).notNull(),
+  colunaDestinoId: int("colunaDestinoId").notNull(),
+  transformacao: text("transformacao"), // Expressão de transformação opcional (ex: UPPER, TRIM, etc.)
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  mapIdx: index("idx_integ_mapcampo_map").on(table.mapeamentoId),
+}));
+
+export type IntegracaoMapeamentoCampo = typeof integracaoMapeamentoCampos.$inferSelect;
+export type InsertIntegracaoMapeamentoCampo = typeof integracaoMapeamentoCampos.$inferInsert;
+
+/**
+ * Log de sincronizações executadas
+ */
+export const integracaoSincronizacoes = mysqlTable("integracao_sincronizacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  mapeamentoId: int("mapeamentoId").notNull(),
+  status: mysqlEnum("status", ["executando", "sucesso", "erro", "cancelado"]).notNull(),
+  registrosLidos: int("registrosLidos").default(0).notNull(),
+  registrosInseridos: int("registrosInseridos").default(0).notNull(),
+  registrosAtualizados: int("registrosAtualizados").default(0).notNull(),
+  registrosErro: int("registrosErro").default(0).notNull(),
+  erroMensagem: text("erroMensagem"),
+  iniciadoEm: timestamp("iniciadoEm").defaultNow().notNull(),
+  finalizadoEm: timestamp("finalizadoEm"),
+  duracaoMs: int("duracaoMs"),
+  executadoPor: varchar("executadoPor", { length: 255 }),
+}, (table) => ({
+  mapIdx: index("idx_integ_sync_map").on(table.mapeamentoId),
+  statusIdx: index("idx_integ_sync_status").on(table.status),
+  inicioIdx: index("idx_integ_sync_inicio").on(table.iniciadoEm),
+}));
+
+export type IntegracaoSincronizacao = typeof integracaoSincronizacoes.$inferSelect;
+export type InsertIntegracaoSincronizacao = typeof integracaoSincronizacoes.$inferInsert;

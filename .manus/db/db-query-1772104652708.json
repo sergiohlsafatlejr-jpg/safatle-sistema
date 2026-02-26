@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `integracao_tabelas` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `nome` varchar(255) NOT NULL,\n  `nomeExibicao` varchar(255) NOT NULL,\n  `descricao` text,\n  `estabelecimentoId` int,\n  `criadaNoBanco` enum('sim','nao') NOT NULL DEFAULT 'nao',\n  `totalRegistros` int NOT NULL DEFAULT 0,\n  `criadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `atualizadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  INDEX `idx_integ_tabela_nome` (`nome`),\n  INDEX `idx_integ_tabela_estab` (`estabelecimentoId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute CREATE TABLE IF NOT EXISTS `integracao_tabelas` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `nome` varchar(255) NOT NULL,\n  `nomeExibicao` varchar(255) NOT NULL,\n  `descricao` text,\n  `estabelecimentoId` int,\n  `criadaNoBanco` enum('sim','nao') NOT NULL DEFAULT 'nao',\n  `totalRegistros` int NOT NULL DEFAULT 0,\n  `criadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `atualizadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  INDEX `idx_integ_tabela_nome` (`nome`),\n  INDEX `idx_integ_tabela_estab` (`estabelecimentoId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 196
+}
