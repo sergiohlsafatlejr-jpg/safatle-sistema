@@ -1,0 +1,21 @@
+{
+  "query": "SELECT * FROM integracao_tabelas;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT * FROM integracao_tabelas;",
+  "rows": [
+    {
+      "id": "2",
+      "nome": "warlaine_fatxrecebido_stagion",
+      "nomeExibicao": "Warlaine_FatxRecebido_stagion",
+      "descricao": "Faturado x recebido ",
+      "estabelecimentoId": "1260036",
+      "criadaNoBanco": "sim",
+      "totalRegistros": "0",
+      "criadoEm": "2026-02-26 13:35:35",
+      "atualizadoEm": "2026-02-26 13:35:35"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tnomeExibicao\tdescricao\testabelecimentoId\tcriadaNoBanco\ttotalRegistros\tcriadoEm\tatualizadoEm\n2\twarlaine_fatxrecebido_stagion\tWarlaine_FatxRecebido_stagion\tFaturado x recebido \t1260036\tsim\t0\t2026-02-26 13:35:35\t2026-02-26 13:35:35\n",
+  "stderr": "",
+  "execution_time_ms": 67
+}

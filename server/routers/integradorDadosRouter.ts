@@ -1372,7 +1372,18 @@ export const integradorDadosRouter = router({
       .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
         if (ctx.user?.role !== "admin") return [];
-        return dbIntegrador.listarTabelas(input?.estabelecimentoId);
+        const tabelas = await dbIntegrador.listarTabelas(input?.estabelecimentoId);
+        // Enriquecer com contagem de colunas para cada tabela
+        const tabelasComContagem = await Promise.all(
+          tabelas.map(async (tab) => {
+            const colunas = await dbIntegrador.listarColunas(tab.id);
+            return {
+              ...tab,
+              totalColunas: colunas.length,
+            };
+          })
+        );
+        return tabelasComContagem;
       }),
 
     obter: protectedProcedure
@@ -1748,6 +1759,8 @@ export const integradorDadosRouter = router({
         campoChave: z.string().optional(),
         frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual"),
         estabelecimentoId: z.number().optional(),
+        modoImportacao: z.enum(["completa", "incremental"]).default("completa"),
+        colunaControle: z.string().optional(),
         campos: z.array(z.object({
           colunaOrigemNome: z.string(),
           colunaDestinoId: z.number(),
@@ -1765,6 +1778,8 @@ export const integradorDadosRouter = router({
           campoChave: input.campoChave || null,
           frequencia: input.frequencia,
           estabelecimentoId: input.estabelecimentoId || null,
+          modoImportacao: input.modoImportacao,
+          colunaControle: input.colunaControle || null,
         });
 
         // Salvar campos se fornecidos
@@ -1788,6 +1803,9 @@ export const integradorDadosRouter = router({
         campoChave: z.string().optional(),
         frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).optional(),
         ativo: z.enum(["sim", "nao"]).optional(),
+        modoImportacao: z.enum(["completa", "incremental"]).optional(),
+        colunaControle: z.string().nullable().optional(),
+        ultimoValorControle: z.string().nullable().optional(),
         campos: z.array(z.object({
           colunaOrigemNome: z.string(),
           colunaDestinoId: z.number(),
@@ -1816,8 +1834,19 @@ export const integradorDadosRouter = router({
         return { sucesso: true };
       }),
 
-    executar: protectedProcedure
+    resetarIncremental: protectedProcedure
       .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        await dbIntegrador.atualizarMapeamento(input.id, {
+          ultimoValorControle: null,
+          totalRegistrosImportados: 0,
+        } as any);
+        return { sucesso: true, mensagem: "Controle incremental resetado. A próxima execução importará todos os registros." };
+      }),
+
+    executar: protectedProcedure
+      .input(z.object({ id: z.number(), forcarCompleta: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
         const mapeamento = await dbIntegrador.obterMapeamento(input.id);
@@ -1832,6 +1861,12 @@ export const integradorDadosRouter = router({
         const campos = await dbIntegrador.listarCamposMapeamento(input.id);
         const colunasDestino = await dbIntegrador.listarColunas(tabela.id);
 
+        // Determinar se é importação incremental
+        const isIncremental = mapeamento.modoImportacao === "incremental" 
+          && mapeamento.colunaControle 
+          && mapeamento.ultimoValorControle
+          && !input.forcarCompleta;
+
         // Criar log de sincronização
         const syncId = await dbIntegrador.criarSincronizacao({
           mapeamentoId: input.id,
@@ -1842,7 +1877,32 @@ export const integradorDadosRouter = router({
         const inicio = Date.now();
 
         try {
-          // Conectar à origem
+          // Montar query - adicionar filtro incremental se aplicável
+          let queryFinal = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
+          
+          if (isIncremental && mapeamento.colunaControle && mapeamento.ultimoValorControle) {
+            // Envolver a query original em subquery e adicionar filtro WHERE
+            const colunaCtrl = mapeamento.colunaControle;
+            const ultimoValor = mapeamento.ultimoValorControle;
+            
+            // Verificar se a query já tem WHERE
+            // Usar subquery para garantir que o filtro funcione com qualquer query
+            queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq."${colunaCtrl}" > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq."${colunaCtrl}" ASC`;
+            
+            logger.info({
+              message: "Importação INCREMENTAL",
+              colunaControle: colunaCtrl,
+              ultimoValor,
+              mapeamentoId: input.id,
+            });
+          } else {
+            logger.info({
+              message: isIncremental ? "Importação incremental (primeira execução - completa)" : "Importação COMPLETA",
+              mapeamentoId: input.id,
+            });
+          }
+
+          // Conectar à origem e executar query
           const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
           let dadosOrigem: any[] = [];
 
@@ -1856,7 +1916,7 @@ export const integradorDadosRouter = router({
             });
             const ok = await connector.conectar();
             if (!ok) throw new Error("Falha ao conectar à origem");
-            dadosOrigem = await connector.executarQuery(mapeamento.queryOrigem);
+            dadosOrigem = await connector.executarQuery(queryFinal);
             await connector.desconectar();
           } else {
             const connector = new WarleineConnector({
@@ -1868,8 +1928,41 @@ export const integradorDadosRouter = router({
             });
             const ok = await connector.conectar();
             if (!ok) throw new Error("Falha ao conectar à origem");
-            dadosOrigem = await connector.executarQuery(mapeamento.queryOrigem);
+            // Para MySQL/SQL Server, usar backticks em vez de aspas duplas
+            let queryMySQL = queryFinal;
+            if (isIncremental && mapeamento.colunaControle && mapeamento.ultimoValorControle) {
+              const colunaCtrl = mapeamento.colunaControle;
+              const ultimoValor = mapeamento.ultimoValorControle;
+              const queryBase = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
+              queryMySQL = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq.\`${colunaCtrl}\` > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq.\`${colunaCtrl}\` ASC`;
+            }
+            dadosOrigem = await connector.executarQuery(queryMySQL);
             await connector.desconectar();
+          }
+
+          // Se incremental e sem dados novos, retornar sucesso sem inserir
+          if (dadosOrigem.length === 0) {
+            const duracao = Date.now() - inicio;
+            await dbIntegrador.atualizarSincronizacao(syncId, {
+              status: "sucesso",
+              registrosLidos: 0,
+              registrosInseridos: 0,
+              finalizadoEm: new Date(),
+              duracaoMs: duracao,
+            });
+            // Atualizar timestamp da última sincronização
+            await dbIntegrador.atualizarMapeamento(input.id, {
+              ultimaSincronizacao: new Date(),
+            } as any);
+            return {
+              sucesso: true,
+              mensagem: isIncremental 
+                ? `Importação incremental: nenhum registro novo encontrado desde ${mapeamento.ultimoValorControle}` 
+                : "Nenhum registro encontrado na origem",
+              registrosLidos: 0,
+              registrosInseridos: 0,
+              modoUsado: isIncremental ? "incremental" : "completa",
+            };
           }
 
           // Mapear campos
@@ -1894,13 +1987,48 @@ export const integradorDadosRouter = router({
             return registro;
           });
 
-          // Inserir dados na tabela destino
+          // Para importação completa, limpar tabela antes de inserir (se não for a primeira vez)
           const nomeReal = `integ_${tabela.nome}`;
+          if (mapeamento.modoImportacao === "completa" || input.forcarCompleta) {
+            // Na importação completa, limpar dados antigos antes de inserir
+            try {
+              await dbIntegrador.limparDadosTabela(nomeReal);
+              logger.info({ message: "Tabela limpa para importação completa", tabela: nomeReal });
+            } catch (e) {
+              logger.warn({ message: "Erro ao limpar tabela (pode ser primeira execução)", error: String(e) });
+            }
+          }
+
+          // Inserir dados na tabela destino
           const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
 
           // Atualizar contagem
           const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
           await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+
+          // Se incremental, atualizar o último valor de controle
+          let novoUltimoValor = mapeamento.ultimoValorControle;
+          if (mapeamento.modoImportacao === "incremental" && mapeamento.colunaControle && dadosOrigem.length > 0) {
+            // Pegar o maior valor da coluna de controle dos dados importados
+            const colunaCtrl = mapeamento.colunaControle;
+            const ultimoRegistro = dadosOrigem[dadosOrigem.length - 1];
+            const valorControle = ultimoRegistro[colunaCtrl];
+            if (valorControle !== null && valorControle !== undefined) {
+              novoUltimoValor = String(valorControle);
+              // Se for Date, converter para ISO
+              if (valorControle instanceof Date) {
+                novoUltimoValor = valorControle.toISOString();
+              }
+            }
+          }
+
+          // Atualizar mapeamento com info da sincronização
+          const totalAcumulado = (mapeamento.totalRegistrosImportados || 0) + resultado.inseridos;
+          await dbIntegrador.atualizarMapeamento(input.id, {
+            ultimaSincronizacao: new Date(),
+            ultimoValorControle: novoUltimoValor,
+            totalRegistrosImportados: totalAcumulado,
+          } as any);
 
           // Atualizar log
           const duracao = Date.now() - inicio;
@@ -1912,11 +2040,14 @@ export const integradorDadosRouter = router({
             duracaoMs: duracao,
           });
 
+          const modoLabel = isIncremental ? "incremental" : "completa";
           return {
             sucesso: true,
-            mensagem: `Sincronização concluída: ${resultado.inseridos} registros inseridos em ${(duracao / 1000).toFixed(1)}s`,
+            mensagem: `Importação ${modoLabel} concluída: ${resultado.inseridos} registros inseridos em ${(duracao / 1000).toFixed(1)}s`,
             registrosLidos: dadosOrigem.length,
             registrosInseridos: resultado.inseridos,
+            modoUsado: modoLabel,
+            ultimoValorControle: novoUltimoValor,
           };
         } catch (error) {
           const duracao = Date.now() - inicio;
@@ -1927,7 +2058,7 @@ export const integradorDadosRouter = router({
             finalizadoEm: new Date(),
             duracaoMs: duracao,
           });
-          return { sucesso: false, mensagem: msg, registrosLidos: 0, registrosInseridos: 0 };
+          return { sucesso: false, mensagem: msg, registrosLidos: 0, registrosInseridos: 0, modoUsado: "erro" };
         }
       }),
   }),
@@ -1954,6 +2085,7 @@ export const integradorDadosRouter = router({
       .input(z.object({
         mapeamentoId: z.number(),
         registros: z.array(z.record(z.string(), z.any())),
+        ultimoValorControle: z.string().optional(), // Para importação incremental do agente local
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
@@ -1995,6 +2127,20 @@ export const integradorDadosRouter = router({
           const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
           await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
 
+          // Atualizar controle incremental se fornecido
+          if (input.ultimoValorControle) {
+            const totalAcumulado = (mapeamento.totalRegistrosImportados || 0) + resultado.inseridos;
+            await dbIntegrador.atualizarMapeamento(input.mapeamentoId, {
+              ultimoValorControle: input.ultimoValorControle,
+              ultimaSincronizacao: new Date(),
+              totalRegistrosImportados: totalAcumulado,
+            } as any);
+          } else {
+            await dbIntegrador.atualizarMapeamento(input.mapeamentoId, {
+              ultimaSincronizacao: new Date(),
+            } as any);
+          }
+
           const duracao = Date.now() - inicio;
           await dbIntegrador.atualizarSincronizacao(syncId, {
             status: "sucesso",
@@ -2016,6 +2162,23 @@ export const integradorDadosRouter = router({
           });
           return { sucesso: false, mensagem: msg, registrosInseridos: 0 };
         }
+      }),
+
+    // Obter info de controle incremental para o agente local saber de onde continuar
+    obterControleIncremental: protectedProcedure
+      .input(z.object({ mapeamentoId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        const mapeamento = await dbIntegrador.obterMapeamento(input.mapeamentoId);
+        if (!mapeamento) throw new Error("Mapeamento não encontrado");
+        return {
+          modoImportacao: mapeamento.modoImportacao,
+          colunaControle: mapeamento.colunaControle,
+          ultimoValorControle: mapeamento.ultimoValorControle,
+          ultimaSincronizacao: mapeamento.ultimaSincronizacao,
+          totalRegistrosImportados: mapeamento.totalRegistrosImportados,
+          queryOrigem: mapeamento.queryOrigem,
+        };
       }),
   }),
 });

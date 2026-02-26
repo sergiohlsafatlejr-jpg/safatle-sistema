@@ -2205,3 +2205,13 @@
 - [x] Criar colunas automaticamente a partir dos campos retornados pela query
 - [x] Atualizar frontend para suportar criação automática
 - [x] Testar criação automática de tabela com campos detectados
+
+- [x] Implementar importação incremental no Integrador de Dados (importar apenas registros novos/alterados)
+- [x] Adicionar campos modoImportacao, colunaControle, ultimoValorControle na tabela de mapeamentos
+- [x] Atualizar procedure executar para suportar importação incremental com filtro WHERE automático
+- [x] Adicionar procedure resetarIncremental para resetar controle incremental
+- [x] Adicionar endpoint obterControleIncremental para agente local
+- [x] Atualizar frontend MapeamentosTab com seleção de modo (completa/incremental)
+- [x] Adicionar botões de forçar importação completa e resetar controle incremental
+- [x] Na importação completa, limpar tabela antes de inserir novos dados
+- [x] Testes unitários para importação incremental (11 testes passando)

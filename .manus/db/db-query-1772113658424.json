@@ -1,0 +1,37 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'integracao_tabelas' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'integracao_tabelas' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "nome"
+    },
+    {
+      "COLUMN_NAME": "nomeExibicao"
+    },
+    {
+      "COLUMN_NAME": "descricao"
+    },
+    {
+      "COLUMN_NAME": "estabelecimentoId"
+    },
+    {
+      "COLUMN_NAME": "criadaNoBanco"
+    },
+    {
+      "COLUMN_NAME": "totalRegistros"
+    },
+    {
+      "COLUMN_NAME": "criadoEm"
+    },
+    {
+      "COLUMN_NAME": "atualizadoEm"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nnome\nnomeExibicao\ndescricao\nestabelecimentoId\ncriadaNoBanco\ntotalRegistros\ncriadoEm\natualizadoEm\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}

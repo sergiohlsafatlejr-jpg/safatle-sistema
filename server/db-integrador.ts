@@ -341,6 +341,19 @@ export async function executarDDLRemoverTabela(nomeTabela: string) {
   await db.execute(sql.raw(`DROP TABLE IF EXISTS \`${nomeSeguro}\``));
 }
 
+export async function limparDadosTabela(nomeTabela: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados não disponível");
+
+  const nomeSeguro = nomeTabela.replace(/[^a-zA-Z0-9_]/g, "");
+  // Só permite limpar tabelas com prefixo integ_ por segurança
+  if (!nomeSeguro.startsWith("integ_")) {
+    throw new Error("Só é possível limpar tabelas criadas pelo integrador (prefixo integ_)");
+  }
+
+  await db.execute(sql.raw(`DELETE FROM \`${nomeSeguro}\``));
+}
+
 export async function inserirDadosTabela(nomeTabela: string, registros: Record<string, any>[]) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados não disponível");

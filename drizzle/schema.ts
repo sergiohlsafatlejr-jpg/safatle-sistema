@@ -2784,6 +2784,12 @@ export const integracaoMapeamentos = mysqlTable("integracao_mapeamentos", {
   frequencia: mysqlEnum("frequencia", ["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual").notNull(),
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   estabelecimentoId: int("estabelecimentoId"),
+  // Importação incremental
+  modoImportacao: mysqlEnum("modoImportacao", ["completa", "incremental"]).default("completa").notNull(),
+  colunaControle: varchar("colunaControle", { length: 255 }), // Coluna usada para controle incremental (ex: id, updated_at)
+  ultimoValorControle: text("ultimoValorControle"), // Último valor importado da coluna de controle
+  ultimaSincronizacao: timestamp("ultimaSincronizacao"), // Data/hora da última sincronização bem-sucedida
+  totalRegistrosImportados: int("totalRegistrosImportados").default(0).notNull(), // Total acumulado de registros importados
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
   atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

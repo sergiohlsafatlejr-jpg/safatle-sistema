@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Trash2, Play, ArrowRight, GitBranch, Pencil } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Loader2, Plus, Trash2, Play, ArrowRight, GitBranch, RotateCcw, Zap, RefreshCw, Info } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 interface MapeamentosTabProps {
@@ -45,6 +46,8 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
   const [queryOrigem, setQueryOrigem] = useState("");
   const [campoChave, setCampoChave] = useState("");
   const [frequencia, setFrequencia] = useState("manual");
+  const [modoImportacao, setModoImportacao] = useState<"completa" | "incremental">("completa");
+  const [colunaControle, setColunaControle] = useState("");
   const [campos, setCampos] = useState<CampoMapeamento[]>([]);
 
   const mapeamentos = trpc.integradorDados.mapeamentos.listar.useQuery({ estabelecimentoId });
@@ -80,11 +83,20 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
       if (data.sucesso) {
         toast.success("Sincronização concluída", { description: data.mensagem });
         mapeamentos.refetch();
+        syncLogs.refetch();
       } else {
         toast.error("Erro na sincronização", { description: data.mensagem });
       }
     },
     onError: (e) => toast.error("Erro ao executar", { description: e.message }),
+  });
+
+  const resetarIncremental = trpc.integradorDados.mapeamentos.resetarIncremental.useMutation({
+    onSuccess: (data) => {
+      toast.success("Controle incremental resetado", { description: data.mensagem });
+      mapeamentos.refetch();
+    },
+    onError: (e) => toast.error("Erro ao resetar", { description: e.message }),
   });
 
   const syncLogs = trpc.integradorDados.sincronizacoesLog.listar.useQuery({ limite: 20 });
@@ -98,6 +110,8 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
     setQueryOrigem("");
     setCampoChave("");
     setFrequencia("manual");
+    setModoImportacao("completa");
+    setColunaControle("");
     setCampos([]);
   };
 
@@ -121,6 +135,11 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
       return;
     }
 
+    if (modoImportacao === "incremental" && !colunaControle) {
+      toast.error("Para importação incremental, informe a coluna de controle");
+      return;
+    }
+
     const camposValidos = campos.filter((c) => c.colunaOrigemNome && c.colunaDestinoId > 0);
 
     criarMapeamento.mutate({
@@ -132,337 +151,499 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
       campoChave: campoChave || undefined,
       frequencia: frequencia as any,
       estabelecimentoId,
+      modoImportacao,
+      colunaControle: colunaControle || undefined,
       campos: camposValidos.length > 0 ? camposValidos : undefined,
     });
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Mapeamentos de Dados</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure como os dados da origem são mapeados para as tabelas de destino
-          </p>
-        </div>
-        <Button onClick={() => { resetForm(); setShowForm(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Mapeamento
-        </Button>
-      </div>
-
-      {mapeamentos.data && mapeamentos.data.length > 0 ? (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Conexão Origem</TableHead>
-                <TableHead>Tabela Destino</TableHead>
-                <TableHead>Frequência</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Última Execução</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mapeamentos.data.map((map: any) => (
-                <TableRow key={map.id}>
-                  <TableCell className="font-medium">{map.nome}</TableCell>
-                  <TableCell className="text-sm">{map.conexaoNome || `#${map.conexaoOrigemId}`}</TableCell>
-                  <TableCell className="text-sm">{map.tabelaNome || `#${map.tabelaDestinoId}`}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{FREQUENCIA_LABELS[map.frequencia] || map.frequencia}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {map.ativo === "sim" ? (
-                      <Badge className="bg-green-600">Ativo</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inativo</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {map.ultimaExecucao ? new Date(map.ultimaExecucao).toLocaleString() : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => executarMapeamento.mutate({ id: map.id })}
-                        disabled={executarMapeamento.isPending}
-                        title="Executar sincronização"
-                      >
-                        {executarMapeamento.isPending ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDeleteId(map.id)}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <GitBranch className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Nenhum mapeamento cadastrado</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Primeiro crie uma conexão e uma tabela, depois crie um mapeamento para sincronizar os dados
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Log de Sincronizações Recentes */}
-      {syncLogs.data && syncLogs.data.length > 0 && (
-        <Card>
-          <div className="p-4">
-            <h4 className="font-semibold mb-3">Últimas Sincronizações</h4>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Lidos</TableHead>
-                    <TableHead>Inseridos</TableHead>
-                    <TableHead>Duração</TableHead>
-                    <TableHead>Executado por</TableHead>
-                    <TableHead>Erro</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {syncLogs.data.map((log: any) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-sm">
-                        {log.iniciadoEm ? new Date(log.iniciadoEm).toLocaleString() : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {log.status === "sucesso" ? (
-                          <Badge className="bg-green-600">Sucesso</Badge>
-                        ) : log.status === "erro" ? (
-                          <Badge variant="destructive">Erro</Badge>
-                        ) : (
-                          <Badge variant="secondary">{log.status}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">{log.registrosLidos || 0}</TableCell>
-                      <TableCell className="text-sm">{log.registrosInseridos || 0}</TableCell>
-                      <TableCell className="text-sm">
-                        {log.duracaoMs ? `${(log.duracaoMs / 1000).toFixed(1)}s` : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm">{log.executadoPor || "-"}</TableCell>
-                      <TableCell className="text-sm text-destructive max-w-[200px] truncate">
-                        {log.erroMensagem || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+    <TooltipProvider>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">Mapeamentos de Dados</h3>
+            <p className="text-sm text-muted-foreground">
+              Configure como os dados da origem são mapeados para as tabelas de destino
+            </p>
           </div>
-        </Card>
-      )}
+          <Button onClick={() => { resetForm(); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Mapeamento
+          </Button>
+        </div>
 
-      {/* Dialog de Criação de Mapeamento */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Novo Mapeamento de Dados</DialogTitle>
-            <DialogDescription>
-              Configure a origem dos dados, a tabela de destino e o mapeamento de campos
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Info Básica */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Nome do Mapeamento *</Label>
-                <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Atendimentos EASYVISION → Faturamento" />
-              </div>
-              <div className="col-span-2">
-                <Label>Descrição</Label>
-                <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição opcional" />
-              </div>
-            </div>
-
-            {/* Origem e Destino */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Conexão de Origem *</Label>
-                <Select value={String(conexaoOrigemId || "")} onValueChange={(v) => setConexaoOrigemId(Number(v))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a conexão" /></SelectTrigger>
-                  <SelectContent>
-                    {conexoes.data?.map((c: any) => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Tabela de Destino *</Label>
-                <Select value={String(tabelaDestinoId || "")} onValueChange={(v) => setTabelaDestinoId(Number(v))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a tabela" /></SelectTrigger>
-                  <SelectContent>
-                    {tabelas.data?.map((t: any) => (
-                      <SelectItem key={t.id} value={String(t.id)}>{t.nomeExibicao}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Query SQL */}
-            <div>
-              <Label>Query SQL de Origem *</Label>
-              <Textarea
-                value={queryOrigem}
-                onChange={(e) => setQueryOrigem(e.target.value)}
-                placeholder="SELECT * FROM tabela_origem WHERE ..."
-                className="font-mono text-sm min-h-[100px]"
-              />
-            </div>
-
-            {/* Configurações */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Campo Chave (para upsert)</Label>
-                <Input value={campoChave} onChange={(e) => setCampoChave(e.target.value)} placeholder="Ex: id ou numatend" />
-              </div>
-              <div>
-                <Label>Frequência de Sincronização</Label>
-                <Select value={frequencia} onValueChange={setFrequencia}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FREQUENCIA_LABELS).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Mapeamento de Campos */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base font-semibold">Mapeamento de Campos</Label>
-                <Button variant="outline" size="sm" onClick={adicionarCampo}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar Campo
-                </Button>
-              </div>
-
-              {campos.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
-                    <div className="col-span-4">Campo Origem (SQL)</div>
-                    <div className="col-span-1 text-center">→</div>
-                    <div className="col-span-4">Coluna Destino</div>
-                    <div className="col-span-2">Transformação</div>
-                    <div className="col-span-1"></div>
-                  </div>
-                  {campos.map((campo, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-4">
-                        <Input
-                          value={campo.colunaOrigemNome}
-                          onChange={(e) => atualizarCampo(idx, "colunaOrigemNome", e.target.value)}
-                          placeholder="nome_campo_origem"
-                          className="text-sm font-mono"
-                        />
+        {mapeamentos.data && mapeamentos.data.length > 0 ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Modo</TableHead>
+                  <TableHead>Conexão Origem</TableHead>
+                  <TableHead>Tabela Destino</TableHead>
+                  <TableHead>Frequência</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Última Sincronização</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mapeamentos.data.map((map: any) => (
+                  <TableRow key={map.id}>
+                    <TableCell className="font-medium">
+                      <div>
+                        {map.nome}
+                        {map.modoImportacao === "incremental" && map.ultimoValorControle && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Último: {map.ultimoValorControle}
+                          </div>
+                        )}
                       </div>
-                      <div className="col-span-1 text-center">
-                        <ArrowRight className="w-4 h-4 mx-auto text-muted-foreground" />
-                      </div>
-                      <div className="col-span-4">
-                        <Select
-                          value={String(campo.colunaDestinoId || "")}
-                          onValueChange={(v) => atualizarCampo(idx, "colunaDestinoId", Number(v))}
+                    </TableCell>
+                    <TableCell>
+                      {map.modoImportacao === "incremental" ? (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge className="bg-blue-600 hover:bg-blue-700 cursor-help">
+                              <Zap className="w-3 h-3 mr-1" />
+                              Incremental
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-semibold">Importação Incremental</p>
+                            <p className="text-xs mt-1">
+                              Importa apenas registros novos/alterados desde a última sincronização.
+                              {map.colunaControle && (
+                                <> Coluna de controle: <code className="bg-muted px-1 rounded">{map.colunaControle}</code></>
+                              )}
+                            </p>
+                            {map.totalRegistrosImportados > 0 && (
+                              <p className="text-xs mt-1">
+                                Total acumulado: {map.totalRegistrosImportados.toLocaleString()} registros
+                              </p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Badge variant="outline">Completa</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{map.conexaoNome || `#${map.conexaoOrigemId}`}</TableCell>
+                    <TableCell className="text-sm">{map.tabelaNome || `#${map.tabelaDestinoId}`}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{FREQUENCIA_LABELS[map.frequencia] || map.frequencia}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {map.ativo === "sim" ? (
+                        <Badge className="bg-green-600">Ativo</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inativo</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {map.ultimaSincronizacao
+                        ? new Date(map.ultimaSincronizacao).toLocaleString()
+                        : map.ultimaExecucao
+                          ? new Date(map.ultimaExecucao).toLocaleString()
+                          : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        {/* Botão Executar (incremental por padrão) */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => executarMapeamento.mutate({ id: map.id })}
+                              disabled={executarMapeamento.isPending}
+                              title="Executar sincronização"
+                            >
+                              {executarMapeamento.isPending ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {map.modoImportacao === "incremental"
+                              ? "Executar importação incremental"
+                              : "Executar importação completa"}
+                          </TooltipContent>
+                        </Tooltip>
+
+                        {/* Botão Forçar Completa (apenas para incrementais) */}
+                        {map.modoImportacao === "incremental" && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => executarMapeamento.mutate({ id: map.id, forcarCompleta: true })}
+                                disabled={executarMapeamento.isPending}
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Forçar importação completa (reimportar tudo)</TooltipContent>
+                          </Tooltip>
+                        )}
+
+                        {/* Botão Resetar Incremental */}
+                        {map.modoImportacao === "incremental" && map.ultimoValorControle && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resetarIncremental.mutate({ id: map.id })}
+                                disabled={resetarIncremental.isPending}
+                                className="text-orange-600"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Resetar controle incremental (próxima execução importa tudo)</TooltipContent>
+                          </Tooltip>
+                        )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteId(map.id)}
+                          className="text-destructive"
                         >
-                          <SelectTrigger className="text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                          <SelectContent>
-                            {tabelaDetalhe.data?.colunas?.map((col: any) => (
-                              <SelectItem key={col.id} value={String(col.id)}>
-                                {col.nomeExibicao} ({col.nome})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2">
-                        <Select
-                          value={campo.transformacao || "none"}
-                          onValueChange={(v) => atualizarCampo(idx, "transformacao", v === "none" ? undefined : v)}
-                        >
-                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhuma</SelectItem>
-                            <SelectItem value="UPPER">Maiúsculo</SelectItem>
-                            <SelectItem value="LOWER">Minúsculo</SelectItem>
-                            <SelectItem value="TRIM">Trim</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-1">
-                        <Button variant="ghost" size="sm" onClick={() => removerCampo(idx)} className="text-destructive">
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <GitBranch className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Nenhum mapeamento cadastrado</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Primeiro crie uma conexão e uma tabela, depois crie um mapeamento para sincronizar os dados
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Log de Sincronizações Recentes */}
+        {syncLogs.data && syncLogs.data.length > 0 && (
+          <Card>
+            <div className="p-4">
+              <h4 className="font-semibold mb-3">Últimas Sincronizações</h4>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lidos</TableHead>
+                      <TableHead>Inseridos</TableHead>
+                      <TableHead>Duração</TableHead>
+                      <TableHead>Executado por</TableHead>
+                      <TableHead>Erro</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {syncLogs.data.map((log: any) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-sm">
+                          {log.iniciadoEm ? new Date(log.iniciadoEm).toLocaleString() : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {log.status === "sucesso" ? (
+                            <Badge className="bg-green-600">Sucesso</Badge>
+                          ) : log.status === "erro" ? (
+                            <Badge variant="destructive">Erro</Badge>
+                          ) : (
+                            <Badge variant="secondary">{log.status}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">{log.registrosLidos || 0}</TableCell>
+                        <TableCell className="text-sm">{log.registrosInseridos || 0}</TableCell>
+                        <TableCell className="text-sm">
+                          {log.duracaoMs ? `${(log.duracaoMs / 1000).toFixed(1)}s` : "-"}
+                        </TableCell>
+                        <TableCell className="text-sm">{log.executadoPor || "-"}</TableCell>
+                        <TableCell className="text-sm text-destructive max-w-[200px] truncate">
+                          {log.erroMensagem || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Dialog de Criação de Mapeamento */}
+        <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Novo Mapeamento de Dados</DialogTitle>
+              <DialogDescription>
+                Configure a origem dos dados, a tabela de destino e o mapeamento de campos
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              {/* Info Básica */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label>Nome do Mapeamento *</Label>
+                  <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Atendimentos EASYVISION → Faturamento" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Descrição</Label>
+                  <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição opcional" />
+                </div>
+              </div>
+
+              {/* Origem e Destino */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Conexão de Origem *</Label>
+                  <Select value={String(conexaoOrigemId || "")} onValueChange={(v) => setConexaoOrigemId(Number(v))}>
+                    <SelectTrigger><SelectValue placeholder="Selecione a conexão" /></SelectTrigger>
+                    <SelectContent>
+                      {conexoes.data?.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Tabela de Destino *</Label>
+                  <Select value={String(tabelaDestinoId || "")} onValueChange={(v) => setTabelaDestinoId(Number(v))}>
+                    <SelectTrigger><SelectValue placeholder="Selecione a tabela" /></SelectTrigger>
+                    <SelectContent>
+                      {tabelas.data?.map((t: any) => (
+                        <SelectItem key={t.id} value={String(t.id)}>{t.nomeExibicao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Query SQL */}
+              <div>
+                <Label>Query SQL de Origem *</Label>
+                <Textarea
+                  value={queryOrigem}
+                  onChange={(e) => setQueryOrigem(e.target.value)}
+                  placeholder="SELECT * FROM tabela_origem WHERE ..."
+                  className="font-mono text-sm min-h-[100px]"
+                />
+              </div>
+
+              {/* Configurações */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Campo Chave (para upsert)</Label>
+                  <Input value={campoChave} onChange={(e) => setCampoChave(e.target.value)} placeholder="Ex: id ou numatend" />
+                </div>
+                <div>
+                  <Label>Frequência de Sincronização</Label>
+                  <Select value={frequencia} onValueChange={setFrequencia}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(FREQUENCIA_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Modo de Importação */}
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-blue-500" />
+                  <Label className="text-base font-semibold">Modo de Importação</Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModoImportacao("completa")}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      modoImportacao === "completa"
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <div className="font-medium text-sm">Completa</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Reimporta todos os registros a cada execução. Limpa os dados antigos antes de inserir.
                     </div>
-                  ))}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoImportacao("incremental")}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      modoImportacao === "incremental"
+                        ? "border-blue-500 bg-blue-500/5"
+                        : "border-border hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <div className="font-medium text-sm flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-blue-500" />
+                      Incremental
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Importa apenas registros novos/alterados desde a última sincronização. Mais rápido e eficiente.
+                    </div>
+                  </button>
                 </div>
-              ) : (
-                <div className="text-center py-4 text-sm text-muted-foreground border rounded-md">
-                  Nenhum campo mapeado. Se não adicionar campos, todos os campos da query serão inseridos diretamente.
-                </div>
-              )}
-            </div>
 
+                {modoImportacao === "incremental" && (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <Label className="flex items-center gap-1">
+                        Coluna de Controle *
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="w-3 h-3 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Nome da coluna na query de origem usada para identificar registros novos. Deve ser um campo que cresce monotonicamente (ex: ID auto-increment, timestamp de criação/atualização).</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <Input
+                        value={colunaControle}
+                        onChange={(e) => setColunaControle(e.target.value)}
+                        placeholder="Ex: id, updated_at, data_modificacao"
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use o nome exato da coluna como aparece na query SQL de origem.
+                        Na primeira execução, todos os registros serão importados. Nas próximas, apenas os novos.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mapeamento de Campos */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-base font-semibold">Mapeamento de Campos</Label>
+                  <Button variant="outline" size="sm" onClick={adicionarCampo}>
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar Campo
+                  </Button>
+                </div>
+
+                {campos.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
+                      <div className="col-span-4">Campo Origem (SQL)</div>
+                      <div className="col-span-1 text-center">→</div>
+                      <div className="col-span-4">Coluna Destino</div>
+                      <div className="col-span-2">Transformação</div>
+                      <div className="col-span-1"></div>
+                    </div>
+                    {campos.map((campo, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-4">
+                          <Input
+                            value={campo.colunaOrigemNome}
+                            onChange={(e) => atualizarCampo(idx, "colunaOrigemNome", e.target.value)}
+                            placeholder="nome_campo_origem"
+                            className="text-sm font-mono"
+                          />
+                        </div>
+                        <div className="col-span-1 text-center">
+                          <ArrowRight className="w-4 h-4 mx-auto text-muted-foreground" />
+                        </div>
+                        <div className="col-span-4">
+                          <Select
+                            value={String(campo.colunaDestinoId || "")}
+                            onValueChange={(v) => atualizarCampo(idx, "colunaDestinoId", Number(v))}
+                          >
+                            <SelectTrigger className="text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {tabelaDetalhe.data?.colunas?.map((col: any) => (
+                                <SelectItem key={col.id} value={String(col.id)}>
+                                  {col.nomeExibicao} ({col.nome})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="col-span-2">
+                          <Select
+                            value={campo.transformacao || "none"}
+                            onValueChange={(v) => atualizarCampo(idx, "transformacao", v === "none" ? undefined : v)}
+                          >
+                            <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhuma</SelectItem>
+                              <SelectItem value="UPPER">Maiúsculo</SelectItem>
+                              <SelectItem value="LOWER">Minúsculo</SelectItem>
+                              <SelectItem value="TRIM">Trim</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="col-span-1">
+                          <Button variant="ghost" size="sm" onClick={() => removerCampo(idx)} className="text-destructive">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-sm text-muted-foreground border rounded-md">
+                    Nenhum campo mapeado. Se não adicionar campos, todos os campos da query serão inseridos diretamente.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={resetForm}>Cancelar</Button>
+                <Button onClick={handleSubmit} disabled={criarMapeamento.isPending}>
+                  {criarMapeamento.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Criar Mapeamento
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Exclusão */}
+        <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Mapeamento</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este mapeamento? Os dados já sincronizados não serão afetados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={resetForm}>Cancelar</Button>
-              <Button onClick={handleSubmit} disabled={criarMapeamento.isPending}>
-                {criarMapeamento.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Criar Mapeamento
-              </Button>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteId && excluirMapeamento.mutate({ id: deleteId })}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog de Exclusão */}
-      <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Mapeamento</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este mapeamento? Os dados já sincronizados não serão afetados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex gap-3 justify-end">
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteId && excluirMapeamento.mutate({ id: deleteId })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Excluir
-            </AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </TooltipProvider>
   );
 }
