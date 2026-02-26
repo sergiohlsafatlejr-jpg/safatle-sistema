@@ -1,78 +1,64 @@
+import { useState, useMemo, useCallback } from "react";
+import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BIFilters } from "@/components/bi/BIFilters";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Download,
+  BarChart3,
+  Table as TableIcon,
+  TrendingUp,
+  DollarSign,
+  CheckCircle2,
+  AlertTriangle,
+  TrendingDown,
+  Package as PackageIcon,
+} from "lucide-react";
 import { MetricCard } from "@/components/bi/MetricCard";
+import { BIFilters } from "@/components/bi/BIFilters";
 import { ConvenioBarChart, TiposPieChart, EvolucaoMensalChart } from "@/components/bi/BICharts";
 import { ConvenioTable, GlosaTable, DescricaoTable } from "@/components/bi/BITables";
 import { StackedProgressChart } from "@/components/bi/StackedProgressChart";
 import { TopGlosasChart } from "@/components/bi/TopGlosasChart";
 import { InsightCards } from "@/components/bi/InsightCards";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
-import {
-  BarChart3,
-  PieChart,
-  LineChart,
-  RefreshCw,
-  Download,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Package,
-  Building2,
-  Calendar,
-  FileText,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  Percent,
-} from "lucide-react";
-import { useState, useMemo } from "react";
-import * as XLSX from "xlsx";
-import {
-  BarChart as RechartsBarChart,
-  Bar as RechartsBar,
-  PieChart as RechartsPieChart,
-  Pie as RechartsPie,
-  LineChart as RechartsLineChart,
-  Line,
-  Cell,
-  ResponsiveContainer,
-  Legend as RechartsLegend,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
-const CORES = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"];
+const fmtCurrency = (v: number) =>
+  `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
 export default function RelatoriosBI() {
-  const { estabelecimentoId } = useEstabelecimento();
-  const [ano, setAno] = useState("2026");
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id || 0;
+  const [ano, setAno] = useState("2025");
   const [mes, setMes] = useState("todos");
   const [convenio, setConvenio] = useState("todos");
   const [tipo, setTipo] = useState("todos");
   const [prestador, setPrestador] = useState("todos");
-  const [categoriaGlosa, setCategoriaGlosa] = useState("todas");
-  const [mostrarGraficoCategoriasGlosa, setMostrarGraficoCategoriasGlosa] = useState(false);
-  const [mostrarComparativoMes, setMostrarComparativoMes] = useState(false);
-  const [mostrarAnaliseTrimestre, setMostrarAnaliseTrimestre] = useState(false);
-  const [dataInicial, setDataInicial] = useState("");
-  const [dataFinal, setDataFinal] = useState("");
-  const [usarPeriodoAvancado, setUsarPeriodoAvancado] = useState(false);
+  const [dataInicial, setDataInicial] = useState<Date | undefined>();
+  const [dataFinal, setDataFinal] = useState<Date | undefined>();
 
-  const { data: biData, isLoading } = trpc.relatorios.getDadosBI.useQuery(
+  type MetricKey = "faturado" | "recebido" | "glosado" | "taxaGlosa" | "ticketMedio";
+  const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(
+    new Set(["faturado", "recebido", "glosado", "taxaGlosa", "ticketMedio"])
+  );
+
+  const toggleMetric = useCallback((key: MetricKey) => {
+    setActiveMetrics((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size > 1) next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  // Buscar dados do backend com estabelecimentoId
+  const { data: biData, isLoading } = trpc.relatoriosBI.dados.useQuery(
     {
       estabelecimentoId: estabelecimentoId || 0,
       anoReferencia: parseInt(ano),
@@ -84,608 +70,376 @@ export default function RelatoriosBI() {
     { enabled: !!estabelecimentoId }
   );
 
-  // Dados agregados por convênio
-  const dadosPorConvenio = useMemo(() => {
+  interface BIItem {
+    chave: string;
+    valorFaturado: number;
+    valorRecebido: number;
+    valorGlosado: number;
+    quantidade: number;
+  }
+
+  // Dados por convênio (vindos do backend)
+  const conveniosData = useMemo((): BIItem[] => {
     if (!biData?.porConvenio) return [];
-    return biData.porConvenio.map((item: any) => ({
-      convenio: item.chave,
+    return biData.porConvenio.map((item: BIItem) => ({
+      chave: item.chave,
+      valorFaturado: item.valorFaturado || 0,
+      valorRecebido: item.valorRecebido || 0,
+      valorGlosado: item.valorGlosado || 0,
+      quantidade: item.quantidade || 0,
+    }));
+  }, [biData]);
+
+  // Dados por tipo
+  const tiposData = useMemo((): BIItem[] => {
+    if (!biData?.porTipo) return [];
+    return biData.porTipo.map((item: BIItem) => ({
+      chave: item.chave,
+      valorFaturado: item.valorFaturado || 0,
+      valorRecebido: item.valorRecebido || 0,
+      valorGlosado: item.valorGlosado || 0,
+      quantidade: item.quantidade || 0,
+    }));
+  }, [biData]);
+
+  // Dados por mês (para evolução)
+  const mesesData = useMemo(() => {
+    if (!biData?.porMes) return [];
+    return biData.porMes.map((item: BIItem) => ({
+      mes: item.chave,
       faturado: item.valorFaturado || 0,
       recebido: item.valorRecebido || 0,
       glosado: item.valorGlosado || 0,
-      itens: item.quantidade || 0,
     }));
   }, [biData]);
 
-  // Dados agregados por tipo
+  // Dados de motivos de glosa
+  const motivosGlosaData = useMemo(() => {
+    if (!biData?.porMotivoGlosa) return [];
+    const totalGlosa = biData.porMotivoGlosa.reduce(
+      (sum: number, item: BIItem) => sum + (item.valorGlosado || 0),
+      0
+    );
+    return biData.porMotivoGlosa.map((item: BIItem) => ({
+      chave: item.chave,
+      quantidade: item.quantidade || 0,
+      valor: item.valorGlosado || 0,
+      percentual: totalGlosa > 0 ? Number(((item.valorGlosado / totalGlosa) * 100).toFixed(1)) : 0,
+    }));
+  }, [biData]);
+
+  // Dados por descrição
+  const descricaoData = useMemo(() => {
+    if (!biData?.porDescricao) return [];
+    return biData.porDescricao.map((item: BIItem) => ({
+      chave: item.chave,
+      quantidade: item.quantidade || 0,
+      valor: item.valorFaturado || 0,
+    }));
+  }, [biData]);
+
+  // Dados formatados para gráfico de barras
+  const dadosPorConvenio = useMemo(
+    () =>
+      conveniosData.map((item) => ({
+        convenio: item.chave,
+        faturado: item.valorFaturado,
+        recebido: item.valorRecebido,
+        glosado: item.valorGlosado,
+        itens: item.quantidade,
+      })),
+    [conveniosData]
+  );
+
+  // Dados formatados para gráfico de pizza
   const dadosPorTipo = useMemo(() => {
-    if (!biData?.porTipo) return [];
-    const total = biData.porTipo.reduce((sum: number, item: any) => sum + (item.valorRecebido || 0), 0);
-    return biData.porTipo.map((item: any) => ({
+    const total = tiposData.reduce((sum, item) => sum + item.valorRecebido, 0);
+    return tiposData.map((item) => ({
       tipo: item.chave,
-      valor: item.valorRecebido || 0,
-      percentual: total > 0 ? ((item.valorRecebido / total) * 100).toFixed(1) : 0,
+      valor: item.valorRecebido,
+      percentual: total > 0 ? ((item.valorRecebido / total) * 100).toFixed(1) : "0",
     }));
-  }, [biData]);
+  }, [tiposData]);
 
+  // Métricas calculadas
   const metricas = useMemo(() => {
     if (!biData?.resumo) {
-      return { faturado: 0, recebido: 0, glosado: 0, itens: 0, percentualGlosa: 0 };
+      return { faturado: 0, recebido: 0, glosado: 0, itens: 0, percentualGlosa: "0", ticketMedio: 0 };
     }
     const { totalFaturado, totalRecebido, totalGlosado, totalItens } = biData.resumo;
-    const percentualGlosa = totalFaturado > 0 ? ((totalGlosado / totalFaturado) * 100).toFixed(2) : 0;
-    const ticketMedio = totalItens > 0 ? (totalFaturado / totalItens) : 0;
-    return { 
-      faturado: totalFaturado, 
-      recebido: totalRecebido, 
-      glosado: totalGlosado, 
-      itens: totalItens, 
+    const percentualGlosa =
+      totalFaturado > 0 ? ((totalGlosado / totalFaturado) * 100).toFixed(1) : "0";
+    const ticketMedio = totalItens > 0 ? totalFaturado / totalItens : 0;
+    return {
+      faturado: totalFaturado,
+      recebido: totalRecebido,
+      glosado: totalGlosado,
+      itens: totalItens,
       percentualGlosa,
-      ticketMedio
+      ticketMedio,
     };
   }, [biData]);
 
-  const handleExportarExcel = () => {
+  // Lista de convênios para o filtro
+  const conveniosList = useMemo(() => {
+    return conveniosData.map((c) => c.chave);
+  }, [conveniosData]);
+
+  // Exportar Excel
+  const handleExportar = () => {
     if (!biData?.porConvenio || biData.porConvenio.length === 0) {
       toast.error("Nenhum dado para exportar");
       return;
     }
 
     const wb = XLSX.utils.book_new();
-    
+
     // Aba 1: Resumo Geral
-    const resumoData = [{
-      Metrica: "Valor Faturado",
-      Valor: metricas.faturado,
-    }, {
-      Metrica: "Valor Recebido",
-      Valor: metricas.recebido,
-    }, {
-      Metrica: "Valor Glosado",
-      Valor: metricas.glosado,
-    }, {
-      Metrica: "Taxa de Glosa (%)",
-      Valor: metricas.percentualGlosa,
-    }];
-    const wsResumo = XLSX.utils.json_to_sheet(resumoData);
+    const resumoSheet = [
+      { Metrica: "Valor Faturado", Valor: metricas.faturado },
+      { Metrica: "Valor Recebido", Valor: metricas.recebido },
+      { Metrica: "Valor Glosado", Valor: metricas.glosado },
+      { Metrica: "Taxa de Glosa (%)", Valor: metricas.percentualGlosa },
+      { Metrica: "Ticket Médio", Valor: metricas.ticketMedio },
+    ];
+    const wsResumo = XLSX.utils.json_to_sheet(resumoSheet);
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
-    
-    // Aba 2: Por Convenio
-    const wsConvenio = XLSX.utils.json_to_sheet(biData.porConvenio);
+
+    // Aba 2: Por Convênio
+    const wsConvenio = XLSX.utils.json_to_sheet(
+      conveniosData.map((c) => ({
+        Convenio: c.chave,
+        Faturado: c.valorFaturado,
+        Recebido: c.valorRecebido,
+        Glosado: c.valorGlosado,
+        Itens: c.quantidade,
+      }))
+    );
     XLSX.utils.book_append_sheet(wb, wsConvenio, "Por Convenio");
-    
-    // Aba 3: Por Motivo de Glosa (com nomes descritivos)
-    const motivosData = (biData.porMotivoGlosa || []).map((item: any) => {
-      const codigoMatch = String(item.chave).match(/^(\d+)/);
-      const codigo = codigoMatch ? codigoMatch[1] : "";
-      const descricao = String(item.chave).replace(/^\d+\s*-?\s*/, "") || "Sem motivo";
-      const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
-      return {
-        "Codigo TISS": codigo,
-        "Motivo da Glosa": descricao,
-        "Quantidade": item.quantidade || 0,
-        "Valor Faturado": item.valorFaturado || 0,
-        "Valor Glosado": item.valorGlosado || 0,
-        "Taxa Glosa (%)": percentualGlosa,
-      };
-    });
-    const wsMotivos = XLSX.utils.json_to_sheet(motivosData);
+
+    // Aba 3: Motivos de Glosa
+    const wsMotivos = XLSX.utils.json_to_sheet(
+      motivosGlosaData.map((m) => ({
+        Motivo: m.chave,
+        Quantidade: m.quantidade,
+        Valor: m.valor,
+        "Percentual (%)": m.percentual,
+      }))
+    );
     XLSX.utils.book_append_sheet(wb, wsMotivos, "Motivos Glosa");
-    
+
+    // Aba 4: Por Descrição
+    const wsDescricao = XLSX.utils.json_to_sheet(
+      descricaoData.map((d) => ({
+        Descricao: d.chave,
+        Quantidade: d.quantidade,
+        Valor: d.valor,
+      }))
+    );
+    XLSX.utils.book_append_sheet(wb, wsDescricao, "Por Descricao");
+
     XLSX.writeFile(wb, `relatorio-bi-${ano}-${mes}-${new Date().getTime()}.xlsx`);
     toast.success("Relatório exportado com sucesso!");
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-6">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between">
+      <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Relatórios BI</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Relatórios BI
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Análise de Faturamento, Recebimento e Glosas
             </p>
           </div>
-          <Button onClick={handleExportarExcel} disabled={isLoading} className="gap-2">
-            <Download className="w-4 h-4" />
-            Exportar Excel
-          </Button>
-        </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleExportar} disabled={isLoading} className="gap-2 shadow-sm">
+              <Download className="h-4 w-4" />
+              Exportar Excel
+            </Button>
+          </div>
+        </motion.div>
 
-        {/* Filtros */}
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Search className="w-5 h-5 text-blue-600" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="ano" className="text-sm font-medium">
-                  <Calendar className="w-4 h-4 inline mr-2" />
-                  Ano
-                </Label>
-                <Select value={ano} onValueChange={setAno}>
-                  <SelectTrigger id="ano">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2024">2024</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2026">2026</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Filters */}
+        <BIFilters
+          ano={ano}
+          setAno={setAno}
+          mes={mes}
+          setMes={setMes}
+          convenio={convenio}
+          setConvenio={setConvenio}
+          tipo={tipo}
+          setTipo={setTipo}
+          prestador={prestador}
+          setPrestador={setPrestador}
+          convenios={conveniosList}
+          dataInicial={dataInicial}
+          setDataInicial={setDataInicial}
+          dataFinal={dataFinal}
+          setDataFinal={setDataFinal}
+        />
 
-              <div className="space-y-2">
-                <Label htmlFor="mes" className="text-sm font-medium">
-                  <Calendar className="w-4 h-4 inline mr-2" />
-                  Mês
-                </Label>
-                <Select value={mes} onValueChange={setMes}>
-                  <SelectTrigger id="mes">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os Meses</SelectItem>
-                    <SelectItem value="1">Janeiro</SelectItem>
-                    <SelectItem value="2">Fevereiro</SelectItem>
-                    <SelectItem value="3">Março</SelectItem>
-                    <SelectItem value="4">Abril</SelectItem>
-                    <SelectItem value="5">Maio</SelectItem>
-                    <SelectItem value="6">Junho</SelectItem>
-                    <SelectItem value="7">Julho</SelectItem>
-                    <SelectItem value="8">Agosto</SelectItem>
-                    <SelectItem value="9">Setembro</SelectItem>
-                    <SelectItem value="10">Outubro</SelectItem>
-                    <SelectItem value="11">Novembro</SelectItem>
-                    <SelectItem value="12">Dezembro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="convenio" className="text-sm font-medium">
-                  <Building2 className="w-4 h-4 inline mr-2" />
-                  Convênio
-                </Label>
-                <Select value={convenio} onValueChange={setConvenio}>
-                  <SelectTrigger id="convenio">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os Convênios</SelectItem>
-                    {biData?.porConvenio?.map((item: any) => (
-                      <SelectItem key={item.convenio} value={String(item.convenio)}>
-                        {item.convenio}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tipo" className="text-sm font-medium">
-                  <Package className="w-4 h-4 inline mr-2" />
-                  Tipo
-                </Label>
-                <Select value={tipo} onValueChange={setTipo}>
-                  <SelectTrigger id="tipo">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os Tipos</SelectItem>
-                    <SelectItem value="medicamento">Medicamento</SelectItem>
-                    <SelectItem value="material">Material</SelectItem>
-                    <SelectItem value="procedimento">Procedimento</SelectItem>
-                    <SelectItem value="diaria">Diária</SelectItem>
-                    <SelectItem value="taxa">Taxa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prestador" className="text-sm font-medium">
-                  Prestador/Médico
-                </Label>
-                <Select value={prestador} onValueChange={setPrestador}>
-                  <SelectTrigger id="prestador">
-                    <SelectValue placeholder="Selecione um prestador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os Prestadores</SelectItem>
-                    {biData?.porMedico?.map((item: any) => (
-                      <SelectItem key={item.chave} value={item.chave || "sem-codigo"}>
-                        {item.chave || "Sem código"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="categoriaGlosa" className="text-sm font-medium">
-                  Categoria de Glosa
-                </Label>
-                <Select value={categoriaGlosa} onValueChange={setCategoriaGlosa}>
-                  <SelectTrigger id="categoriaGlosa">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as Categorias</SelectItem>
-                    <SelectItem value="elegibilidade">Elegibilidade</SelectItem>
-                    <SelectItem value="protocolo">Protocolo</SelectItem>
-                    <SelectItem value="prestador">Prestador</SelectItem>
-                    <SelectItem value="guia">Guia</SelectItem>
-                    <SelectItem value="autorizacao">Autorização</SelectItem>
-                    <SelectItem value="diagnostico">Diagnóstico</SelectItem>
-                    <SelectItem value="atendimento">Atendimento</SelectItem>
-                    <SelectItem value="valorizacao">Valorização</SelectItem>
-                    <SelectItem value="procedimento">Procedimento</SelectItem>
-                  </SelectContent>
-                </Select>
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center space-y-3">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto" />
+              <p className="text-muted-foreground text-sm">Carregando dados...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Metric Cards - Clickable Filters */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                Clique nos cards para filtrar os dados exibidos
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <MetricCard
+                  title="Faturado"
+                  value={fmtCurrency(metricas.faturado)}
+                  subtitle="Valor total faturado"
+                  icon={DollarSign}
+                  variant="primary"
+                  delay={0.05}
+                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                    nome: c.chave,
+                    valor: c.valorFaturado,
+                  }))}
+                  active={activeMetrics.has("faturado")}
+                  onClick={() => toggleMetric("faturado")}
+                />
+                <MetricCard
+                  title="Recebido"
+                  value={fmtCurrency(metricas.recebido)}
+                  subtitle="Valor efetivamente recebido"
+                  icon={CheckCircle2}
+                  variant="success"
+                  delay={0.1}
+                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                    nome: c.chave,
+                    valor: c.valorRecebido,
+                  }))}
+                  active={activeMetrics.has("recebido")}
+                  onClick={() => toggleMetric("recebido")}
+                />
+                <MetricCard
+                  title="Glosado"
+                  value={fmtCurrency(metricas.glosado)}
+                  subtitle="Valor total glosado"
+                  icon={AlertTriangle}
+                  variant="danger"
+                  delay={0.15}
+                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                    nome: c.chave,
+                    valor: c.valorGlosado,
+                  }))}
+                  active={activeMetrics.has("glosado")}
+                  onClick={() => toggleMetric("glosado")}
+                />
+                <MetricCard
+                  title="Taxa de Glosa"
+                  value={`${metricas.percentualGlosa}%`}
+                  subtitle="Percentual sobre faturado"
+                  icon={TrendingDown}
+                  variant="warning"
+                  delay={0.2}
+                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                    nome: c.chave,
+                    valor: Number(
+                      c.valorFaturado > 0
+                        ? ((c.valorGlosado / c.valorFaturado) * 100).toFixed(1)
+                        : 0
+                    ),
+                  }))}
+                  active={activeMetrics.has("taxaGlosa")}
+                  onClick={() => toggleMetric("taxaGlosa")}
+                />
+                <MetricCard
+                  title="Ticket Médio"
+                  value={fmtCurrency(metricas.ticketMedio)}
+                  subtitle={`${metricas.itens.toLocaleString("pt-BR")} itens`}
+                  icon={PackageIcon}
+                  variant="primary"
+                  delay={0.25}
+                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                    nome: c.chave,
+                    valor: c.quantidade > 0 ? c.valorFaturado / c.quantidade : 0,
+                  }))}
+                  active={activeMetrics.has("ticketMedio")}
+                  onClick={() => toggleMetric("ticketMedio")}
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Métricas Principais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-500" />
-                Faturado
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                R$ {metricas.faturado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Valor total faturado</p>
-            </CardContent>
-          </Card>
+            {/* Insight Cards */}
+            <InsightCards convenios={conveniosData} meses={mesesData} />
 
-          <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-                Recebido
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                R$ {metricas.recebido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Valor recebido</p>
-            </CardContent>
-          </Card>
+            {/* Charts & Tables in Tabs */}
+            <Tabs defaultValue="graficos" className="space-y-4">
+              <TabsList className="bg-muted/60">
+                <TabsTrigger value="graficos" className="gap-1.5 text-xs">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Gráficos
+                </TabsTrigger>
+                <TabsTrigger value="tabelas" className="gap-1.5 text-xs">
+                  <TableIcon className="h-3.5 w-3.5" />
+                  Tabelas
+                </TabsTrigger>
+                <TabsTrigger value="evolucao" className="gap-1.5 text-xs">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Evolução
+                </TabsTrigger>
+              </TabsList>
 
-          <Card className="border-l-4 border-l-red-500 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-500" />
-                Glosado
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                R$ {metricas.glosado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Valor glosado</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-amber-500 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-amber-500" />
-                % Glosa
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metricas.percentualGlosa}%</div>
-              <p className="text-xs text-muted-foreground mt-1">Taxa de glosa</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Gráfico de Barras - Convênios */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-                Valores por Convênio
-              </CardTitle>
-              <CardDescription>Comparação de faturado, recebido e glosado</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dadosPorConvenio.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <RechartsBarChart data={dadosPorConvenio}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="convenio" angle={-45} textAnchor="end" height={80} />
-                    <YAxis />
-                    <RechartsTooltip
-                      formatter={(value) =>
-                        `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                      }
-                    />
-                    <RechartsLegend />
-                    <RechartsBar dataKey="faturado" fill="#3b82f6" name="Faturado" />
-                    <RechartsBar dataKey="recebido" fill="#10b981" name="Recebido" />
-                    <RechartsBar dataKey="glosado" fill="#ef4444" name="Glosado" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                  Nenhum dado disponível
+              <TabsContent value="graficos" className="space-y-6">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <ConvenioBarChart
+                    data={dadosPorConvenio}
+                    visibleSeries={{
+                      faturado: activeMetrics.has("faturado"),
+                      recebido: activeMetrics.has("recebido"),
+                      glosado: activeMetrics.has("glosado"),
+                    }}
+                  />
+                  {activeMetrics.has("recebido") && <TiposPieChart data={dadosPorTipo} />}
+                  {(activeMetrics.has("faturado") ||
+                    activeMetrics.has("recebido") ||
+                    activeMetrics.has("glosado")) && (
+                    <StackedProgressChart data={conveniosData} />
+                  )}
+                  {activeMetrics.has("glosado") && <TopGlosasChart data={motivosGlosaData} />}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </TabsContent>
 
-          {/* Gráfico de Pizza - Distribuição por Tipo */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChart className="w-5 h-5 text-purple-600" />
-                Distribuição por Tipo
-              </CardTitle>
-              <CardDescription>Percentual de valores recebidos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dadosPorTipo.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <RechartsPieChart>
-                    <RechartsPie
-                      data={dadosPorTipo}
-                      dataKey="valor"
-                      nameKey="tipo"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label
-                    >
-                      {dadosPorTipo.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />
-                      ))}
-                    </RechartsPie>
-                    <RechartsTooltip
-                      formatter={(value) =>
-                        `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                      }
-                    />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                  Nenhum dado disponível
+              <TabsContent value="tabelas" className="space-y-6">
+                <ConvenioTable data={conveniosData} />
+                <GlosaTable data={motivosGlosaData} />
+                <DescricaoTable data={descricaoData} />
+              </TabsContent>
+
+              <TabsContent value="evolucao" className="space-y-6">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <EvolucaoMensalChart
+                    data={mesesData}
+                    visibleSeries={{
+                      faturado: activeMetrics.has("faturado"),
+                      recebido: activeMetrics.has("recebido"),
+                      glosado: activeMetrics.has("glosado"),
+                    }}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabela de Dados */}
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              Detalhes dos Dados
-            </CardTitle>
-            <CardDescription>Listagem completa dos registros</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-[400px] flex items-center justify-center">
-                <div className="text-muted-foreground">Carregando dados...</div>
-              </div>
-            ) : biData?.porConvenio && biData.porConvenio.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold">Convênio</TableHead>
-                      <TableHead className="font-semibold">Tipo</TableHead>
-                      <TableHead className="font-semibold text-right">Faturado</TableHead>
-                      <TableHead className="font-semibold text-right">Recebido</TableHead>
-                      <TableHead className="font-semibold text-right">Glosado</TableHead>
-                      <TableHead className="font-semibold text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {biData.porConvenio.slice(0, 10).map((item: any, idx: number) => (
-                      <TableRow key={idx} className="hover:bg-muted/50">
-                        <TableCell className="font-medium">{item.chave || "-"}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">Convênio</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          R$ {(item.valorRecebido || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600 font-medium">
-                          R$ {(item.valorGlosado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {item.valorGlosado && item.valorGlosado > 0 ? (
-                            <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">
-                              Glosado
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                              Pago
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {biData?.porConvenio && biData.porConvenio.length > 10 && (
-                  <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 10 de {biData.porConvenio.length} registros
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                Nenhum dado encontrado para os filtros selecionados
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Relatório por Motivo de Glosa */}
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-              Glosados por Motivo
-            </CardTitle>
-            <CardDescription>Análise de glosados agrupados por motivo/justificativa</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {biData?.porMotivoGlosa && biData.porMotivoGlosa.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Motivo da Glosa</TableHead>
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead className="text-right">Valor Faturado</TableHead>
-                      <TableHead className="text-right">Valor Glosado</TableHead>
-                      <TableHead className="text-center">% Glosa</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {biData.porMotivoGlosa.slice(0, 10).map((item) => {
-                      const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
-                      // Extrair código e descrição
-                      const codigoMatch = String(item.chave).match(/^(\d+)/);
-                      const codigo = codigoMatch ? codigoMatch[1] : "";
-                      const descricao = String(item.chave).replace(/^\d+\s*-?\s*/, "") || "Sem motivo";
-                      
-                      return (
-                        <TableRow key={item.chave}>
-                          <TableCell className="font-medium">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="cursor-help border-b border-dotted border-gray-400 hover:border-gray-600">
-                                  {descricao}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="text-sm">
-                                  <p className="font-semibold">Código TISS: {codigo || "N/A"}</p>
-                                  <p className="mt-1">{descricao}</p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell className="text-right">{item.quantidade}</TableCell>
-                          <TableCell className="text-right">
-                            R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right text-red-600 font-medium">
-                            R$ {(item.valorGlosado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
-                              {percentualGlosa}%
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                {biData.porMotivoGlosa && biData.porMotivoGlosa.length > 10 && (
-                  <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 10 de {biData.porMotivoGlosa.length} registros
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Nenhum dado de glosa encontrado
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Relatório por Descrição de Itens */}
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-blue-600" />
-              Itens por Descrição
-            </CardTitle>
-            <CardDescription>Análise de itens agrupados por descrição/procedimento</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {biData?.porDescricao && biData.porDescricao.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descrição do Item</TableHead>
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead className="text-right">Valor Faturado</TableHead>
-                      <TableHead className="text-right">Valor Recebido</TableHead>
-                      <TableHead className="text-right">Valor Glosado</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {biData.porDescricao.slice(0, 15).map((item) => (
-                      <TableRow key={item.chave}>
-                        <TableCell className="font-medium text-sm">{item.chave || "-"}</TableCell>
-                        <TableCell className="text-right">{item.quantidade}</TableCell>
-                        <TableCell className="text-right">
-                          R$ {(item.valorFaturado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          R$ {(item.valorRecebido || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600 font-medium">
-                          R$ {(item.valorGlosado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {item.valorGlosado && item.valorGlosado > 0 ? (
-                            <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">
-                              Glosado
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                              Pago
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {biData.porDescricao && biData.porDescricao.length > 15 && (
-                  <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 15 de {biData.porDescricao.length} registros
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Nenhum dado de itens encontrado
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
