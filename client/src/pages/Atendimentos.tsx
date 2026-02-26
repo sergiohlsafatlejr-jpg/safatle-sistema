@@ -432,11 +432,13 @@ export default function Atendimentos() {
 
   const registrarNotificacao = trpc.atendimentos.registrarNotificacao.useMutation({
     onSuccess: () => {
-      toast.success("Notificação registrada com sucesso!");
-      setModalAberto(false);
-      setNotificacaoLinhas([{ motivo: "", setor: "", medico: "" }]);
-      setObservacao("");
-      refetch();
+      requestAnimationFrame(() => {
+        toast.success("Notificação registrada com sucesso!");
+        setModalAberto(false);
+        setNotificacaoLinhas([{ motivo: "", setor: "", medico: "" }]);
+        setObservacao("");
+        refetch();
+      });
     },
     onError: (err) => {
       toast.error(`Erro ao registrar notificação: ${err.message}`);
@@ -445,8 +447,6 @@ export default function Atendimentos() {
 
   const registrarNotificacaoLote = trpc.atendimentos.registrarNotificacaoEmLote.useMutation({
     onSuccess: (result) => {
-      toast.success(`Notificação registrada para ${result.count} atendimentos!`);
-
       // Salvar histórico completo no banco com dados dos atendimentos
       const atendimentosSelecionadosData = dadosFiltrados.filter(d => selecionados.has(d.numatend));
       salvarHistoricoMutation.mutate({
@@ -469,11 +469,14 @@ export default function Atendimentos() {
         })),
       });
 
-      setModalLoteAberto(false);
-      setLoteNotificacaoLinhas([{ motivo: "", setor: "", medico: "" }]);
-      setLoteObservacao("");
-      setSelecionados(new Set());
-      refetch();
+      requestAnimationFrame(() => {
+        toast.success(`Notificação registrada para ${result.count} atendimentos!`);
+        setModalLoteAberto(false);
+        setLoteNotificacaoLinhas([{ motivo: "", setor: "", medico: "" }]);
+        setLoteObservacao("");
+        setSelecionados(new Set());
+        refetch();
+      });
     },
     onError: (err) => {
       toast.error(`Erro ao registrar notificações: ${err.message}`);
@@ -483,10 +486,14 @@ export default function Atendimentos() {
   // Mutation de envio de e-mail
   const enviarEmailMutation = trpc.atendimentos.enviarNotificacaoEmail.useMutation({
     onSuccess: (result) => {
-      toast.success(`E-mail enviado com sucesso!`);
-      setEmailDestinatario("");
-      setEmailMensagem("");
-      setEmailExpandido(false);
+      // Usar requestAnimationFrame para evitar conflito de DOM (NotFoundError: insertBefore)
+      // O toast precisa ser renderizado antes de remover o painel do DOM
+      requestAnimationFrame(() => {
+        toast.success(`E-mail enviado com sucesso!`);
+        setEmailDestinatario("");
+        setEmailMensagem("");
+        setEmailExpandido(false);
+      });
     },
     onError: (err) => {
       toast.error(`Erro ao enviar e-mail: ${err.message}`);

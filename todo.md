@@ -2192,3 +2192,8 @@
 - [x] Criar tela de monitoramento de sincronizações e logs
 - [x] Adicionar rota no menu lateral (admin only) - já existia
 - [x] Escrever testes vitest
+
+## Bug: NotFoundError insertBefore no envio de notificações
+- [x] Investigar causa do erro NotFoundError: insertBefore ao enviar notificações para alguns usuários
+- [x] Corrigir o bug no frontend (requestAnimationFrame nos onSuccess das mutations)
+- [x] Testar a correção
