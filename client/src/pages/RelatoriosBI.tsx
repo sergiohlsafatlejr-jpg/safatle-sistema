@@ -86,32 +86,32 @@ export default function RelatoriosBI() {
 
   // Dados agregados por convênio
   const dadosPorConvenio = useMemo(() => {
-    if (!relatorioData?.porConvenio) return [];
-    return relatorioData.porConvenio.map((item: any) => ({
+    if (!biData?.porConvenio) return [];
+    return biData.porConvenio.map((item: any) => ({
       convenio: item.chave,
       faturado: item.valorFaturado || 0,
       recebido: item.valorRecebido || 0,
       glosado: item.valorGlosado || 0,
       itens: item.quantidade || 0,
     }));
-  }, [relatorioData]);
+  }, [biData]);
 
   // Dados agregados por tipo
   const dadosPorTipo = useMemo(() => {
-    if (!relatorioData?.porTipo) return [];
-    const total = relatorioData.porTipo.reduce((sum: number, item: any) => sum + (item.valorRecebido || 0), 0);
-    return relatorioData.porTipo.map((item: any) => ({
+    if (!biData?.porTipo) return [];
+    const total = biData.porTipo.reduce((sum: number, item: any) => sum + (item.valorRecebido || 0), 0);
+    return biData.porTipo.map((item: any) => ({
       tipo: item.chave,
       valor: item.valorRecebido || 0,
       percentual: total > 0 ? ((item.valorRecebido / total) * 100).toFixed(1) : 0,
     }));
-  }, [relatorioData]);
+  }, [biData]);
 
   const metricas = useMemo(() => {
-    if (!relatorioData?.resumo) {
+    if (!biData?.resumo) {
       return { faturado: 0, recebido: 0, glosado: 0, itens: 0, percentualGlosa: 0 };
     }
-    const { totalFaturado, totalRecebido, totalGlosado, totalItens } = relatorioData.resumo;
+    const { totalFaturado, totalRecebido, totalGlosado, totalItens } = biData.resumo;
     const percentualGlosa = totalFaturado > 0 ? ((totalGlosado / totalFaturado) * 100).toFixed(2) : 0;
     const ticketMedio = totalItens > 0 ? (totalFaturado / totalItens) : 0;
     return { 
@@ -122,10 +122,10 @@ export default function RelatoriosBI() {
       percentualGlosa,
       ticketMedio
     };
-  }, [relatorioData]);
+  }, [biData]);
 
   const handleExportarExcel = () => {
-    if (!relatorioData?.porConvenio || relatorioData.porConvenio.length === 0) {
+    if (!biData?.porConvenio || biData.porConvenio.length === 0) {
       toast.error("Nenhum dado para exportar");
       return;
     }
@@ -150,11 +150,11 @@ export default function RelatoriosBI() {
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
     
     // Aba 2: Por Convenio
-    const wsConvenio = XLSX.utils.json_to_sheet(relatorioData.porConvenio);
+    const wsConvenio = XLSX.utils.json_to_sheet(biData.porConvenio);
     XLSX.utils.book_append_sheet(wb, wsConvenio, "Por Convenio");
     
     // Aba 3: Por Motivo de Glosa (com nomes descritivos)
-    const motivosData = (relatorioData.porMotivoGlosa || []).map((item: any) => {
+    const motivosData = (biData.porMotivoGlosa || []).map((item: any) => {
       const codigoMatch = String(item.chave).match(/^(\d+)/);
       const codigo = codigoMatch ? codigoMatch[1] : "";
       const descricao = String(item.chave).replace(/^\d+\s*-?\s*/, "") || "Sem motivo";
@@ -257,7 +257,7 @@ export default function RelatoriosBI() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os Convênios</SelectItem>
-                    {dadosPorConvenio.map((item: any) => (
+                    {biData?.porConvenio?.map((item: any) => (
                       <SelectItem key={item.convenio} value={String(item.convenio)}>
                         {item.convenio}
                       </SelectItem>
@@ -296,7 +296,7 @@ export default function RelatoriosBI() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os Prestadores</SelectItem>
-                    {relatorioData?.porMedico?.map((item: any) => (
+                    {biData?.porMedico?.map((item: any) => (
                       <SelectItem key={item.chave} value={item.chave || "sem-codigo"}>
                         {item.chave || "Sem código"}
                       </SelectItem>
