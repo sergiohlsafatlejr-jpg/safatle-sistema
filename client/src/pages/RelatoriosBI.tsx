@@ -485,7 +485,7 @@ export default function RelatoriosBI() {
               <div className="h-[400px] flex items-center justify-center">
                 <div className="text-muted-foreground">Carregando dados...</div>
               </div>
-            ) : relatorioData?.porConvenio && relatorioData.porConvenio.length > 0 ? (
+            ) : biData?.porConvenio && biData.porConvenio.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -499,7 +499,7 @@ export default function RelatoriosBI() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatorioData.porConvenio.slice(0, 10).map((item: any, idx: number) => (
+                    {biData.porConvenio.slice(0, 10).map((item: any, idx: number) => (
                       <TableRow key={idx} className="hover:bg-muted/50">
                         <TableCell className="font-medium">{item.chave || "-"}</TableCell>
                         <TableCell>
@@ -529,9 +529,9 @@ export default function RelatoriosBI() {
                     ))}
                   </TableBody>
                 </Table>
-                {relatorioData?.porConvenio && relatorioData.porConvenio.length > 10 && (
+                {biData?.porConvenio && biData.porConvenio.length > 10 && (
                   <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 10 de {relatorioData.porConvenio.length} registros
+                    Mostrando 10 de {biData.porConvenio.length} registros
                   </div>
                 )}
               </div>
@@ -553,7 +553,7 @@ export default function RelatoriosBI() {
             <CardDescription>Análise de glosados agrupados por motivo/justificativa</CardDescription>
           </CardHeader>
           <CardContent>
-            {relatorioData?.porMotivoGlosa && relatorioData.porMotivoGlosa.length > 0 ? (
+            {biData?.porMotivoGlosa && biData.porMotivoGlosa.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -566,7 +566,7 @@ export default function RelatoriosBI() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatorioData.porMotivoGlosa.slice(0, 10).map((item) => {
+                    {biData.porMotivoGlosa.slice(0, 10).map((item) => {
                       const percentualGlosa = item.valorFaturado > 0 ? ((item.valorGlosado / item.valorFaturado) * 100).toFixed(2) : 0;
                       // Extrair código e descrição
                       const codigoMatch = String(item.chave).match(/^(\d+)/);
@@ -607,9 +607,9 @@ export default function RelatoriosBI() {
                     })}
                   </TableBody>
                 </Table>
-                {relatorioData.porMotivoGlosa && relatorioData.porMotivoGlosa.length > 10 && (
+                {biData.porMotivoGlosa && biData.porMotivoGlosa.length > 10 && (
                   <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 10 de {relatorioData.porMotivoGlosa.length} registros
+                    Mostrando 10 de {biData.porMotivoGlosa.length} registros
                   </div>
                 )}
               </div>
@@ -631,7 +631,7 @@ export default function RelatoriosBI() {
             <CardDescription>Análise de itens agrupados por descrição/procedimento</CardDescription>
           </CardHeader>
           <CardContent>
-            {relatorioData?.porDescricao && relatorioData.porDescricao.length > 0 ? (
+            {biData?.porDescricao && biData.porDescricao.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -645,7 +645,7 @@ export default function RelatoriosBI() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatorioData.porDescricao.slice(0, 15).map((item) => (
+                    {biData.porDescricao.slice(0, 15).map((item) => (
                       <TableRow key={item.chave}>
                         <TableCell className="font-medium text-sm">{item.chave || "-"}</TableCell>
                         <TableCell className="text-right">{item.quantidade}</TableCell>
@@ -673,9 +673,9 @@ export default function RelatoriosBI() {
                     ))}
                   </TableBody>
                 </Table>
-                {relatorioData.porDescricao && relatorioData.porDescricao.length > 15 && (
+                {biData.porDescricao && biData.porDescricao.length > 15 && (
                   <div className="mt-4 text-sm text-muted-foreground text-center">
-                    Mostrando 15 de {relatorioData.porDescricao.length} registros
+                    Mostrando 15 de {biData.porDescricao.length} registros
                   </div>
                 )}
               </div>
