@@ -361,6 +361,67 @@ export async function limparDadosTabela(nomeTabela: string) {
   await db.execute(sql.raw(`DELETE FROM \`${nomeSeguro}\``));
 }
 
+/**
+ * Sanitiza um valor para inserção SQL no MySQL.
+ * Trata datas em formato JavaScript toString(), objetos Date, e strings genéricas.
+ */
+function sanitizarValorSQL(v: any): string {
+  if (v === null || v === undefined) return "NULL";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "boolean") return v ? "1" : "0";
+  
+  // Se for um objeto Date nativo
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return "NULL";
+    return `'${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')} ${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}:${String(v.getSeconds()).padStart(2, '0')}'`;
+  }
+  
+  const str = String(v);
+  
+  // Detectar datas no formato JavaScript toString()
+  // Ex: "Thu Feb 06 2025 11:04:00 GMT-0500 (Eastern Standard Time)"
+  const jsDateRegex = /^[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{1,2}\s\d{4}\s\d{2}:\d{2}:\d{2}\s/;
+  if (jsDateRegex.test(str)) {
+    try {
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getUTCFullYear();
+        const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getUTCDate()).padStart(2, '0');
+        const h = String(parsed.getUTCHours()).padStart(2, '0');
+        const mi = String(parsed.getUTCMinutes()).padStart(2, '0');
+        const s = String(parsed.getUTCSeconds()).padStart(2, '0');
+        return `'${y}-${m}-${d} ${h}:${mi}:${s}'`;
+      }
+    } catch {
+      // Se falhar o parse, tratar como string normal
+    }
+  }
+  
+  // Detectar datas ISO 8601 (ex: "2025-02-06T16:04:00.000Z")
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+  if (isoDateRegex.test(str)) {
+    try {
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getUTCFullYear();
+        const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getUTCDate()).padStart(2, '0');
+        const h = String(parsed.getUTCHours()).padStart(2, '0');
+        const mi = String(parsed.getUTCMinutes()).padStart(2, '0');
+        const s = String(parsed.getUTCSeconds()).padStart(2, '0');
+        return `'${y}-${m}-${d} ${h}:${mi}:${s}'`;
+      }
+    } catch {
+      // Se falhar o parse, tratar como string normal
+    }
+  }
+  
+  // Truncar strings muito longas para evitar erros de VARCHAR(255)
+  const truncated = str.length > 250 ? str.substring(0, 250) : str;
+  return `'${truncated.replace(/'/g, "''").replace(/\\/g, "\\\\")}'`;
+}
+
 export async function inserirDadosTabela(nomeTabela: string, registros: Record<string, any>[], campoChave?: string) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados não disponível");
@@ -377,13 +438,7 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
   for (let i = 0; i < registros.length; i += BATCH_SIZE) {
     const lote = registros.slice(i, i + BATCH_SIZE);
     const valoresSQL = lote.map(reg => {
-      const vals = colunas.map(c => {
-        const v = reg[c];
-        if (v === null || v === undefined) return "NULL";
-        if (typeof v === "number") return String(v);
-        if (typeof v === "boolean") return v ? "1" : "0";
-        return `'${String(v).replace(/'/g, "''")}'`;
-      });
+      const vals = colunas.map(c => sanitizarValorSQL(reg[c]));
       return `(${vals.join(", ")})`;
     }).join(",\n");
 
@@ -403,8 +458,23 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       }
     }
     
-    await db.execute(sql.raw(insertSQL));
-    inseridos += lote.length;
+    try {
+      await db.execute(sql.raw(insertSQL));
+      inseridos += lote.length;
+    } catch (err: any) {
+      console.error(`[inserirDadosTabela] Erro ao inserir lote ${i}-${i + lote.length} na tabela ${nomeSeguro}:`, err.message);
+      // Tentar inserir registro por registro para identificar o problemático
+      for (const reg of lote) {
+        try {
+          const vals = colunas.map(c => sanitizarValorSQL(reg[c]));
+          const singleSQL = `INSERT INTO \`${nomeSeguro}\` (${colunasSQL}) VALUES (${vals.join(", ")})`;
+          await db.execute(sql.raw(singleSQL));
+          inseridos++;
+        } catch (singleErr: any) {
+          console.error(`[inserirDadosTabela] Registro ignorado:`, singleErr.message?.substring(0, 200));
+        }
+      }
+    }
   }
 
   return { inseridos };

@@ -2219,3 +2219,5 @@
 - [x] Ao criar tabela a partir de query, salvar automaticamente o mapeamento associado para re-execução
 - [x] Mostrar mapeamento vinculado na tabela e permitir re-executar sincronização diretamente
 - [x] Botão de sincronizar na lista de tabelas para executar mapeamento salvo
+
+- [x] Fix: Erro ao inserir dados sincronizados - datas em formato JavaScript toString() inválido para MySQL
