@@ -1844,10 +1844,15 @@ export const integradorDadosRouter = router({
           let registrosInseridos = 0;
           const BATCH_SIZE = 500;
 
+          const estabIdSync = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
           for (let i = 0; i < rows.length; i += BATCH_SIZE) {
             const batch = rows.slice(i, i + BATCH_SIZE);
             const dadosMapeados = batch.map((row: any) => {
               const registro: Record<string, any> = {};
+              // Incluir estabelecimento_id automaticamente
+              if (estabIdSync) {
+                registro.estabelecimento_id = estabIdSync;
+              }
               if (camposMapeamento.length > 0) {
                 camposMapeamento.forEach((campo: any) => {
                   const nomeDestino = colunaMap.get(campo.colunaDestinoId);
@@ -2192,8 +2197,13 @@ export const integradorDadosRouter = router({
 
           // Mapear campos
           const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
+          const estabelecimentoIdMapeamento = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
           const registrosMapeados = dadosOrigem.map(row => {
             const registro: Record<string, any> = {};
+            // Incluir estabelecimento_id automaticamente
+            if (estabelecimentoIdMapeamento) {
+              registro.estabelecimento_id = estabelecimentoIdMapeamento;
+            }
             for (const campo of campos) {
               const nomeDestino = colunasMap.get(campo.colunaDestinoId);
               if (nomeDestino) {
@@ -2335,8 +2345,13 @@ export const integradorDadosRouter = router({
 
         try {
           // Mapear campos
+          const estabIdAgente = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
           const registrosMapeados = input.registros.map(row => {
             const registro: Record<string, any> = {};
+            // Incluir estabelecimento_id automaticamente
+            if (estabIdAgente) {
+              registro.estabelecimento_id = estabIdAgente;
+            }
             for (const campo of campos) {
               const nomeDestino = colunasMap.get(campo.colunaDestinoId);
               if (nomeDestino) {

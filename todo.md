@@ -2221,3 +2221,5 @@
 - [x] Botão de sincronizar na lista de tabelas para executar mapeamento salvo
 
 - [x] Fix: Erro ao inserir dados sincronizados - datas em formato JavaScript toString() inválido para MySQL
+
+- [x] Incluir automaticamente o estabelecimentoId nas importações do integrador (tabelas integ_*)

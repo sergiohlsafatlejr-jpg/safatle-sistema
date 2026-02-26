@@ -302,12 +302,14 @@ export async function executarDDLCriarTabela(nomeTabela: string, colunas: Array<
     return `  \`${nomeCol}\` ${tipoSQL}${notNull}${defaultVal}`;
   });
 
-  // Adicionar coluna id auto-increment e timestamps
+  // Adicionar coluna id auto-increment, estabelecimento_id e timestamps
   const ddl = `CREATE TABLE IF NOT EXISTS \`integ_${nomeSeguro}\` (
   \`_id\` INT AUTO_INCREMENT PRIMARY KEY,
+  \`estabelecimento_id\` INT DEFAULT NULL,
 ${colunasSQL.join(",\n")},
   \`_sincronizado_em\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  \`_atualizado_em\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  \`_atualizado_em\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX \`idx_estabelecimento\` (\`estabelecimento_id\`)
 )`;
 
   await db.execute(sql.raw(ddl));
