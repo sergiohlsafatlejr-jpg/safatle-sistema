@@ -1,4 +1,12 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { BIFilters } from "@/components/bi/BIFilters";
+import { MetricCard } from "@/components/bi/MetricCard";
+import { ConvenioBarChart, TiposPieChart, EvolucaoMensalChart } from "@/components/bi/BICharts";
+import { ConvenioTable, GlosaTable, DescricaoTable } from "@/components/bi/BITables";
+import { StackedProgressChart } from "@/components/bi/StackedProgressChart";
+import { TopGlosasChart } from "@/components/bi/TopGlosasChart";
+import { InsightCards } from "@/components/bi/InsightCards";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,7 +58,7 @@ import { toast } from "sonner";
 const CORES = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"];
 
 export default function RelatoriosBI() {
-  const { estabelecimentoAtual } = useEstabelecimento();
+  const { estabelecimentoId } = useEstabelecimento();
   const [ano, setAno] = useState("2026");
   const [mes, setMes] = useState("todos");
   const [convenio, setConvenio] = useState("todos");
@@ -64,16 +72,16 @@ export default function RelatoriosBI() {
   const [dataFinal, setDataFinal] = useState("");
   const [usarPeriodoAvancado, setUsarPeriodoAvancado] = useState(false);
 
-  const { data: relatorioData, isLoading } = trpc.relatoriosBI.dados.useQuery(
+  const { data: biData, isLoading } = trpc.relatorios.getDadosBI.useQuery(
     {
-      estabelecimentoId: estabelecimentoAtual?.id || 0,
+      estabelecimentoId: estabelecimentoId || 0,
       anoReferencia: parseInt(ano),
       mesReferencia: mes !== "todos" ? parseInt(mes) : undefined,
       convenioId: convenio !== "todos" ? parseInt(convenio) : undefined,
       tipo: tipo !== "todos" ? tipo : undefined,
       codigoPrestadorExecutante: prestador !== "todos" ? prestador : undefined,
     },
-    { enabled: !!estabelecimentoAtual?.id }
+    { enabled: !!estabelecimentoId }
   );
 
   // Dados agregados por convênio

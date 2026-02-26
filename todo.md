@@ -2227,3 +2227,12 @@
 - [x] Adicionar botão de editar query cadastrada na aba Tabelas do Integrador de Dados
 
 - [x] Fix: estabelecimento_id vindo NULL nas importações do integrador de dados (sincronização anterior foi feita antes da implementação - basta re-sincronizar)
+
+
+## Refatoração Relatórios BI (Nova Interface Modular)
+
+- [x] Refatorar frontend do Relatórios BI com componentes modulares (BIFilters, BICharts, BITables, MetricCard)
+- [x] Criar componentes de BI: BIFilters, MetricCard, BICharts (ConvenioBarChart, TiposPieChart, EvolucaoMensalChart), BITables (ConvenioTable, GlosaTable, DescricaoTable)
+- [x] Criar componentes auxiliares: StackedProgressChart, TopGlosasChart, InsightCards
+- [x] Integrar novo RelatoriosBI.tsx com estabelecimentoId do contexto
+- [x] Integrar framer-motion para animações
