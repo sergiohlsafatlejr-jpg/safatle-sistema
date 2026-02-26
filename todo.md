@@ -2236,3 +2236,8 @@
 - [x] Criar componentes auxiliares: StackedProgressChart, TopGlosasChart, InsightCards
 - [x] Integrar novo RelatoriosBI.tsx com estabelecimentoId do contexto
 - [x] Integrar framer-motion para animações
+- [x] MetricCard: layout com ícone à direita, título uppercase, trend "vs mês anterior"
+- [x] InsightCards: "Convênio Mais Crítico" com taxa, valores, barra de progresso + "Variação Mensal" com comparação mês a mês
+- [x] StackedProgressChart: barras horizontais verde/vermelho com percentuais e legenda
+- [x] TopGlosasChart: numeração (1,2,3...), barras de progresso vermelhas, valores em vermelho, percentuais
+- [x] Ajustar RelatoriosBI.tsx para passar dados corretos aos componentes atualizados

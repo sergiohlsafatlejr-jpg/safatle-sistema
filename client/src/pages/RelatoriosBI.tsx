@@ -180,6 +180,24 @@ export default function RelatoriosBI() {
     };
   }, [biData]);
 
+  // Calcular trends baseados nos dados mensais
+  const trends = useMemo(() => {
+    if (mesesData.length < 2) {
+      return { faturado: 0, recebido: 0, glosado: 0 };
+    }
+    const sorted = [...mesesData].filter(m => (m.faturado || 0) > 0 || (m.recebido || 0) > 0);
+    if (sorted.length < 2) return { faturado: 0, recebido: 0, glosado: 0 };
+    const ultimo = sorted[sorted.length - 1];
+    const penultimo = sorted[sorted.length - 2];
+    const calcTrend = (atual: number, anterior: number) =>
+      anterior > 0 ? Number((((atual - anterior) / anterior) * 100).toFixed(1)) : 0;
+    return {
+      faturado: calcTrend(ultimo.faturado || 0, penultimo.faturado || 0),
+      recebido: calcTrend(ultimo.recebido || 0, penultimo.recebido || 0),
+      glosado: calcTrend(ultimo.glosado || 0, penultimo.glosado || 0),
+    };
+  }, [mesesData]);
+
   // Lista de convênios para o filtro
   const conveniosList = useMemo(() => {
     return conveniosData.map((c) => c.chave);
@@ -309,7 +327,8 @@ export default function RelatoriosBI() {
                   icon={DollarSign}
                   variant="primary"
                   delay={0.05}
-                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                  trend={{ value: trends.faturado, label: "vs mês anterior" }}
+                  breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: c.valorFaturado,
                   }))}
@@ -323,7 +342,8 @@ export default function RelatoriosBI() {
                   icon={CheckCircle2}
                   variant="success"
                   delay={0.1}
-                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                  trend={{ value: trends.recebido, label: "vs mês anterior" }}
+                  breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: c.valorRecebido,
                   }))}
@@ -337,7 +357,8 @@ export default function RelatoriosBI() {
                   icon={AlertTriangle}
                   variant="danger"
                   delay={0.15}
-                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                  trend={{ value: trends.glosado * -1, label: "vs mês anterior" }}
+                  breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: c.valorGlosado,
                   }))}
@@ -351,7 +372,7 @@ export default function RelatoriosBI() {
                   icon={TrendingDown}
                   variant="warning"
                   delay={0.2}
-                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                  breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: Number(
                       c.valorFaturado > 0
@@ -369,7 +390,7 @@ export default function RelatoriosBI() {
                   icon={PackageIcon}
                   variant="primary"
                   delay={0.25}
-                  breakdown={conveniosData.slice(0, 5).map((c) => ({
+                  breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: c.quantidade > 0 ? c.valorFaturado / c.quantidade : 0,
                   }))}
