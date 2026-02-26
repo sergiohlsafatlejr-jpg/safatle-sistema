@@ -2241,3 +2241,4 @@
 - [x] StackedProgressChart: barras horizontais verde/vermelho com percentuais e legenda
 - [x] TopGlosasChart: numeração (1,2,3...), barras de progresso vermelhas, valores em vermelho, percentuais
 - [x] Ajustar RelatoriosBI.tsx para passar dados corretos aos componentes atualizados
+- [x] Corrigir gráfico de pizza (TiposPieChart) - labels exibindo valores brutos sem formatação em vez de percentuais

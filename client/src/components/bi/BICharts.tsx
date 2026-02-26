@@ -65,6 +65,42 @@ interface TiposPieChartProps {
   data: Array<{ tipo: string; valor: number; percentual: string }>;
 }
 
+const renderCustomLabel = ({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+  name,
+}: {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  name: string;
+}) => {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 25;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  if (percent < 0.03) return null; // Hide labels for very small slices
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="currentColor"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      className="text-[11px] fill-foreground"
+    >
+      {name} ({(percent * 100).toFixed(1)}%)
+    </text>
+  );
+};
+
 export function TiposPieChart({ data }: TiposPieChartProps) {
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -77,7 +113,7 @@ export function TiposPieChart({ data }: TiposPieChartProps) {
       </CardHeader>
       <CardContent>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={350}>
             <RechartsPieChart>
               <RechartsPie
                 data={data}
@@ -86,16 +122,23 @@ export function TiposPieChart({ data }: TiposPieChartProps) {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label
+                label={renderCustomLabel}
+                labelLine={true}
               >
                 {data.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />
                 ))}
               </RechartsPie>
               <RechartsTooltip
-                formatter={(value) =>
-                  `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                }
+                formatter={(value: number, name: string) => [
+                  `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                  name,
+                ]}
+              />
+              <RechartsLegend
+                verticalAlign="bottom"
+                height={36}
+                formatter={(value: string) => <span className="text-xs">{value}</span>}
               />
             </RechartsPieChart>
           </ResponsiveContainer>
