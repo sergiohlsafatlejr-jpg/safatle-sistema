@@ -2215,3 +2215,7 @@
 - [x] Adicionar botões de forçar importação completa e resetar controle incremental
 - [x] Na importação completa, limpar tabela antes de inserir novos dados
 - [x] Testes unitários para importação incremental (11 testes passando)
+
+- [x] Ao criar tabela a partir de query, salvar automaticamente o mapeamento associado para re-execução
+- [x] Mostrar mapeamento vinculado na tabela e permitir re-executar sincronização diretamente
+- [x] Botão de sincronizar na lista de tabelas para executar mapeamento salvo

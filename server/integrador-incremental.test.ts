@@ -357,4 +357,85 @@ describe("Integrador de Dados - Importação Incremental", () => {
       expect(result[1].modoImportacao).toBe("completa");
     });
   });
+
+  describe("tabelas.obterMapeamentoVinculado", () => {
+    it("deve retornar mapeamento vinculado a uma tabela", async () => {
+      const ctx = createAdminContext();
+      const caller = appRouter.createCaller(ctx);
+
+      // Mock buscarMapeamentoPorTabela
+      dbIntegrador.buscarMapeamentoPorTabela = vi.fn().mockResolvedValue({
+        id: 1,
+        nome: "Sync: Tabela Teste",
+        modoImportacao: "incremental",
+        colunaControle: "id",
+        ultimoValorControle: "100",
+        ultimaSincronizacao: new Date(),
+      });
+
+      const result = await caller.integradorDados.tabelas.obterMapeamentoVinculado({ tabelaId: 1 });
+
+      expect(result).not.toBeNull();
+      expect(result!.nome).toBe("Sync: Tabela Teste");
+      expect(result!.modoImportacao).toBe("incremental");
+      expect(dbIntegrador.buscarMapeamentoPorTabela).toHaveBeenCalledWith(1);
+    });
+
+    it("deve retornar null quando não há mapeamento vinculado", async () => {
+      const ctx = createAdminContext();
+      const caller = appRouter.createCaller(ctx);
+
+      dbIntegrador.buscarMapeamentoPorTabela = vi.fn().mockResolvedValue(null);
+
+      const result = await caller.integradorDados.tabelas.obterMapeamentoVinculado({ tabelaId: 999 });
+
+      expect(result).toBeNull();
+    });
+
+    it("deve negar acesso a usuários não-admin", async () => {
+      const ctx = createUserContext();
+      const caller = appRouter.createCaller(ctx);
+
+      dbIntegrador.buscarMapeamentoPorTabela = vi.fn().mockResolvedValue({ id: 1 });
+
+      const result = await caller.integradorDados.tabelas.obterMapeamentoVinculado({ tabelaId: 1 });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("tabelas.sincronizarTabela", () => {
+    it("deve rejeitar quando não há mapeamento vinculado", async () => {
+      const ctx = createAdminContext();
+      const caller = appRouter.createCaller(ctx);
+
+      dbIntegrador.buscarMapeamentoPorTabela = vi.fn().mockResolvedValue(null);
+
+      await expect(
+        caller.integradorDados.tabelas.sincronizarTabela({ tabelaId: 1 })
+      ).rejects.toThrow("Nenhum mapeamento de sincronização encontrado");
+    });
+
+    it("deve negar acesso a usuários não-admin", async () => {
+      const ctx = createUserContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.integradorDados.tabelas.sincronizarTabela({ tabelaId: 1 })
+      ).rejects.toThrow("Acesso negado");
+    });
+  });
+
+  describe("inserirDadosTabela com campoChave (upsert)", () => {
+    it("deve aceitar campoChave como parâmetro opcional", async () => {
+      // Testa que a função aceita o terceiro parâmetro sem erro
+      const result = await dbIntegrador.inserirDadosTabela("test_table", [{ id: 1, nome: "teste" }], "id");
+      expect(result).toEqual({ inseridos: 50 });
+    });
+
+    it("deve funcionar sem campoChave", async () => {
+      const result = await dbIntegrador.inserirDadosTabela("test_table", [{ id: 1, nome: "teste" }]);
+      expect(result).toEqual({ inseridos: 50 });
+    });
+  });
 });

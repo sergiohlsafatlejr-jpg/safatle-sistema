@@ -1469,6 +1469,10 @@ export const integradorDadosRouter = router({
         nomeExibicao: z.string().min(1),
         descricao: z.string().optional(),
         estabelecimentoId: z.number().optional(),
+        modoImportacao: z.enum(["completa", "incremental"]).default("incremental"),
+        colunaControle: z.string().optional(),
+        campoChave: z.string().optional(),
+        frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual"),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
@@ -1628,9 +1632,42 @@ export const integradorDadosRouter = router({
           logger.error({ message: "Erro ao criar tabela física no MySQL", error: error instanceof Error ? error.message : String(error) });
         }
         
+        // 6. Criar mapeamento automático vinculado à tabela para re-execução
+        let mapeamentoId: number | null = null;
+        try {
+          mapeamentoId = await dbIntegrador.criarMapeamento({
+            nome: `Sync: ${input.nomeExibicao}`,
+            descricao: `Mapeamento criado automaticamente ao criar tabela "${input.nomeExibicao}" a partir de query`,
+            conexaoOrigemId: input.conexaoId,
+            tabelaDestinoId: tabelaId,
+            queryOrigem: input.querySql,
+            campoChave: input.campoChave || null,
+            frequencia: input.frequencia,
+            estabelecimentoId: input.estabelecimentoId || null,
+            modoImportacao: input.modoImportacao,
+            colunaControle: input.colunaControle || null,
+          });
+
+          // Salvar mapeamento de campos automaticamente (1:1 com nomes iguais)
+          const colunasTabela = await dbIntegrador.listarColunas(tabelaId);
+          if (colunasTabela.length > 0) {
+            const camposMapeamento = colunasTabela.map((col: any) => ({
+              colunaOrigemNome: col.nomeExibicao || col.nome,
+              colunaDestinoId: col.id,
+              transformacao: null,
+            }));
+            await dbIntegrador.salvarCamposMapeamento(mapeamentoId, camposMapeamento);
+          }
+
+          logger.info({ message: `Mapeamento automático criado: ID ${mapeamentoId} para tabela ${input.nomeExibicao}` });
+        } catch (error) {
+          logger.error({ message: "Erro ao criar mapeamento automático", error: error instanceof Error ? error.message : String(error) });
+        }
+        
         return {
           sucesso: true,
           id: tabelaId,
+          mapeamentoId,
           camposDetectados: camposDetectados.length,
           campos: camposDetectados.map(c => ({ nome: c.nome, nomeExibicao: c.nomeExibicao, tipo: c.tipo })),
         };
@@ -1705,6 +1742,194 @@ export const integradorDadosRouter = router({
         // Remover metadados
         await dbIntegrador.excluirTabela(input.id);
         return { sucesso: true };
+      }),
+
+    obterMapeamentoVinculado: protectedProcedure
+      .input(z.object({ tabelaId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") return null;
+        return dbIntegrador.buscarMapeamentoPorTabela(input.tabelaId);
+      }),
+
+    sincronizarTabela: protectedProcedure
+      .input(z.object({
+        tabelaId: z.number(),
+        forcarCompleta: z.boolean().default(false),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        
+        // Buscar mapeamento vinculado à tabela
+        const mapeamento = await dbIntegrador.buscarMapeamentoPorTabela(input.tabelaId);
+        if (!mapeamento) {
+          throw new Error("Nenhum mapeamento de sincronização encontrado para esta tabela. Crie um mapeamento na aba Mapeamentos.");
+        }
+
+        // Delegar para a procedure executar do mapeamento
+        const tabela = await dbIntegrador.obterTabela(input.tabelaId);
+        if (!tabela || tabela.criadaNoBanco !== "sim") {
+          throw new Error("Tabela não encontrada ou não criada no banco");
+        }
+
+        const conexao = await dbIntegrador.obterConexao(mapeamento.conexaoOrigemId);
+        if (!conexao) throw new Error("Conexão de origem não encontrada");
+
+        const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+        const nomeReal = `integ_${tabela.nome}`;
+
+        // Determinar modo de importação
+        const modoEfetivo = input.forcarCompleta ? "completa" : (mapeamento.modoImportacao || "completa");
+
+        // Construir query com filtro incremental se aplicável
+        let queryFinal = mapeamento.queryOrigem.trim().replace(/;$/, "");
+        if (modoEfetivo === "incremental" && mapeamento.colunaControle && mapeamento.ultimoValorControle && !input.forcarCompleta) {
+          const valorEscapado = mapeamento.ultimoValorControle.replace(/'/g, "''");
+          if (/\bWHERE\b/i.test(queryFinal)) {
+            queryFinal = queryFinal.replace(/(WHERE)/i, `$1 ${mapeamento.colunaControle} > '${valorEscapado}' AND`);
+          } else {
+            queryFinal += ` WHERE ${mapeamento.colunaControle} > '${valorEscapado}'`;
+          }
+        }
+
+        // Criar registro de sincronização
+        const syncId = await dbIntegrador.criarSincronizacao({
+          mapeamentoId: mapeamento.id,
+          status: "executando",
+          executadoPor: ctx.user?.name || "sistema",
+        });
+
+        const inicio = Date.now();
+
+        try {
+          let rows: Record<string, any>[] = [];
+
+          if (conexao.tipo === "postgresql") {
+            const connector = new EasyVisionConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            await connector.conectar();
+            rows = (await connector.executarQuery(queryFinal)) || [];
+            await connector.desconectar();
+          } else {
+            const connector = new WarleineConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            await connector.conectar();
+            rows = (await connector.executarQuery(queryFinal)) || [];
+            await connector.desconectar();
+          }
+
+          // Se importação completa, limpar tabela antes
+          if (modoEfetivo === "completa") {
+            await dbIntegrador.limparDadosTabela(nomeReal);
+          }
+
+          // Buscar campos do mapeamento
+          const camposMapeamento = await dbIntegrador.listarCamposMapeamento(mapeamento.id);
+          const colunasTabela = await dbIntegrador.listarColunas(input.tabelaId);
+
+          // Mapear colunas
+          const colunaMap = new Map<number, string>();
+          colunasTabela.forEach((col: any) => { colunaMap.set(col.id, col.nome); });
+
+          // Inserir dados
+          let registrosInseridos = 0;
+          const BATCH_SIZE = 500;
+
+          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            const batch = rows.slice(i, i + BATCH_SIZE);
+            const dadosMapeados = batch.map((row: any) => {
+              const registro: Record<string, any> = {};
+              if (camposMapeamento.length > 0) {
+                camposMapeamento.forEach((campo: any) => {
+                  const nomeDestino = colunaMap.get(campo.colunaDestinoId);
+                  if (nomeDestino && campo.colunaOrigemNome in row) {
+                    let valor = row[campo.colunaOrigemNome];
+                    if (campo.transformacao === "UPPER" && typeof valor === "string") valor = valor.toUpperCase();
+                    if (campo.transformacao === "LOWER" && typeof valor === "string") valor = valor.toLowerCase();
+                    if (campo.transformacao === "TRIM" && typeof valor === "string") valor = valor.trim();
+                    registro[nomeDestino] = valor;
+                  }
+                });
+              } else {
+                // Sem mapeamento de campos: inserir diretamente
+                Object.entries(row).forEach(([key, val]) => {
+                  const nomeSafe = key.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+                  registro[nomeSafe] = val;
+                });
+              }
+              return registro;
+            });
+
+            const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, dadosMapeados, mapeamento.campoChave || undefined);
+            registrosInseridos += resultado.inseridos;
+          }
+
+          // Atualizar último valor de controle
+          let novoUltimoValor = mapeamento.ultimoValorControle;
+          if (modoEfetivo === "incremental" && mapeamento.colunaControle && rows.length > 0) {
+            const ultimoRegistro = rows[rows.length - 1];
+            const valorControle = ultimoRegistro[mapeamento.colunaControle];
+            if (valorControle !== undefined && valorControle !== null) {
+              novoUltimoValor = String(valorControle);
+            }
+          }
+
+          const duracaoMs = Date.now() - inicio;
+
+          // Atualizar mapeamento
+          const updateData: any = {
+            ultimaSincronizacao: new Date(),
+          };
+          if (novoUltimoValor !== mapeamento.ultimoValorControle) {
+            updateData.ultimoValorControle = novoUltimoValor;
+          }
+          if (modoEfetivo === "incremental") {
+            updateData.totalRegistrosImportados = (mapeamento.totalRegistrosImportados || 0) + registrosInseridos;
+          } else {
+            updateData.totalRegistrosImportados = registrosInseridos;
+          }
+          await dbIntegrador.atualizarMapeamento(mapeamento.id, updateData);
+
+          // Atualizar contagem na tabela
+          const totalAtual = await dbIntegrador.contarRegistrosTabela(nomeReal);
+          await dbIntegrador.atualizarTabela(input.tabelaId, { totalRegistros: totalAtual });
+
+          // Atualizar sincronização
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "sucesso",
+            finalizadoEm: new Date(),
+            registrosLidos: rows.length,
+            registrosInseridos,
+            duracaoMs,
+          });
+
+          return {
+            sucesso: true,
+            mensagem: `${registrosInseridos} registros ${modoEfetivo === "incremental" ? "incrementais" : ""} importados em ${(duracaoMs / 1000).toFixed(1)}s`,
+            registrosLidos: rows.length,
+            registrosInseridos,
+            duracaoMs,
+            modoEfetivo,
+          };
+        } catch (error) {
+          const duracaoMs = Date.now() - inicio;
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "erro",
+            finalizadoEm: new Date(),
+            erroMensagem: error instanceof Error ? error.message : String(error),
+            duracaoMs,
+          });
+          throw new Error(`Erro na sincronização: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }),
 
     consultarDados: protectedProcedure

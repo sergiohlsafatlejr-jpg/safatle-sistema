@@ -173,6 +173,13 @@ export async function listarMapeamentos(estabelecimentoId?: number) {
   return query.orderBy(desc(integracaoMapeamentos.criadoEm));
 }
 
+export async function buscarMapeamentoPorTabela(tabelaDestinoId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [mapeamento] = await db.select().from(integracaoMapeamentos).where(eq(integracaoMapeamentos.tabelaDestinoId, tabelaDestinoId)).limit(1);
+  return mapeamento || null;
+}
+
 export async function obterMapeamento(id: number) {
   const db = await getDb();
   if (!db) return null;
@@ -354,7 +361,7 @@ export async function limparDadosTabela(nomeTabela: string) {
   await db.execute(sql.raw(`DELETE FROM \`${nomeSeguro}\``));
 }
 
-export async function inserirDadosTabela(nomeTabela: string, registros: Record<string, any>[]) {
+export async function inserirDadosTabela(nomeTabela: string, registros: Record<string, any>[], campoChave?: string) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados não disponível");
 
@@ -380,7 +387,22 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       return `(${vals.join(", ")})`;
     }).join(",\n");
 
-    const insertSQL = `INSERT INTO \`${nomeSeguro}\` (${colunasSQL}) VALUES\n${valoresSQL}`;
+    let insertSQL = `INSERT INTO \`${nomeSeguro}\` (${colunasSQL}) VALUES\n${valoresSQL}`;
+    
+    // Se tem campo chave, usar ON DUPLICATE KEY UPDATE para upsert
+    if (campoChave) {
+      const updateCols = colunas
+        .filter(c => c !== campoChave)
+        .map(c => {
+          const safe = `\`${c.replace(/[^a-zA-Z0-9_]/g, "")}\``;
+          return `${safe} = VALUES(${safe})`;
+        })
+        .join(", ");
+      if (updateCols) {
+        insertSQL += ` ON DUPLICATE KEY UPDATE ${updateCols}`;
+      }
+    }
+    
     await db.execute(sql.raw(insertSQL));
     inseridos += lote.length;
   }
