@@ -55,3 +55,44 @@ describe("db-recebimentoGeral", () => {
     });
   });
 });
+
+describe("dadosRecebimentoBI", () => {
+  it("deve retornar resultado vazio quando db não está disponível", async () => {
+    const { dadosRecebimentoBI } = await import("./db-recebimentoGeral");
+    const result = await dadosRecebimentoBI({ estabelecimentoId: 1 });
+
+    expect(result).toBeDefined();
+    expect(result.resumo.totalFaturado).toBe(0);
+    expect(result.resumo.totalRecebido).toBe(0);
+    expect(result.resumo.totalAberto).toBe(0);
+    expect(result.resumo.totalItens).toBe(0);
+    expect(result.resumo.taxaRecebimento).toBe(0);
+    expect(result.resumo.totalGlosas).toBe(0);
+    expect(result.resumo.totalRecurso).toBe(0);
+    expect(result.resumo.totalRecuperado).toBe(0);
+    expect(result.resumo.totalRecebAMaior).toBe(0);
+    expect(result.porConvenio).toEqual([]);
+    expect(result.porMes).toEqual([]);
+    expect(result.porSetor).toEqual([]);
+    expect(result.porTipo).toEqual([]);
+    expect(result.topAberto).toEqual([]);
+  });
+
+  it("deve aceitar parâmetros de filtro sem erro", async () => {
+    const { dadosRecebimentoBI } = await import("./db-recebimentoGeral");
+    const result = await dadosRecebimentoBI({
+      estabelecimentoId: 1,
+      mesProducao: "01/2025",
+      convenio: "UNIMED",
+      setor: "Centro Cirúrgico",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.resumo).toBeDefined();
+    expect(result.porConvenio).toBeDefined();
+    expect(result.porMes).toBeDefined();
+    expect(result.porSetor).toBeDefined();
+    expect(result.porTipo).toBeDefined();
+    expect(result.topAberto).toBeDefined();
+  });
+});

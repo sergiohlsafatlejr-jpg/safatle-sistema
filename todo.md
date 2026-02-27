@@ -2254,3 +2254,7 @@
 - [x] Integrar mapeamento na importação de dados (recebimento_geral usa convenioId do Safatle)
 - [x] Bug: Mapeamento de Convênios mostra 0 convênios - corrigido: busca de múltiplas fontes de dados
 - [x] Re-executar importação recebimento_geral com mapeamentos de convênios para preencher convenioId
+- [x] Criar aba "Relatórios" dentro do Relatórios BI com menu de sub-relatórios
+- [x] Backend: procedure tRPC para dados de recebimento geral agregados
+- [x] Componente RelatorioRecebimento com MetricCards, gráficos e tabelas (mesmo padrão visual)
+- [x] Integrar aba Relatórios no RelatoriosBI.tsx com navegação para sub-relatórios

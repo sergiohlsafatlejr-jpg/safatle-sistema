@@ -61,7 +61,7 @@ export function InsightCards({ convenios, meses }: InsightCardsProps) {
     const varGlos = glosAnterior > 0 ? ((glosAtual - glosAnterior) / glosAnterior) * 100 : 0;
 
     // Find worst month by glosa rate
-    const piorMes = sorted.reduce(
+    const piorMes = sorted.reduce<{ mes: string; taxa: number }>(
       (worst, m) => {
         const fat = m.faturado || 0;
         const glos = m.glosado || 0;

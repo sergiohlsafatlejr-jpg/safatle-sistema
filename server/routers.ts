@@ -6741,6 +6741,18 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await dbRecebGeral.resumoRecebimentoGeral(input.estabelecimentoId);
       }),
+
+    // Dados agregados para Relatório BI de Recebimento
+    dadosBI: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesProducao: z.string().optional(),
+        convenio: z.string().optional(),
+        setor: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await dbRecebGeral.dadosRecebimentoBI(input);
+      }),
   }),
 
   // ============ AVISOS INTERNOS ============

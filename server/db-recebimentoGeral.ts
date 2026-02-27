@@ -473,3 +473,181 @@ export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise
     })),
   };
 }
+
+/**
+ * Dados agregados de recebimento para o Relatório BI
+ * Retorna métricas, breakdowns por convênio, tipo, setor, mês e top itens em aberto
+ */
+export async function dadosRecebimentoBI(params: {
+  estabelecimentoId: number;
+  mesProducao?: string;
+  convenio?: string;
+  setor?: string;
+}): Promise<{
+  resumo: {
+    totalFaturado: number;
+    totalRecebido: number;
+    totalGlosas: number;
+    totalAberto: number;
+    totalRecurso: number;
+    totalRecuperado: number;
+    totalRecebAMaior: number;
+    totalItens: number;
+    taxaRecebimento: number;
+  };
+  porConvenio: { chave: string; faturado: number; recebido: number; glosas: number; aberto: number; recurso: number; recuperado: number; itens: number }[];
+  porMes: { chave: string; faturado: number; recebido: number; glosas: number; aberto: number }[];
+  porSetor: { chave: string; faturado: number; recebido: number; glosas: number; aberto: number; itens: number }[];
+  porTipo: { chave: string; faturado: number; recebido: number; glosas: number; aberto: number; itens: number }[];
+  topAberto: { convenio: string; numeroConta: string; protocolo: string; faturado: number; recebido: number; aberto: number; mesProducao: string }[];
+}> {
+  const db = await getDb();
+  const emptyResult = {
+    resumo: { totalFaturado: 0, totalRecebido: 0, totalGlosas: 0, totalAberto: 0, totalRecurso: 0, totalRecuperado: 0, totalRecebAMaior: 0, totalItens: 0, taxaRecebimento: 0 },
+    porConvenio: [],
+    porMes: [],
+    porSetor: [],
+    porTipo: [],
+    topAberto: [],
+  };
+  if (!db) return emptyResult;
+
+  // Construir WHERE
+  const conditions: string[] = [`estabelecimentoId = ${params.estabelecimentoId}`];
+  if (params.mesProducao) conditions.push(`mes_producao = '${params.mesProducao.replace(/'/g, "''")}'`);
+  if (params.convenio) conditions.push(`convenio = '${params.convenio.replace(/'/g, "''")}'`);
+  if (params.setor) conditions.push(`nome_setor = '${params.setor.replace(/'/g, "''")}'`);
+  const where = conditions.join(" AND ");
+
+  try {
+    // 1. Resumo geral
+    const [totais] = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as totalItens,
+        COALESCE(SUM(CAST(vl_faturado AS DECIMAL(15,2))), 0) as totalFaturado,
+        COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as totalRecebido,
+        COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as totalGlosas,
+        COALESCE(SUM(CAST(vl_aberto AS DECIMAL(15,2))), 0) as totalAberto,
+        COALESCE(SUM(CAST(vl_recurso AS DECIMAL(15,2))), 0) as totalRecurso,
+        COALESCE(SUM(CAST(gl_recuperado AS DECIMAL(15,2))), 0) as totalRecuperado,
+        COALESCE(SUM(CAST(vl_receb_a_maior AS DECIMAL(15,2))), 0) as totalRecebAMaior
+      FROM recebimento_geral WHERE ${where}
+    `));
+    const t = (totais as any)[0] || {};
+    const totalFaturado = Number(t.totalFaturado) || 0;
+    const totalRecebido = Number(t.totalRecebido) || 0;
+    const taxaRecebimento = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
+
+    // 2. Por convênio
+    const [convRows] = await db.execute(sql.raw(`
+      SELECT 
+        convenio as chave,
+        COALESCE(SUM(CAST(vl_faturado AS DECIMAL(15,2))), 0) as faturado,
+        COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
+        COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas,
+        COALESCE(SUM(CAST(vl_aberto AS DECIMAL(15,2))), 0) as aberto,
+        COALESCE(SUM(CAST(vl_recurso AS DECIMAL(15,2))), 0) as recurso,
+        COALESCE(SUM(CAST(gl_recuperado AS DECIMAL(15,2))), 0) as recuperado,
+        COUNT(*) as itens
+      FROM recebimento_geral WHERE ${where}
+      GROUP BY convenio ORDER BY faturado DESC
+    `));
+
+    // 3. Por mês de produção
+    const [mesRows] = await db.execute(sql.raw(`
+      SELECT 
+        mes_producao as chave,
+        COALESCE(SUM(CAST(vl_faturado AS DECIMAL(15,2))), 0) as faturado,
+        COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
+        COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas,
+        COALESCE(SUM(CAST(vl_aberto AS DECIMAL(15,2))), 0) as aberto
+      FROM recebimento_geral WHERE ${where}
+      GROUP BY mes_producao ORDER BY mes_producao ASC
+    `));
+
+    // 4. Por setor
+    const [setorRows] = await db.execute(sql.raw(`
+      SELECT 
+        COALESCE(nome_setor, 'Sem setor') as chave,
+        COALESCE(SUM(CAST(vl_faturado AS DECIMAL(15,2))), 0) as faturado,
+        COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
+        COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas,
+        COALESCE(SUM(CAST(vl_aberto AS DECIMAL(15,2))), 0) as aberto,
+        COUNT(*) as itens
+      FROM recebimento_geral WHERE ${where}
+      GROUP BY nome_setor ORDER BY faturado DESC
+    `));
+
+    // 5. Por tipo de procedimento
+    const [tipoRows] = await db.execute(sql.raw(`
+      SELECT 
+        COALESCE(tipo_procedimento, 'Sem tipo') as chave,
+        COALESCE(SUM(CAST(vl_faturado AS DECIMAL(15,2))), 0) as faturado,
+        COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
+        COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas,
+        COALESCE(SUM(CAST(vl_aberto AS DECIMAL(15,2))), 0) as aberto,
+        COUNT(*) as itens
+      FROM recebimento_geral WHERE ${where}
+      GROUP BY tipo_procedimento ORDER BY faturado DESC
+    `));
+
+    // 6. Top 20 contas com maior valor em aberto
+    const [topRows] = await db.execute(sql.raw(`
+      SELECT 
+        convenio, numero_conta as numeroConta, protocolo,
+        COALESCE(CAST(vl_faturado AS DECIMAL(15,2)), 0) as faturado,
+        COALESCE(CAST(vl_recebido AS DECIMAL(15,2)), 0) as recebido,
+        COALESCE(CAST(vl_aberto AS DECIMAL(15,2)), 0) as aberto,
+        mes_producao as mesProducao
+      FROM recebimento_geral WHERE ${where} AND CAST(vl_aberto AS DECIMAL(15,2)) > 0
+      ORDER BY CAST(vl_aberto AS DECIMAL(15,2)) DESC LIMIT 20
+    `));
+
+    const mapRow = (r: any) => ({
+      chave: r.chave || "N/A",
+      faturado: Number(r.faturado) || 0,
+      recebido: Number(r.recebido) || 0,
+      glosas: Number(r.glosas) || 0,
+      aberto: Number(r.aberto) || 0,
+      recurso: Number(r.recurso) || 0,
+      recuperado: Number(r.recuperado) || 0,
+      itens: Number(r.itens) || 0,
+    });
+
+    return {
+      resumo: {
+        totalFaturado,
+        totalRecebido,
+        totalGlosas: Number(t.totalGlosas) || 0,
+        totalAberto: Number(t.totalAberto) || 0,
+        totalRecurso: Number(t.totalRecurso) || 0,
+        totalRecuperado: Number(t.totalRecuperado) || 0,
+        totalRecebAMaior: Number(t.totalRecebAMaior) || 0,
+        totalItens: Number(t.totalItens) || 0,
+        taxaRecebimento: Number(taxaRecebimento.toFixed(1)),
+      },
+      porConvenio: (convRows as unknown as any[]).map(mapRow),
+      porMes: (mesRows as unknown as any[]).map(r => ({
+        chave: r.chave || "N/A",
+        faturado: Number(r.faturado) || 0,
+        recebido: Number(r.recebido) || 0,
+        glosas: Number(r.glosas) || 0,
+        aberto: Number(r.aberto) || 0,
+      })),
+      porSetor: (setorRows as unknown as any[]).map(mapRow),
+      porTipo: (tipoRows as unknown as any[]).map(mapRow),
+      topAberto: (topRows as unknown as any[]).map(r => ({
+        convenio: r.convenio || "N/A",
+        numeroConta: r.numeroConta || "",
+        protocolo: r.protocolo || "",
+        faturado: Number(r.faturado) || 0,
+        recebido: Number(r.recebido) || 0,
+        aberto: Number(r.aberto) || 0,
+        mesProducao: r.mesProducao || "",
+      })),
+    };
+  } catch (error) {
+    console.error("[RecebimentoBI] Erro:", error);
+    return emptyResult;
+  }
+}
