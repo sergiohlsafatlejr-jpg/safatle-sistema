@@ -2253,3 +2253,4 @@
 - [x] Criar tela frontend de configuração de mapeamentos com sugestões automáticas
 - [x] Integrar mapeamento na importação de dados (recebimento_geral usa convenioId do Safatle)
 - [x] Bug: Mapeamento de Convênios mostra 0 convênios - corrigido: busca de múltiplas fontes de dados
+- [x] Re-executar importação recebimento_geral com mapeamentos de convênios para preencher convenioId
