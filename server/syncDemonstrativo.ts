@@ -77,26 +77,14 @@ export async function syncDemonstrativoByArquivo(
         const valorOriginalNum = parseFloat(String(item.valorPagamento || 0));
         
         // Lógica de valores:
-        // - Formato Vivacom/GEAP: quando GLOSADO sem erroTiss, valorPagamento é o valor glosado
-        // - Formato Unimed: quando GLOSADO com erroTiss, valorPagamento é o valor PAGO pelo convênio
-        //   A glosa real é a diferença com o valor faturado (calculada na conciliação)
+        // - Quando GLOSADO (qualquer formato): valorPagamento é o valor da GLOSA, valor_pago = 0
+        // - Quando PAGO: valorPagamento é o valor efetivamente pago
         let valorPago: string;
         let valorGlosa: string | null = item.valorGlosa ? String(item.valorGlosa) : null;
         
-        if (isGlosado && hasErroTiss) {
-          // UNIMED: item glosado com erro TISS
-          // valorPagamento = valor efetivamente pago pelo convênio
-          // Se valor pago = 0, é glosa total
-          // Se valor pago > 0, o convênio pagou esse valor (glosa parcial ou ajuste)
-          valorPago = String(valorOriginalNum.toFixed(2));
-          // Se não tem valorGlosa explícito e valor pago = 0, usar valorInformado se disponível
-          if (!valorGlosa && valorOriginalNum === 0 && item.valorInformado) {
-            valorGlosa = String(parseFloat(String(item.valorInformado)).toFixed(2));
-          }
-          // Se não tem valorGlosa e não tem valorInformado, deixar null
-          // (será calculado na conciliação com faturamento)
-        } else if (isGlosado && !hasErroTiss) {
-          // VIVACOM/outros: quando GLOSADO sem erroTiss, valorPagamento é o valor glosado
+        if (isGlosado) {
+          // Item GLOSADO: o valor_pagamento do Excel representa o valor da glosa
+          // valor_pago deve ser 0, valor_glosa recebe o valor_pagamento
           valorPago = '0.00';
           if (!valorGlosa) {
             valorGlosa = String(valorOriginalNum.toFixed(2));
