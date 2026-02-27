@@ -206,7 +206,19 @@ export async function importarIntegFaturadoRecebido(
       console.log(`[ImportRecebGeral] Dados existentes limpos${estabelecimentoId ? ` para estabelecimento ${estabelecimentoId}` : ""}`);
     }
 
-    // 3. Importar em lotes de 500 registros
+    // 3. Carregar mapeamentos de convênios para resolver convenioId
+    const [mapeamentoRows] = await db.execute(
+      sql.raw(
+        `SELECT nome_origem, convenio_id FROM convenio_mapeamento WHERE ativo = 'sim'${estabelecimentoId ? ` AND estabelecimento_id = ${estabelecimentoId}` : ''}`
+      )
+    );
+    const mapeamentoConvenios = new Map<string, number>();
+    for (const m of (mapeamentoRows as unknown as any[])) {
+      mapeamentoConvenios.set((m.nome_origem || '').toLowerCase().trim(), m.convenio_id);
+    }
+    console.log(`[ImportRecebGeral] ${mapeamentoConvenios.size} mapeamentos de convênios carregados`);
+
+    // 4. Importar em lotes de 500 registros
     const BATCH_SIZE = 500;
     let offset = 0;
 
@@ -225,6 +237,11 @@ export async function importarIntegFaturadoRecebido(
       for (const row of registros) {
         try {
           const transformed = transformRecord(row);
+          // Resolver convenioId pelo mapeamento
+          const nomeConv = (row.nomeconv || '').toLowerCase().trim();
+          if (nomeConv && mapeamentoConvenios.has(nomeConv)) {
+            transformed.convenioId = mapeamentoConvenios.get(nomeConv)!;
+          }
           batch.push(transformed);
         } catch (err) {
           erros.push(`Erro ao transformar registro _id=${row._id}: ${err}`);

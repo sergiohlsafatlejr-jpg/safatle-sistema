@@ -55,6 +55,7 @@ import CacheDashboard from "./pages/CacheDashboard";
 import { HistoricoValidacaoXml } from "./pages/HistoricoValidacaoXml";
 import { PopularHistoricoXml } from "./pages/PopularHistoricoXml";
 import { IntegradorDados } from "./pages/IntegradorDados";
+import MapeamentoConvenios from "./pages/MapeamentoConvenios";
 // import ImportacaoXML from "./pages/ImportacaoXML"; // Removido temporariamente
 
 function Router() {
@@ -119,6 +120,7 @@ function Router() {
       <Route path={"/historico-validacao-xml"} component={HistoricoValidacaoXml} />
       <Route path={"/popular-historico-xml"} component={PopularHistoricoXml} />
       <Route path={"/integracao"} component={IntegradorDados} />
+      <Route path={"/mapeamento-convenios"} component={MapeamentoConvenios} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

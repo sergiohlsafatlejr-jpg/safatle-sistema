@@ -137,6 +137,7 @@ const menuItems: MenuItem[] = [
   
   // Integração de Dados
   { icon: Database, label: "Integrador de Dados", path: "/integracao", adminOnly: true },
+  { icon: ArrowLeftRight, label: "Mapeamento Convênios", path: "/mapeamento-convenios", adminOnly: true },
   
   // Atendimentos
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },

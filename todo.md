@@ -2248,3 +2248,7 @@
 - [x] Bug: Integrador de Dados - outro usuário admin não vê conexões/queries cadastradas no estabelecimento (corrigido: verificar permissão por grupo de estabelecimento em vez de role global)
 - [x] Criar tabela recebimento_geral no schema Drizzle com todos os campos especificados
 - [x] Criar procedure de importação para popular recebimento_geral a partir da tabela integ_faturado_recebido
+- [x] Criar tabela convenio_mapeamento no schema (estabelecimentoId, nomeOrigem, codigoOrigem, convenioId)
+- [x] Criar procedures tRPC para CRUD de mapeamentos e matching automático por similaridade
+- [x] Criar tela frontend de configuração de mapeamentos com sugestões automáticas
+- [x] Integrar mapeamento na importação de dados (recebimento_geral usa convenioId do Safatle)

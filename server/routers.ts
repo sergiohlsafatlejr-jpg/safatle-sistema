@@ -20,6 +20,7 @@ import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } f
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
+import * as dbConvMap from "./db-convenioMapeamento";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6807,6 +6808,113 @@ export const appRouter = router({
         }
         await db.excluirAvisoInterno(input.id);
         return { success: true };
+      }),
+  }),
+
+  // ==================== MAPEAMENTO DE CONVÊNIOS ====================
+  convenioMapeamento: router({
+    // Listar convênios não mapeados para um estabelecimento
+    naoMapeados: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return await dbConvMap.listarConveniosNaoMapeados(input.estabelecimentoId);
+      }),
+
+    // Listar convênios do Safatle
+    conveniosSafatle: protectedProcedure
+      .query(async () => {
+        return await dbConvMap.listarConveniosSafatle();
+      }),
+
+    // Sugerir mapeamentos automáticos por similaridade
+    sugerir: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return await dbConvMap.sugerirMapeamentos(input.estabelecimentoId);
+      }),
+
+    // Salvar um mapeamento individual
+    salvar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nomeOrigem: z.string().min(1),
+        codigoOrigem: z.string().nullable().optional(),
+        convenioId: z.number(),
+        fonte: z.enum(["tasy", "integracao", "xml", "excel", "manual"]).optional(),
+        metodoMatch: z.enum(["automatico", "manual"]).optional(),
+        confianca: z.number().min(0).max(100).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await dbConvMap.salvarMapeamento({
+          ...input,
+          criadoPor: ctx.user.id,
+        });
+      }),
+
+    // Salvar múltiplos mapeamentos em batch
+    salvarBatch: protectedProcedure
+      .input(z.object({
+        mapeamentos: z.array(z.object({
+          estabelecimentoId: z.number(),
+          nomeOrigem: z.string().min(1),
+          codigoOrigem: z.string().nullable().optional(),
+          convenioId: z.number(),
+          fonte: z.enum(["tasy", "integracao", "xml", "excel", "manual"]).optional(),
+          metodoMatch: z.enum(["automatico", "manual"]).optional(),
+          confianca: z.number().min(0).max(100).optional(),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await dbConvMap.salvarMapeamentosBatch(
+          input.mapeamentos.map(m => ({ ...m, criadoPor: ctx.user.id }))
+        );
+      }),
+
+    // Listar todos os mapeamentos de um estabelecimento
+    listar: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return await dbConvMap.listarMapeamentos(input.estabelecimentoId);
+      }),
+
+    // Remover (desativar) um mapeamento
+    remover: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await dbConvMap.removerMapeamento(input.id);
+        return { success: true };
+      }),
+
+    // Aplicar mapeamentos automáticos com alta confiança
+    aplicarAutomaticos: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        threshold: z.number().min(0).max(100).optional().default(80),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await dbConvMap.aplicarMapeamentosAutomaticos(
+          input.estabelecimentoId,
+          input.threshold,
+          ctx.user.id
+        );
+      }),
+
+    // Resolver convenioId para um nome de convênio do hospital
+    resolver: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        nomeConvenio: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const convenioId = await dbConvMap.resolverConvenioId(input.estabelecimentoId, input.nomeConvenio);
+        return { convenioId };
+      }),
+
+    // Estatísticas de mapeamento
+    estatisticas: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        return await dbConvMap.estatisticasMapeamento(input.estabelecimentoId);
       }),
   }),
 });

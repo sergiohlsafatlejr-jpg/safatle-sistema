@@ -2903,3 +2903,46 @@ export const recebimentoGeral = mysqlTable("recebimento_geral", {
 
 export type RecebimentoGeral = typeof recebimentoGeral.$inferSelect;
 export type InsertRecebimentoGeral = typeof recebimentoGeral.$inferInsert;
+
+
+/**
+ * Mapeamento de Convênios (De-Para)
+ * Associa nomes/códigos de convênios vindos do hospital (Tasy/integração)
+ * aos IDs dos convênios cadastrados no Safatle.
+ * Permite que cada estabelecimento tenha seu próprio mapeamento.
+ */
+export const convenioMapeamento = mysqlTable("convenio_mapeamento", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Estabelecimento (cada hospital pode ter nomes diferentes para o mesmo convênio)
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Dados de origem (como vem do hospital)
+  nomeOrigem: varchar("nome_origem", { length: 255 }).notNull(), // Nome do convênio como vem do hospital (ex: "BRADESCO SAUDE")
+  codigoOrigem: varchar("codigo_origem", { length: 50 }), // Código do convênio no hospital (ex: "0016")
+  
+  // Referência ao convênio no Safatle
+  convenioId: int("convenioId").notNull(), // FK para tabela convenios
+  
+  // Fonte dos dados (de qual sistema/tabela veio)
+  fonte: mysqlEnum("fonte", ["tasy", "integracao", "xml", "excel", "manual"]).default("manual").notNull(),
+  
+  // Status
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  
+  // Quem criou o mapeamento
+  criadoPor: int("criadoPor"), // userId
+  metodoMatch: mysqlEnum("metodo_match", ["automatico", "manual"]).default("manual").notNull(),
+  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confiança do match automático (0-100)
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabIdx: index("idx_conv_map_estab").on(table.estabelecimentoId),
+  nomeOrigemIdx: index("idx_conv_map_nome_origem").on(table.nomeOrigem),
+  convenioIdIdx: index("idx_conv_map_convenio_id").on(table.convenioId),
+  uniqueMapping: index("idx_conv_map_unique").on(table.estabelecimentoId, table.nomeOrigem, table.codigoOrigem),
+}));
+
+export type ConvenioMapeamento = typeof convenioMapeamento.$inferSelect;
+export type InsertConvenioMapeamento = typeof convenioMapeamento.$inferInsert;

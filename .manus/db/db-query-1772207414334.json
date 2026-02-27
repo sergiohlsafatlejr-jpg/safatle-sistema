@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COUNT(*) as total FROM recebimento_geral; SELECT estabelecimentoId, convenio, COUNT(*) as registros, SUM(CAST(vl_faturado AS DECIMAL(15,2))) as total_faturado, SUM(CAST(vl_recebido AS DECIMAL(15,2))) as total_recebido, SUM(CAST(vl_glosas AS DECIMAL(15,2))) as total_glosas FROM recebimento_geral GROUP BY estabelecimentoId, convenio ORDER BY total_faturado DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total FROM recebimento_geral; SELECT estabelecimentoId, convenio, COUNT(*) as registros, SUM(CAST(vl_faturado AS DECIMAL(15,2))) as total_faturado, SUM(CAST(vl_recebido AS DECIMAL(15,2))) as total_recebido, SUM(CAST(vl_glosas AS DECIMAL(15,2))) as total_glosas FROM recebimento_geral GROUP BY estabelecimentoId, convenio ORDER BY total_faturado DESC LIMIT 10;",
+  "rows": [
+    {
+      "total": "111193"
+    },
+    {
+      "total": "estabelecimentoId\tconvenio\tregistros\ttotal_faturado\ttotal_recebido\ttotal_glosas"
+    },
+    {
+      "total": "1260036\tUNIMED\t35989\t2791821.51\t70749.96\t8118.03"
+    },
+    {
+      "total": "1260036\tPARTICULAR\t25977\t2226241.79\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tIPASGO\t44112\t2186536.99\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tVIVACOM PLANOS DE SAUDE \t1549\t54709.61\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tGEAP\t860\t44156.85\t1834.77\t30.76"
+    },
+    {
+      "total": "1260036\tSAUDE CAIXA \t443\t43904.59\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tBRADESCO SAUDE\t691\t39153.81\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tSUL AMERICA \t431\t35890.34\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tAFFEGO SAUDE \t489\t30101.15\t0.00\t0.00"
+    },
+    {
+      "total": "1260036\tSAUDE ITAU\t277\t15335.47\t0.00\t0.00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n111193\nestabelecimentoId\tconvenio\tregistros\ttotal_faturado\ttotal_recebido\ttotal_glosas\n1260036\tUNIMED\t35989\t2791821.51\t70749.96\t8118.03\n1260036\tPARTICULAR\t25977\t2226241.79\t0.00\t0.00\n1260036\tIPASGO\t44112\t2186536.99\t0.00\t0.00\n1260036\tVIVACOM PLANOS DE SAUDE \t1549\t54709.61\t0.00\t0.00\n1260036\tGEAP\t860\t44156.85\t1834.77\t30.76\n1260036\tSAUDE CAIXA \t443\t43904.59\t0.00\t0.00\n1260036\tBRADESCO SAUDE\t691\t39153.81\t0.00\t0.00\n1260036\tSUL AMERICA \t431\t35890.34\t0.00\t0.00\n1260036\tAFFEGO SAUDE \t489\t30101.15\t0.00\t0.00\n1260036\tSAUDE ITAU\t277\t15335.47\t0.00\t0.00\n",
+  "stderr": "",
+  "execution_time_ms": 474
+}
