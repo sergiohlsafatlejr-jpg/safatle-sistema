@@ -295,6 +295,35 @@ export function extractRecebimentoExcelFromRow(
     }
   }
   
+  // CORREÇÃO UNIMED: Quando situacaoItem = "PAGO" mas erroTiss está preenchido,
+  // significa que o convênio glosou o item (total ou parcialmente).
+  // No formato Unimed, o "Valor Pagamento" é o valor efetivamente pago pelo convênio.
+  // A glosa real é a diferença entre o valor apresentado (faturado) e o valor pago,
+  // mas como o Excel Unimed não traz o "Valor Informado", marcamos como "GLOSADO"
+  // para que a conciliação com o faturamento calcule a diferença.
+  // Se o valor pago = 0, é glosa total. Se > 0, é glosa parcial.
+  if (record.erroTiss && record.erroTiss.trim() !== '' && 
+      (!record.situacaoItem || record.situacaoItem === 'PAGO')) {
+    const valorPagoNum = parseNumber(record.valorPagamento);
+    
+    // Extrair código de glosa do campo erroTiss (ex: "1702-COBRANÇA DE..." -> "1702")
+    if (!record.codigoGlosa) {
+      const codigoMatch = record.erroTiss.match(/^(\d{3,4})/);
+      if (codigoMatch) {
+        record.codigoGlosa = codigoMatch[1];
+      }
+    }
+    
+    if (valorPagoNum === 0 || valorPagoNum === null) {
+      // Glosa total: valor pago = 0
+      record.situacaoItem = 'GLOSADO';
+    } else {
+      // Glosa parcial: convênio pagou algo, mas houve glosa
+      // O valor da glosa será calculado na conciliação com o faturamento
+      record.situacaoItem = 'GLOSADO';
+    }
+  }
+  
   return record;
 }
 

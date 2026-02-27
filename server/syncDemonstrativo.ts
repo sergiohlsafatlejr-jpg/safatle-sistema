@@ -69,21 +69,41 @@ export async function syncDemonstrativoByArquivo(
 
       // Mapear para formato demonstrativo
       records = excelData.map((item: any) => {
-        // CORREÇÃO: Quando situacaoItem = GLOSADO, o valorPagamento é na verdade o valor glosado
         const situacao = (item.situacaoItem || '').toString().toUpperCase();
         const isGlosado = situacao === 'GLOSADO' || situacao.includes('GLOS');
+        const hasErroTiss = item.erroTiss && item.erroTiss.trim() !== '';
         
         // Converter valores para números decimais
         const valorOriginalNum = parseFloat(String(item.valorPagamento || 0));
         
-        // Se é glosado, o valor vai para valorGlosa e valorPago = 0
-        // Se não é glosado, o valor vai para valorPago
-        const valorPago = isGlosado ? '0.00' : String(valorOriginalNum.toFixed(2));
+        // Lógica de valores:
+        // - Formato Vivacom/GEAP: quando GLOSADO sem erroTiss, valorPagamento é o valor glosado
+        // - Formato Unimed: quando GLOSADO com erroTiss, valorPagamento é o valor PAGO pelo convênio
+        //   A glosa real é a diferença com o valor faturado (calculada na conciliação)
+        let valorPago: string;
+        let valorGlosa: string | null = item.valorGlosa ? String(item.valorGlosa) : null;
         
-        // Usar valorGlosa direto de recebimentos_excel se existir, senão calcular
-        let valorGlosa = item.valorGlosa ? String(item.valorGlosa) : null;
-        if (isGlosado && !valorGlosa) {
-          valorGlosa = String(valorOriginalNum.toFixed(2));
+        if (isGlosado && hasErroTiss) {
+          // UNIMED: item glosado com erro TISS
+          // valorPagamento = valor efetivamente pago pelo convênio
+          // Se valor pago = 0, é glosa total
+          // Se valor pago > 0, o convênio pagou esse valor (glosa parcial ou ajuste)
+          valorPago = String(valorOriginalNum.toFixed(2));
+          // Se não tem valorGlosa explícito e valor pago = 0, usar valorInformado se disponível
+          if (!valorGlosa && valorOriginalNum === 0 && item.valorInformado) {
+            valorGlosa = String(parseFloat(String(item.valorInformado)).toFixed(2));
+          }
+          // Se não tem valorGlosa e não tem valorInformado, deixar null
+          // (será calculado na conciliação com faturamento)
+        } else if (isGlosado && !hasErroTiss) {
+          // VIVACOM/outros: quando GLOSADO sem erroTiss, valorPagamento é o valor glosado
+          valorPago = '0.00';
+          if (!valorGlosa) {
+            valorGlosa = String(valorOriginalNum.toFixed(2));
+          }
+        } else {
+          // Item PAGO normalmente
+          valorPago = String(valorOriginalNum.toFixed(2));
         }
         
         return {

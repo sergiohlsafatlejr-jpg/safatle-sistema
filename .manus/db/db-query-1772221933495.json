@@ -1,0 +1,14 @@
+{
+  "query": "SELECT id, nome FROM estabelecimentos WHERE nome LIKE '%urol%' OR nome LIKE '%Urol%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, nome FROM estabelecimentos WHERE nome LIKE '%urol%' OR nome LIKE '%Urol%';",
+  "rows": [
+    {
+      "id": "1260036",
+      "nome": "Hospital Urologico "
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\n1260036\tHospital Urologico \n",
+  "stderr": "",
+  "execution_time_ms": 102
+}

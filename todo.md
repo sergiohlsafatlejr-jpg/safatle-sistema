@@ -2262,3 +2262,4 @@
 - [x] Criar página separada RelatorioRecebimentoGeral como rota própria
 - [x] Adicionar submenu "Relatórios BI" no sidebar com subchamadas (Dashboard BI, Recebimento Geral, Rel. Faturamento, Rel. Atendimentos)
 - [x] Registrar novas rotas no App.tsx
+- [x] BUG: Importação de retorno Unimed não traz itens glosados corretamente (universal para todos os estabelecimentos)
