@@ -40,6 +40,8 @@ export default function RelatoriosBI() {
   const [dataInicial, setDataInicial] = useState<Date | undefined>();
   const [dataFinal, setDataFinal] = useState<Date | undefined>();
 
+  const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
+
   type MetricKey = "faturado" | "recebido" | "glosado" | "taxaGlosa" | "ticketMedio";
   const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(
     new Set(["faturado", "recebido", "glosado", "taxaGlosa", "ticketMedio"])
@@ -151,15 +153,28 @@ export default function RelatoriosBI() {
     [conveniosData]
   );
 
-  // Dados formatados para gráfico de pizza
+  // Dados formatados para gráfico de pizza (donut)
   const dadosPorTipo = useMemo(() => {
     const total = tiposData.reduce((sum, item) => sum + item.valorRecebido, 0);
     return tiposData.map((item) => ({
       tipo: item.chave,
       valor: item.valorRecebido,
+      quantidade: item.quantidade,
       percentual: total > 0 ? ((item.valorRecebido / total) * 100).toFixed(1) : "0",
     }));
   }, [tiposData]);
+
+  // Handler para clique no donut - filtra pelo tipo selecionado
+  const handleTipoClick = useCallback((clickedTipo: string | null) => {
+    setTipoSelecionado(clickedTipo);
+    if (clickedTipo) {
+      setTipo(clickedTipo);
+      toast.info(`Filtrado por tipo: ${clickedTipo}`);
+    } else {
+      setTipo("todos");
+      toast.info("Filtro de tipo removido");
+    }
+  }, []);
 
   // Métricas calculadas
   const metricas = useMemo(() => {
@@ -430,7 +445,13 @@ export default function RelatoriosBI() {
                       glosado: activeMetrics.has("glosado"),
                     }}
                   />
-                  {activeMetrics.has("recebido") && <TiposPieChart data={dadosPorTipo} />}
+                  {activeMetrics.has("recebido") && (
+                    <TiposPieChart
+                      data={dadosPorTipo}
+                      onTipoClick={handleTipoClick}
+                      tipoSelecionado={tipoSelecionado}
+                    />
+                  )}
                   {(activeMetrics.has("faturado") ||
                     activeMetrics.has("recebido") ||
                     activeMetrics.has("glosado")) && (

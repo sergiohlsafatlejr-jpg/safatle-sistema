@@ -2242,3 +2242,6 @@
 - [x] TopGlosasChart: numeração (1,2,3...), barras de progresso vermelhas, valores em vermelho, percentuais
 - [x] Ajustar RelatoriosBI.tsx para passar dados corretos aos componentes atualizados
 - [x] Corrigir gráfico de pizza (TiposPieChart) - labels exibindo valores brutos sem formatação em vez de percentuais
+- [x] Gráfico donut: interatividade ao clicar em fatia para filtrar dados por tipo
+- [x] Gráfico donut: transformar pizza em donut com total no centro
+- [x] Gráfico donut: toggle para alternar entre visualização por valor (R$) e quantidade de itens

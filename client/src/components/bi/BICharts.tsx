@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart as RechartsBarChart,
@@ -62,14 +63,17 @@ export function ConvenioBarChart({ data, visibleSeries = { faturado: true, receb
 }
 
 interface TiposPieChartProps {
-  data: Array<{ tipo: string; valor: number; percentual: string }>;
+  data: Array<{ tipo: string; valor: number; quantidade: number; percentual: string }>;
+  onTipoClick?: (tipo: string | null) => void;
+  tipoSelecionado?: string | null;
 }
 
-const renderCustomLabel = ({
+type ViewMode = "valor" | "quantidade";
+
+const renderDonutLabel = (viewMode: ViewMode) => ({
   cx,
   cy,
   midAngle,
-  innerRadius,
   outerRadius,
   percent,
   name,
@@ -86,7 +90,7 @@ const renderCustomLabel = ({
   const radius = outerRadius + 25;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  if (percent < 0.03) return null; // Hide labels for very small slices
+  if (percent < 0.03) return null;
   return (
     <text
       x={x}
@@ -101,47 +105,131 @@ const renderCustomLabel = ({
   );
 };
 
-export function TiposPieChart({ data }: TiposPieChartProps) {
+export function TiposPieChart({ data, onTipoClick, tipoSelecionado }: TiposPieChartProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>("valor");
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  const dataKey = viewMode === "valor" ? "valor" : "quantidade";
+  const total = data.reduce((sum, item) => sum + item[dataKey], 0);
+  const totalLabel = viewMode === "valor"
+    ? `R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+    : `${total.toLocaleString("pt-BR")} itens`;
+
+  const handleClick = (_: unknown, index: number) => {
+    if (!onTipoClick) return;
+    const clickedTipo = data[index]?.tipo;
+    if (tipoSelecionado === clickedTipo) {
+      onTipoClick(null);
+      setActiveIndex(null);
+    } else {
+      onTipoClick(clickedTipo);
+      setActiveIndex(index);
+    }
+  };
+
+  // Sync activeIndex with tipoSelecionado
+  const resolvedActiveIndex = tipoSelecionado
+    ? data.findIndex(d => d.tipo === tipoSelecionado)
+    : null;
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PieChart className="w-5 h-5 text-purple-600" />
-          Distribuição por Tipo
-        </CardTitle>
-        <CardDescription>Percentual de valores recebidos</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-purple-600" />
+              Distribuição por Tipo
+            </CardTitle>
+            <CardDescription>
+              {tipoSelecionado
+                ? `Filtrado: ${tipoSelecionado} — clique novamente para limpar`
+                : "Clique em uma fatia para filtrar"}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+            <button
+              onClick={() => setViewMode("valor")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                viewMode === "valor"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              R$ Valor
+            </button>
+            <button
+              onClick={() => setViewMode("quantidade")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                viewMode === "quantidade"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Qtd Itens
+            </button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <RechartsPieChart>
-              <RechartsPie
-                data={data}
-                dataKey="valor"
-                nameKey="tipo"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={renderCustomLabel}
-                labelLine={true}
-              >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />
-                ))}
-              </RechartsPie>
-              <RechartsTooltip
-                formatter={(value: number, name: string) => [
-                  `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-                  name,
-                ]}
-              />
-              <RechartsLegend
-                verticalAlign="bottom"
-                height={36}
-                formatter={(value: string) => <span className="text-xs">{value}</span>}
-              />
-            </RechartsPieChart>
-          </ResponsiveContainer>
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={350}>
+              <RechartsPieChart>
+                <RechartsPie
+                  data={data}
+                  dataKey={dataKey}
+                  nameKey="tipo"
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={65}
+                  outerRadius={110}
+                  label={renderDonutLabel(viewMode)}
+                  labelLine={true}
+                  onClick={handleClick}
+                  style={{ cursor: onTipoClick ? "pointer" : "default" }}
+                >
+                  {data.map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={CORES[index % CORES.length]}
+                      opacity={
+                        resolvedActiveIndex !== null && resolvedActiveIndex !== -1
+                          ? index === resolvedActiveIndex ? 1 : 0.35
+                          : 1
+                      }
+                      stroke={
+                        resolvedActiveIndex !== null && index === resolvedActiveIndex
+                          ? "#fff"
+                          : "transparent"
+                      }
+                      strokeWidth={resolvedActiveIndex !== null && index === resolvedActiveIndex ? 3 : 0}
+                    />
+                  ))}
+                </RechartsPie>
+                <RechartsTooltip
+                  formatter={(value: number, name: string) => [
+                    viewMode === "valor"
+                      ? `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                      : `${Number(value).toLocaleString("pt-BR")} itens`,
+                    name,
+                  ]}
+                />
+                <RechartsLegend
+                  verticalAlign="bottom"
+                  height={36}
+                  formatter={(value: string) => <span className="text-xs">{value}</span>}
+                />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+            {/* Center label for donut */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ top: "-5%" }}>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+                <p className="text-lg font-bold text-foreground leading-tight">{totalLabel}</p>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
             Nenhum dado disponível
