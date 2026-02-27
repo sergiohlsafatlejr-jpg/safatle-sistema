@@ -2245,3 +2245,4 @@
 - [x] Gráfico donut: interatividade ao clicar em fatia para filtrar dados por tipo
 - [x] Gráfico donut: transformar pizza em donut com total no centro
 - [x] Gráfico donut: toggle para alternar entre visualização por valor (R$) e quantidade de itens
+- [x] Bug: Integrador de Dados - outro usuário admin não vê conexões/queries cadastradas no estabelecimento (corrigido: verificar permissão por grupo de estabelecimento em vez de role global)

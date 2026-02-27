@@ -1,16 +1,41 @@
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
 import { logger } from "../_core/logger";
 import * as dbIntegrador from "../db-integrador";
-import { getDb } from "../db";
-import { estabelecimentos } from "../../drizzle/schema";
+import { getDb, verificarPermissaoEstabelecimento } from "../db";
+import { permissoesEstabelecimento, estabelecimentos } from "../../drizzle/schema";
 import { queryConfiguracoes, warleineAtendimentosStaging, warleineFaturamentoStaging, faturamentoGeral, atendimentosSemConta, atendimentosAFaturar } from "../../drizzle/schema-integracao";
-import { atendimentos } from "../../drizzle/schema-integracao"; // atendimentos_unificados
+import { atendimentos } from "../../drizzle/schema-integracao";
 import { ENV } from "../_core/env";
+
+/**
+ * Verifica se o usuário é admin global OU administrador do estabelecimento
+ * Usado para controle de acesso no Integrador de Dados
+ */
+async function isAdminOrEstabAdmin(ctx: { user?: { id: number; role: string } | null }, estabelecimentoId?: number): Promise<boolean> {
+  if (!ctx.user) return false;
+  // Admin global sempre tem acesso
+  if (ctx.user.role === "admin") return true;
+  // Se tem estabelecimentoId, verificar permissão de gerenciar nesse estabelecimento
+  if (estabelecimentoId) {
+    return verificarPermissaoEstabelecimento(ctx.user.id, estabelecimentoId, "gerenciar");
+  }
+  // Se não tem estabelecimentoId, verificar se é admin em algum estabelecimento
+  const db = await getDb();
+  if (!db) return false;
+  const perms = await db.select().from(permissoesEstabelecimento).where(
+    and(
+      eq(permissoesEstabelecimento.userId, ctx.user.id),
+      eq(permissoesEstabelecimento.podeGerenciar, "sim")
+    )
+  ).limit(1);
+  return perms.length > 0;
+}
+
 
 /**
  * Router para gerenciar integração de dados de múltiplos sistemas
@@ -93,7 +118,7 @@ export const integradorDadosRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx, input.estabelecimentoId))) {
           return {
             sucesso: false,
             mensagem: "Apenas administradores podem criar configurações",
@@ -161,7 +186,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     try {
-      if (ctx.user?.role !== "admin") {
+      if (!(await isAdminOrEstabAdmin(ctx, input?.estabelecimentoId))) {
         return {
           configuracoes: [],
           total: 0,
@@ -216,7 +241,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           return {
             status: "nao_autorizado",
             mensagem: "Acesso negado",
@@ -270,7 +295,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number().optional(), limite: z.number().default(50) }))
     .query(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           return {
             logs: [],
             total: 0,
@@ -311,7 +336,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           return {
             sucesso: false,
             mensagem: "Apenas administradores podem sincronizar",
@@ -501,7 +526,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           return {
             sucesso: false,
             mensagem: "Apenas administradores podem deletar configurações",
@@ -549,7 +574,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ estabelecimentoId: z.number() }))
     .query(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx, input.estabelecimentoId))) {
           return {
             totalConfiguracoes: 0,
             ultimaSincronizacao: null,
@@ -592,22 +617,38 @@ export const integradorDadosRouter = router({
    */
   listarEstabelecimentos: protectedProcedure.query(async ({ ctx }) => {
     try {
-      if (ctx.user?.role !== "admin") {
-        return [];
-      }
+      if (!ctx.user) return [];
 
       const db = await getDb();
       if (!db) {
         return [];
       }
 
-      const estabelecimentosList = await db.select().from(estabelecimentos);
+      // Admin global vê todos os estabelecimentos
+      if (ctx.user.role === "admin") {
+        const estabelecimentosList = await db.select().from(estabelecimentos);
+        return estabelecimentosList.map((e) => ({
+          id: e.id,
+          nome: e.nome,
+          cnpj: e.cnpj,
+        }));
+      }
 
-      return estabelecimentosList.map((e) => ({
-        id: e.id,
-        nome: e.nome,
-        cnpj: e.cnpj,
-      }));
+      // Usuários não-admin: retornar apenas estabelecimentos onde têm permissão de gerenciar
+      const permsComEstab = await db
+        .select({
+          id: estabelecimentos.id,
+          nome: estabelecimentos.nome,
+          cnpj: estabelecimentos.cnpj,
+        })
+        .from(permissoesEstabelecimento)
+        .innerJoin(estabelecimentos, eq(permissoesEstabelecimento.estabelecimentoId, estabelecimentos.id))
+        .where(and(
+          eq(permissoesEstabelecimento.userId, ctx.user.id),
+          eq(permissoesEstabelecimento.podeGerenciar, "sim")
+        ));
+
+      return permsComEstab;
     } catch (error) {
       logger.error({
         message: "Erro ao listar estabelecimentos",
@@ -622,7 +663,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           throw new Error("Acesso negado");
         }
         const db = await getDb();
@@ -816,7 +857,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ estabelecimentoId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           throw new Error("Acesso negado");
         }
 
@@ -927,7 +968,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ estabelecimentoId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           throw new Error("Acesso negado");
         }
 
@@ -1039,7 +1080,7 @@ export const integradorDadosRouter = router({
     .input(z.object({ configId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        if (ctx.user?.role !== "admin") {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
           throw new Error("Acesso negado");
         }
 
@@ -1138,14 +1179,14 @@ export const integradorDadosRouter = router({
     listar: protectedProcedure
       .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return [];
+        if (!(await isAdminOrEstabAdmin(ctx))) return [];
         return dbIntegrador.listarConexoes(input?.estabelecimentoId);
       }),
 
     obter: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return null;
+        if (!(await isAdminOrEstabAdmin(ctx))) return null;
         return dbIntegrador.obterConexao(input.id);
       }),
 
@@ -1163,7 +1204,7 @@ export const integradorDadosRouter = router({
         estabelecimentoId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const id = await dbIntegrador.criarConexao({
           nome: input.nome,
           descricao: input.descricao || null,
@@ -1195,7 +1236,7 @@ export const integradorDadosRouter = router({
         ativo: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const { id, senha, ...rest } = input;
         const dados: any = { ...rest };
         if (senha) dados.senhaEncriptada = Buffer.from(senha).toString("base64");
@@ -1206,7 +1247,7 @@ export const integradorDadosRouter = router({
     excluir: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         await dbIntegrador.excluirConexao(input.id);
         return { sucesso: true };
       }),
@@ -1214,7 +1255,7 @@ export const integradorDadosRouter = router({
     testar: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const conexao = await dbIntegrador.obterConexao(input.id);
         if (!conexao) throw new Error("Conexão não encontrada");
         try {
@@ -1265,7 +1306,7 @@ export const integradorDadosRouter = router({
         limite: z.number().default(5),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const conexao = await dbIntegrador.obterConexao(input.id);
         if (!conexao) throw new Error("Conexão não encontrada");
         try {
@@ -1371,7 +1412,7 @@ export const integradorDadosRouter = router({
     listar: protectedProcedure
       .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return [];
+        if (!(await isAdminOrEstabAdmin(ctx))) return [];
         const tabelas = await dbIntegrador.listarTabelas(input?.estabelecimentoId);
         // Enriquecer com contagem de colunas para cada tabela
         const tabelasComContagem = await Promise.all(
@@ -1389,7 +1430,7 @@ export const integradorDadosRouter = router({
     obter: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return null;
+        if (!(await isAdminOrEstabAdmin(ctx))) return null;
         const tabela = await dbIntegrador.obterTabela(input.id);
         if (!tabela) return null;
         const colunas = await dbIntegrador.listarColunas(input.id);
@@ -1414,7 +1455,7 @@ export const integradorDadosRouter = router({
         })).min(1),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         
         // 1. Criar registro na tabela de metadados
         const tabelaId = await dbIntegrador.criarTabela({
@@ -1475,7 +1516,7 @@ export const integradorDadosRouter = router({
         frequencia: z.enum(["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual"),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         
         // 1. Executar a query para detectar campos
         const conexao = await dbIntegrador.obterConexao(input.conexaoId);
@@ -1685,7 +1726,7 @@ export const integradorDadosRouter = router({
         valorPadrao: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const tabela = await dbIntegrador.obterTabela(input.tabelaId);
         if (!tabela) throw new Error("Tabela não encontrada");
 
@@ -1726,7 +1767,7 @@ export const integradorDadosRouter = router({
     excluir: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const tabela = await dbIntegrador.obterTabela(input.id);
         if (!tabela) throw new Error("Tabela não encontrada");
 
@@ -1747,7 +1788,7 @@ export const integradorDadosRouter = router({
     obterMapeamentoVinculado: protectedProcedure
       .input(z.object({ tabelaId: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return null;
+        if (!(await isAdminOrEstabAdmin(ctx))) return null;
         return dbIntegrador.buscarMapeamentoPorTabela(input.tabelaId);
       }),
 
@@ -1757,7 +1798,7 @@ export const integradorDadosRouter = router({
         forcarCompleta: z.boolean().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         
         // Buscar mapeamento vinculado à tabela
         const mapeamento = await dbIntegrador.buscarMapeamentoPorTabela(input.tabelaId);
@@ -1944,7 +1985,7 @@ export const integradorDadosRouter = router({
         offset: z.number().default(0),
       }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return { dados: [], total: 0 };
+        if (!(await isAdminOrEstabAdmin(ctx))) return { dados: [], total: 0 };
         const tabela = await dbIntegrador.obterTabela(input.id);
         if (!tabela || tabela.criadaNoBanco !== "sim") return { dados: [], total: 0 };
 
@@ -1965,14 +2006,14 @@ export const integradorDadosRouter = router({
     listar: protectedProcedure
       .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return [];
+        if (!(await isAdminOrEstabAdmin(ctx))) return [];
         return dbIntegrador.listarMapeamentos(input?.estabelecimentoId);
       }),
 
     obter: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return null;
+        if (!(await isAdminOrEstabAdmin(ctx))) return null;
         const mapeamento = await dbIntegrador.obterMapeamento(input.id);
         if (!mapeamento) return null;
         const campos = await dbIntegrador.listarCamposMapeamento(input.id);
@@ -1998,7 +2039,7 @@ export const integradorDadosRouter = router({
         })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const id = await dbIntegrador.criarMapeamento({
           nome: input.nome,
           descricao: input.descricao || null,
@@ -2043,7 +2084,7 @@ export const integradorDadosRouter = router({
         })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const { id, campos, ...rest } = input;
         await dbIntegrador.atualizarMapeamento(id, rest as any);
         if (campos) {
@@ -2059,7 +2100,7 @@ export const integradorDadosRouter = router({
     excluir: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         await dbIntegrador.excluirMapeamento(input.id);
         return { sucesso: true };
       }),
@@ -2067,7 +2108,7 @@ export const integradorDadosRouter = router({
     resetarIncremental: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         await dbIntegrador.atualizarMapeamento(input.id, {
           ultimoValorControle: null,
           totalRegistrosImportados: 0,
@@ -2078,7 +2119,7 @@ export const integradorDadosRouter = router({
     executar: protectedProcedure
       .input(z.object({ id: z.number(), forcarCompleta: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const mapeamento = await dbIntegrador.obterMapeamento(input.id);
         if (!mapeamento) throw new Error("Mapeamento não encontrado");
 
@@ -2306,7 +2347,7 @@ export const integradorDadosRouter = router({
     listar: protectedProcedure
       .input(z.object({ mapeamentoId: z.number().optional(), limite: z.number().default(50) }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") return [];
+        if (!(await isAdminOrEstabAdmin(ctx))) return [];
         return dbIntegrador.listarSincronizacoes(input?.mapeamentoId, input?.limite);
       }),
   }),
@@ -2323,7 +2364,7 @@ export const integradorDadosRouter = router({
         ultimoValorControle: z.string().optional(), // Para importação incremental do agente local
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const mapeamento = await dbIntegrador.obterMapeamento(input.mapeamentoId);
         if (!mapeamento) throw new Error("Mapeamento não encontrado");
 
@@ -2408,7 +2449,7 @@ export const integradorDadosRouter = router({
     obterControleIncremental: protectedProcedure
       .input(z.object({ mapeamentoId: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") throw new Error("Acesso negado");
+        if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
         const mapeamento = await dbIntegrador.obterMapeamento(input.mapeamentoId);
         if (!mapeamento) throw new Error("Mapeamento não encontrado");
         return {
