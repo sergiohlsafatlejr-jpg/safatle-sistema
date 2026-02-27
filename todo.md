@@ -2258,3 +2258,7 @@
 - [x] Backend: procedure tRPC para dados de recebimento geral agregados
 - [x] Componente RelatorioRecebimento com MetricCards, gráficos e tabelas (mesmo padrão visual)
 - [x] Integrar aba Relatórios no RelatoriosBI.tsx com navegação para sub-relatórios
+- [x] Reestruturar: remover aba "Relatórios" de dentro do RelatoriosBI.tsx
+- [x] Criar página separada RelatorioRecebimentoGeral como rota própria
+- [x] Adicionar submenu "Relatórios BI" no sidebar com subchamadas (Dashboard BI, Recebimento Geral, Rel. Faturamento, Rel. Atendimentos)
+- [x] Registrar novas rotas no App.tsx

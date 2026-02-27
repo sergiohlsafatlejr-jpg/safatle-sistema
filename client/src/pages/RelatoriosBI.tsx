@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Download,
   BarChart3,
@@ -14,9 +13,6 @@ import {
   AlertTriangle,
   TrendingDown,
   Package as PackageIcon,
-  FileText,
-  ArrowRight,
-  Receipt,
 } from "lucide-react";
 import { MetricCard } from "@/components/bi/MetricCard";
 import { BIFilters } from "@/components/bi/BIFilters";
@@ -25,70 +21,16 @@ import { ConvenioTable, GlosaTable, DescricaoTable } from "@/components/bi/BITab
 import { StackedProgressChart } from "@/components/bi/StackedProgressChart";
 import { TopGlosasChart } from "@/components/bi/TopGlosasChart";
 import { InsightCards } from "@/components/bi/InsightCards";
-import { RecebimentoGeralReport } from "@/components/bi/RecebimentoGeralReport";
+
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { cn } from "@/lib/utils";
+
 
 const fmtCurrency = (v: number) =>
   `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-// Definição dos relatórios disponíveis
-interface ReportCard {
-  id: string;
-  title: string;
-  description: string;
-  icon: typeof FileText;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  available: boolean;
-}
-
-const AVAILABLE_REPORTS: ReportCard[] = [
-  {
-    id: "recebimento-geral",
-    title: "Recebimento Geral",
-    description: "Análise de Faturado vs Recebido vs Em Aberto por convênio, com métricas, gráficos e tabela detalhada.",
-    icon: Receipt,
-    color: "text-blue-600 dark:text-blue-400",
-    bgColor: "bg-blue-100 dark:bg-blue-900/40",
-    borderColor: "border-blue-500/30 hover:border-blue-500/60",
-    available: true,
-  },
-  {
-    id: "analise-glosas",
-    title: "Análise de Glosas",
-    description: "Relatório detalhado de glosas por convênio, motivo e período, com indicadores de recuperação.",
-    icon: AlertTriangle,
-    color: "text-red-600 dark:text-red-400",
-    bgColor: "bg-red-100 dark:bg-red-900/40",
-    borderColor: "border-red-500/30 hover:border-red-500/60",
-    available: false,
-  },
-  {
-    id: "produtividade-setores",
-    title: "Produtividade por Setor",
-    description: "Análise de faturamento e produtividade por setor hospitalar, com comparativos mensais.",
-    icon: BarChart3,
-    color: "text-green-600 dark:text-green-400",
-    bgColor: "bg-green-100 dark:bg-green-900/40",
-    borderColor: "border-green-500/30 hover:border-green-500/60",
-    available: false,
-  },
-  {
-    id: "evolucao-financeira",
-    title: "Evolução Financeira",
-    description: "Acompanhamento da evolução financeira ao longo dos meses com projeções e tendências.",
-    icon: TrendingUp,
-    color: "text-purple-600 dark:text-purple-400",
-    bgColor: "bg-purple-100 dark:bg-purple-900/40",
-    borderColor: "border-purple-500/30 hover:border-purple-500/60",
-    available: false,
-  },
-];
 
 export default function RelatoriosBI() {
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -103,8 +45,6 @@ export default function RelatoriosBI() {
 
   const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
 
-  // Estado para controlar qual relatório está aberto na aba Relatórios
-  const [activeReport, setActiveReport] = useState<string | null>(null);
 
   type MetricKey = "faturado" | "recebido" | "glosado" | "taxaGlosa" | "ticketMedio";
   const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(
@@ -339,90 +279,6 @@ export default function RelatoriosBI() {
     toast.success("Relatório exportado com sucesso!");
   };
 
-  // Renderizar conteúdo da aba Relatórios
-  const renderRelatoriosTab = () => {
-    // Se um relatório está ativo, renderizar o componente do relatório
-    if (activeReport === "recebimento-geral") {
-      return (
-        <RecebimentoGeralReport
-          estabelecimentoId={estabelecimentoId}
-          onBack={() => setActiveReport(null)}
-        />
-      );
-    }
-
-    // Menu de relatórios (cards)
-    return (
-      <div className="space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <p className="text-sm text-muted-foreground mb-4">
-            Selecione um relatório para visualizar análises detalhadas com métricas, gráficos e tabelas.
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-          {AVAILABLE_REPORTS.map((report, idx) => (
-            <motion.div
-              key={report.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.08 }}
-            >
-              <Card
-                className={cn(
-                  "transition-all duration-200 cursor-pointer group",
-                  report.borderColor,
-                  report.available
-                    ? "hover:shadow-lg hover:scale-[1.01]"
-                    : "opacity-60 cursor-not-allowed"
-                )}
-                onClick={() => {
-                  if (report.available) {
-                    setActiveReport(report.id);
-                  } else {
-                    toast.info("Este relatório estará disponível em breve.");
-                  }
-                }}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={cn(
-                        "flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center",
-                        report.bgColor
-                      )}
-                    >
-                      <report.icon className={cn("w-6 h-6", report.color)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-semibold text-foreground">
-                          {report.title}
-                        </h3>
-                        {report.available ? (
-                          <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-all" />
-                        ) : (
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                            Em breve
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                        {report.description}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <DashboardLayout>
@@ -582,14 +438,7 @@ export default function RelatoriosBI() {
                   <TrendingUp className="h-3.5 w-3.5" />
                   Evolução
                 </TabsTrigger>
-                <TabsTrigger
-                  value="relatorios"
-                  className="gap-1.5 text-xs"
-                  onClick={() => setActiveReport(null)}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Relatórios
-                </TabsTrigger>
+
               </TabsList>
 
               <TabsContent value="graficos" className="space-y-6">
@@ -637,9 +486,7 @@ export default function RelatoriosBI() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="relatorios" className="space-y-6">
-                {renderRelatoriosTab()}
-              </TabsContent>
+
             </Tabs>
           </>
         )}

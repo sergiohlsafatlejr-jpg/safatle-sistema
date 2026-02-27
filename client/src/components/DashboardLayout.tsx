@@ -18,10 +18,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
@@ -63,7 +67,8 @@ import {
   Wrench,
   Moon,
   Sun,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -81,8 +86,8 @@ type MenuItem = {
   path: string;
   modulo?: ModuloPermissao;
   adminOnly?: boolean;
-
   estabelecimentoIds?: number[]; // Se definido, item só aparece para estes estabelecimentos
+  children?: MenuItem[]; // Sub-itens para menus expansíveis
 };
 
 const menuItems: MenuItem[] = [
@@ -130,7 +135,12 @@ const menuItems: MenuItem[] = [
   { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
   { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
   { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
-  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
+  { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
+    { icon: BarChart3, label: "Dashboard BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
+    { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relatoriosBi" },
+    { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relatoriosBi" },
+    { icon: Users, label: "Rel. Atendimentos", path: "/relatorio-atendimentos", modulo: "relatoriosBi" },
+  ]},
   { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
   { icon: Activity, label: "Motor de Regras", path: "/motor-regras", modulo: "relatoriosBi" },
   { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
@@ -166,8 +176,9 @@ function AccessGuard({
   userRole?: string;
   estabelecimentoId?: number;
 }) {
-  // Encontrar o item de menu correspondente à rota atual
-  const currentMenuItem = menuItems.find(item => item.path === location);
+  // Encontrar o item de menu correspondente à rota atual (incluindo children)
+  const currentMenuItem = menuItems.find(item => item.path === location) 
+    || menuItems.flatMap(item => item.children || []).find(child => child.path === location);
   
   // Verificar restrição por estabelecimento
   if (currentMenuItem?.estabelecimentoIds && estabelecimentoId) {
@@ -499,6 +510,55 @@ function DashboardLayoutContent({
                   return temAcessoModulo(item.modulo!);
                 })
                 .map(item => {
+                // Se tem children, renderizar como grupo expansível
+                if (item.children && item.children.length > 0) {
+                  const isChildActive = item.children.some(child => location === child.path);
+                  return (
+                    <Collapsible key={item.path} asChild defaultOpen={isChildActive} className="group/collapsible">
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton
+                            tooltip={item.label}
+                            isActive={isChildActive}
+                            className={`h-10 transition-all font-normal text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent ${isChildActive ? "bg-primary/10 text-primary" : ""}`}
+                          >
+                            <item.icon
+                              className={`h-4 w-4 ${isChildActive ? "text-primary" : "text-sidebar-foreground/60"}`}
+                            />
+                            <span>{item.label}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.children
+                              .filter(child => {
+                                if (!child.modulo && !child.adminOnly) return true;
+                                if (child.adminOnly) return isGestor;
+                                return temAcessoModulo(child.modulo!);
+                              })
+                              .map(child => {
+                                const isSubActive = location === child.path;
+                                return (
+                                  <SidebarMenuSubItem key={child.path}>
+                                    <SidebarMenuSubButton
+                                      onClick={() => setLocation(child.path)}
+                                      data-active={isSubActive}
+                                      className={`cursor-pointer ${isSubActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
+                                    >
+                                      <child.icon className={`h-3.5 w-3.5 ${isSubActive ? "text-primary-foreground" : ""}`} />
+                                      <span>{child.label}</span>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                );
+                              })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>

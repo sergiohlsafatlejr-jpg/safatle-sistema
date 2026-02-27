@@ -56,6 +56,7 @@ import { HistoricoValidacaoXml } from "./pages/HistoricoValidacaoXml";
 import { PopularHistoricoXml } from "./pages/PopularHistoricoXml";
 import { IntegradorDados } from "./pages/IntegradorDados";
 import MapeamentoConvenios from "./pages/MapeamentoConvenios";
+import RelatorioRecebimentoGeral from "./pages/RelatorioRecebimentoGeral";
 // import ImportacaoXML from "./pages/ImportacaoXML"; // Removido temporariamente
 
 function Router() {
@@ -121,6 +122,9 @@ function Router() {
       <Route path={"/popular-historico-xml"} component={PopularHistoricoXml} />
       <Route path={"/integracao"} component={IntegradorDados} />
       <Route path={"/mapeamento-convenios"} component={MapeamentoConvenios} />
+      <Route path={"/relatorio-recebimento-geral"} component={RelatorioRecebimentoGeral} />
+      <Route path={"/relatorio-faturamento"} component={NotFound} />
+      <Route path={"/relatorio-atendimentos"} component={NotFound} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
