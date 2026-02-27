@@ -19,6 +19,7 @@ import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } from "./emailService";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
+import * as dbRecebGeral from "./db-recebimentoGeral";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -6681,6 +6682,65 @@ export const appRouter = router({
 
   // ============ INTEGRADOR DE DADOS ============
   integradorDados: integradorDadosRouter,
+
+  // ============ RECEBIMENTO GERAL ============
+  recebimentoGeral: router({
+    // Importar dados de integ_faturado_x_recebido para recebimento_geral
+    importar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+        limparAntes: z.boolean().optional().default(false),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          const hasPermission = await db.verificarPermissaoEstabelecimento(
+            ctx.user.id,
+            input.estabelecimentoId || 0,
+            "gerenciar"
+          );
+          if (!hasPermission) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para importar dados." });
+          }
+        }
+        return await dbRecebGeral.importarIntegFaturadoRecebido(
+          input.estabelecimentoId,
+          input.limparAntes || false
+        );
+      }),
+
+    // Contar registros na recebimento_geral
+    contar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return { total: await dbRecebGeral.contarRecebimentoGeral(input.estabelecimentoId) };
+      }),
+
+    // Listar registros com paginação e filtros
+    listar: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenio: z.string().optional(),
+        mesProducao: z.string().optional(),
+        protocolo: z.string().optional(),
+        numeroConta: z.string().optional(),
+        page: z.number().optional().default(1),
+        pageSize: z.number().optional().default(50),
+      }))
+      .query(async ({ input }) => {
+        return await dbRecebGeral.listarRecebimentoGeral(input);
+      }),
+
+    // Resumo/estatísticas
+    resumo: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await dbRecebGeral.resumoRecebimentoGeral(input.estabelecimentoId);
+      }),
+  }),
 
   // ============ AVISOS INTERNOS ============
   avisosInternos: router({
