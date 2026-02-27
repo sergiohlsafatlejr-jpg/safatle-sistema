@@ -2842,3 +2842,64 @@ export const integracaoSincronizacoes = mysqlTable("integracao_sincronizacoes", 
 
 export type IntegracaoSincronizacao = typeof integracaoSincronizacoes.$inferSelect;
 export type InsertIntegracaoSincronizacao = typeof integracaoSincronizacoes.$inferInsert;
+
+/**
+ * Tabela de Recebimento Geral
+ * Consolida dados de recebimento de todos os convênios e estabelecimentos
+ */
+export const recebimentoGeral = mysqlTable("recebimento_geral", {
+  id: int("id").autoincrement().primaryKey(),
+  sincronizado: timestamp("sincronizado"),
+  atualizado: timestamp("atualizado"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenioId: int("convenioId"),
+  convenio: varchar("convenio", { length: 255 }),
+  mesProducao: varchar("mes_producao", { length: 20 }),
+  fatura: varchar("fatura", { length: 100 }),
+  codigoRecurso: varchar("codigo_recurso", { length: 100 }),
+  tipoProcedimento: varchar("tipo_procedimento", { length: 255 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  numeroConta: varchar("numero_conta", { length: 100 }),
+  guiaCobranca: varchar("guia_cobranca", { length: 100 }),
+  guiaOperadora: varchar("guia_operadora", { length: 100 }),
+  descricaoItem: text("descricao_item"),
+  carteirinha: varchar("carteirinha", { length: 100 }),
+  dataConta: varchar("data_conta", { length: 20 }),
+  dataInternacao: varchar("data_internacao", { length: 20 }),
+  dataSaida: varchar("data_saida", { length: 20 }),
+  codigoConvenio: varchar("codigo_convenio", { length: 50 }),
+  codigoSistema: varchar("codigo_sistema", { length: 50 }),
+  tipoDescricao: varchar("tipo_descricao", { length: 255 }),
+  funcaoTiss: varchar("funcao_tiss", { length: 255 }),
+  receberHospital: decimal("receber_hospital", { precision: 15, scale: 2 }),
+  codigoSetor: varchar("codigo_setor", { length: 50 }),
+  nomeSetor: varchar("nome_setor", { length: 255 }),
+  prestadorExecutante: varchar("prestador_executante", { length: 255 }),
+  nomePrestador: varchar("nome_prestador", { length: 255 }),
+  quantidadeItem: decimal("quantidade_item", { precision: 15, scale: 4 }),
+  vlUnitario: decimal("vl_unitario", { precision: 15, scale: 2 }),
+  vlFaturado: decimal("vl_faturado", { precision: 15, scale: 2 }),
+  vlRecebido: decimal("vl_recebido", { precision: 15, scale: 2 }),
+  vlRecebAMaior: decimal("vl_receb_a_maior", { precision: 15, scale: 2 }),
+  vlTotalRecebido: decimal("vl_total_recebido", { precision: 15, scale: 2 }),
+  vlAberto: decimal("vl_aberto", { precision: 15, scale: 2 }),
+  vlGlosas: decimal("vl_glosas", { precision: 15, scale: 2 }),
+  vlRecurso: decimal("vl_recurso", { precision: 15, scale: 2 }),
+  glAceita: decimal("gl_aceita", { precision: 15, scale: 2 }),
+  glAnalise: decimal("gl_analise", { precision: 15, scale: 2 }),
+  glRecuperado: decimal("gl_recuperado", { precision: 15, scale: 2 }),
+  codigoTiss: varchar("codigo_tiss", { length: 50 }),
+  descricaoMotivo: text("descricao_motivo"),
+  complementoRecurso: text("complemento_recurso"),
+  tipoAtendimento: varchar("tipo_atendimento", { length: 255 }),
+}, (table) => ({
+  estabIdx: index("idx_receb_geral_estab").on(table.estabelecimentoId),
+  convenioIdx: index("idx_receb_geral_convenio").on(table.convenio),
+  mesIdx: index("idx_receb_geral_mes").on(table.mesProducao),
+  protocoloIdx: index("idx_receb_geral_protocolo").on(table.protocolo),
+  contaIdx: index("idx_receb_geral_conta").on(table.numeroConta),
+  convenioIdIdx: index("idx_receb_geral_convenio_id").on(table.convenioId),
+}));
+
+export type RecebimentoGeral = typeof recebimentoGeral.$inferSelect;
+export type InsertRecebimentoGeral = typeof recebimentoGeral.$inferInsert;
