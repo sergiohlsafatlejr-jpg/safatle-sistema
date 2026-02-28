@@ -2871,7 +2871,7 @@ export const recebimentoGeral = mysqlTable("recebimento_geral", {
   codigoSistema: varchar("codigo_sistema", { length: 50 }),
   tipoDescricao: varchar("tipo_descricao", { length: 255 }),
   funcaoTiss: varchar("funcao_tiss", { length: 255 }),
-  receberHospital: decimal("receber_hospital", { precision: 15, scale: 2 }),
+  receberHospital: varchar("receber_hospital", { length: 1 }),
   codigoSetor: varchar("codigo_setor", { length: 50 }),
   nomeSetor: varchar("nome_setor", { length: 255 }),
   prestadorExecutante: varchar("prestador_executante", { length: 255 }),

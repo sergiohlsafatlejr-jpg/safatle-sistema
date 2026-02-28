@@ -2264,3 +2264,6 @@
 - [x] Registrar novas rotas no App.tsx
 - [x] BUG: Importação de retorno Unimed não traz itens glosados corretamente (universal para todos os estabelecimentos)
 - [x] BUG: Tela de Demonstrativo não exibe corretamente os itens glosados da Unimed (dados estão no recebimentos_excel mas não na tela)
+- [x] Alterar tipo da coluna receber_hospital de decimal(15,2) para varchar(1) na tabela recebimento_geral
+- [x] Atualizar registros existentes com valores S/N da tabela integ_faturado_x_recebido
+- [x] Corrigir sincronização para copiar campo receber corretamente

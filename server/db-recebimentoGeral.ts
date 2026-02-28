@@ -113,7 +113,7 @@ function transformRecord(row: any): any {
     codigoSistema: row.codproprio?.trim() || null,
     tipoDescricao: row.procdisco?.trim() || row.codgrufi?.trim() || null,
     funcaoTiss: row.funcaotiss?.trim() || null,
-    receberHospital: row.receber === "S" ? toDecimal(row.vl_faturado) : "0.00",
+    receberHospital: row.receber?.trim()?.toUpperCase() === "S" ? "S" : "N",
     codigoSetor: row.codcc?.trim() || null,
     nomeSetor: row.nomecc?.trim() || null,
     prestadorExecutante: row.prestexe?.trim() || null,
