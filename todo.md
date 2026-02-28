@@ -2267,3 +2267,7 @@
 - [x] Alterar tipo da coluna receber_hospital de decimal(15,2) para varchar(1) na tabela recebimento_geral
 - [x] Atualizar registros existentes com valores S/N da tabela integ_faturado_x_recebido
 - [x] Corrigir sincronização para copiar campo receber corretamente
+- [x] Adicionar filtro "A Receber" (Hospital S / Terceiros N / Todos) no backend das queries de recebimento_geral
+- [x] Adicionar filtro "A Receber" no relatório Recebimento Geral (frontend)
+- [x] Filtro "A Receber" não aplicável ao Dashboard BI (usa faturamento_tiss, não recebimento_geral)
+- [x] Filtro "A Receber" disponível no BIFilters como prop opcional (para telas que usam recebimento_geral)

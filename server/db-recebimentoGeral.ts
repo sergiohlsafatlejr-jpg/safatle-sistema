@@ -330,6 +330,7 @@ export async function listarRecebimentoGeral(params: {
   mesProducao?: string;
   protocolo?: string;
   numeroConta?: string;
+  receberHospital?: string; // 'S' = Hospital, 'N' = Terceiros, undefined = Todos
   page?: number;
   pageSize?: number;
 }): Promise<{ data: any[]; total: number; page: number; pageSize: number }> {
@@ -353,6 +354,9 @@ export async function listarRecebimentoGeral(params: {
   }
   if (params.numeroConta) {
     conditions.push(`numero_conta = '${params.numeroConta.replace(/'/g, "''")}'`);
+  }
+  if (params.receberHospital === 'S' || params.receberHospital === 'N') {
+    conditions.push(`receber_hospital = '${params.receberHospital}'`);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -379,7 +383,7 @@ export async function listarRecebimentoGeral(params: {
 /**
  * Resumo/estatísticas da recebimento_geral por estabelecimento
  */
-export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise<{
+export async function resumoRecebimentoGeral(estabelecimentoId: number, receberHospital?: string): Promise<{
   totalRegistros: number;
   totalFaturado: number;
   totalRecebido: number;
@@ -405,6 +409,9 @@ export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise
     };
   }
 
+  // Filtro A Receber
+  const receberFilter = (receberHospital === 'S' || receberHospital === 'N') ? ` AND receber_hospital = '${receberHospital}'` : '';
+
   // Totais gerais
   const [totais] = await db.execute(sql.raw(`
     SELECT 
@@ -416,7 +423,7 @@ export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise
       COALESCE(SUM(CAST(vl_recurso AS DECIMAL(15,2))), 0) as totalRecurso,
       COALESCE(SUM(CAST(gl_recuperado AS DECIMAL(15,2))), 0) as totalRecuperado
     FROM recebimento_geral
-    WHERE estabelecimentoId = ${estabelecimentoId}
+    WHERE estabelecimentoId = ${estabelecimentoId}${receberFilter}
   `));
 
   const t = (totais as any)[0] || {};
@@ -430,7 +437,7 @@ export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise
       COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
       COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas
     FROM recebimento_geral
-    WHERE estabelecimentoId = ${estabelecimentoId}
+    WHERE estabelecimentoId = ${estabelecimentoId}${receberFilter}
     GROUP BY convenio
     ORDER BY faturado DESC
   `));
@@ -444,7 +451,7 @@ export async function resumoRecebimentoGeral(estabelecimentoId: number): Promise
       COALESCE(SUM(CAST(vl_recebido AS DECIMAL(15,2))), 0) as recebido,
       COALESCE(SUM(CAST(vl_glosas AS DECIMAL(15,2))), 0) as glosas
     FROM recebimento_geral
-    WHERE estabelecimentoId = ${estabelecimentoId}
+    WHERE estabelecimentoId = ${estabelecimentoId}${receberFilter}
     GROUP BY mes_producao
     ORDER BY mes_producao DESC
   `));
@@ -483,6 +490,7 @@ export async function dadosRecebimentoBI(params: {
   mesProducao?: string;
   convenio?: string;
   setor?: string;
+  receberHospital?: string; // 'S' = Hospital, 'N' = Terceiros, undefined = Todos
 }): Promise<{
   resumo: {
     totalFaturado: number;
@@ -517,6 +525,7 @@ export async function dadosRecebimentoBI(params: {
   if (params.mesProducao) conditions.push(`mes_producao = '${params.mesProducao.replace(/'/g, "''")}'`);
   if (params.convenio) conditions.push(`convenio = '${params.convenio.replace(/'/g, "''")}'`);
   if (params.setor) conditions.push(`nome_setor = '${params.setor.replace(/'/g, "''")}'`);
+  if (params.receberHospital === 'S' || params.receberHospital === 'N') conditions.push(`receber_hospital = '${params.receberHospital}'`);
   const where = conditions.join(" AND ");
 
   try {

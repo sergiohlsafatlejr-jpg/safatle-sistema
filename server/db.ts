@@ -12476,6 +12476,7 @@ export interface DadosBIFiltros {
   paciente?: string;
   procedimento?: string;
   codigoPrestadorExecutante?: string;
+  receberHospital?: string; // 'S' = Hospital, 'N' = Terceiros
 }
 
 export interface DadosBIResumo {

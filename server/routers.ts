@@ -5843,6 +5843,7 @@ export const appRouter = router({
         paciente: z.string().optional(),
         procedimento: z.string().optional(),
         codigoPrestadorExecutante: z.string().optional(),
+        receberHospital: z.string().optional(), // 'S' = Hospital, 'N' = Terceiros
       }))
       .query(async ({ input }) => {
         return db.getDadosBI(input);
@@ -6726,6 +6727,7 @@ export const appRouter = router({
         mesProducao: z.string().optional(),
         protocolo: z.string().optional(),
         numeroConta: z.string().optional(),
+        receberHospital: z.string().optional(), // 'S' = Hospital, 'N' = Terceiros
         page: z.number().optional().default(1),
         pageSize: z.number().optional().default(50),
       }))
@@ -6737,9 +6739,10 @@ export const appRouter = router({
     resumo: protectedProcedure
       .input(z.object({
         estabelecimentoId: z.number(),
+        receberHospital: z.string().optional(), // 'S' = Hospital, 'N' = Terceiros
       }))
       .query(async ({ input }) => {
-        return await dbRecebGeral.resumoRecebimentoGeral(input.estabelecimentoId);
+        return await dbRecebGeral.resumoRecebimentoGeral(input.estabelecimentoId, input.receberHospital);
       }),
 
     // Dados agregados para Relatório BI de Recebimento
@@ -6749,6 +6752,7 @@ export const appRouter = router({
         mesProducao: z.string().optional(),
         convenio: z.string().optional(),
         setor: z.string().optional(),
+        receberHospital: z.string().optional(), // 'S' = Hospital, 'N' = Terceiros
       }))
       .query(async ({ input }) => {
         return await dbRecebGeral.dadosRecebimentoBI(input);

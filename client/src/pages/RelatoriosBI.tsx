@@ -43,6 +43,7 @@ export default function RelatoriosBI() {
   const [dataInicial, setDataInicial] = useState<Date | undefined>();
   const [dataFinal, setDataFinal] = useState<Date | undefined>();
 
+
   const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
 
 

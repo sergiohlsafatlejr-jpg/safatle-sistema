@@ -47,6 +47,7 @@ export function RecebimentoGeralReport({ estabelecimentoId, onBack }: Recebiment
   const [mesProducao, setMesProducao] = useState("todos");
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
   const [setorFiltro, setSetorFiltro] = useState("todos");
+  const [receberFiltro, setReceberFiltro] = useState("todos");
 
   const { data, isLoading } = trpc.recebimentoGeral.dadosBI.useQuery(
     {
@@ -54,6 +55,7 @@ export function RecebimentoGeralReport({ estabelecimentoId, onBack }: Recebiment
       mesProducao: mesProducao !== "todos" ? mesProducao : undefined,
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
       setor: setorFiltro !== "todos" ? setorFiltro : undefined,
+      receberHospital: receberFiltro !== "todos" ? receberFiltro : undefined,
     },
     { enabled: !!estabelecimentoId }
   );
@@ -243,7 +245,7 @@ export function RecebimentoGeralReport({ estabelecimentoId, onBack }: Recebiment
       >
         <Card>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">
                   Mês de Produção
@@ -295,6 +297,21 @@ export function RecebimentoGeralReport({ estabelecimentoId, onBack }: Recebiment
                         {s}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  A Receber
+                </label>
+                <Select value={receberFiltro} onValueChange={setReceberFiltro}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="S">Hospital</SelectItem>
+                    <SelectItem value="N">Terceiros / Médicos</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

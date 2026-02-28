@@ -17,6 +17,8 @@ interface BIFiltersProps {
   prestador: string;
   setPrestador: (value: string) => void;
   convenios: string[];
+  receberHospital?: string;
+  setReceberHospital?: (value: string) => void;
   dataInicial?: Date;
   setDataInicial?: (value: Date | undefined) => void;
   dataFinal?: Date;
@@ -35,6 +37,8 @@ export function BIFilters({
   prestador,
   setPrestador,
   convenios,
+  receberHospital,
+  setReceberHospital,
 }: BIFiltersProps) {
   const meses = [
     { value: "1", label: "Janeiro" },
@@ -69,7 +73,7 @@ export function BIFilters({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${setReceberHospital ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4`}>
             {/* Ano */}
             <div className="space-y-2">
               <Label htmlFor="ano" className="text-sm font-medium">
@@ -162,6 +166,25 @@ export function BIFilters({
                 className="h-10"
               />
             </div>
+
+            {/* A Receber */}
+            {setReceberHospital && (
+              <div className="space-y-2">
+                <Label htmlFor="receber" className="text-sm font-medium">
+                  A Receber
+                </Label>
+                <Select value={receberHospital || "todos"} onValueChange={setReceberHospital}>
+                  <SelectTrigger id="receber">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="S">Hospital</SelectItem>
+                    <SelectItem value="N">Terceiros / Médicos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
