@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, estabelecimentoId, sistema, tipoDados, frequencia, ativo, CAST(conexaoConfig AS CHAR) as conexao, LEFT(querySql, 200) as queryPreview, ultimaSincronizacao, LEFT(ultimoErro, 200) as erro FROM query_configuracoes WHERE ativo = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, estabelecimentoId, sistema, tipoDados, frequencia, ativo, CAST(conexaoConfig AS CHAR) as conexao, LEFT(querySql, 200) as queryPreview, ultimaSincronizacao, LEFT(ultimoErro, 200) as erro FROM query_configuracoes WHERE ativo = 1;",
+  "rows": [],
+  "messages": [
+    "2\t1260036\twarleine\tatendimentos\ttempo_real\t1\t\"{\\\"host\\\":\\\"hup.safatle.net.br\\\",\\\"port\\\":55333,\\\"database\\\":\\\"db1\\\",\\\"user\\\":\\\"TI\\\",\\\"password\\\":\\\"T3cnologia20\\\"}\"\t-- INTERNAÇÃO ",
+    "SELECT ",
+    "a.numatend,",
+    "(SELECT Y.CODTIPSAI FROM ARQINT Y WHERE Y.numatend=A.numatend),",
+    "(SELECT Z.nomeplaco FROM CADPLACO Z WHERE Z.codplaco=A.codplaco),",
+    "    (SELECT d.nomepac FROM CADPAC D\t2026-03-02 17:54:22\tNULL"
+  ],
+  "stdout": "id\testabelecimentoId\tsistema\ttipoDados\tfrequencia\tativo\tconexao\tqueryPreview\tultimaSincronizacao\terro\n2\t1260036\twarleine\tatendimentos\ttempo_real\t1\t\"{\\\"host\\\":\\\"hup.safatle.net.br\\\",\\\"port\\\":55333,\\\"database\\\":\\\"db1\\\",\\\"user\\\":\\\"TI\\\",\\\"password\\\":\\\"T3cnologia20\\\"}\"\t-- INTERNAÇÃO \nSELECT \na.numatend,\n(SELECT Y.CODTIPSAI FROM ARQINT Y WHERE Y.numatend=A.numatend),\n(SELECT Z.nomeplaco FROM CADPLACO Z WHERE Z.codplaco=A.codplaco),\n    (SELECT d.nomepac FROM CADPAC D\t2026-03-02 17:54:22\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

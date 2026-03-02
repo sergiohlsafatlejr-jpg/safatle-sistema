@@ -2284,3 +2284,6 @@
 - [x] Corrigir conciliacaoService.ts para usar sql.raw() em todas as funções (padrão do projeto)
 - [x] Adicionar funções auxiliares: deletarVinculacao, atualizarStatusConciliacao
 - [x] Testes vitest para conciliacaoService (21 testes passando)
+- [x] Investigar falha na integração Warleine: Warleine_Atendimentos_staging não popula atendimentos_unificados
+- [x] Corrigir fluxo de sincronização staging → atendimentos_unificados (jobScheduler.ts: conexão + mapeamento de campos)
+- [x] Verificar se frontend exibe dados atualizados de atendimentos_unificados (435 registros WARLEINE)

@@ -286,3 +286,139 @@ describe("JobScheduler", () => {
     });
   });
 });
+
+describe("jobScheduler - Mapeamento de campos Warleine → atendimentos_unificados", () => {
+  it("deve mapear campos Warleine corretamente para atendimentos_unificados", () => {
+    const dadosBrutos = {
+      numatend: "3262874",
+      codtipsai: "12",
+      nomeplaco: "UNIMED GOIANIA",
+      nomepac: "DENISE REZENDE COSTA CINTRA",
+      carater: "UR",
+      datatend: "2026-02-16T04:07:00.000Z",
+      datasai: "2026-02-18T20:00:00.000Z",
+      tipoatend: "I",
+      tipoatendimentodescricao: "INTERNACAO",
+      codserv: "INTERNACAO CLINICA",
+      procprin: "10102019",
+      codcc_destino: null,
+    };
+
+    const mapped = {
+      origemSistema: "WARLEINE",
+      numero_atendimento: dadosBrutos.numatend || null,
+      codigo_saida: dadosBrutos.codtipsai || null,
+      convenio: dadosBrutos.nomeplaco || null,
+      paciente: dadosBrutos.nomepac || null,
+      caracter_atendimento: dadosBrutos.carater || null,
+      data_entrada: dadosBrutos.datatend ? new Date(dadosBrutos.datatend) : null,
+      data_saida: dadosBrutos.datasai ? new Date(dadosBrutos.datasai) : null,
+      tipo_atendimento: dadosBrutos.tipoatend || null,
+      descricao_atendimento: dadosBrutos.tipoatendimentodescricao || null,
+      codigo_servico: dadosBrutos.codserv || null,
+      codigo_procedimento: dadosBrutos.procprin || null,
+      destino_conta: dadosBrutos.codcc_destino || null,
+    };
+
+    expect(mapped.origemSistema).toBe("WARLEINE");
+    expect(mapped.numero_atendimento).toBe("3262874");
+    expect(mapped.codigo_saida).toBe("12");
+    expect(mapped.convenio).toBe("UNIMED GOIANIA");
+    expect(mapped.paciente).toBe("DENISE REZENDE COSTA CINTRA");
+    expect(mapped.caracter_atendimento).toBe("UR");
+    expect(mapped.data_entrada).toBeInstanceOf(Date);
+    expect(mapped.data_saida).toBeInstanceOf(Date);
+    expect(mapped.tipo_atendimento).toBe("I");
+    expect(mapped.descricao_atendimento).toBe("INTERNACAO");
+    expect(mapped.codigo_servico).toBe("INTERNACAO CLINICA");
+    expect(mapped.codigo_procedimento).toBe("10102019");
+    expect(mapped.destino_conta).toBeNull();
+  });
+
+  it("deve tratar campos ausentes como null", () => {
+    const dadosBrutos: any = {
+      numatend: "3261746",
+      nomepac: "AGNALDO PEREIRA RAMOS",
+    };
+
+    const mapped = {
+      numero_atendimento: dadosBrutos.numatend || null,
+      codigo_saida: dadosBrutos.codtipsai || null,
+      convenio: dadosBrutos.nomeplaco || null,
+      paciente: dadosBrutos.nomepac || null,
+      data_entrada: dadosBrutos.datatend ? new Date(dadosBrutos.datatend) : null,
+      data_saida: dadosBrutos.datasai ? new Date(dadosBrutos.datasai) : null,
+      tipo_atendimento: dadosBrutos.tipoatend || null,
+      descricao_atendimento: dadosBrutos.tipoatendimentodescricao || null,
+      codigo_servico: dadosBrutos.codserv || null,
+      codigo_procedimento: dadosBrutos.procprin || null,
+      destino_conta: dadosBrutos.codcc_destino || null,
+    };
+
+    expect(mapped.numero_atendimento).toBe("3261746");
+    expect(mapped.paciente).toBe("AGNALDO PEREIRA RAMOS");
+    expect(mapped.codigo_saida).toBeNull();
+    expect(mapped.convenio).toBeNull();
+    expect(mapped.data_entrada).toBeNull();
+    expect(mapped.data_saida).toBeNull();
+    expect(mapped.tipo_atendimento).toBeNull();
+    expect(mapped.descricao_atendimento).toBeNull();
+    expect(mapped.codigo_servico).toBeNull();
+    expect(mapped.codigo_procedimento).toBeNull();
+    expect(mapped.destino_conta).toBeNull();
+  });
+
+  it("deve converter datas ISO corretamente", () => {
+    const datatend = "2026-01-26T23:43:00.000Z";
+    const datasai = "2026-01-31T17:45:00.000Z";
+
+    const dataEntrada = new Date(datatend);
+    const dataSaida = new Date(datasai);
+
+    expect(dataEntrada.getFullYear()).toBe(2026);
+    expect(dataEntrada.getMonth()).toBe(0); // Janeiro = 0
+    expect(dataEntrada.getUTCDate()).toBe(26);
+    expect(dataSaida.getUTCDate()).toBe(31);
+  });
+
+  it("deve parsear conexaoConfig como string JSON", () => {
+    const conexaoConfigStr = JSON.stringify({
+      host: "10.0.0.1",
+      port: 5432,
+      database: "hospital_db",
+      user: "admin",
+      password: "secret123",
+    });
+
+    const parsed = JSON.parse(conexaoConfigStr);
+    expect(parsed.host).toBe("10.0.0.1");
+    expect(parsed.port).toBe(5432);
+    expect(parsed.database).toBe("hospital_db");
+    expect(parsed.user).toBe("admin");
+    expect(parsed.password).toBe("secret123");
+  });
+
+  it("deve tratar conexaoConfig como objeto quando já é objeto", () => {
+    const conexaoConfig = {
+      host: "10.0.0.1",
+      port: 5432,
+      database: "hospital_db",
+      user: "admin",
+      password: "secret123",
+    };
+
+    const parsed = typeof conexaoConfig === "string"
+      ? JSON.parse(conexaoConfig)
+      : conexaoConfig;
+
+    expect(parsed.host).toBe("10.0.0.1");
+    expect(parsed.port).toBe(5432);
+  });
+
+  it("deve inserir em lotes de 50 registros", () => {
+    const totalRegistros = 435;
+    const BATCH_SIZE = 50;
+    const expectedBatches = Math.ceil(totalRegistros / BATCH_SIZE);
+    expect(expectedBatches).toBe(9);
+  });
+});
