@@ -79,6 +79,42 @@ const COLUMN_MAPPING: Record<string, keyof InsertRecebimentoExcel> = {
   'VALOR GLOSA': 'valorGlosa', // Formato Vivacom
   'VALOR INFORMADO': 'valorInformado', // Formato Vivacom
   
+  // Formato IPASGO
+  'FATURA': 'protocoloTiss', // IPASGO
+  'PAGAMENTO': 'dataPagto', // IPASGO
+  'CODIGO_PRESTADOR_PAGAMENTO': 'codigoPrestadorPagamento', // IPASGO
+  'NOME_PRESTADOR_PAGAMENTO': 'nomePrestadorPagamento', // IPASGO
+  // COMPETENCIA: data de referência (preenchida no upload, não mapeada aqui)
+  'ENTREGA': 'dataInicioFaturamentoInternacao', // IPASGO - data de entrega
+  'PROTOCOLO': 'protocoloTiss', // IPASGO/GEAP
+  'LOTE': 'lotePrestador', // IPASGO
+  // CODIGO_PRESTADOR_XML: mesmo que CODIGO_PRESTADOR_EXECUTANTE, não duplicar
+  // NOME_PRESTADOR_XML: mesmo que NOME_PRESTADOR_EXECUTANTE, não duplicar
+  'NUMERO_GUIA_OPERADORA': 'numeroGuia', // IPASGO
+  'SENHA': 'horaExecucao', // IPASGO - senha da guia (armazena no campo horaExecucao como referência)
+  'CARTEIRA_BENEFICIARIO': 'beneficiario', // IPASGO
+  'NOME_BENEFICIARIO': 'nomeBeneficiario', // IPASGO
+  'REALIZACAO': 'dataExecucao', // IPASGO
+  'CODIGO_PROCEDIMENTO': 'item', // IPASGO
+  'DESCRICAO_PROCEDIMENTO': 'itemDesc', // IPASGO
+  // GRAU_PARTICIPACAO: não mapeado (campo específico IPASGO sem correspondência direta)
+  'TIPO_GUIA': 'acomodacaoInternacao', // IPASGO - tipo de guia (SP/SADT, Internação, etc.)
+  'QUANTIDADE': 'quantidade', // IPASGO (já mapeado por nome idêntico)
+  'VALOR_UNITARIO': 'valorInformado', // IPASGO - valor unitário cobrado
+  'VALOR_GLOSADO': 'valorGlosa', // IPASGO
+  'VALOR_TOTAL_PAGAMENTO': 'valorPagamento', // IPASGO
+  'JUSTIFICATIVA_GLOSA': 'codigoGlosa', // IPASGO
+  'OBSERVACAO_GLOSA': 'erroTiss', // IPASGO
+  'SITUACAO': 'situacaoItem', // IPASGO (PAGO/GLOSADO)
+  'CODIGO_PROFISSIONAL_SOLICITANTE': 'codigoSolicitante', // IPASGO
+  'NOME_PROFISSIONAL_SOLICITANTE': 'nomeSolicitante', // IPASGO
+  'CODIGO_LOCAL_REALIZACAO': 'prestadorExecutante', // IPASGO
+  'NOME_LOCAL_REALIZACAO': 'nomePrestadorExecutante', // IPASGO
+  'CODIGO_PRESTADOR_EXECUTANTE': 'codigoPrestador', // IPASGO
+  'NOME_PRESTADOR_EXECUTANTE': 'nomePrestadorExecutante', // IPASGO
+  'COD_FAT': 'processado', // IPASGO - código da fatura
+  'TIPO_LANCAMENTO': 'tipoLancamento', // IPASGO (CRÉDITO/DÉBITO)
+
   // Formato GEAP
   'Data Entrega': 'dataPagto', // GEAP
   'Protocolo': 'protocoloTiss', // GEAP
@@ -404,7 +440,8 @@ export function parseExcelRecebimentosExcel(
     // Suportar múltiplos formatos: padrão, Vivacom e GEAP
     const hasData = row['Número Guia'] || row['Beneficiário'] || row['Item'] || 
                     row['GUIA'] || row['ASSOCIADO'] || row['CODIGO'] ||
-                    row['Nº Guia'] || row['Cliente'] || row['Nº Serviço'];
+                    row['Nº Guia'] || row['Cliente'] || row['Nº Serviço'] ||
+                    row['NUMERO_GUIA_OPERADORA'] || row['NOME_BENEFICIARIO'] || row['CODIGO_PROCEDIMENTO'];
     if (!hasData) continue;
     
     const record = extractRecebimentoExcelFromRow(row, arquivoId, convenioId, dataReferencia, dataPagamento, estabelecimentoId);

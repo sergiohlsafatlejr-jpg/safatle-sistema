@@ -2287,3 +2287,4 @@
 - [x] Investigar falha na integração Warleine: Warleine_Atendimentos_staging não popula atendimentos_unificados
 - [x] Corrigir fluxo de sincronização staging → atendimentos_unificados (jobScheduler.ts: conexão + mapeamento de campos)
 - [x] Verificar se frontend exibe dados atualizados de atendimentos_unificados (435 registros WARLEINE)
+- [x] Analisar e importar arquivo IpasgoHemolaborComp.12-2025-PGTO02-2026.xlsx no recebimentos Excel (mapeamento IPASGO adicionado ao parser, 28/34 colunas mapeadas, 11 testes passando)
