@@ -1,0 +1,8 @@
+{
+  "query": "SELECT a.id, a.nome_arquivo, a.status, a.total_registros, a.registros_processados FROM arquivos a WHERE a.nome_arquivo LIKE '%Ipasgo%' OR a.nome_arquivo LIKE '%ipasgo%' OR a.nome_arquivo LIKE '%IPASGO%' ORDER BY a.id DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome_arquivo, a.status, a.total_registros, a.registros_processados FROM arquivos a WHERE a.nome_arquivo LIKE '%Ipasgo%' OR a.nome_arquivo LIKE '%ipasgo%' OR a.nome_arquivo LIKE '%IPASGO%' ORDER BY a.id DESC LIMIT 5",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'a.nome_arquivo' in 'where clause'"
+  ]
+}

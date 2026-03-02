@@ -460,6 +460,96 @@ export function parseExcelRecebimentosExcel(
 }
 
 /**
+ * Parseia um arquivo Excel GRANDE em chunks para reduzir consumo de memória.
+ * Em vez de carregar todas as linhas na memória, processa em blocos e chama o callback para cada bloco.
+ */
+export function parseExcelRecebimentosExcelChunked(
+  buffer: Buffer,
+  arquivoId: number,
+  convenioId: number | undefined,
+  dataReferencia: Date | undefined,
+  dataPagamento: Date | undefined,
+  estabelecimentoId: number | undefined,
+  chunkSize: number,
+  onChunk: (records: InsertRecebimentoExcel[], chunkIndex: number, totalRows: number) => Promise<void>
+): Promise<{ totalRows: number; totalRecords: number }> {
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  
+  // Detectar se é arquivo GEAP (cabeçalho na linha 2)
+  const row2Cell = worksheet['A2'];
+  const isGEAP = row2Cell && String(row2Cell.v || row2Cell.t || '').includes('Guia');
+  
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  const totalRows = range.e.r - (isGEAP ? 2 : 1) + 1; // excluir cabeçalho(s)
+  
+  // Extrair cabeçalhos
+  const headerRow = isGEAP ? 1 : 0;
+  const dataStartRow = isGEAP ? 2 : 1;
+  const headers: string[] = [];
+  
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellRef = XLSX.utils.encode_cell({ r: headerRow, c: col });
+    const cell = worksheet[cellRef];
+    headers.push(cell?.v ? String(cell.v).trim() : `__EMPTY_${col}`);
+  }
+  
+  console.log(`[Parser Chunked] ${totalRows} linhas, ${headers.length} colunas, chunks de ${chunkSize}`);
+  console.log('[Parser Chunked] Colunas:', headers.join(', '));
+  
+  // Processar em chunks
+  let totalRecords = 0;
+  let chunkIndex = 0;
+  
+  const processChunks = async () => {
+    let currentChunk: InsertRecebimentoExcel[] = [];
+    
+    for (let row = dataStartRow; row <= range.e.r; row++) {
+      const rowData: Record<string, unknown> = {};
+      let hasData = false;
+      
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+        const cell = worksheet[cellRef];
+        // Usar valor formatado (w) se disponível, senão valor raw (v)
+        const value = cell?.w || cell?.v || null;
+        rowData[headers[col]] = value;
+        if (value) hasData = true;
+      }
+      
+      if (!hasData) continue;
+      
+      // Verificar hasData com campos conhecidos
+      const hasRelevantData = rowData['Número Guia'] || rowData['Beneficiário'] || rowData['Item'] || 
+                              rowData['GUIA'] || rowData['ASSOCIADO'] || rowData['CODIGO'] ||
+                              rowData['Nº Guia'] || rowData['Cliente'] || rowData['Nº Serviço'] ||
+                              rowData['NUMERO_GUIA_OPERADORA'] || rowData['NOME_BENEFICIARIO'] || rowData['CODIGO_PROCEDIMENTO'];
+      if (!hasRelevantData) continue;
+      
+      const record = extractRecebimentoExcelFromRow(rowData, arquivoId, convenioId, dataReferencia, dataPagamento, estabelecimentoId);
+      currentChunk.push(record);
+      
+      if (currentChunk.length >= chunkSize) {
+        await onChunk(currentChunk, chunkIndex, totalRows);
+        totalRecords += currentChunk.length;
+        chunkIndex++;
+        currentChunk = []; // Liberar memória do chunk anterior
+      }
+    }
+    
+    // Processar último chunk
+    if (currentChunk.length > 0) {
+      await onChunk(currentChunk, chunkIndex, totalRows);
+      totalRecords += currentChunk.length;
+    }
+  };
+  
+  // Retornar promise
+  return processChunks().then(() => ({ totalRows, totalRecords }));
+}
+
+/**
  * Retorna as colunas encontradas no Excel
  */
 export function getExcelColumns(buffer: Buffer): string[] {

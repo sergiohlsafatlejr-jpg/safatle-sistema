@@ -2288,3 +2288,4 @@
 - [x] Corrigir fluxo de sincronização staging → atendimentos_unificados (jobScheduler.ts: conexão + mapeamento de campos)
 - [x] Verificar se frontend exibe dados atualizados de atendimentos_unificados (435 registros WARLEINE)
 - [x] Analisar e importar arquivo IpasgoHemolaborComp.12-2025-PGTO02-2026.xlsx no recebimentos Excel (mapeamento IPASGO adicionado ao parser, 28/34 colunas mapeadas, 11 testes passando)
+- [x] Investigar e corrigir processamento travado do arquivo IPASGO (ID 1560001) - causa: arquivo 10.4MB consome 812MB RAM, otimizado com processamento em chunks

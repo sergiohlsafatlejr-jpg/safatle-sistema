@@ -328,3 +328,82 @@ describe('recebimentosExcelParser - Formato IPASGO', () => {
     expect(record.quantidade).toBe(1);
   });
 });
+
+describe('recebimentosExcelParser - parseExcelRecebimentosExcelChunked', () => {
+  it('deve processar arquivo em chunks e chamar callback para cada chunk', async () => {
+    const XLSX = await import('xlsx');
+    
+    // Criar workbook de teste com 10 linhas
+    const wb = XLSX.utils.book_new();
+    const data = [];
+    for (let i = 0; i < 10; i++) {
+      data.push({
+        'NUMERO_GUIA_OPERADORA': `GUIA_${i}`,
+        'NOME_BENEFICIARIO': `PACIENTE_${i}`,
+        'CODIGO_PROCEDIMENTO': `PROC_${i}`,
+        'VALOR_TOTAL_PAGAMENTO': `${(i + 1) * 10}`,
+        'SITUACAO': 'PAGO',
+      });
+    }
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const buffer = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    
+    const { parseExcelRecebimentosExcelChunked } = await import('./recebimentosExcelParser');
+    
+    const chunks: any[][] = [];
+    const result = await parseExcelRecebimentosExcelChunked(
+      buffer,
+      999,
+      1,
+      new Date('2025-12-01'),
+      new Date('2026-01-30'),
+      100,
+      3, // chunk size de 3
+      async (records, chunkIdx, totalRows) => {
+        chunks.push([...records]);
+      }
+    );
+    
+    // 10 linhas / 3 por chunk = 4 chunks (3+3+3+1)
+    expect(chunks.length).toBe(4);
+    expect(chunks[0].length).toBe(3);
+    expect(chunks[1].length).toBe(3);
+    expect(chunks[2].length).toBe(3);
+    expect(chunks[3].length).toBe(1);
+    expect(result.totalRecords).toBe(10);
+    
+    // Verificar que os dados foram mapeados corretamente
+    expect(chunks[0][0].numeroGuia).toBe('GUIA_0');
+    expect(chunks[0][0].nomeBeneficiario).toBe('PACIENTE_0');
+    expect(chunks[0][0].arquivoId).toBe(999);
+  });
+
+  it('deve retornar totalRows e totalRecords corretos', async () => {
+    const XLSX = await import('xlsx');
+    
+    const wb = XLSX.utils.book_new();
+    const data = [];
+    for (let i = 0; i < 5; i++) {
+      data.push({
+        'NUMERO_GUIA_OPERADORA': `G_${i}`,
+        'NOME_BENEFICIARIO': `P_${i}`,
+        'CODIGO_PROCEDIMENTO': `C_${i}`,
+        'SITUACAO': 'PAGO',
+      });
+    }
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const buffer = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    
+    const { parseExcelRecebimentosExcelChunked } = await import('./recebimentosExcelParser');
+    
+    const result = await parseExcelRecebimentosExcelChunked(
+      buffer, 1, undefined, undefined, undefined, undefined,
+      100, // chunk maior que total de linhas
+      async () => {}
+    );
+    
+    expect(result.totalRecords).toBe(5);
+  });
+});
