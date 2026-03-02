@@ -6710,9 +6710,13 @@ export const appRouter = router({
 
         for (const feed of feeds) {
           try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
             const response = await fetch(feed.url, {
               headers: { "User-Agent": "Mozilla/5.0" },
+              signal: controller.signal,
             });
+            clearTimeout(timeoutId);
             const xml = await response.text();
 
             // Parse RSS XML simples
@@ -6753,10 +6757,15 @@ export const appRouter = router({
 
         return allNoticias.slice(0, 12);
       } catch (err: any) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Erro ao buscar notícias: ${err.message}`,
-        });
+        // Retorna array vazio em vez de lançar erro para não bloquear a página
+        console.error(`[Noticias] Erro ao buscar notícias: ${err.message}`);
+        return [] as Array<{
+          titulo: string;
+          link: string;
+          fonte: string;
+          dataPublicacao: string;
+          categoria: string;
+        }>;
       }
     }),
   }),

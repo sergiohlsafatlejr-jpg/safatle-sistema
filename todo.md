@@ -2297,3 +2297,4 @@
 - [x] Criar tela Conciliação Cruzada (ConciliacaoCruzada.tsx) com visualização por guia/item
 - [x] Implementar vinculação manual de guias do mesmo paciente entre faturado e recebido
 - [x] Testes vitest para faturamento_unificado (16 testes passando)
+- [x] Corrigir erro tRPC na página /selecionar-estabelecimento: timeout 5s no fetch de notícias + lock de sincronização + onDuplicateKeyUpdate no jobScheduler

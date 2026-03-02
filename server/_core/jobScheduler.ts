@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 
 const activeJobs: Map<number, ReturnType<typeof cron.schedule>> = new Map();
+const runningJobs: Set<number> = new Set();
 
 export async function initializeJobScheduler() {
   console.log("[JobScheduler] Inicializando agendador de tarefas...");
@@ -145,6 +146,12 @@ function extrairConexaoConfig(config: any): { host: string; port: number; databa
  * Executa sincronização + transformação automaticamente
  */
 async function executarSincronizacaoAutomatica(configId: number) {
+  // Lock para evitar execuções simultâneas do mesmo job
+  if (runningJobs.has(configId)) {
+    console.log(`[JobScheduler] Job ${configId} já está em execução, pulando...`);
+    return;
+  }
+  runningJobs.add(configId);
   console.log(`[JobScheduler] Iniciando sincronização automática para config ${configId}...`);
 
   let connector: WarleineConnector | null = null;
@@ -282,8 +289,23 @@ async function executarSincronizacaoAutomatica(configId: number) {
         };
       });
 
-      await db.insert(atendimentos).values(valuesToInsert);
-      registrosTransformados += valuesToInsert.length;
+      try {
+        await db.insert(atendimentos).values(valuesToInsert).onDuplicateKeyUpdate({
+          set: {
+            convenio: sql`VALUES(convenio)`,
+            paciente: sql`VALUES(paciente)`,
+            data_entrada: sql`VALUES(data_entrada)`,
+            data_saida: sql`VALUES(data_saida)`,
+            tipo_atendimento: sql`VALUES(tipo_atendimento)`,
+            descricao_atendimento: sql`VALUES(descricao_atendimento)`,
+            codigo_servico: sql`VALUES(codigo_servico)`,
+            codigo_procedimento: sql`VALUES(codigo_procedimento)`,
+          },
+        });
+        registrosTransformados += valuesToInsert.length;
+      } catch (insertErr: any) {
+        console.warn(`[JobScheduler] Erro ao inserir batch de atendimentos (ignorando): ${insertErr.message}`);
+      }
     }
 
     console.log(`[JobScheduler] ${registrosTransformados} registros transformados para atendimentos_unificados`);
@@ -316,6 +338,8 @@ async function executarSincronizacaoAutomatica(configId: number) {
       console.error("[JobScheduler] Erro ao registrar erro no banco:", dbError);
     }
   } finally {
+    // Remover lock
+    runningJobs.delete(configId);
     // Garantir que a conexão seja fechada
     if (connector) {
       try {
