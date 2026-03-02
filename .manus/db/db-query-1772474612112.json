@@ -1,0 +1,19 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('conciliacao', 'resumoConciliacao', 'vinculacao_codigos') ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('conciliacao', 'resumoConciliacao', 'vinculacao_codigos') ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "conciliacao"
+    },
+    {
+      "TABLE_NAME": "resumoConciliacao"
+    },
+    {
+      "TABLE_NAME": "vinculacao_codigos"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nconciliacao\nresumoConciliacao\nvinculacao_codigos\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

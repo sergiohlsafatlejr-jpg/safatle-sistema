@@ -5,7 +5,7 @@ vi.mock('./db', () => ({
   getDb: vi.fn(() => Promise.resolve({})),
   getDadosTasyParaConciliacao: vi.fn(),
   compararTasyComXML: vi.fn(),
-  getResumoConciliacaoTasy: vi.fn(),
+  getResumoConciliacao: vi.fn(),
   marcarDadosTasyProcessados: vi.fn(),
   validarDadosTasyComRegras: vi.fn(),
   getResumoValidacaoTasyPorConvenio: vi.fn(),
@@ -172,7 +172,7 @@ describe('Integração Tasy x XML', () => {
     });
   });
 
-  describe('getResumoConciliacaoTasy', () => {
+  describe('getResumoConciliacao', () => {
     it('deve retornar resumo por convênio', async () => {
       const mockResumo = {
         dadosTasy: [
@@ -183,9 +183,9 @@ describe('Integração Tasy x XML', () => {
         ],
       };
 
-      vi.mocked(db.getResumoConciliacaoTasy).mockResolvedValue(mockResumo);
+      vi.mocked(db.getResumoConciliacao).mockResolvedValue(mockResumo);
 
-      const result = await db.getResumoConciliacaoTasy(1);
+      const result = await db.getResumoConciliacao(1);
 
       expect(result).toHaveProperty('dadosTasy');
       expect(result).toHaveProperty('arquivosXML');

@@ -386,6 +386,13 @@
       "when": 1770684316247,
       "tag": "0054_sync_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1772474568525,
+      "tag": "0055_rename_conciliacao",
+      "breakpoints": true
     }
   ]
 }

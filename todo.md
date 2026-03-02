@@ -2271,3 +2271,16 @@
 - [x] Adicionar filtro "A Receber" no relatório Recebimento Geral (frontend)
 - [x] Filtro "A Receber" não aplicável ao Dashboard BI (usa faturamento_tiss, não recebimento_geral)
 - [x] Filtro "A Receber" disponível no BIFilters como prop opcional (para telas que usam recebimento_geral)
+- [x] Criar tabela conciliacao no banco (resultado do cruzamento faturado x demonstrativo)
+- [x] Criar tabela vinculacao_codigos no banco (de-para códigos hospital x convênio)
+- [x] Implementar service de cruzamento no backend (agrupar por código, cruzar só S, usar de-para)
+- [ ] Criar procedures tRPC para conciliação (rodar cruzamento, listar resultados, vincular códigos)
+- [ ] Integrar cruzamento automático na importação de demonstrativo
+- [ ] Criar tela de Conciliação com visualização por guia/item e vinculação manual de códigos
+- [ ] Persistir histórico de conciliações para consulta futura
+- [ ] Criar tabela faturamento_unificado no banco e schema (unifica XML e Warleine)
+- [x] Renomear conciliacaoTasy para conciliacao no banco e schema
+- [x] Renomear resumoConciliacaoTasy para resumoConciliacao
+- [x] Corrigir conciliacaoService.ts para usar sql.raw() em todas as funções (padrão do projeto)
+- [x] Adicionar funções auxiliares: deletarVinculacao, atualizarStatusConciliacao
+- [x] Testes vitest para conciliacaoService (21 testes passando)

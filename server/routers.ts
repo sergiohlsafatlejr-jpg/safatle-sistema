@@ -4691,7 +4691,7 @@ export const appRouter = router({
     resumoConciliacao: protectedProcedure
       .input(z.object({ estabelecimentoId: z.number() }))
       .query(async ({ input }) => {
-        return db.getResumoConciliacaoTasy(input.estabelecimentoId);
+        return db.getResumoConciliacaoTasyData(input.estabelecimentoId);
       }),
 
     // Buscar dados para conciliação

@@ -11446,9 +11446,9 @@ export async function compararTasyComXML(
 }
 
 /**
- * Busca resumo de conciliação por convênio
+ * Busca resumo de conciliação Tasy por convênio (dados do Tasy + arquivos XML)
  */
-export async function getResumoConciliacaoTasy(estabelecimentoId: number) {
+export async function getResumoConciliacaoTasyData(estabelecimentoId: number) {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
 

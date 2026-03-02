@@ -1692,7 +1692,7 @@ export type InsertDemonstrativoItem = typeof demonstrativoItens.$inferInsert;
  * Conciliação Tasy - Resultado da conciliação entre dados do Tasy e demonstrativos
  * Armazena o resultado da comparação entre o que foi faturado (Tasy) e o que foi pago (demonstrativo)
  */
-export const conciliacaoTasy = mysqlTable("conciliacaoTasy", {
+export const conciliacao = mysqlTable("conciliacao", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
@@ -1744,6 +1744,19 @@ export const conciliacaoTasy = mysqlTable("conciliacaoTasy", {
   // Observações
   observacao: text("observacao"),
   
+  // Receber Hospital (S = hospital recebe, N = terceiros/médicos)
+  receberHospital: varchar("receberHospital", { length: 1 }),
+  
+  // Vinculação de códigos (de-para)
+  vinculacaoId: int("vinculacaoId"), // FK para vinculacao_codigos se match foi por de-para
+  metodoMatch: mysqlEnum("metodoMatch", ["codigo_direto", "vinculacao", "manual"]).default("codigo_direto"),
+  
+  // Referência ao arquivo do demonstrativo
+  arquivoDemoId: int("arquivoDemoId"),
+  
+  // Status de vinculação pendente
+  pendenteVinculacao: mysqlEnum("pendenteVinculacao", ["sim", "nao"]).default("nao"),
+  
   // Controle
   processadoPor: int("processadoPor"), // userId que executou a conciliação
   dataProcessamento: timestamp("dataProcessamento"),
@@ -1752,15 +1765,15 @@ export const conciliacaoTasy = mysqlTable("conciliacaoTasy", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export type ConciliacaoTasyRecord = typeof conciliacaoTasy.$inferSelect;
-export type InsertConciliacaoTasy = typeof conciliacaoTasy.$inferInsert;
+export type ConciliacaoRecord = typeof conciliacao.$inferSelect;
+export type InsertConciliacao = typeof conciliacao.$inferInsert;
 
 
 /**
  * Resumo da Conciliação Tasy - Totais por período/convênio
  * Armazena os totais consolidados da conciliação para relatórios
  */
-export const resumoConciliacaoTasy = mysqlTable("resumoConciliacaoTasy", {
+export const resumoConciliacao = mysqlTable("resumoConciliacao", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
@@ -1798,8 +1811,8 @@ export const resumoConciliacaoTasy = mysqlTable("resumoConciliacaoTasy", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export type ResumoConciliacaoTasy = typeof resumoConciliacaoTasy.$inferSelect;
-export type InsertResumoConciliacaoTasy = typeof resumoConciliacaoTasy.$inferInsert;
+export type ResumoConciliacaoRecord = typeof resumoConciliacao.$inferSelect;
+export type InsertResumoConciliacao = typeof resumoConciliacao.$inferInsert;
 
 
 /**
@@ -2946,3 +2959,43 @@ export const convenioMapeamento = mysqlTable("convenio_mapeamento", {
 
 export type ConvenioMapeamento = typeof convenioMapeamento.$inferSelect;
 export type InsertConvenioMapeamento = typeof convenioMapeamento.$inferInsert;
+
+
+/**
+ * Vinculação de Códigos - De-Para entre códigos do hospital e do convênio
+ * Quando o hospital envia um item com código X e o convênio devolve com código Y,
+ * essa tabela armazena a vinculação para cruzamentos futuros automáticos.
+ */
+export const vinculacaoCodigos = mysqlTable("vinculacao_codigos", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenioId: int("convenioId"), // Pode variar por convênio
+  
+  // Código do hospital (enviado no faturamento)
+  codigoHospital: varchar("codigoHospital", { length: 50 }).notNull(),
+  descricaoHospital: text("descricaoHospital"),
+  
+  // Código do convênio (recebido no demonstrativo)
+  codigoConvenio: varchar("codigoConvenio", { length: 50 }).notNull(),
+  descricaoConvenio: text("descricaoConvenio"),
+  
+  // Classificação
+  tipoItem: mysqlEnum("tipoItem", ["medicamento", "material", "procedimento", "taxa", "diaria", "gas", "outros"]).default("outros"),
+  
+  // Controle
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  criadoPor: int("criadoPor"), // userId que criou a vinculação
+  metodoMatch: mysqlEnum("metodo_match", ["automatico", "manual"]).default("manual").notNull(),
+  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confiança (0-100)
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabIdx: index("idx_vinc_cod_estab").on(table.estabelecimentoId),
+  codHospIdx: index("idx_vinc_cod_hospital").on(table.codigoHospital),
+  codConvIdx: index("idx_vinc_cod_convenio").on(table.codigoConvenio),
+  uniqueVinc: index("idx_vinc_unique").on(table.estabelecimentoId, table.convenioId, table.codigoHospital, table.codigoConvenio),
+}));
+
+export type VinculacaoCodigo = typeof vinculacaoCodigos.$inferSelect;
+export type InsertVinculacaoCodigo = typeof vinculacaoCodigos.$inferInsert;
