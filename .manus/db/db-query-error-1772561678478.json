@@ -1,0 +1,8 @@
+{
+  "query": "SELECT re.id, re.arquivo_id, re.numero_guia, re.paciente_nome, re.codigo_item, re.descricao_item, re.valor_cobrado, re.valor_pagamento, re.valor_glosa, re.situacao_item, re.tipo_lancamento, re.cod_glosa, a.nome as arquivo_nome, a.convenioId, a.estabelecimentoId\nFROM recebimentos_excel re\nJOIN arquivos a ON re.arquivo_id = a.id\nWHERE a.convenioId IN (SELECT id FROM convenios WHERE LOWER(nome) LIKE '%ipasgo%')\nORDER BY re.id DESC\nLIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT re.id, re.arquivo_id, re.numero_guia, re.paciente_nome, re.codigo_item, re.descricao_item, re.valor_cobrado, re.valor_pagamento, re.valor_glosa, re.situacao_item, re.tipo_lancamento, re.cod_glosa, a.nome as arquivo_nome, a.convenioId, a.estabelecimentoId\nFROM recebimentos_excel re\nJOIN arquivos a ON re.arquivo_id = a.id\nWHERE a.convenioId IN (SELECT id FROM convenios WHERE LOWER(nome) LIKE '%ipasgo%')\nORDER BY re.id DESC\nLIMIT 20",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 're.paciente_nome' in 'field list'"
+  ]
+}

@@ -16959,13 +16959,25 @@ export async function getRecebimentosExcel(params: {
   const offset = (page - 1) * limit;
 
   // Buscar itens
-  const items = await db
+  const rawItems = await db
     .select()
     .from(recebimentosExcel)
     .where(whereClause)
     .orderBy(desc(recebimentosExcel.dataPagto), desc(recebimentosExcel.id))
     .limit(limit)
     .offset(offset);
+
+  // Mapear campos do schema para nomes esperados pelo frontend
+  const items = rawItems.map(r => ({
+    ...r,
+    // Campos que o frontend espera com nomes diferentes
+    codigoProcedimento: r.item || null,
+    descricaoProcedimento: r.itemDesc || null,
+    valorCobrado: r.valorInformado || '0.00',
+    valorPago: r.valorPagamento || '0.00',
+    valorGlosado: r.valorGlosa || '0.00',
+    codigoGlosa: r.codigoGlosa || r.erroTiss || null,
+  }));
 
   // Contar total
   const countResult = await db
@@ -16993,6 +17005,7 @@ export async function getRecebimentosExcelResumo(params: {
   totalPagos: number;
   totalGlosados: number;
   valorTotal: number;
+  valorGlosado: number;
 } | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -17037,9 +17050,10 @@ export async function getRecebimentosExcelResumo(params: {
   const result = await db
     .select({
       totalItens: sql<number>`COUNT(*)`,
-      totalPagos: sql<number>`SUM(CASE WHEN UPPER(${recebimentosExcel.situacaoItem}) = 'PAGO' OR ${recebimentosExcel.situacaoItem} IS NULL THEN 1 ELSE 0 END)`,
+      totalPagos: sql<number>`COALESCE(SUM(CAST(${recebimentosExcel.valorPagamento} AS DECIMAL(15,2))), 0)`,
       totalGlosados: sql<number>`SUM(CASE WHEN UPPER(${recebimentosExcel.situacaoItem}) LIKE '%GLOS%' THEN 1 ELSE 0 END)`,
-      valorTotal: sql<number>`COALESCE(SUM(CAST(${recebimentosExcel.valorPagamento} AS DECIMAL(15,2))), 0)`,
+      valorTotal: sql<number>`COALESCE(SUM(CAST(${recebimentosExcel.valorInformado} AS DECIMAL(15,2))), 0)`,
+      valorGlosado: sql<number>`COALESCE(SUM(CAST(${recebimentosExcel.valorGlosa} AS DECIMAL(15,2))), 0)`,
     })
     .from(recebimentosExcel)
     .where(whereClause);

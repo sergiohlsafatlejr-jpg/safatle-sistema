@@ -1,0 +1,130 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'recebimentos_excel' ORDER BY ORDINAL_POSITION",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'recebimentos_excel' ORDER BY ORDINAL_POSITION",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "arquivo_id"
+    },
+    {
+      "COLUMN_NAME": "data_pagto"
+    },
+    {
+      "COLUMN_NAME": "processado"
+    },
+    {
+      "COLUMN_NAME": "protocolo_tiss"
+    },
+    {
+      "COLUMN_NAME": "lote_prestador"
+    },
+    {
+      "COLUMN_NAME": "codigo_prestador_pagamento"
+    },
+    {
+      "COLUMN_NAME": "nome_prestador_pagamento"
+    },
+    {
+      "COLUMN_NAME": "numero_guia"
+    },
+    {
+      "COLUMN_NAME": "seq"
+    },
+    {
+      "COLUMN_NAME": "beneficiario"
+    },
+    {
+      "COLUMN_NAME": "nome_beneficiario"
+    },
+    {
+      "COLUMN_NAME": "data_execucao"
+    },
+    {
+      "COLUMN_NAME": "hora_execucao"
+    },
+    {
+      "COLUMN_NAME": "item"
+    },
+    {
+      "COLUMN_NAME": "item_desc"
+    },
+    {
+      "COLUMN_NAME": "quantidade"
+    },
+    {
+      "COLUMN_NAME": "valor_pagamento"
+    },
+    {
+      "COLUMN_NAME": "tipo_lancamento"
+    },
+    {
+      "COLUMN_NAME": "erro_tiss"
+    },
+    {
+      "COLUMN_NAME": "situacao_item"
+    },
+    {
+      "COLUMN_NAME": "codigo_solicitante"
+    },
+    {
+      "COLUMN_NAME": "nome_solicitante"
+    },
+    {
+      "COLUMN_NAME": "acomodacao_internacao"
+    },
+    {
+      "COLUMN_NAME": "data_inicio_faturamento_internacao"
+    },
+    {
+      "COLUMN_NAME": "data_fim_faturamento_internacao"
+    },
+    {
+      "COLUMN_NAME": "codigo_prestador"
+    },
+    {
+      "COLUMN_NAME": "nome_prestador"
+    },
+    {
+      "COLUMN_NAME": "prestador_executante"
+    },
+    {
+      "COLUMN_NAME": "nome_prestador_executante"
+    },
+    {
+      "COLUMN_NAME": "data_importacao"
+    },
+    {
+      "COLUMN_NAME": "convenioId"
+    },
+    {
+      "COLUMN_NAME": "data_referencia"
+    },
+    {
+      "COLUMN_NAME": "data_pagamento_upload"
+    },
+    {
+      "COLUMN_NAME": "data_pagamento"
+    },
+    {
+      "COLUMN_NAME": "estabelecimentoId"
+    },
+    {
+      "COLUMN_NAME": "tipo_item"
+    },
+    {
+      "COLUMN_NAME": "valor_glosa"
+    },
+    {
+      "COLUMN_NAME": "codigo_glosa"
+    },
+    {
+      "COLUMN_NAME": "valor_informado"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\narquivo_id\ndata_pagto\nprocessado\nprotocolo_tiss\nlote_prestador\ncodigo_prestador_pagamento\nnome_prestador_pagamento\nnumero_guia\nseq\nbeneficiario\nnome_beneficiario\ndata_execucao\nhora_execucao\nitem\nitem_desc\nquantidade\nvalor_pagamento\ntipo_lancamento\nerro_tiss\nsituacao_item\ncodigo_solicitante\nnome_solicitante\nacomodacao_internacao\ndata_inicio_faturamento_internacao\ndata_fim_faturamento_internacao\ncodigo_prestador\nnome_prestador\nprestador_executante\nnome_prestador_executante\ndata_importacao\nconvenioId\ndata_referencia\ndata_pagamento_upload\ndata_pagamento\nestabelecimentoId\ntipo_item\nvalor_glosa\ncodigo_glosa\nvalor_informado\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

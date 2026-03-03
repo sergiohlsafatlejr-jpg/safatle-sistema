@@ -255,13 +255,13 @@ export default function RecebimentosExcel() {
     const excelData = (recebimentoData.items as any[]).map((item: any) => ({
       "Guia": item.numeroGuia || "",
       "Beneficiário": item.nomeBeneficiario || "",
-      "Código": item.codigoProcedimento || "",
-      "Descrição": item.descricaoProcedimento || "",
+      "Código": item.codigoProcedimento || item.item || "",
+      "Descrição": item.descricaoProcedimento || item.itemDesc || "",
       "Tipo Lançamento": item.tipoLancamento || "",
-      "Valor Cobrado": parseFloat(item.valorCobrado || "0"),
-      "Valor Pago": parseFloat(item.valorPago || "0"),
-      "Valor Glosado": parseFloat(item.valorGlosado || "0"),
-      "Código Glosa": item.codigoGlosa || "",
+      "Valor Cobrado": parseFloat(item.valorCobrado || item.valorInformado || "0"),
+      "Valor Pago": parseFloat(item.valorPago || item.valorPagamento || "0"),
+      "Valor Glosado": parseFloat(item.valorGlosado || item.valorGlosa || "0"),
+      "Código Glosa": item.codigoGlosa || item.erroTiss || "",
       "Situação": item.situacaoItem || "",
     }));
     const wb = XLSX.utils.book_new();
@@ -337,7 +337,7 @@ export default function RecebimentosExcel() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-slate-500">Valor Total</p>
+                  <p className="text-sm text-slate-500">Valor Cobrado</p>
                   <p className="text-2xl font-bold text-blue-600">{formatCurrency(resumo?.valorTotal)}</p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -350,7 +350,7 @@ export default function RecebimentosExcel() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-slate-500">Itens Pagos</p>
+                  <p className="text-sm text-slate-500">Valor Pago</p>
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(resumo?.totalPagos)}</p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-green-50 flex items-center justify-center">

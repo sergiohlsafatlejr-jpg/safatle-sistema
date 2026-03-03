@@ -2351,3 +2351,5 @@
 - [x] Adicionar data do item na tela de detalhes da conciliação e no comparativo (coluna Data Exec. com COALESCE ca.dataExecucao/fu.dataExecucao)
 - [x] Aplicar lógica de alta administrativa na conciliação (badge Alta Adm. quando totalContas > 1, badge de itens agrupados no frontend)
 - [ ] Persistir histórico de conciliações para consulta futura
+- [x] Bug: Importação Excel IPASGO - valores cobrados, pagos e glosados estão R$ 0,00 para todos os itens (Hospital Nossa Senhora de Inhumas) - corrigido mapeamento de campos: item→codigoProcedimento, itemDesc→descricaoProcedimento, valorInformado→valorCobrado, valorPagamento→valorPago, valorGlosa→valorGlosado
+- [x] Corrigir parser IPASGO para extrair valores corretamente para todos os prestadores/estabelecimentos - mapeamento universal no getRecebimentosExcel + resumo com SUM(valorPagamento) e SUM(valorInformado)
