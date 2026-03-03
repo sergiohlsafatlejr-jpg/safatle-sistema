@@ -1217,6 +1217,166 @@ export async function resumoConciliadosAutomatico(params: {
 }
 
 // ============================================================
+// QUERIES PARA ABA CONCILIADOS - AGRUPADO POR GUIA
+// ============================================================
+
+/**
+ * Competências disponíveis na tabela conciliados_automatico
+ */
+export async function competenciasConciliados(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+  const [rows] = await db.execute(sql.raw(
+    `SELECT competencia, COUNT(*) as total
+     FROM conciliados_automatico
+     WHERE estabelecimentoId = ${estabelecimentoId}
+     GROUP BY competencia
+     ORDER BY competencia DESC`
+  ));
+  return (rows as unknown as any[]).filter((r: any) => r.competencia);
+}
+
+/**
+ * Convênios disponíveis na tabela conciliados_automatico
+ */
+export async function conveniosConciliados(estabelecimentoId: number, competencia?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+  let where = `WHERE estabelecimentoId = ${estabelecimentoId}`;
+  if (competencia) {
+    where += ` AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`;
+  }
+  const [rows] = await db.execute(sql.raw(
+    `SELECT convenioId, convenio, COUNT(*) as total
+     FROM conciliados_automatico
+     ${where}
+     GROUP BY convenioId, convenio
+     ORDER BY total DESC`
+  ));
+  return (rows as unknown as any[]).filter((r: any) => r.convenioId);
+}
+
+/**
+ * Resumo agrupado por GUIA dos conciliados automáticos
+ * Retorna: guia, paciente, convênio, competência, totalItens, valorFaturado, valorPago, valorGlosa, diferença, status
+ */
+export async function resumoConciliadosPorGuia(params: {
+  estabelecimentoId: number;
+  competencia?: string;
+  convenioId?: number;
+  statusConciliacao?: string;
+  busca?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: any[]; total: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia) {
+    whereClause += ` AND ca.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
+  }
+  if (params.convenioId) {
+    whereClause += ` AND ca.convenioId = ${params.convenioId}`;
+  }
+  if (params.statusConciliacao && params.statusConciliacao !== 'todos') {
+    // Filtrar guias que tenham pelo menos 1 item com esse status
+    whereClause += ` AND ca.statusConciliacao = '${params.statusConciliacao.replace(/'/g, "''")}'`;
+  }
+  if (params.busca) {
+    const b = params.busca.replace(/'/g, "''");
+    whereClause += ` AND (ca.numeroGuia LIKE '%${b}%' OR ca.contaNumero LIKE '%${b}%' OR ca.pacienteNome LIKE '%${b}%' OR ca.convenio LIKE '%${b}%')`;
+  }
+
+  const limit = params.limit || 50;
+  const offset = params.offset || 0;
+
+  // Contar total de guias distintas
+  const [countRows] = await db.execute(sql.raw(
+    `SELECT COUNT(DISTINCT COALESCE(ca.numeroGuia, ca.contaNumero)) as total
+     FROM conciliados_automatico ca ${whereClause}`
+  ));
+  const total = Number((countRows as unknown as any[])?.[0]?.total || 0);
+
+  // Buscar guias agrupadas
+  const query = `
+    SELECT 
+      COALESCE(ca.numeroGuia, ca.contaNumero) as guia,
+      ca.numeroGuia,
+      ca.contaNumero,
+      MAX(ca.pacienteNome) as pacienteNome,
+      MAX(ca.convenio) as convenio,
+      MAX(ca.convenioId) as convenioId,
+      MAX(ca.competencia) as competencia,
+      MAX(ca.origemSistema) as origemSistema,
+      COUNT(*) as totalItens,
+      COALESCE(SUM(ca.valorFaturado), 0) as valorFaturado,
+      COALESCE(SUM(ca.valorPago), 0) as valorPago,
+      COALESCE(SUM(ca.valorGlosa), 0) as valorGlosa,
+      COALESCE(SUM(ca.diferenca), 0) as diferenca,
+      -- Status da guia: se tem algum divergente=divergente, se tem algum nao_recebido=nao_recebido, senão=conciliado
+      CASE
+        WHEN SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
+        WHEN SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
+        ELSE 'conciliado'
+      END as statusGuia,
+      SUM(CASE WHEN ca.statusConciliacao = 'conciliado' THEN 1 ELSE 0 END) as itensConciliados,
+      SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) as itensDivergentes,
+      SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) as itensNaoRecebidos
+    FROM conciliados_automatico ca
+    ${whereClause}
+    GROUP BY COALESCE(ca.numeroGuia, ca.contaNumero), ca.numeroGuia, ca.contaNumero
+    ORDER BY SUM(ABS(ca.diferenca)) DESC, guia
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const [rows] = await db.execute(sql.raw(query));
+  return { items: rows as unknown as any[], total };
+}
+
+/**
+ * Itens detalhados de uma guia na conciliados_automatico
+ */
+export async function itensConciliadosPorGuia(params: {
+  estabelecimentoId: number;
+  numeroGuia?: string;
+  contaNumero?: string;
+}): Promise<any[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.numeroGuia) {
+    whereClause += ` AND ca.numeroGuia = '${params.numeroGuia.replace(/'/g, "''")}'`;
+  }
+  if (params.contaNumero) {
+    whereClause += ` AND ca.contaNumero = '${params.contaNumero.replace(/'/g, "''")}'`;
+  }
+
+  const query = `
+    SELECT 
+      ca.id, ca.faturamentoUnificadoId, ca.contaNumero, ca.numeroGuia,
+      ca.pacienteNome, ca.convenio, ca.convenioId, ca.competencia,
+      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.origemSistema,
+      COALESCE(ca.valorFaturado, 0) as valorFaturado,
+      COALESCE(ca.quantidade, 0) as quantidade,
+      ca.recebimentoId, ca.recebimentoOrigem,
+      COALESCE(ca.valorPago, 0) as valorPago,
+      COALESCE(ca.valorGlosa, 0) as valorGlosa,
+      ca.statusConciliacao, ca.metodoConciliacao,
+      COALESCE(ca.diferenca, 0) as diferenca,
+      COALESCE(ca.percentualDiferenca, 0) as percentualDiferenca,
+      ca.toleranciaUsada, ca.criadoEm
+    FROM conciliados_automatico ca
+    ${whereClause}
+    ORDER BY ca.codigoItem, ca.id
+  `;
+
+  const [rows] = await db.execute(sql.raw(query));
+  return rows as unknown as any[];
+}
+
+// ============================================================
 // FUNÇÕES AUXILIARES
 // ============================================================
 

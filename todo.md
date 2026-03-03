@@ -2327,3 +2327,7 @@
 - [x] Atualizar frontend ConciliacaoCruzada para apresentar dados da nova tabela (abas Conciliados + Faturamento Unificado)
 - [x] Reverter alterações de valorPago/valorGlosa no faturamento_unificado (dados de conciliação agora ficam na conciliados_automatico)
 - [x] Testes vitest para novo fluxo de conciliação com tabela separada (24 testes passando)
+- [x] Corrigir filtros na aba Conciliados (competência, convênio, status agora filtram com queries específicas da conciliados_automatico)
+- [x] Reestruturar aba Conciliados: agrupar por GUIA primeiro (Faturado, Recebido, Glosado, Diferença, Status)
+- [x] Criar tela de detalhes dedicada ao clicar na guia (itens que deram match com valores individuais, cards resumo + tabela detalhada)
+- [x] Criar query de agrupamento por guia na conciliados_automatico (resumoConciliadosPorGuia + itensConciliadosPorGuia)

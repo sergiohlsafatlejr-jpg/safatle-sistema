@@ -17,7 +17,7 @@ import {
   Search, Filter, Download, Eye, CheckCircle2, AlertCircle, XCircle, Clock,
   DollarSign, TrendingUp, TrendingDown, FileText, Building2, ArrowUpDown,
   ChevronDown, ChevronUp, RefreshCw, Link2, Database, Loader2, Unlink,
-  Zap, RotateCcw, BarChart3, Info, ListChecks, Table2
+  Zap, RotateCcw, BarChart3, Info, ListChecks, Table2, ChevronRight, ArrowLeft
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -29,7 +29,7 @@ export default function ConciliacaoCruzada() {
   // Aba ativa
   const [abaAtiva, setAbaAtiva] = useState("conciliados");
 
-  // Filtros
+  // Filtros compartilhados
   const [competenciaFiltro, setCompetenciaFiltro] = useState<string>("todos");
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
   const [statusFiltro, setStatusFiltro] = useState("todos");
@@ -37,10 +37,13 @@ export default function ConciliacaoCruzada() {
   const [paginaAtual, setPaginaAtual] = useState(0);
   const ITENS_POR_PAGINA = 50;
 
-  // Paginação da aba conciliados
+  // Paginação da aba conciliados (agrupado por guia)
   const [paginaConciliados, setPaginaConciliados] = useState(0);
 
-  // Modal de detalhes da guia
+  // Tela de detalhes de guia conciliada (drill-down)
+  const [guiaConciliadaSelecionada, setGuiaConciliadaSelecionada] = useState<any>(null);
+
+  // Modal de detalhes da guia (aba faturamento)
   const [guiaSelecionada, setGuiaSelecionada] = useState<{ contaNumero?: string; numeroGuia?: string } | null>(null);
   const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
 
@@ -53,19 +56,76 @@ export default function ConciliacaoCruzada() {
   const [modalResultadoAberto, setModalResultadoAberto] = useState(false);
   const [resultadoConciliacao, setResultadoConciliacao] = useState<any>(null);
 
-  // Query de competencias disponiveis
+  // ===== QUERIES PARA ABA CONCILIADOS =====
+
+  // Competências da conciliados_automatico
+  const { data: competenciasConciliados } = trpc.faturamentoUnificado.competenciasConciliados.useQuery(
+    { estabelecimentoId },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  // Convênios da conciliados_automatico
+  const { data: conveniosConciliados } = trpc.faturamentoUnificado.conveniosConciliados.useQuery(
+    { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  // Convênio ID numérico para filtro
+  const convenioIdNum = useMemo(() => {
+    if (convenioFiltro === "todos") return undefined;
+    const n = Number(convenioFiltro);
+    return isNaN(n) ? undefined : n;
+  }, [convenioFiltro]);
+
+  // Resumo agrupado por guia (aba conciliados - tabela principal)
+  const { data: dadosGuiasConciliadas, isLoading: isLoadingGuiasConciliadas, refetch: refetchGuiasConciliadas } = trpc.faturamentoUnificado.resumoConciliadosPorGuia.useQuery(
+    {
+      estabelecimentoId,
+      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
+      convenioId: convenioIdNum,
+      statusConciliacao: statusFiltro !== "todos" ? statusFiltro : undefined,
+      busca: busca || undefined,
+      limit: ITENS_POR_PAGINA,
+      offset: paginaConciliados * ITENS_POR_PAGINA,
+    },
+    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" && !guiaConciliadaSelecionada }
+  );
+
+  // Resumo totais dos conciliados
+  const { data: resumoConciliados, refetch: refetchResumo } = trpc.faturamentoUnificado.resumoConciliados.useQuery(
+    {
+      estabelecimentoId,
+      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
+      convenioId: convenioIdNum,
+    },
+    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" }
+  );
+
+  // Itens detalhados de uma guia conciliada (drill-down)
+  const { data: itensConciliadosGuia, isLoading: isLoadingItensConciliados } = trpc.faturamentoUnificado.itensConciliadosPorGuia.useQuery(
+    {
+      estabelecimentoId,
+      numeroGuia: guiaConciliadaSelecionada?.numeroGuia || undefined,
+      contaNumero: guiaConciliadaSelecionada?.contaNumero || undefined,
+    },
+    { enabled: !!guiaConciliadaSelecionada && estabelecimentoId > 0 }
+  );
+
+  // ===== QUERIES PARA ABA FATURAMENTO UNIFICADO =====
+
+  // Competências do faturamento_unificado
   const { data: competencias } = trpc.faturamentoUnificado.competencias.useQuery(
     { estabelecimentoId },
     { enabled: estabelecimentoId > 0 }
   );
 
-  // Query de convenios disponiveis
+  // Convênios do faturamento_unificado
   const { data: convenios } = trpc.faturamentoUnificado.convenios.useQuery(
     { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined },
     { enabled: estabelecimentoId > 0 }
   );
 
-  // Query principal - resumo por guia (aba faturamento)
+  // Resumo por guia (aba faturamento)
   const { data: dadosGuias, isLoading, refetch } = trpc.faturamentoUnificado.resumoPorGuia.useQuery(
     {
       estabelecimentoId,
@@ -79,37 +139,7 @@ export default function ConciliacaoCruzada() {
     { enabled: estabelecimentoId > 0 && abaAtiva === "faturamento" }
   );
 
-  // Query de conciliados automáticos (aba conciliados)
-  const convenioIdNum = useMemo(() => {
-    if (convenioFiltro === "todos") return undefined;
-    const n = Number(convenioFiltro);
-    return isNaN(n) ? undefined : n;
-  }, [convenioFiltro]);
-
-  const { data: dadosConciliados, isLoading: isLoadingConciliados, refetch: refetchConciliados } = trpc.faturamentoUnificado.listarConciliados.useQuery(
-    {
-      estabelecimentoId,
-      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
-      convenioId: convenioIdNum,
-      statusConciliacao: statusFiltro !== "todos" ? statusFiltro : undefined,
-      busca: busca || undefined,
-      limit: ITENS_POR_PAGINA,
-      offset: paginaConciliados * ITENS_POR_PAGINA,
-    },
-    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" }
-  );
-
-  // Resumo dos conciliados
-  const { data: resumoConciliados, refetch: refetchResumo } = trpc.faturamentoUnificado.resumoConciliados.useQuery(
-    {
-      estabelecimentoId,
-      competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
-      convenioId: convenioIdNum,
-    },
-    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" }
-  );
-
-  // Query de itens da guia selecionada
+  // Itens da guia selecionada (modal faturamento)
   const { data: itensGuia, isLoading: isLoadingItens } = trpc.faturamentoUnificado.itensPorGuia.useQuery(
     {
       estabelecimentoId,
@@ -119,7 +149,7 @@ export default function ConciliacaoCruzada() {
     { enabled: !!guiaSelecionada && estabelecimentoId > 0 }
   );
 
-  // Query de recebimentos candidatos para vinculacao
+  // Recebimentos candidatos para vinculação manual
   const { data: recebimentosCandidatos, isLoading: isLoadingCandidatos } = trpc.faturamentoUnificado.buscarRecebimentosCandidatos.useQuery(
     {
       estabelecimentoId,
@@ -129,7 +159,8 @@ export default function ConciliacaoCruzada() {
     { enabled: modalVinculacaoAberto && buscaVinculacao.length >= 3 && estabelecimentoId > 0 }
   );
 
-  // Mutations
+  // ===== MUTATIONS =====
+
   const popularTudo = trpc.faturamentoUnificado.popularTudo.useMutation({
     onSuccess: (data) => {
       toast.success(`Faturamento unificado atualizado: ${data.warleine.inseridos} itens Warleine + ${data.xmlTiss.inseridos} itens XML TISS`);
@@ -153,7 +184,7 @@ export default function ConciliacaoCruzada() {
       setModalResultadoAberto(true);
       toast.success(`Conciliação concluída: ${data.totalConciliados} conciliados, ${data.totalDivergentes} divergentes, ${data.totalNaoRecebidos} não recebidos`);
       refetch();
-      refetchConciliados();
+      refetchGuiasConciliadas();
       refetchResumo();
     },
     onError: (err) => toast.error(`Erro na conciliação: ${err.message}`),
@@ -163,13 +194,15 @@ export default function ConciliacaoCruzada() {
     onSuccess: (data) => {
       toast.success(`${data.resetados} registros de conciliação removidos`);
       refetch();
-      refetchConciliados();
+      refetchGuiasConciliadas();
       refetchResumo();
+      setGuiaConciliadaSelecionada(null);
     },
     onError: (err) => toast.error(`Erro ao resetar: ${err.message}`),
   });
 
-  // Funcoes auxiliares
+  // ===== HELPERS =====
+
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
   };
@@ -196,7 +229,7 @@ export default function ConciliacaoCruzada() {
   };
 
   const getMetodoBadge = (metodo: string | null) => {
-    if (!metodo) return <Badge variant="outline" className="text-xs">-</Badge>;
+    if (!metodo) return <span className="text-muted-foreground text-xs">-</span>;
     switch (metodo) {
       case 'guia_codigo':
         return <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-300">Guia+Código</Badge>;
@@ -253,26 +286,24 @@ export default function ConciliacaoCruzada() {
 
   // Exportar conciliados para Excel
   const exportarConciliadosExcel = () => {
-    if (!dadosConciliados?.items?.length) return;
+    const guias = dadosGuiasConciliadas?.items || [];
+    if (!guias.length) return;
 
-    const dados = dadosConciliados.items.map((c: any) => ({
-      'Guia': c.numeroGuia || '-',
-      'Conta': c.contaNumero || '-',
-      'Paciente': c.pacienteNome || '-',
-      'Convênio': c.convenio || '-',
-      'Competência': formatarCompetencia(c.competencia),
-      'Código Item': c.codigoItem || '-',
-      'Código TUSS': c.codigoItemTuss || '-',
-      'Descrição': c.descricaoItem || '-',
-      'Origem': c.origemSistema || '-',
-      'Qtd': Number(c.quantidade || 0),
-      'Valor Faturado': Number(c.valorFaturado || 0),
-      'Valor Pago': Number(c.valorPago || 0),
-      'Valor Glosa': Number(c.valorGlosa || 0),
-      'Diferença': Number(c.diferenca || 0),
-      '% Diferença': Number(c.percentualDiferenca || 0),
-      'Status': c.statusConciliacao || '-',
-      'Método': c.metodoConciliacao || '-',
+    const dados = guias.map((g: any) => ({
+      'Guia': g.guia || '-',
+      'Paciente': g.pacienteNome || '-',
+      'Convênio': g.convenio || String(g.convenioId || '-'),
+      'Competência': formatarCompetencia(g.competencia),
+      'Origem': g.origemSistema || '-',
+      'Total Itens': Number(g.totalItens || 0),
+      'Valor Faturado': Number(g.valorFaturado || 0),
+      'Valor Recebido': Number(g.valorPago || 0),
+      'Valor Glosado': Number(g.valorGlosa || 0),
+      'Diferença': Number(g.diferenca || 0),
+      'Status': g.statusGuia || '-',
+      'Itens Conciliados': Number(g.itensConciliados || 0),
+      'Itens Divergentes': Number(g.itensDivergentes || 0),
+      'Itens Não Recebidos': Number(g.itensNaoRecebidos || 0),
     }));
 
     const wb = XLSX.utils.book_new();
@@ -290,8 +321,8 @@ export default function ConciliacaoCruzada() {
       XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
     }
 
-    const wsItens = XLSX.utils.json_to_sheet(dados);
-    XLSX.utils.book_append_sheet(wb, wsItens, 'Conciliados');
+    const wsGuias = XLSX.utils.json_to_sheet(dados);
+    XLSX.utils.book_append_sheet(wb, wsGuias, 'Guias Conciliadas');
 
     XLSX.writeFile(wb, `conciliacao_automatica_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
@@ -336,8 +367,12 @@ export default function ConciliacaoCruzada() {
   const contas = dadosGuias?.contas || [];
   const totalPaginas = Math.ceil((dadosGuias?.total || 0) / ITENS_POR_PAGINA);
 
-  const itensConciliados = dadosConciliados?.items || [];
-  const totalPaginasConciliados = Math.ceil((dadosConciliados?.total || 0) / ITENS_POR_PAGINA);
+  const guiasConciliadas = dadosGuiasConciliadas?.items || [];
+  const totalPaginasConciliados = Math.ceil((dadosGuiasConciliadas?.total || 0) / ITENS_POR_PAGINA);
+
+  // Competências e convênios dependem da aba ativa
+  const competenciasAtivas = abaAtiva === "conciliados" ? competenciasConciliados : competencias;
+  const conveniosAtivos = abaAtiva === "conciliados" ? conveniosConciliados : convenios;
 
   return (
     <DashboardLayout>
@@ -377,7 +412,7 @@ export default function ConciliacaoCruzada() {
               {resetarConc.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
               Resetar
             </Button>
-            <Button variant="outline" onClick={() => { refetch(); refetchConciliados(); refetchResumo(); }}>
+            <Button variant="outline" onClick={() => { refetch(); refetchGuiasConciliadas(); refetchResumo(); }}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Atualizar
             </Button>
@@ -396,13 +431,13 @@ export default function ConciliacaoCruzada() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
                 <Label className="font-semibold text-primary">Competência</Label>
-                <Select value={competenciaFiltro} onValueChange={(v) => { setCompetenciaFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); }}>
+                <Select value={competenciaFiltro} onValueChange={(v) => { setCompetenciaFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
                   <SelectTrigger className="border-primary">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todas</SelectItem>
-                    {competencias?.map((c: any) => (
+                    {competenciasAtivas?.map((c: any) => (
                       <SelectItem key={c.competencia} value={c.competencia}>
                         {formatarCompetencia(c.competencia)} ({c.total} itens)
                       </SelectItem>
@@ -412,15 +447,15 @@ export default function ConciliacaoCruzada() {
               </div>
               <div>
                 <Label>Convênio</Label>
-                <Select value={convenioFiltro} onValueChange={(v) => { setConvenioFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); }}>
+                <Select value={convenioFiltro} onValueChange={(v) => { setConvenioFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    {convenios?.map((c: any) => (
-                      <SelectItem key={c.convenio || c.convenioId} value={c.convenio || String(c.convenioId)}>
-                        {c.convenio} ({c.total})
+                    {conveniosAtivos?.map((c: any) => (
+                      <SelectItem key={String(c.convenioId || c.convenio)} value={String(c.convenioId || c.convenio)}>
+                        {c.convenio || `Convênio ${c.convenioId}`} ({c.total})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -428,7 +463,7 @@ export default function ConciliacaoCruzada() {
               </div>
               <div>
                 <Label>Status Conciliação</Label>
-                <Select value={statusFiltro} onValueChange={(v) => { setStatusFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); }}>
+                <Select value={statusFiltro} onValueChange={(v) => { setStatusFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
@@ -457,7 +492,7 @@ export default function ConciliacaoCruzada() {
         </Card>
 
         {/* Abas */}
-        <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
+        <Tabs value={abaAtiva} onValueChange={(v) => { setAbaAtiva(v); setGuiaConciliadaSelecionada(null); }}>
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="conciliados" className="flex items-center gap-2">
               <ListChecks className="w-4 h-4" />
@@ -476,192 +511,331 @@ export default function ConciliacaoCruzada() {
 
           {/* ==================== ABA CONCILIADOS ==================== */}
           <TabsContent value="conciliados" className="space-y-4 mt-4">
-            {/* Cards de Resumo da Conciliação */}
-            {resumoConciliados && (resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos) > 0 ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm opacity-80">Conciliados</p>
-                          <p className="text-2xl font-bold">{resumoConciliados.totalConciliados}</p>
-                          <p className="text-xs opacity-70">{formatarMoeda(resumoConciliados.valorTotalPago)}</p>
-                        </div>
-                        <CheckCircle2 className="w-10 h-10 opacity-50" />
-                      </div>
+            {/* Se tem guia selecionada, mostra tela de detalhes */}
+            {guiaConciliadaSelecionada ? (
+              <div className="space-y-4">
+                {/* Botão Voltar + Resumo da Guia */}
+                <div className="flex items-center gap-4">
+                  <Button variant="outline" onClick={() => setGuiaConciliadaSelecionada(null)}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Voltar para Lista
+                  </Button>
+                  <div>
+                    <h2 className="text-lg font-bold">
+                      Guia: {guiaConciliadaSelecionada.guia || guiaConciliadaSelecionada.numeroGuia || guiaConciliadaSelecionada.contaNumero}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {guiaConciliadaSelecionada.pacienteNome || '-'} | {guiaConciliadaSelecionada.convenio || `Convênio ${guiaConciliadaSelecionada.convenioId}`} | {formatarCompetencia(guiaConciliadaSelecionada.competencia)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cards resumo da guia */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Faturado</p>
+                      <p className="text-lg font-bold text-blue-600">{formatarMoeda(Number(guiaConciliadaSelecionada.valorFaturado))}</p>
                     </CardContent>
                   </Card>
-
-                  <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm opacity-80">Divergentes</p>
-                          <p className="text-2xl font-bold">{resumoConciliados.totalDivergentes}</p>
-                          <p className="text-xs opacity-70">{formatarMoeda(resumoConciliados.valorTotalDiferenca)} diferença</p>
-                        </div>
-                        <AlertCircle className="w-10 h-10 opacity-50" />
-                      </div>
+                  <Card className="bg-green-50 dark:bg-green-950 border-green-200">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Recebido</p>
+                      <p className="text-lg font-bold text-green-600">{formatarMoeda(Number(guiaConciliadaSelecionada.valorPago))}</p>
                     </CardContent>
                   </Card>
-
-                  <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm opacity-80">Não Recebidos</p>
-                          <p className="text-2xl font-bold">{resumoConciliados.totalNaoRecebidos}</p>
-                          <p className="text-xs opacity-70">Sem retorno do convênio</p>
-                        </div>
-                        <XCircle className="w-10 h-10 opacity-50" />
-                      </div>
+                  <Card className="bg-red-50 dark:bg-red-950 border-red-200">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Glosado</p>
+                      <p className="text-lg font-bold text-red-600">{formatarMoeda(Number(guiaConciliadaSelecionada.valorGlosa))}</p>
                     </CardContent>
                   </Card>
-
-                  <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm opacity-80">Total Faturado</p>
-                          <p className="text-2xl font-bold">{formatarMoeda(resumoConciliados.valorTotalFaturado)}</p>
-                          <p className="text-xs opacity-70">Glosa: {formatarMoeda(resumoConciliados.valorTotalGlosa)}</p>
-                        </div>
-                        <DollarSign className="w-10 h-10 opacity-50" />
-                      </div>
+                  <Card className={`border-2 ${Number(guiaConciliadaSelecionada.diferenca) !== 0 ? 'bg-orange-50 dark:bg-orange-950 border-orange-300' : 'bg-gray-50 dark:bg-gray-950 border-gray-200'}`}>
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Diferença</p>
+                      <p className={`text-lg font-bold ${Number(guiaConciliadaSelecionada.diferenca) !== 0 ? 'text-orange-600' : 'text-gray-500'}`}>
+                        {Number(guiaConciliadaSelecionada.diferenca) !== 0 ? formatarMoeda(Number(guiaConciliadaSelecionada.diferenca)) : '-'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-2">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <div className="mt-1">{getStatusBadge(guiaConciliadaSelecionada.statusGuia)}</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {guiaConciliadaSelecionada.totalItens} itens
+                      </p>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Barra de progresso */}
-                {(() => {
-                  const total = resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos;
-                  if (total === 0) return null;
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex h-6 rounded-full overflow-hidden bg-muted">
-                        {resumoConciliados.totalConciliados > 0 && (
-                          <div className="bg-green-500 flex items-center justify-center text-white text-xs font-medium"
-                            style={{ width: `${(resumoConciliados.totalConciliados / total) * 100}%` }}>
-                            {((resumoConciliados.totalConciliados / total) * 100).toFixed(0)}%
-                          </div>
-                        )}
-                        {resumoConciliados.totalDivergentes > 0 && (
-                          <div className="bg-yellow-500 flex items-center justify-center text-white text-xs font-medium"
-                            style={{ width: `${(resumoConciliados.totalDivergentes / total) * 100}%` }}>
-                            {((resumoConciliados.totalDivergentes / total) * 100).toFixed(0)}%
-                          </div>
-                        )}
-                        {resumoConciliados.totalNaoRecebidos > 0 && (
-                          <div className="bg-red-500 flex items-center justify-center text-white text-xs font-medium"
-                            style={{ width: `${(resumoConciliados.totalNaoRecebidos / total) * 100}%` }}>
-                            {((resumoConciliados.totalNaoRecebidos / total) * 100).toFixed(0)}%
-                          </div>
-                        )}
+                {/* Tabela de itens detalhados */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Itens da Guia ({itensConciliadosGuia?.length || 0})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingItensConciliados ? (
+                      <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
                       </div>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Conciliado</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /> Divergente</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Não Recebido</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            ) : null}
-
-            {/* Tabela de Conciliados */}
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-lg">
-                  Resultados da Conciliação ({dadosConciliados?.total || 0})
-                </CardTitle>
-                <Button variant="outline" size="sm" onClick={exportarConciliadosExcel} disabled={!itensConciliados.length}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Exportar Excel
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {isLoadingConciliados ? (
-                  <div className="space-y-2">
-                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-                  </div>
-                ) : itensConciliados.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ListChecks className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhum resultado de conciliação encontrado.</p>
-                    <p className="text-sm mt-2">Clique em "Conciliar Automaticamente" para executar o cruzamento.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left p-3 font-medium">Guia</th>
-                            <th className="text-left p-3 font-medium">Código</th>
-                            <th className="text-left p-3 font-medium max-w-[180px]">Paciente</th>
-                            <th className="text-left p-3 font-medium">Convênio</th>
-                            <th className="text-left p-3 font-medium">Comp.</th>
-                            <th className="text-center p-3 font-medium">Origem</th>
-                            <th className="text-right p-3 font-medium">Faturado</th>
-                            <th className="text-right p-3 font-medium">Pago</th>
-                            <th className="text-right p-3 font-medium">Glosa</th>
-                            <th className="text-right p-3 font-medium">Diferença</th>
-                            <th className="text-center p-3 font-medium">Status</th>
-                            <th className="text-center p-3 font-medium">Método</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {itensConciliados.map((item: any, index: number) => (
-                            <tr key={item.id || index} className={`border-b hover:bg-muted/50 ${
-                              item.statusConciliacao === 'divergente' ? 'bg-yellow-50/50 dark:bg-yellow-950/20' :
-                              item.statusConciliacao === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
-                            }`}>
-                              <td className="p-3 font-mono text-sm">{item.numeroGuia || item.contaNumero || '-'}</td>
-                              <td className="p-3 font-mono text-sm">{item.codigoItem || '-'}</td>
-                              <td className="p-3 text-sm max-w-[180px] truncate" title={item.pacienteNome}>{item.pacienteNome || '-'}</td>
-                              <td className="p-3 text-sm max-w-[120px] truncate" title={item.convenio}>{item.convenio || '-'}</td>
-                              <td className="p-3 text-sm">{formatarCompetencia(item.competencia)}</td>
-                              <td className="p-3 text-center">
-                                <Badge variant="outline" className="text-xs">
-                                  {item.origemSistema === 'WARLEINE' ? 'Warleine' : 'XML'}
-                                </Badge>
-                              </td>
-                              <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
-                              <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
-                              <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(item.valorGlosa))}</td>
-                              <td className={`p-3 text-right font-medium ${Number(item.diferenca) > 0 ? 'text-red-600' : Number(item.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
-                                {Number(item.diferenca) !== 0 ? formatarMoeda(Number(item.diferenca)) : '-'}
-                              </td>
-                              <td className="p-3 text-center">{getStatusBadge(item.statusConciliacao)}</td>
-                              <td className="p-3 text-center">{getMetodoBadge(item.metodoConciliacao)}</td>
+                    ) : itensConciliadosGuia && itensConciliadosGuia.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left p-3 font-medium">Código</th>
+                              <th className="text-left p-3 font-medium min-w-[200px]">Descrição</th>
+                              <th className="text-center p-3 font-medium">Qtd</th>
+                              <th className="text-right p-3 font-medium">Faturado</th>
+                              <th className="text-right p-3 font-medium">Recebido</th>
+                              <th className="text-right p-3 font-medium">Glosa</th>
+                              <th className="text-right p-3 font-medium">Diferença</th>
+                              <th className="text-center p-3 font-medium">Status</th>
+                              <th className="text-center p-3 font-medium">Método</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {itensConciliadosGuia.map((item: any, index: number) => (
+                              <tr key={item.id || index} className={`border-b hover:bg-muted/50 ${
+                                item.statusConciliacao === 'divergente' ? 'bg-yellow-50/50 dark:bg-yellow-950/20' :
+                                item.statusConciliacao === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
+                              }`}>
+                                <td className="p-3 font-mono text-sm">{item.codigoItem || '-'}</td>
+                                <td className="p-3 text-sm">{item.descricaoItem || '-'}</td>
+                                <td className="p-3 text-center">{Number(item.quantidade) || 1}</td>
+                                <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
+                                <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
+                                <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(item.valorGlosa))}</td>
+                                <td className={`p-3 text-right font-medium ${Number(item.diferenca) > 0 ? 'text-red-600' : Number(item.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
+                                  {Number(item.diferenca) !== 0 ? formatarMoeda(Number(item.diferenca)) : '-'}
+                                </td>
+                                <td className="p-3 text-center">{getStatusBadge(item.statusConciliacao)}</td>
+                                <td className="p-3 text-center">{getMetodoBadge(item.metodoConciliacao)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-muted/30 font-medium">
+                            <tr className="border-t-2">
+                              <td className="p-3" colSpan={2}>Total</td>
+                              <td className="p-3 text-center">{itensConciliadosGuia.reduce((s: number, i: any) => s + (Number(i.quantidade) || 1), 0)}</td>
+                              <td className="p-3 text-right text-blue-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorFaturado || 0), 0))}</td>
+                              <td className="p-3 text-right text-green-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorPago || 0), 0))}</td>
+                              <td className="p-3 text-right text-red-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorGlosa || 0), 0))}</td>
+                              <td className="p-3 text-right">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.diferenca || 0), 0))}</td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8">Nenhum item encontrado para esta guia.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              /* Lista de guias agrupadas */
+              <>
+                {/* Cards de Resumo da Conciliação */}
+                {resumoConciliados && (resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos) > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm opacity-80">Conciliados</p>
+                              <p className="text-2xl font-bold">{resumoConciliados.totalConciliados}</p>
+                              <p className="text-xs opacity-70">{formatarMoeda(resumoConciliados.valorTotalPago)}</p>
+                            </div>
+                            <CheckCircle2 className="w-10 h-10 opacity-50" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm opacity-80">Divergentes</p>
+                              <p className="text-2xl font-bold">{resumoConciliados.totalDivergentes}</p>
+                              <p className="text-xs opacity-70">{formatarMoeda(resumoConciliados.valorTotalDiferenca)} diferença</p>
+                            </div>
+                            <AlertCircle className="w-10 h-10 opacity-50" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm opacity-80">Não Recebidos</p>
+                              <p className="text-2xl font-bold">{resumoConciliados.totalNaoRecebidos}</p>
+                              <p className="text-xs opacity-70">Sem retorno do convênio</p>
+                            </div>
+                            <XCircle className="w-10 h-10 opacity-50" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm opacity-80">Total Faturado</p>
+                              <p className="text-2xl font-bold">{formatarMoeda(resumoConciliados.valorTotalFaturado)}</p>
+                              <p className="text-xs opacity-70">Glosa: {formatarMoeda(resumoConciliados.valorTotalGlosa)}</p>
+                            </div>
+                            <DollarSign className="w-10 h-10 opacity-50" />
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
 
-                    {/* Paginação */}
-                    {totalPaginasConciliados > 1 && (
-                      <div className="flex items-center justify-between mt-4">
-                        <p className="text-sm text-muted-foreground">
-                          Página {paginaConciliados + 1} de {totalPaginasConciliados} ({dadosConciliados?.total} itens)
-                        </p>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setPaginaConciliados(p => Math.max(0, p - 1))} disabled={paginaConciliados === 0}>
-                            Anterior
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => setPaginaConciliados(p => Math.min(totalPaginasConciliados - 1, p + 1))} disabled={paginaConciliados >= totalPaginasConciliados - 1}>
-                            Próxima
-                          </Button>
+                    {/* Barra de progresso */}
+                    {(() => {
+                      const total = resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos;
+                      if (total === 0) return null;
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex h-6 rounded-full overflow-hidden bg-muted">
+                            {resumoConciliados.totalConciliados > 0 && (
+                              <div className="bg-green-500 flex items-center justify-center text-white text-xs font-medium"
+                                style={{ width: `${(resumoConciliados.totalConciliados / total) * 100}%` }}>
+                                {((resumoConciliados.totalConciliados / total) * 100).toFixed(0)}%
+                              </div>
+                            )}
+                            {resumoConciliados.totalDivergentes > 0 && (
+                              <div className="bg-yellow-500 flex items-center justify-center text-white text-xs font-medium"
+                                style={{ width: `${(resumoConciliados.totalDivergentes / total) * 100}%` }}>
+                                {((resumoConciliados.totalDivergentes / total) * 100).toFixed(0)}%
+                              </div>
+                            )}
+                            {resumoConciliados.totalNaoRecebidos > 0 && (
+                              <div className="bg-red-500 flex items-center justify-center text-white text-xs font-medium"
+                                style={{ width: `${(resumoConciliados.totalNaoRecebidos / total) * 100}%` }}>
+                                {((resumoConciliados.totalNaoRecebidos / total) * 100).toFixed(0)}%
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Conciliado</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /> Divergente</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Não Recebido</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </>
-                )}
-              </CardContent>
-            </Card>
+                ) : null}
+
+                {/* Tabela de Guias Agrupadas */}
+                <Card>
+                  <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg">
+                      Guias Conciliadas ({dadosGuiasConciliadas?.total || 0})
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={exportarConciliadosExcel} disabled={!guiasConciliadas.length}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Exportar Excel
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingGuiasConciliadas ? (
+                      <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+                      </div>
+                    ) : guiasConciliadas.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ListChecks className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>Nenhum resultado de conciliação encontrado.</p>
+                        <p className="text-sm mt-2">Clique em "Conciliar Automaticamente" para executar o cruzamento.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b bg-muted/50">
+                                <th className="text-left p-3 font-medium">Guia</th>
+                                <th className="text-left p-3 font-medium max-w-[180px]">Paciente</th>
+                                <th className="text-left p-3 font-medium">Convênio</th>
+                                <th className="text-left p-3 font-medium">Comp.</th>
+                                <th className="text-center p-3 font-medium">Itens</th>
+                                <th className="text-right p-3 font-medium">Faturado</th>
+                                <th className="text-right p-3 font-medium">Recebido</th>
+                                <th className="text-right p-3 font-medium">Glosado</th>
+                                <th className="text-right p-3 font-medium">Diferença</th>
+                                <th className="text-center p-3 font-medium">Status</th>
+                                <th className="text-center p-3 font-medium">Detalhes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {guiasConciliadas.map((guia: any, index: number) => (
+                                <tr key={`${guia.guia}-${index}`} className={`border-b hover:bg-muted/50 cursor-pointer ${
+                                  guia.statusGuia === 'divergente' ? 'bg-yellow-50/50 dark:bg-yellow-950/20' :
+                                  guia.statusGuia === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
+                                }`} onClick={() => setGuiaConciliadaSelecionada(guia)}>
+                                  <td className="p-3 font-mono text-sm font-medium">{guia.guia || '-'}</td>
+                                  <td className="p-3 text-sm max-w-[180px] truncate" title={guia.pacienteNome}>{guia.pacienteNome || '-'}</td>
+                                  <td className="p-3 text-sm max-w-[120px] truncate" title={guia.convenio}>{guia.convenio || `Conv. ${guia.convenioId}` || '-'}</td>
+                                  <td className="p-3 text-sm">{formatarCompetencia(guia.competencia)}</td>
+                                  <td className="p-3 text-center">
+                                    <span className="text-sm">{guia.totalItens}</span>
+                                    {(Number(guia.itensDivergentes) > 0 || Number(guia.itensNaoRecebidos) > 0) && (
+                                      <div className="flex gap-1 justify-center mt-0.5">
+                                        {Number(guia.itensConciliados) > 0 && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" title={`${guia.itensConciliados} OK`} />}
+                                        {Number(guia.itensDivergentes) > 0 && <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" title={`${guia.itensDivergentes} div.`} />}
+                                        {Number(guia.itensNaoRecebidos) > 0 && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" title={`${guia.itensNaoRecebidos} N/R`} />}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(guia.valorFaturado))}</td>
+                                  <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(guia.valorPago))}</td>
+                                  <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(guia.valorGlosa))}</td>
+                                  <td className={`p-3 text-right font-medium ${Number(guia.diferenca) > 0 ? 'text-red-600' : Number(guia.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
+                                    {Number(guia.diferenca) !== 0 ? formatarMoeda(Number(guia.diferenca)) : '-'}
+                                  </td>
+                                  <td className="p-3 text-center">{getStatusBadge(guia.statusGuia)}</td>
+                                  <td className="p-3 text-center">
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setGuiaConciliadaSelecionada(guia); }}>
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      <ChevronRight className="w-3 h-3" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Paginação */}
+                        {totalPaginasConciliados > 1 && (
+                          <div className="flex items-center justify-between mt-4">
+                            <p className="text-sm text-muted-foreground">
+                              Página {paginaConciliados + 1} de {totalPaginasConciliados} ({dadosGuiasConciliadas?.total} guias)
+                            </p>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setPaginaConciliados(p => Math.max(0, p - 1))} disabled={paginaConciliados === 0}>
+                                Anterior
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setPaginaConciliados(p => Math.min(totalPaginasConciliados - 1, p + 1))} disabled={paginaConciliados >= totalPaginasConciliados - 1}>
+                                Próxima
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* ==================== ABA FATURAMENTO UNIFICADO ==================== */}
@@ -845,7 +1019,7 @@ export default function ConciliacaoCruzada() {
           </TabsContent>
         </Tabs>
 
-        {/* Modal de Detalhes da Guia */}
+        {/* Modal de Detalhes da Guia (aba faturamento) */}
         <Dialog open={modalDetalhesAberto} onOpenChange={setModalDetalhesAberto}>
           <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>

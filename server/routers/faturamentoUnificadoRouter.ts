@@ -242,4 +242,57 @@ export const faturamentoUnificadoRouter = router({
     .query(async ({ input }) => {
       return await faturamentoService.resumoConciliadosAutomatico(input);
     }),
+
+  /**
+   * Competências disponíveis na conciliados_automatico
+   */
+  competenciasConciliados: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.competenciasConciliados(input.estabelecimentoId);
+    }),
+
+  /**
+   * Convênios disponíveis na conciliados_automatico
+   */
+  conveniosConciliados: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.conveniosConciliados(input.estabelecimentoId, input.competencia);
+    }),
+
+  /**
+   * Resumo agrupado por GUIA dos conciliados automáticos
+   */
+  resumoConciliadosPorGuia: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+      statusConciliacao: z.string().optional(),
+      busca: z.string().optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.resumoConciliadosPorGuia(input);
+    }),
+
+  /**
+   * Itens detalhados de uma guia na conciliados_automatico
+   */
+  itensConciliadosPorGuia: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      numeroGuia: z.string().optional(),
+      contaNumero: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.itensConciliadosPorGuia(input);
+    }),
 });
