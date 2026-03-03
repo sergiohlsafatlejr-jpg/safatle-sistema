@@ -2342,3 +2342,4 @@
 - [x] Bug: Itens duplicados na tela de detalhes da conciliação (deduplicação com ROW_NUMBER na popularDeXmlTiss)
 - [x] Limpar dados das tabelas conciliados_automatico e faturamento_unificado
 - [x] Bug: Excel IPASGO (Hemolabor) - IPASGO marca tudo como PAGO mesmo com glosa; adicionada lógica para reclassificar como GLOSADO quando valor_glosa > 0; sincronizado demonstrativo com 71.052 registros (4.617 glosados, R$ 850.143,08)
+- [x] Bug: Tela de Análise de Glosa não mostra itens glosados do IPASGO (Hemolabor) - corrigido: demonstrativo re-sincronizado com convenio_id=30001 e estabelecimentoId=6 (4.617 glosados, R$ 850.143,08)
