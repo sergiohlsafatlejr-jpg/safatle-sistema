@@ -1,0 +1,562 @@
+{
+  "query": "SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, a.tipoArquivo FROM arquivos a WHERE a.convenioId = 30001 ORDER BY a.estabelecimentoId, a.id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, a.tipoArquivo FROM arquivos a WHERE a.convenioId = 30001 ORDER BY a.estabelecimentoId, a.id",
+  "rows": [
+    {
+      "id": "1020314",
+      "nome": "00000000000000086548_7e3c695e252038204b59e2235fa7872d.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020315",
+      "nome": "00000000000000086550_d866ffd5dfc3d5d8ccd59cb158818991.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020316",
+      "nome": "00000000000000086558_23a59bf5a93dcdcbb9c860b4369beb40 (1).xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020317",
+      "nome": "00000000000000086559_7cc8d827d273b835ac4e1dfc70d99a8e.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020318",
+      "nome": "00000000000000086560_eb7c1270dedb785e476f7d73d38ec2a5.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020319",
+      "nome": "00000000000000086561_7cfb74150b6bb68814080a098e37f642.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020320",
+      "nome": "00000000000000086564_de3e2f1d7fe4eb2b98166f34d1366136.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020321",
+      "nome": "00000000000000086566_8b16aab19ddef5838b1a40d95d628932.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020322",
+      "nome": "00000000000000865661_d30697ecf3c709695bcaf602ea13157f.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020323",
+      "nome": "00000000000000086132_5cf7c3fa087e3c2ba8676d20d2619f34.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020324",
+      "nome": "00000000000000086384_e2aab763ea28c422d527cfe72ea7fc00.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020325",
+      "nome": "00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020326",
+      "nome": "00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020327",
+      "nome": "00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020328",
+      "nome": "00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020329",
+      "nome": "00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020330",
+      "nome": "00000000000000086539_da9f54820e0ee7416e08e28f2f02007e.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020331",
+      "nome": "00000000000000086540_1e970beb7921f9b7ff14b36635d69ee7.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020332",
+      "nome": "00000000000000086543_8e90dd70da0950bc1a49fab7f4ba702b.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020333",
+      "nome": "00000000000000086544_22edf895a1d38f36728b80ee752cf882.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1020334",
+      "nome": "00000000000000086547_2c980fb8f58c9757e93521780f31737b.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1110265",
+      "nome": "demonstrativo_servicos_1.xml",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1560012",
+      "nome": "dEMOSTRATIVO IPASGO 122026.xlsx",
+      "estabelecimentoId": "3",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "excel"
+    },
+    {
+      "id": "1560013",
+      "nome": "AnaliseContas.1504167.2026030302241707.xlsx",
+      "estabelecimentoId": "5",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "excel"
+    },
+    {
+      "id": "1170001",
+      "nome": "204330_130714801d9fe119e9a088afee7bf959.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170002",
+      "nome": "204332_7f40ef067e0f491fd92fe3166238d075.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170003",
+      "nome": "204338_9259a85cc2681e241f9d111e2f332c6f.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170004",
+      "nome": "204350_0863e7b2aec252a0c949a60d33b1e2a1.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170005",
+      "nome": "204354_dc30beb861a03044d2cc0785f757e925.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170006",
+      "nome": "204358_f7cc4b079b8296a99129cd0867752a1f.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170007",
+      "nome": "204380_6be9f91a04e019f215a7dc4ec0f0e2d9.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170008",
+      "nome": "204386_3733d579c5a5e03c96e6051ab67d51b2.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170009",
+      "nome": "204389_46e4d8042b1f462a17a884295abac34a.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170010",
+      "nome": "204392_b81a8b6042bfc8d3fdb76800b1ebb018.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170011",
+      "nome": "204396_08b6b0c699033962ef037925735178d4.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170012",
+      "nome": "204401_126c89e83f0f79f89c97ccbec827a01e.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170013",
+      "nome": "204404_0b352fcafc1c6345c5a5358cd964fc18.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1170014",
+      "nome": "204420_37c6788d29dcd90949f13e2efb2094ab.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200001",
+      "nome": "204511_9934894bf309ed82e7d4a868cdbd9987.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200002",
+      "nome": "204519_44aed0ba7579a3299c51bba9f2168297.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200003",
+      "nome": "204534_ecc3054117883ca27faacd608b7c324a.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200004",
+      "nome": "204543_469dd92de6c7289c9521d87265d30d83.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200005",
+      "nome": "204562_2e9914b484acc931f5601e66e33941c6.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200006",
+      "nome": "204610_cb95555ec23904869bc7c929f118210c.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200007",
+      "nome": "204636_26ae5d48676d8eb87a57b1f02c7bdc11.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200008",
+      "nome": "204638_412b93ad4703f7f17db4a97be1bba84c.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200009",
+      "nome": "204657_50b0d22163e851cd9e733a6f6b38a701.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200010",
+      "nome": "204672_ba0a864d26b7f15ef07afa1b1ee9faf2.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200011",
+      "nome": "204718_2aaaf6d22d75aad320d31de12a3747e7.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200012",
+      "nome": "204754_8557c74f2ebece383b605ab846e77028.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200013",
+      "nome": "204774_bab12ca9068376574da0839277e2b48c.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200014",
+      "nome": "204422_0a9e7c074c76ecbfdbb6e74dc31eb71a.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200015",
+      "nome": "204426_e060b9327084ab71fc267c0ddd77ce1f.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200016",
+      "nome": "204430_406402b38c0a0fbb2b700a69a2d76fe1.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200017",
+      "nome": "204444_9bac839928a72c22b8fa4b41d2fe331e.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200018",
+      "nome": "204462_e2d2da553089264721d6ef802aee7acb.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200019",
+      "nome": "204478_86a8cd665027857da3a67157be4f5e3b.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200020",
+      "nome": "204484_c6ea1fcf613d794b9e144509aab899d8.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200021",
+      "nome": "204487_8d611b748ea002319e456bbeafdab54e.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200022",
+      "nome": "204493_e31dca049e95fdecc82a0cc6f1ca5faf.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200023",
+      "nome": "204496_6c8906462186fb1c801e47004a886dd9.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1200024",
+      "nome": "204502_ea2c92c147c0b088d683ae3c68e2c838.xml",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1560001",
+      "nome": "Ipasgo Hemolabor Comp. 12-2025 - PGTO 02-2026.xlsx",
+      "estabelecimentoId": "6",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "excel"
+    },
+    {
+      "id": "1140001",
+      "nome": "204330_130714801d9fe119e9a088afee7bf959.xml",
+      "estabelecimentoId": "1170001",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1140002",
+      "nome": "204332_7f40ef067e0f491fd92fe3166238d075.xml",
+      "estabelecimentoId": "1170001",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1350032",
+      "nome": "00000000000000002244_a48445d0d0630242a2039e1969b1badb.xml",
+      "estabelecimentoId": "1260036",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1350033",
+      "nome": "00000000000000002245_b052ea9a115a90872173909749013cdc.xml",
+      "estabelecimentoId": "1260036",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1350034",
+      "nome": "00000000000000002246_f5304866bd5b3335a2270b878ae5300d.xml",
+      "estabelecimentoId": "1260036",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    },
+    {
+      "id": "1410001",
+      "nome": "00000000000000002248_81f6e3cbbc99a218b124f6e17db6f86e.xml",
+      "estabelecimentoId": "1260036",
+      "convenioId": "30001",
+      "status": "processado",
+      "tipoArquivo": "xml"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\testabelecimentoId\tconvenioId\tstatus\ttipoArquivo\n1020314\t00000000000000086548_7e3c695e252038204b59e2235fa7872d.xml\t3\t30001\tprocessado\txml\n1020315\t00000000000000086550_d866ffd5dfc3d5d8ccd59cb158818991.xml\t3\t30001\tprocessado\txml\n1020316\t00000000000000086558_23a59bf5a93dcdcbb9c860b4369beb40 (1).xml\t3\t30001\tprocessado\txml\n1020317\t00000000000000086559_7cc8d827d273b835ac4e1dfc70d99a8e.xml\t3\t30001\tprocessado\txml\n1020318\t00000000000000086560_eb7c1270dedb785e476f7d73d38ec2a5.xml\t3\t30001\tprocessado\txml\n1020319\t00000000000000086561_7cfb74150b6bb68814080a098e37f642.xml\t3\t30001\tprocessado\txml\n1020320\t00000000000000086564_de3e2f1d7fe4eb2b98166f34d1366136.xml\t3\t30001\tprocessado\txml\n1020321\t00000000000000086566_8b16aab19ddef5838b1a40d95d628932.xml\t3\t30001\tprocessado\txml\n1020322\t00000000000000865661_d30697ecf3c709695bcaf602ea13157f.xml\t3\t30001\tprocessado\txml\n1020323\t00000000000000086132_5cf7c3fa087e3c2ba8676d20d2619f34.xml\t3\t30001\tprocessado\txml\n1020324\t00000000000000086384_e2aab763ea28c422d527cfe72ea7fc00.xml\t3\t30001\tprocessado\txml\n1020325\t00000000000000086408_54a93fb5bdd7810d5e8dd366a0ef1e5c.xml\t3\t30001\tprocessado\txml\n1020326\t00000000000000086410_e40962fd6b79408c8e43ab29a84ad53c.xml\t3\t30001\tprocessado\txml\n1020327\t00000000000000086411_15299f079253e50fb88590d6e9fe53cb.xml\t3\t30001\tprocessado\txml\n1020328\t00000000000000086424_f8d3a9ab83966e2e6258998ebdc2894c.xml\t3\t30001\tprocessado\txml\n1020329\t00000000000000086538_816c99b57706455acce84b5dafdcc8c1.xml\t3\t30001\tprocessado\txml\n1020330\t00000000000000086539_da9f54820e0ee7416e08e28f2f02007e.xml\t3\t30001\tprocessado\txml\n1020331\t00000000000000086540_1e970beb7921f9b7ff14b36635d69ee7.xml\t3\t30001\tprocessado\txml\n1020332\t00000000000000086543_8e90dd70da0950bc1a49fab7f4ba702b.xml\t3\t30001\tprocessado\txml\n1020333\t00000000000000086544_22edf895a1d38f36728b80ee752cf882.xml\t3\t30001\tprocessado\txml\n1020334\t00000000000000086547_2c980fb8f58c9757e93521780f31737b.xml\t3\t30001\tprocessado\txml\n1110265\tdemonstrativo_servicos_1.xml\t3\t30001\tprocessado\txml\n1560012\tdEMOSTRATIVO IPASGO 122026.xlsx\t3\t30001\tprocessado\texcel\n1560013\tAnaliseContas.1504167.2026030302241707.xlsx\t5\t30001\tprocessado\texcel\n1170001\t204330_130714801d9fe119e9a088afee7bf959.xml\t6\t30001\tprocessado\txml\n1170002\t204332_7f40ef067e0f491fd92fe3166238d075.xml\t6\t30001\tprocessado\txml\n1170003\t204338_9259a85cc2681e241f9d111e2f332c6f.xml\t6\t30001\tprocessado\txml\n1170004\t204350_0863e7b2aec252a0c949a60d33b1e2a1.xml\t6\t30001\tprocessado\txml\n1170005\t204354_dc30beb861a03044d2cc0785f757e925.xml\t6\t30001\tprocessado\txml\n1170006\t204358_f7cc4b079b8296a99129cd0867752a1f.xml\t6\t30001\tprocessado\txml\n1170007\t204380_6be9f91a04e019f215a7dc4ec0f0e2d9.xml\t6\t30001\tprocessado\txml\n1170008\t204386_3733d579c5a5e03c96e6051ab67d51b2.xml\t6\t30001\tprocessado\txml\n1170009\t204389_46e4d8042b1f462a17a884295abac34a.xml\t6\t30001\tprocessado\txml\n1170010\t204392_b81a8b6042bfc8d3fdb76800b1ebb018.xml\t6\t30001\tprocessado\txml\n1170011\t204396_08b6b0c699033962ef037925735178d4.xml\t6\t30001\tprocessado\txml\n1170012\t204401_126c89e83f0f79f89c97ccbec827a01e.xml\t6\t30001\tprocessado\txml\n1170013\t204404_0b352fcafc1c6345c5a5358cd964fc18.xml\t6\t30001\tprocessado\txml\n1170014\t204420_37c6788d29dcd90949f13e2efb2094ab.xml\t6\t30001\tprocessado\txml\n1200001\t204511_9934894bf309ed82e7d4a868cdbd9987.xml\t6\t30001\tprocessado\txml\n1200002\t204519_44aed0ba7579a3299c51bba9f2168297.xml\t6\t30001\tprocessado\txml\n1200003\t204534_ecc3054117883ca27faacd608b7c324a.xml\t6\t30001\tprocessado\txml\n1200004\t204543_469dd92de6c7289c9521d87265d30d83.xml\t6\t30001\tprocessado\txml\n1200005\t204562_2e9914b484acc931f5601e66e33941c6.xml\t6\t30001\tprocessado\txml\n1200006\t204610_cb95555ec23904869bc7c929f118210c.xml\t6\t30001\tprocessado\txml\n1200007\t204636_26ae5d48676d8eb87a57b1f02c7bdc11.xml\t6\t30001\tprocessado\txml\n1200008\t204638_412b93ad4703f7f17db4a97be1bba84c.xml\t6\t30001\tprocessado\txml\n1200009\t204657_50b0d22163e851cd9e733a6f6b38a701.xml\t6\t30001\tprocessado\txml\n1200010\t204672_ba0a864d26b7f15ef07afa1b1ee9faf2.xml\t6\t30001\tprocessado\txml\n1200011\t204718_2aaaf6d22d75aad320d31de12a3747e7.xml\t6\t30001\tprocessado\txml\n1200012\t204754_8557c74f2ebece383b605ab846e77028.xml\t6\t30001\tprocessado\txml\n1200013\t204774_bab12ca9068376574da0839277e2b48c.xml\t6\t30001\tprocessado\txml\n1200014\t204422_0a9e7c074c76ecbfdbb6e74dc31eb71a.xml\t6\t30001\tprocessado\txml\n1200015\t204426_e060b9327084ab71fc267c0ddd77ce1f.xml\t6\t30001\tprocessado\txml\n1200016\t204430_406402b38c0a0fbb2b700a69a2d76fe1.xml\t6\t30001\tprocessado\txml\n1200017\t204444_9bac839928a72c22b8fa4b41d2fe331e.xml\t6\t30001\tprocessado\txml\n1200018\t204462_e2d2da553089264721d6ef802aee7acb.xml\t6\t30001\tprocessado\txml\n1200019\t204478_86a8cd665027857da3a67157be4f5e3b.xml\t6\t30001\tprocessado\txml\n1200020\t204484_c6ea1fcf613d794b9e144509aab899d8.xml\t6\t30001\tprocessado\txml\n1200021\t204487_8d611b748ea002319e456bbeafdab54e.xml\t6\t30001\tprocessado\txml\n1200022\t204493_e31dca049e95fdecc82a0cc6f1ca5faf.xml\t6\t30001\tprocessado\txml\n1200023\t204496_6c8906462186fb1c801e47004a886dd9.xml\t6\t30001\tprocessado\txml\n1200024\t204502_ea2c92c147c0b088d683ae3c68e2c838.xml\t6\t30001\tprocessado\txml\n1560001\tIpasgo Hemolabor Comp. 12-2025 - PGTO 02-2026.xlsx\t6\t30001\tprocessado\texcel\n1140001\t204330_130714801d9fe119e9a088afee7bf959.xml\t1170001\t30001\tprocessado\txml\n1140002\t204332_7f40ef067e0f491fd92fe3166238d075.xml\t1170001\t30001\tprocessado\txml\n1350032\t00000000000000002244_a48445d0d0630242a2039e1969b1badb.xml\t1260036\t30001\tprocessado\txml\n1350033\t00000000000000002245_b052ea9a115a90872173909749013cdc.xml\t1260036\t30001\tprocessado\txml\n1350034\t00000000000000002246_f5304866bd5b3335a2270b878ae5300d.xml\t1260036\t30001\tprocessado\txml\n1410001\t00000000000000002248_81f6e3cbbc99a218b124f6e17db6f86e.xml\t1260036\t30001\tprocessado\txml\n",
+  "stderr": "",
+  "execution_time_ms": 67
+}

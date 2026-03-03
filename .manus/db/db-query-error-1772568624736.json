@@ -1,0 +1,8 @@
+{
+  "query": "SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, a.tipo FROM arquivos a WHERE a.convenioId = 30001 ORDER BY a.estabelecimentoId, a.id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, a.tipo FROM arquivos a WHERE a.convenioId = 30001 ORDER BY a.estabelecimentoId, a.id",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'a.tipo' in 'field list'"
+  ]
+}
