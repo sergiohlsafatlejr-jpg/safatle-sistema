@@ -78,7 +78,7 @@ describe("faturamentoUnificadoService", () => {
       
       expect(mockExecute).toHaveBeenCalled();
       expect(result).toBeDefined();
-      expect(result).toHaveProperty("tasy");
+      expect(result).toHaveProperty("warleine");
       expect(result).toHaveProperty("xmlTiss");
     });
   });

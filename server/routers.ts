@@ -4203,6 +4203,13 @@ export const appRouter = router({
         await db.excluirMotivoGlosa(input.id);
         return { success: true };
       }),
+
+    // Popular tabela com códigos TISS oficiais
+    seedTiss: protectedProcedure
+      .mutation(async () => {
+        const { seedMotivosGlosa } = await import("./seedMotivosGlosa");
+        return seedMotivosGlosa();
+      }),
   }),
 
   // ============ ANÁLISE INTELIGENTE DE CONTAS (IA) ============

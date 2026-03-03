@@ -1395,12 +1395,15 @@ export async function itensConciliadosPorGuia(params: {
       ca.recebimentoId, ca.recebimentoOrigem,
       COALESCE(ca.valorPago, 0) as valorPago,
       COALESCE(ca.valorGlosa, 0) as valorGlosa,
-      ca.codigoGlosa, ca.motivoGlosa,
+      ca.codigoGlosa,
+      COALESCE(mg.descricao, ca.motivoGlosa) as motivoGlosa,
+      mg.grupo as grupoGlosa,
       ca.statusConciliacao, ca.metodoConciliacao,
       COALESCE(ca.diferenca, 0) as diferenca,
       COALESCE(ca.percentualDiferenca, 0) as percentualDiferenca,
       ca.toleranciaUsada, ca.criadoEm
     FROM conciliados_automatico ca
+    LEFT JOIN motivosGlosa mg ON ca.codigoGlosa = mg.codigo AND mg.ativo = 'sim'
     ${whereClause}
     ORDER BY ca.codigoItem, ca.id
   `;

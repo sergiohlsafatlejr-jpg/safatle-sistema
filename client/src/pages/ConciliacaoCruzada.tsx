@@ -617,12 +617,17 @@ export default function ConciliacaoCruzada() {
                                 <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
                                 <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
                                 <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(item.valorGlosa))}</td>
-                                <td className="p-3 text-sm max-w-[150px] truncate" title={item.codigoGlosa ? `Cód: ${item.codigoGlosa} - ${item.motivoGlosa || ''}` : ''}>
+                                <td className="p-3 text-sm max-w-[250px]" title={item.codigoGlosa ? `Cód: ${item.codigoGlosa}${item.motivoGlosa ? ' - ' + item.motivoGlosa : ''}${item.grupoGlosa ? ' [' + item.grupoGlosa + ']' : ''}` : ''}>
                                   {item.codigoGlosa ? (
-                                    <span className="text-red-600">
-                                      <span className="font-mono text-xs">{item.codigoGlosa}</span>
-                                      {item.motivoGlosa && <span className="text-xs ml-1">- {item.motivoGlosa}</span>}
-                                    </span>
+                                    <div className="text-red-600">
+                                      <span className="font-mono text-xs bg-red-100 dark:bg-red-950 px-1 py-0.5 rounded">{item.codigoGlosa}</span>
+                                      {item.motivoGlosa && (
+                                        <p className="text-xs mt-0.5 leading-tight line-clamp-2">{item.motivoGlosa}</p>
+                                      )}
+                                      {item.grupoGlosa && (
+                                        <span className="text-[10px] text-muted-foreground">[{item.grupoGlosa}]</span>
+                                      )}
+                                    </div>
                                   ) : '-'}
                                 </td>
                                 <td className={`p-3 text-right font-medium ${Number(item.diferenca) > 0 ? 'text-red-600' : Number(item.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
