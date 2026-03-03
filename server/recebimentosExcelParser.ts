@@ -360,6 +360,17 @@ export function extractRecebimentoExcelFromRow(
     }
   }
   
+  // CORREÇÃO IPASGO: Calcular valorInformado como VALOR_UNITARIO × QUANTIDADE
+  // O IPASGO mapeia VALOR_UNITARIO para valorInformado, mas o valor cobrado real
+  // é VALOR_UNITARIO × QUANTIDADE. Corrigir quando quantidade > 1.
+  if (record.quantidade && record.quantidade > 1) {
+    const valorUnitarioNum = parseNumber(record.valorInformado);
+    if (valorUnitarioNum !== null && valorUnitarioNum > 0) {
+      const valorTotal = valorUnitarioNum * record.quantidade;
+      record.valorInformado = String(valorTotal);
+    }
+  }
+  
   // CORREÇÃO IPASGO: Quando SITUACAO = "PAGO" mas VALOR_GLOSADO > 0,
   // o item foi glosado (total ou parcialmente). O IPASGO marca tudo como "PAGO"
   // mesmo quando há glosa. A situação real deve ser determinada pelo valor de glosa.

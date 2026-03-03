@@ -2353,3 +2353,4 @@
 - [ ] Persistir histórico de conciliações para consulta futura
 - [x] Bug: Importação Excel IPASGO - valores cobrados, pagos e glosados estão R$ 0,00 para todos os itens (Hospital Nossa Senhora de Inhumas) - corrigido mapeamento de campos: item→codigoProcedimento, itemDesc→descricaoProcedimento, valorInformado→valorCobrado, valorPagamento→valorPago, valorGlosa→valorGlosado
 - [x] Corrigir parser IPASGO para extrair valores corretamente para todos os prestadores/estabelecimentos - mapeamento universal no getRecebimentosExcel + resumo com SUM(valorPagamento) e SUM(valorInformado)
+- [x] Bug: Glosas IPASGO não detectadas corretamente - corrigido: ampliadas colunas codigo_glosa/erro_tiss para 500 chars, adicionada correção IPASGO para valorInformado = VALOR_UNITARIO × QUANTIDADE, reprocessado arquivo (64 glosados, R$ 3.594,67)

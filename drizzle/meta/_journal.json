@@ -428,6 +428,13 @@
       "when": 1772558288557,
       "tag": "0060_bright_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1772563572398,
+      "tag": "0061_same_diamondback",
+      "breakpoints": true
     }
   ]
 }

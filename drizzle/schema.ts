@@ -2366,8 +2366,8 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   // Tipo Lançamento
   tipoLancamento: varchar("tipo_lancamento", { length: 100 }),
   
-  // Erro TISS (código de glosa)
-  erroTiss: varchar("erro_tiss", { length: 50 }),
+  // Erro TISS (código de glosa / observação de glosa)
+  erroTiss: varchar("erro_tiss", { length: 500 }),
   
   // Situação Item (PAGO/GLOSADO/etc)
   situacaoItem: varchar("situacao_item", { length: 50 }),
@@ -2378,8 +2378,8 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   // Valor Glosa (específico)
   valorGlosa: decimal("valor_glosa", { precision: 12, scale: 2 }),
   
-  // Código Glosa TISS
-  codigoGlosa: varchar("codigo_glosa", { length: 20 }),
+  // Código Glosa TISS (ampliado para suportar justificativas longas do IPASGO)
+  codigoGlosa: varchar("codigo_glosa", { length: 500 }),
   
   // Valor Informado (valor cobrado original)
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
