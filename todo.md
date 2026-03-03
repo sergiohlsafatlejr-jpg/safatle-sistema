@@ -2316,3 +2316,4 @@
 - [x] Corrigir erro de chaves duplicadas (duplicate key 2026-02, 2026-03) no SelectItem de competências na ConciliacaoCruzada
 - [x] Analisar e garantir segregação de dados por estabelecimento na tela Conciliação Cruzada (já estava correto - todas queries filtram por estabelecimentoId)
 - [x] Corrigir campos de valor zerados (R$ 0,00) na tabela principal da Conciliação Cruzada — nomes de campos desalinhados (valorTotalFaturado → valorFaturado)
+- [x] Preencher valores Pago/Glosa no faturamento_unificado a partir dos recebimentos vinculados durante a conciliação automática

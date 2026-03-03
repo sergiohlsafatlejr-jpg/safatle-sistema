@@ -889,7 +889,7 @@ export async function executarConciliacaoAutomatica(params: {
   // -------------------------------------------------------
   // PASSO 5: Executar matching para cada item de faturamento
   // -------------------------------------------------------
-  const updates: Array<{ id: number; status: string; recebimentoId: number | null; recebimentoOrigem: string | null }> = [];
+  const updates: Array<{ id: number; status: string; recebimentoId: number | null; recebimentoOrigem: string | null; valorPago: number; valorGlosa: number }> = [];
 
   for (const fat of itensFaturamento) {
     const guia = String(fat.numeroGuia || fat.contaNumero || '').trim();
@@ -949,13 +949,16 @@ export async function executarConciliacaoAutomatica(params: {
       const diferenca = Math.abs(valorFaturado - valorRecebido);
       const percentualDiferenca = valorFaturado > 0 ? (diferenca / valorFaturado) * 100 : (valorRecebido > 0 ? 100 : 0);
 
+      const valorPagoRec = Number(recMatch.valorPago) || 0;
+      const valorGlosaRec = Number(recMatch.valorGlosa) || 0;
+
       if (percentualDiferenca <= tolerancia) {
         // Conciliado: valores compatíveis
-        updates.push({ id: fat.id, status: 'conciliado', recebimentoId: recMatch.id, recebimentoOrigem: 'excel' });
+        updates.push({ id: fat.id, status: 'conciliado', recebimentoId: recMatch.id, recebimentoOrigem: 'excel', valorPago: valorPagoRec, valorGlosa: valorGlosaRec });
         resultado.totalConciliados++;
       } else {
         // Divergente: valores diferentes
-        updates.push({ id: fat.id, status: 'divergente', recebimentoId: recMatch.id, recebimentoOrigem: 'excel' });
+        updates.push({ id: fat.id, status: 'divergente', recebimentoId: recMatch.id, recebimentoOrigem: 'excel', valorPago: valorPagoRec, valorGlosa: valorGlosaRec });
         resultado.totalDivergentes++;
         resultado.divergencias.push({
           faturamentoId: fat.id,
@@ -977,7 +980,7 @@ export async function executarConciliacaoAutomatica(params: {
       }
     } else {
       // Não encontrou match: não recebido
-      updates.push({ id: fat.id, status: 'nao_recebido', recebimentoId: null, recebimentoOrigem: null });
+      updates.push({ id: fat.id, status: 'nao_recebido', recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: 0 });
       resultado.totalNaoRecebidos++;
     }
   }
@@ -989,24 +992,14 @@ export async function executarConciliacaoAutomatica(params: {
   for (let i = 0; i < updates.length; i += BATCH_SIZE) {
     const batch = updates.slice(i, i + BATCH_SIZE);
 
-    // Agrupar por status para fazer updates em massa
-    const porStatus = new Map<string, typeof batch>();
+    // Para cada item, fazer UPDATE individual para incluir valorPago/valorGlosa específicos
     for (const u of batch) {
-      const key = `${u.status}|${u.recebimentoId ?? 'null'}|${u.recebimentoOrigem ?? 'null'}`;
-      if (!porStatus.has(key)) porStatus.set(key, []);
-      porStatus.get(key)!.push(u);
-    }
-
-    // Para cada grupo, fazer um UPDATE com IN (ids)
-    for (const [, items] of porStatus) {
-      const ids = items.map(u => u.id).join(',');
-      const first = items[0];
-      let setClause = `statusConciliacao = '${first.status}', atualizadoEm = NOW()`;
-      if (first.recebimentoId !== null) {
-        setClause += `, recebimentoVinculadoId = ${first.recebimentoId}`;
-        setClause += `, recebimentoOrigem = '${first.recebimentoOrigem}'`;
+      let setClause = `statusConciliacao = '${u.status}', atualizadoEm = NOW(), valorPago = ${u.valorPago}, valorGlosa = ${u.valorGlosa}`;
+      if (u.recebimentoId !== null) {
+        setClause += `, recebimentoVinculadoId = ${u.recebimentoId}`;
+        setClause += `, recebimentoOrigem = '${u.recebimentoOrigem}'`;
       }
-      const updateQuery = `UPDATE faturamento_unificado SET ${setClause} WHERE id IN (${ids})`;
+      const updateQuery = `UPDATE faturamento_unificado SET ${setClause} WHERE id = ${u.id}`;
       await db.execute(sql.raw(updateQuery));
     }
   }
@@ -1045,6 +1038,9 @@ export async function resetarConciliacao(params: {
     SET statusConciliacao = 'pendente', 
         recebimentoVinculadoId = NULL, 
         recebimentoOrigem = NULL,
+        valorPago = 0,
+        valorGlosa = 0,
+        dataPagamento = NULL,
         atualizadoEm = NOW()
     ${whereClause}
   `;
