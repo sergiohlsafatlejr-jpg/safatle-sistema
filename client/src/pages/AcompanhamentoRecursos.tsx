@@ -359,6 +359,10 @@ export default function AcompanhamentoRecursos() {
     exportarLoteMutation.mutate({ loteId });
   };
 
+  // Estado para dialog de validação
+  const [dialogValidacao, setDialogValidacao] = useState(false);
+  const [resultadoValidacao, setResultadoValidacao] = useState<any>(null);
+
   // Mutation para exportar XML ANS/TISS
   const exportarXmlMutation = trpc.recursos.exportarXml.useMutation({
     onSuccess: (data, variables) => {
@@ -373,7 +377,21 @@ export default function AcompanhamentoRecursos() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("XML ANS/TISS exportado com sucesso!");
+      
+      // Exibir resultado de validação
+      if (data.validacao) {
+        setResultadoValidacao(data.validacao);
+        if (data.validacao.valido) {
+          toast.success("XML TISS exportado e validado com sucesso! Salvo no histórico.");
+        } else {
+          setDialogValidacao(true);
+          toast.warning(`XML exportado com ${data.validacao.erros.length} erro(s) de validação TISS.`);
+        }
+      } else {
+        toast.success("XML ANS/TISS exportado com sucesso!");
+      }
+      
+      refetch(); // Atualizar para mostrar xmlUrl no lote
     },
     onError: (error) => {
       setExportandoXml(null);
@@ -748,15 +766,32 @@ export default function AcompanhamentoRecursos() {
                           variant="outline"
                           onClick={(e) => handleExportarXml(lote.id, e)}
                           disabled={exportandoXml === lote.id}
-                          title="Exportar XML (Padrão ANS/TISS)"
+                          title={lote.xmlUrl ? "Regerar XML (Padrão ANS/TISS)" : "Gerar XML (Padrão ANS/TISS)"}
                         >
                           {exportandoXml === lote.id ? (
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                           ) : (
                             <FileText className="h-4 w-4 mr-1" />
                           )}
-                          XML
+                          {lote.xmlUrl ? "Regerar XML" : "Gerar XML"}
                         </Button>
+                        
+                        {/* Botão Download XML salvo no S3 */}
+                        {lote.xmlUrl && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(lote.xmlUrl, '_blank');
+                            }}
+                            title={`XML gerado em ${lote.xmlGeradoEm ? formatDate(lote.xmlGeradoEm) : '-'}`}
+                            className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Baixar XML
+                          </Button>
+                        )}
                         
                         {/* Botão Anexar PDF de Protocolo */}
                         <Button
@@ -1175,6 +1210,74 @@ export default function AcompanhamentoRecursos() {
               ) : (
                 <><FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel</>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Validação TISS */}
+      <Dialog open={dialogValidacao} onOpenChange={setDialogValidacao}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {resultadoValidacao?.valido ? (
+                <><CheckCircle2 className="h-5 w-5 text-green-500" /> Validação TISS - Aprovado</>
+              ) : (
+                <><AlertTriangle className="h-5 w-5 text-yellow-500" /> Validação TISS - Atenção</>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Resultado da validação do XML contra o padrão TISS 4.01.00 da ANS
+            </DialogDescription>
+          </DialogHeader>
+          
+          {resultadoValidacao && (
+            <div className="space-y-4">
+              {resultadoValidacao.erros.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-red-600 mb-2 flex items-center gap-1">
+                    <XCircle className="h-4 w-4" /> Erros ({resultadoValidacao.erros.length})
+                  </h4>
+                  <div className="space-y-1">
+                    {resultadoValidacao.erros.map((erro: any, idx: number) => (
+                      <div key={idx} className="text-sm p-2 bg-red-50 dark:bg-red-950 rounded border border-red-200 dark:border-red-800">
+                        <span className="font-mono text-xs text-red-500">{erro.campo}</span>
+                        <p className="text-red-700 dark:text-red-300">{erro.mensagem}</p>
+                        <Badge variant="outline" className="text-xs mt-1">{erro.tipo}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {resultadoValidacao.avisos.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-yellow-600 mb-2 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" /> Avisos ({resultadoValidacao.avisos.length})
+                  </h4>
+                  <div className="space-y-1">
+                    {resultadoValidacao.avisos.map((aviso: any, idx: number) => (
+                      <div key={idx} className="text-sm p-2 bg-yellow-50 dark:bg-yellow-950 rounded border border-yellow-200 dark:border-yellow-800">
+                        <span className="font-mono text-xs text-yellow-500">{aviso.campo}</span>
+                        <p className="text-yellow-700 dark:text-yellow-300">{aviso.mensagem}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {resultadoValidacao.valido && resultadoValidacao.avisos.length === 0 && (
+                <div className="text-center py-4">
+                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                  <p className="text-green-600 font-medium">XML válido conforme padrão TISS 4.01.00</p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogValidacao(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>

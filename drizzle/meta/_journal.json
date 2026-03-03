@@ -421,6 +421,13 @@
       "when": 1772539155515,
       "tag": "0059_last_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1772558288557,
+      "tag": "0060_bright_black_cat",
+      "breakpoints": true
     }
   ]
 }

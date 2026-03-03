@@ -253,6 +253,11 @@ export const lotesRecurso = mysqlTable("lotesRecurso", {
   anexoPdfUrl: text("anexoPdfUrl"), // URL do PDF de envio do recurso
   anexoPdfKey: varchar("anexoPdfKey", { length: 512 }),
   
+  // XML gerado
+  xmlUrl: text("xmlUrl"), // URL do XML TISS gerado no S3
+  xmlKey: varchar("xmlKey", { length: 512 }), // Chave do XML no S3
+  xmlGeradoEm: timestamp("xmlGeradoEm"), // Data/hora da geração do XML
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

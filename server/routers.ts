@@ -2664,7 +2664,48 @@ export const appRouter = router({
         if (!xml) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lote não encontrado ou sem recursos" });
         }
-        return { xml };
+        
+        // Validar XML contra padrão TISS
+        const { validarXmlRecursoGlosa } = await import("./validadorTissRecursoGlosa");
+        const validacao = validarXmlRecursoGlosa(xml);
+        
+        // Salvar XML no S3 e atualizar lote
+        const timestamp = Date.now();
+        const s3Key = `recursos-glosa/lote-${input.loteId}/recurso_glosa_lote_${input.loteId}_${timestamp}.xml`;
+        const { url: xmlUrl } = await storagePut(s3Key, Buffer.from(xml, 'utf-8'), 'application/xml');
+        
+        // Atualizar lote com URL do XML
+        await db.atualizarXmlLote(input.loteId, xmlUrl, s3Key);
+        
+        return { xml, validacao, xmlUrl };
+      }),
+
+    // Validar XML sem gerar/salvar
+    validarXml: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const xml = await db.gerarXmlRecursoGlosa(input.loteId);
+        if (!xml) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Lote não encontrado ou sem recursos" });
+        }
+        const { validarXmlRecursoGlosa } = await import("./validadorTissRecursoGlosa");
+        const validacao = validarXmlRecursoGlosa(xml);
+        return { validacao };
+      }),
+
+    // Listar histórico de XMLs gerados para um lote
+    historicoXml: protectedProcedure
+      .input(
+        z.object({
+          loteId: z.number(),
+        })
+      )
+      .query(async ({ input }) => {
+        return db.getHistoricoXmlLote(input.loteId);
       }),
   }),
 

@@ -17873,3 +17873,43 @@ export async function getHistoricoNotificacoesAtendimento(numatend: string): Pro
       })),
   }));
 }
+
+// ============ HISTÓRICO XML RECURSO DE GLOSA ============
+
+export async function atualizarXmlLote(loteId: number, xmlUrl: string, xmlKey: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(lotesRecurso)
+    .set({
+      xmlUrl,
+      xmlKey,
+      xmlGeradoEm: new Date(),
+    })
+    .where(eq(lotesRecurso.id, loteId));
+}
+
+export async function getHistoricoXmlLote(loteId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const lote = await db
+    .select({
+      id: lotesRecurso.id,
+      numeroLote: lotesRecurso.numeroLote,
+      xmlUrl: lotesRecurso.xmlUrl,
+      xmlKey: lotesRecurso.xmlKey,
+      xmlGeradoEm: lotesRecurso.xmlGeradoEm,
+      status: lotesRecurso.status,
+      createdAt: lotesRecurso.createdAt,
+    })
+    .from(lotesRecurso)
+    .where(eq(lotesRecurso.id, loteId))
+    .limit(1);
+
+  if (lote.length === 0) return null;
+
+  return {
+    lote: lote[0],
+    temXml: !!lote[0].xmlUrl,
+  };
+}

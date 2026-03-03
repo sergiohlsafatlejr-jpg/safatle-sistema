@@ -2345,3 +2345,5 @@
 - [x] Bug: Tela de Análise de Glosa não mostra itens glosados do IPASGO (Hemolabor) - corrigido: demonstrativo re-sincronizado com convenio_id=30001 e estabelecimentoId=6 (4.617 glosados, R$ 850.143,08)
 - [x] Adicionar filtro por Motivo de Glosa na tela de Análise de Glosa (dropdown com motivos textuais como GUIA VENCIDA, DOCUMENTAÇÃO INCOMPL, etc.)
 - [x] Analisar e corrigir gerador de XML de recurso de glosa para seguir formato validado pelo convênio (17 correções: hash MD5, valorTotalRecursado, dataRecurso, codGlosaItem numérico, registroANS, codigoPrestador, etc.)
+- [x] Implementar validação TISS do XML contra schema XSD da ANS antes de permitir download/envio (validador estrutural com 16 testes, verifica campos obrigatórios, tipos, hash MD5, registroANS, codGlosaItem numérico)
+- [x] Implementar histórico de XMLs gerados: salvar cada XML no S3 com link no lote de recurso para consulta futura e reenvio (campos xmlUrl, xmlKey, xmlGeradoEm na tabela lotesRecurso)
