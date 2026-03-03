@@ -564,14 +564,13 @@ export async function competenciasDisponiveis(
   if (!db) throw new Error("Database não disponível");
 
   const query = `
-    SELECT DISTINCT
+    SELECT
       fu.competencia,
-      fu.origemSistema,
       COUNT(*) as total
     FROM faturamento_unificado fu
     WHERE fu.estabelecimentoId = ${estabelecimentoId}
       AND fu.competencia IS NOT NULL
-    GROUP BY fu.competencia, fu.origemSistema
+    GROUP BY fu.competencia
     ORDER BY fu.competencia DESC
   `;
 

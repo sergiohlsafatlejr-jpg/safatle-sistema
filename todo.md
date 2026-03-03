@@ -2313,3 +2313,4 @@
 - [x] Atualizar router tRPC para expor nova fonte WARLEINE (popularDeIntegFaturado procedure)
 - [x] Atualizar frontend para mostrar as duas fontes (ConciliacaoCruzada atualizada)
 - [x] Testes vitest para popularDeIntegFaturado (9 testes passando + 15 conciliação)
+- [x] Corrigir erro de chaves duplicadas (duplicate key 2026-02, 2026-03) no SelectItem de competências na ConciliacaoCruzada
