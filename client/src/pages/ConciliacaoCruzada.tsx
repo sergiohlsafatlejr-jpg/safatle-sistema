@@ -239,6 +239,8 @@ export default function ConciliacaoCruzada() {
         return <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-300">De-Para</Badge>;
       case 'paciente_codigo':
         return <Badge variant="outline" className="text-xs bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-300 border-orange-300">Paciente+Código</Badge>;
+      case 'agrupamento':
+        return <Badge variant="outline" className="text-xs bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border-cyan-300">Agrupado</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">{metodo}</Badge>;
     }
@@ -524,9 +526,21 @@ export default function ConciliacaoCruzada() {
                     <h2 className="text-lg font-bold">
                       Guia: {guiaConciliadaSelecionada.guia || guiaConciliadaSelecionada.numeroGuia || guiaConciliadaSelecionada.contaNumero}
                     </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {guiaConciliadaSelecionada.pacienteNome || '-'} | {guiaConciliadaSelecionada.convenio || `Convênio ${guiaConciliadaSelecionada.convenioId}`} | {formatarCompetencia(guiaConciliadaSelecionada.competencia)}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-muted-foreground">
+                        {guiaConciliadaSelecionada.pacienteNome || '-'} | {guiaConciliadaSelecionada.convenio || `Convênio ${guiaConciliadaSelecionada.convenioId}`} | {formatarCompetencia(guiaConciliadaSelecionada.competencia)}
+                      </p>
+                      {Number(guiaConciliadaSelecionada.totalContas) > 1 && (
+                        <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300" title="Esta guia aparece em múltiplos lotes/contas (Alta Administrativa)">
+                          Alta Administrativa ({guiaConciliadaSelecionada.totalContas} contas)
+                        </Badge>
+                      )}
+                      {Number(guiaConciliadaSelecionada.itensAgrupados) > 0 && (
+                        <Badge variant="outline" className="text-xs bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border-cyan-300" title="Itens duplicados foram agrupados para conciliação">
+                          {guiaConciliadaSelecionada.itensAgrupados} itens agrupados
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -590,6 +604,7 @@ export default function ConciliacaoCruzada() {
                               <th className="text-left p-3 font-medium">Código</th>
                               <th className="text-left p-3 font-medium min-w-[200px]">Descrição</th>
                               <th className="text-center p-3 font-medium">Tipo</th>
+                              <th className="text-center p-3 font-medium">Data Exec.</th>
                               <th className="text-center p-3 font-medium">Qtd</th>
                               <th className="text-right p-3 font-medium">Faturado</th>
                               <th className="text-right p-3 font-medium">Recebido</th>
@@ -612,6 +627,9 @@ export default function ConciliacaoCruzada() {
                                   {item.tipoItem ? (
                                     <Badge variant="outline" className="text-xs">{item.tipoItem}</Badge>
                                   ) : '-'}
+                                </td>
+                                <td className="p-3 text-center text-xs text-muted-foreground">
+                                  {item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString('pt-BR') : '-'}
                                 </td>
                                 <td className="p-3 text-center">{Number(item.quantidade) || 1}</td>
                                 <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
@@ -640,7 +658,7 @@ export default function ConciliacaoCruzada() {
                           </tbody>
                           <tfoot className="bg-muted/30 font-medium">
                             <tr className="border-t-2">
-                              <td className="p-3" colSpan={3}>Total</td>
+                              <td className="p-3" colSpan={4}>Total</td>
                               <td className="p-3 text-center">{itensConciliadosGuia.reduce((s: number, i: any) => s + (Number(i.quantidade) || 1), 0)}</td>
                               <td className="p-3 text-right text-blue-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorFaturado || 0), 0))}</td>
                               <td className="p-3 text-right text-green-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorPago || 0), 0))}</td>
@@ -802,7 +820,15 @@ export default function ConciliacaoCruzada() {
                                   guia.statusGuia === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
                                 }`} onClick={() => setGuiaConciliadaSelecionada(guia)}>
                                   <td className="p-3 font-mono text-sm font-medium">{guia.guia || '-'}</td>
-                                  <td className="p-3 text-sm max-w-[200px] truncate" title={guia.pacienteNome}>{guia.pacienteNome || '-'}</td>
+                                  <td className="p-3 text-sm max-w-[200px] truncate" title={guia.pacienteNome}>
+                                    <span>{guia.pacienteNome || '-'}</span>
+                                    {Number(guia.totalContas) > 1 && (
+                                      <Badge variant="outline" className="ml-1 text-[10px] bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300">Alta Adm.</Badge>
+                                    )}
+                                    {Number(guia.itensAgrupados) > 0 && (
+                                      <Badge variant="outline" className="ml-1 text-[10px] bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border-cyan-300">{guia.itensAgrupados} agrup.</Badge>
+                                    )}
+                                  </td>
                                   <td className="p-3 text-sm">{formatarCompetencia(guia.competencia)}</td>
                                   <td className="p-3 text-center">
                                     <span className="text-sm">{guia.totalItens}</span>

@@ -2347,3 +2347,7 @@
 - [x] Analisar e corrigir gerador de XML de recurso de glosa para seguir formato validado pelo convênio (17 correções: hash MD5, valorTotalRecursado, dataRecurso, codGlosaItem numérico, registroANS, codigoPrestador, etc.)
 - [x] Implementar validação TISS do XML contra schema XSD da ANS antes de permitir download/envio (validador estrutural com 16 testes, verifica campos obrigatórios, tipos, hash MD5, registroANS, codGlosaItem numérico)
 - [x] Implementar histórico de XMLs gerados: salvar cada XML no S3 com link no lote de recurso para consulta futura e reenvio (campos xmlUrl, xmlKey, xmlGeradoEm na tabela lotesRecurso)
+- [x] Bug: Itens duplicados com mesmo código na conciliação não pareados corretamente (ex: 90465865 Cefazolina e Cefalotina na guia 66515809) - implementado agrupamento automático no backend
+- [x] Adicionar data do item na tela de detalhes da conciliação e no comparativo (coluna Data Exec. com COALESCE ca.dataExecucao/fu.dataExecucao)
+- [x] Aplicar lógica de alta administrativa na conciliação (badge Alta Adm. quando totalContas > 1, badge de itens agrupados no frontend)
+- [ ] Persistir histórico de conciliações para consulta futura

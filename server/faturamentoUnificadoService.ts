@@ -803,6 +803,7 @@ export async function executarConciliacaoAutomatica(params: {
       fu.id, fu.codigoItem, fu.codigoItemTuss, fu.numeroGuia, fu.contaNumero,
       fu.pacienteNome, fu.carteiraBeneficiario, fu.convenioId, fu.competencia,
       fu.convenio, fu.origemSistema, fu.descricaoItem, fu.tipoItem,
+      fu.dataExecucao,
       COALESCE(fu.valorFaturado, 0) as valorFaturado,
       COALESCE(fu.quantidade, 0) as quantidade
     FROM faturamento_unificado fu
@@ -918,6 +919,7 @@ export async function executarConciliacaoAutomatica(params: {
     origemSistema: string;
     valorFaturado: number;
     quantidade: number;
+    dataExecucao: string | null;
     recebimentoId: number | null;
     recebimentoOrigem: string | null;
     valorPago: number;
@@ -998,6 +1000,7 @@ export async function executarConciliacaoAutomatica(params: {
       descricaoItem: descricaoFat,
       tipoItem: tipoItemFat,
       origemSistema: String(fat.origemSistema || ''),
+      dataExecucao: fat.dataExecucao ? new Date(fat.dataExecucao).toISOString().slice(0, 19).replace('T', ' ') : null,
       valorFaturado,
       quantidade: Number(fat.quantidade) || 0,
       codigoGlosa: null as string | null,
@@ -1063,6 +1066,87 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
+  // PASSO 5.5: Agrupamento de itens duplicados (mesmo guia+código)
+  // Quando múltiplos itens do faturamento com mesmo código ficaram "nao_recebido"
+  // mas existe um recebimento com quantidade = soma das quantidades, agrupa e pareia.
+  // Ex: Faturamento tem 2 linhas de código 90465865 (qtd 4 + qtd 2),
+  //     Recebimento tem 1 linha de código 90465865 (qtd 6, valor = soma).
+  // -------------------------------------------------------
+  const naoRecebidosIdx = inserts
+    .map((ins, idx) => ({ ins, idx }))
+    .filter(({ ins }) => ins.statusConciliacao === 'nao_recebido');
+
+  // Agrupar nao_recebidos por guia+código
+  const gruposNaoRecebidos = new Map<string, { ins: typeof inserts[0]; idx: number }[]>();
+  for (const item of naoRecebidosIdx) {
+    const chave = `${item.ins.numeroGuia}|${item.ins.codigoItem}`;
+    if (!gruposNaoRecebidos.has(chave)) gruposNaoRecebidos.set(chave, []);
+    gruposNaoRecebidos.get(chave)!.push(item);
+  }
+
+  // Para cada grupo com 2+ itens, tentar encontrar recebimento agrupado
+  for (const [chave, grupo] of gruposNaoRecebidos) {
+    if (grupo.length < 2) continue;
+
+    const somaQuantidade = grupo.reduce((s, g) => s + g.ins.quantidade, 0);
+    const somaValor = grupo.reduce((s, g) => s + g.ins.valorFaturado, 0);
+
+    // Buscar recebimento não usado com mesmo guia+código e quantidade compatível
+    const candidatos = indexGuiaCodigo.get(chave);
+    if (!candidatos) continue;
+
+    const disponiveis = candidatos.filter(c => !recebimentosUsados.has(c.id));
+    // Procurar um recebimento cuja quantidade = soma das quantidades do grupo
+    let recAgrupado = disponiveis.find(c => {
+      const qtdRec = Number(c.quantidade) || 0;
+      return Math.abs(qtdRec - somaQuantidade) < 0.01;
+    });
+    // Fallback: procurar por valor próximo da soma
+    if (!recAgrupado) {
+      recAgrupado = disponiveis.find(c => {
+        const valRec = Number(c.valorPago) || 0;
+        return somaValor > 0 && Math.abs(valRec - somaValor) / somaValor <= (tolerancia / 100);
+      });
+    }
+
+    if (recAgrupado) {
+      recebimentosUsados.add(recAgrupado.id);
+      const valorRecTotal = Number(recAgrupado.valorPago) || 0;
+      const valorGlosaRec = Number(recAgrupado.valorGlosa) || 0;
+
+      // Distribuir o valor pago proporcionalmente entre os itens do grupo
+      for (const { ins, idx } of grupo) {
+        const proporcao = somaValor > 0 ? ins.valorFaturado / somaValor : 1 / grupo.length;
+        const valorPagoProporcional = Math.round(valorRecTotal * proporcao * 100) / 100;
+        const valorGlosaProporcional = Math.round(valorGlosaRec * proporcao * 100) / 100;
+        const diferenca = ins.valorFaturado - valorPagoProporcional;
+        const percentualDiferenca = ins.valorFaturado > 0 ? (Math.abs(diferenca) / ins.valorFaturado) * 100 : 0;
+
+        // Enriquecer com dados do recebimento
+        if (recAgrupado.nomeBeneficiario) ins.pacienteNome = String(recAgrupado.nomeBeneficiario);
+        if (recAgrupado.codigoGlosa) ins.codigoGlosa = String(recAgrupado.codigoGlosa);
+
+        ins.recebimentoId = recAgrupado.id;
+        ins.recebimentoOrigem = 'excel';
+        ins.valorPago = valorPagoProporcional;
+        ins.valorGlosa = valorGlosaProporcional;
+        ins.diferenca = diferenca;
+        ins.percentualDiferenca = percentualDiferenca;
+        ins.metodoConciliacao = 'agrupamento';
+
+        if (percentualDiferenca <= tolerancia) {
+          ins.statusConciliacao = 'conciliado';
+          resultado.totalConciliados++;
+        } else {
+          ins.statusConciliacao = 'divergente';
+          resultado.totalDivergentes++;
+        }
+        resultado.totalNaoRecebidos--;
+      }
+    }
+  }
+
+  // -------------------------------------------------------
   // PASSO 6: INSERT em batch na tabela conciliados_automatico
   // -------------------------------------------------------
   const BATCH_SIZE = 200;
@@ -1071,12 +1155,12 @@ export async function executarConciliacaoAutomatica(params: {
 
     const values = batch.map(r => {
       const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
-      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
+      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
     }).join(',\n');
 
     const insertQuery = `
       INSERT INTO conciliados_automatico 
-        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
+        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
       VALUES ${values}
     `;
     await db.execute(sql.raw(insertQuery));
@@ -1363,7 +1447,9 @@ export async function resumoConciliadosPorGuia(params: {
       END as statusGuia,
       SUM(CASE WHEN ca.statusConciliacao = 'conciliado' THEN 1 ELSE 0 END) as itensConciliados,
       SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) as itensDivergentes,
-      SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) as itensNaoRecebidos
+      SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) as itensNaoRecebidos,
+      SUM(CASE WHEN ca.metodoConciliacao = 'agrupamento' THEN 1 ELSE 0 END) as itensAgrupados,
+      COUNT(DISTINCT ca.contaNumero) as totalContas
     FROM conciliados_automatico ca
     ${whereClause}
     GROUP BY COALESCE(ca.numeroGuia, ca.contaNumero), ca.numeroGuia, ca.contaNumero
@@ -1402,6 +1488,7 @@ export async function itensConciliadosPorGuia(params: {
       COALESCE(ca.descricaoItem, fu.descricaoItem) as descricaoItem,
       COALESCE(ca.tipoItem, fu.tipoItem) as tipoItem,
       ca.origemSistema,
+      COALESCE(ca.dataExecucao, fu.dataExecucao) as dataExecucao,
       COALESCE(ca.valorFaturado, 0) as valorFaturado,
       COALESCE(ca.quantidade, 0) as quantidade,
       ca.recebimentoId, ca.recebimentoOrigem,
