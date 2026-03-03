@@ -2317,3 +2317,13 @@
 - [x] Analisar e garantir segregação de dados por estabelecimento na tela Conciliação Cruzada (já estava correto - todas queries filtram por estabelecimentoId)
 - [x] Corrigir campos de valor zerados (R$ 0,00) na tabela principal da Conciliação Cruzada — nomes de campos desalinhados (valorTotalFaturado → valorFaturado)
 - [x] Preencher valores Pago/Glosa no faturamento_unificado a partir dos recebimentos vinculados durante a conciliação automática
+- [x] Criar schema Drizzle para tabela conciliados_automatico (separada do faturamento_unificado)
+- [x] Migrar tabela conciliados_automatico no banco (criada via SQL direto)
+- [x] Refatorar executarConciliacaoAutomatica para INSERT na conciliados_automatico em vez de UPDATE no faturamento_unificado
+- [x] Refatorar resetarConciliacao para DELETE da conciliados_automatico
+- [x] Criar função listarConciliadosAutomatico com filtros e paginação
+- [x] Criar função resumoConciliadosAutomatico com totais por status
+- [x] Criar procedures tRPC para listar/resumir dados da conciliados_automatico (listarConciliados + resumoConciliados)
+- [x] Atualizar frontend ConciliacaoCruzada para apresentar dados da nova tabela (abas Conciliados + Faturamento Unificado)
+- [x] Reverter alterações de valorPago/valorGlosa no faturamento_unificado (dados de conciliação agora ficam na conciliados_automatico)
+- [x] Testes vitest para novo fluxo de conciliação com tabela separada (24 testes passando)

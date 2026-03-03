@@ -201,7 +201,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Resetar conciliacao (voltar itens para pendente)
+   * Resetar conciliacao (deletar registros da conciliados_automatico)
    */
   resetarConciliacao: protectedProcedure
     .input(z.object({
@@ -211,5 +211,35 @@ export const faturamentoUnificadoRouter = router({
     }))
     .mutation(async ({ input }) => {
       return await faturamentoService.resetarConciliacao(input);
+    }),
+
+  /**
+   * Listar resultados da conciliação automática (tabela conciliados_automatico)
+   */
+  listarConciliados: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+      statusConciliacao: z.string().optional(),
+      busca: z.string().optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.listarConciliadosAutomatico(input);
+    }),
+
+  /**
+   * Resumo dos resultados da conciliação automática por status
+   */
+  resumoConciliados: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.resumoConciliadosAutomatico(input);
     }),
 });

@@ -407,6 +407,13 @@
       "when": 1772498221826,
       "tag": "0057_steep_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1772536180931,
+      "tag": "0058_wooden_human_torch",
+      "breakpoints": true
     }
   ]
 }

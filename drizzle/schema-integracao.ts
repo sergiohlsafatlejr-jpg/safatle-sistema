@@ -558,3 +558,65 @@ export const integFaturado = mysqlTable(
     nomeconvIdx: index("idx_integ_fatur_nomeconv").on(table.nomeconv),
   })
 );
+
+
+/**
+ * TABELA DE RESULTADOS DE CONCILIAÇÃO AUTOMÁTICA
+ * Armazena os resultados da conciliação separados do faturamento_unificado.
+ * Cada registro vincula um item do faturamento_unificado a um recebimento (ou marca como não recebido).
+ */
+export const conciliadosAutomatico = mysqlTable(
+  "conciliados_automatico",
+  {
+    id: int().primaryKey().autoincrement(),
+    
+    // Referência ao faturamento
+    faturamentoUnificadoId: int().notNull(),
+    estabelecimentoId: int().notNull(),
+    
+    // Dados copiados do faturamento para consulta rápida
+    contaNumero: varchar({ length: 100 }),
+    numeroGuia: varchar({ length: 50 }),
+    pacienteNome: varchar({ length: 255 }),
+    convenio: varchar({ length: 255 }),
+    convenioId: int(),
+    competencia: varchar({ length: 20 }),
+    codigoItem: varchar({ length: 50 }),
+    codigoItemTuss: varchar({ length: 50 }),
+    descricaoItem: text(),
+    origemSistema: varchar({ length: 50 }), // WARLEINE ou XML_TISS
+    
+    // Valores do faturamento
+    valorFaturado: decimal({ precision: 12, scale: 4 }),
+    quantidade: decimal({ precision: 12, scale: 4 }),
+    
+    // Referência ao recebimento vinculado
+    recebimentoId: int(), // ID do recebimento_excel vinculado (null se não recebido)
+    recebimentoOrigem: varchar({ length: 20 }), // 'excel' ou 'xml'
+    
+    // Valores do recebimento
+    valorPago: decimal({ precision: 12, scale: 4 }).default('0'),
+    valorGlosa: decimal({ precision: 12, scale: 4 }).default('0'),
+    
+    // Resultado da conciliação
+    statusConciliacao: varchar({ length: 50 }).notNull(), // conciliado, divergente, nao_recebido
+    metodoConciliacao: varchar({ length: 50 }), // guia_codigo, guia_codigo_tuss, vinculacao, paciente_codigo
+    diferenca: decimal({ precision: 12, scale: 4 }), // valorFaturado - valorPago
+    percentualDiferenca: decimal({ precision: 8, scale: 4 }), // % de diferença
+    
+    // Metadados da execução
+    toleranciaUsada: decimal({ precision: 5, scale: 2 }), // tolerância percentual usada
+    executadoPor: int(), // userId que executou
+    criadoEm: timestamp().defaultNow(),
+  },
+  (table) => ({
+    faturamentoIdx: index("idx_conc_auto_faturamento").on(table.faturamentoUnificadoId),
+    estabelecimentoIdx: index("idx_conc_auto_estab").on(table.estabelecimentoId),
+    statusIdx: index("idx_conc_auto_status").on(table.statusConciliacao),
+    competenciaIdx: index("idx_conc_auto_competencia").on(table.competencia),
+    convenioIdx: index("idx_conc_auto_convenio").on(table.convenio),
+    guiaIdx: index("idx_conc_auto_guia").on(table.numeroGuia),
+    codigoItemIdx: index("idx_conc_auto_codigo").on(table.codigoItem),
+    metodoIdx: index("idx_conc_auto_metodo").on(table.metodoConciliacao),
+  })
+);
