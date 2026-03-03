@@ -4051,6 +4051,11 @@ export interface ResumoItensGlosados {
     quantidade: number;
     valorGlosado: number;
   }[];
+  porMotivoTexto?: {
+    motivo: string;
+    quantidade: number;
+    valorGlosado: number;
+  }[];
 }
 
 /**
@@ -4129,6 +4134,7 @@ export async function getItensGlosados(filters: {
   dataReferenciaFim?: Date;
   tipo?: string;
   codigoGlosa?: string;
+  motivoGlosa?: string;
   classificacao?: "todos" | "pendente" | "aceitar" | "recursar";
   search?: string;
   page: number;
@@ -4223,6 +4229,7 @@ export async function getItensGlosados(filters: {
   const resumoPorMotivo: { [key: string]: { quantidade: number; valorGlosado: number } } = {};
   let totalValorGlosado = 0;
   let totalValorCobrado = 0;
+  const resumoPorMotivoTexto: { [key: string]: { quantidade: number; valorGlosado: number } } = {};
 
   for (const row of allRows) {
     const tipo = TIPO_MAP[(row.tipoLancamento || '').toUpperCase()] || determinarTipoProcedimento(row.codigoItem || '', row.descricaoItem || undefined);
@@ -4235,6 +4242,12 @@ export async function getItensGlosados(filters: {
     const codigoGlosaEfetivo = codigoGlosaStr || erroTissStr;
     const codigoGlosaNum = codigoGlosaEfetivo.match(/^(\d+)/)?.[1] || '';
     if (filters.codigoGlosa && filters.codigoGlosa !== "todos" && codigoGlosaNum !== filters.codigoGlosa) continue;
+
+    // Filtro por motivo textual (ex: "GUIA VENCIDA", "DOCUMENTAÇÃO INCOMPL")
+    if (filters.motivoGlosa && filters.motivoGlosa !== "todos") {
+      const motivoTexto = (row.codigoGlosa || (row as any).erroTiss || '').toUpperCase();
+      if (!motivoTexto.startsWith(filters.motivoGlosa.toUpperCase())) continue;
+    }
 
     const valorGlosa = parseFloat(String(row.valorGlosa || '0'));
     const valorPago = parseFloat(String(row.valorPago || '0'));
@@ -4291,6 +4304,12 @@ export async function getItensGlosados(filters: {
     if (!resumoPorMotivo[motivoKey]) resumoPorMotivo[motivoKey] = { quantidade: 0, valorGlosado: 0 };
     resumoPorMotivo[motivoKey].quantidade++;
     resumoPorMotivo[motivoKey].valorGlosado += valorGlosa;
+
+    // Resumo por motivo textual (para filtro por motivo)
+    const motivoTextoKey = (codigoGlosaStr || (row as any).erroTiss || 'Não informado').toUpperCase().trim();
+    if (!resumoPorMotivoTexto[motivoTextoKey]) resumoPorMotivoTexto[motivoTextoKey] = { quantidade: 0, valorGlosado: 0 };
+    resumoPorMotivoTexto[motivoTextoKey].quantidade++;
+    resumoPorMotivoTexto[motivoTextoKey].valorGlosado += valorGlosa;
   }
 
   const total = itensGlosados.length;
@@ -4314,6 +4333,10 @@ export async function getItensGlosados(filters: {
       .map(([motivo, data]) => ({ motivo, quantidade: data.quantidade, valorGlosado: data.valorGlosado }))
       .sort((a, b) => b.valorGlosado - a.valorGlosado)
       .slice(0, 10),
+    porMotivoTexto: Object.entries(resumoPorMotivoTexto)
+      .map(([motivo, data]) => ({ motivo, quantidade: data.quantidade, valorGlosado: data.valorGlosado }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 30),
   };
 
   // Calcular alertas de prazo de recurso

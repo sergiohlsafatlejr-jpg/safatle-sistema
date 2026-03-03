@@ -102,6 +102,7 @@ export default function AnaliseGlosa() {
   const [convenioItens, setConvenioItens] = useState<string>("todos");
   const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
   const [codigoGlosaFiltro, setCodigoGlosaFiltro] = useState<string>("todos");
+  const [motivoGlosaFiltro, setMotivoGlosaFiltro] = useState<string>("todos");
   const [classificacaoFiltro, setClassificacaoFiltro] = useState<string>("todos");
   const [buscaItens, setBuscaItens] = useState("");
   const [dataReferenciaInicio, setDataReferenciaInicio] = useState<string>("");
@@ -155,6 +156,7 @@ export default function AnaliseGlosa() {
       estabelecimentoId: estabelecimentoAtual?.id,
       tipo: tipoFiltro !== "todos" ? tipoFiltro : undefined,
       codigoGlosa: codigoGlosaFiltro !== "todos" ? codigoGlosaFiltro : undefined,
+      motivoGlosa: motivoGlosaFiltro !== "todos" ? motivoGlosaFiltro : undefined,
       classificacao: classificacaoFiltro !== "todos" ? classificacaoFiltro as "pendente" | "aceitar" | "recursar" : undefined,
       search: buscaItens || undefined,
       dataReferenciaInicio: dataReferenciaInicio ? new Date(dataReferenciaInicio) : undefined,
@@ -788,7 +790,7 @@ export default function AnaliseGlosa() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Convênio</label>
                     <Select value={convenioItens} onValueChange={(v) => { setConvenioItens(v); setPaginaAtual(1); }}>
@@ -848,6 +850,26 @@ export default function AnaliseGlosa() {
                               </SelectItem>
                             );
                           })
+                        }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Motivo</label>
+                    <Select value={motivoGlosaFiltro} onValueChange={(v) => { setMotivoGlosaFiltro(v); setPaginaAtual(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os motivos</SelectItem>
+                        {itensGlosados?.resumo?.porMotivoTexto
+                          ?.filter(m => m.motivo && m.motivo !== 'NÃO INFORMADO')
+                          ?.map((motivo) => (
+                            <SelectItem key={motivo.motivo} value={motivo.motivo}>
+                              <span className="truncate max-w-[200px]">{motivo.motivo}</span>
+                              <span className="text-muted-foreground ml-1">({motivo.quantidade})</span>
+                            </SelectItem>
+                          ))
                         }
                       </SelectContent>
                     </Select>
