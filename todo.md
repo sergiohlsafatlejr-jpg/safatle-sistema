@@ -2298,3 +2298,9 @@
 - [x] Implementar vinculação manual de guias do mesmo paciente entre faturado e recebido
 - [x] Testes vitest para faturamento_unificado (16 testes passando)
 - [x] Corrigir erro tRPC na página /selecionar-estabelecimento: timeout 5s no fetch de notícias + lock de sincronização + onDuplicateKeyUpdate no jobScheduler
+- [x] Implementar algoritmo de conciliação automática no faturamentoUnificadoService (cruzar por código procedimento + número guia)
+- [x] Criar procedure tRPC para executar conciliação automática (conciliarAutomaticamente + resetarConciliacao)
+- [x] Adicionar botão "Conciliar Automaticamente" na tela ConciliacaoCruzada com resumo de resultados e modal de detalhes
+- [x] Considerar vinculação de códigos divergentes (tabela vinculacao_codigos) no cruzamento - 4 estratégias de matching
+- [ ] Persistir histórico de conciliações para consulta futura
+- [x] Testes vitest para conciliação automática (15 testes passando)

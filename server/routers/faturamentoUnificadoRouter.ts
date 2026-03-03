@@ -64,7 +64,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Resumo por convênio
+   * Resumo por convenio
    */
   resumoPorConvenio: protectedProcedure
     .input(z.object({
@@ -76,7 +76,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Resumo por guia/conta (agrupado) - principal para a tela de conciliação
+   * Resumo por guia/conta (agrupado) - principal para a tela de conciliacao
    */
   resumoPorGuia: protectedProcedure
     .input(z.object({
@@ -107,7 +107,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Competências disponíveis
+   * Competencias disponiveis
    */
   competencias: protectedProcedure
     .input(z.object({
@@ -118,7 +118,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Convênios disponíveis
+   * Convenios disponiveis
    */
   convenios: protectedProcedure
     .input(z.object({
@@ -130,7 +130,7 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Atualizar status de conciliação de um item
+   * Atualizar status de conciliacao de um item
    */
   atualizarStatus: protectedProcedure
     .input(z.object({
@@ -158,8 +158,8 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Buscar recebimentos candidatos para vinculação manual
-   * (busca por nome do paciente, carteira ou competência)
+   * Buscar recebimentos candidatos para vinculacao manual
+   * (busca por nome do paciente, carteira ou competencia)
    */
   buscarRecebimentosCandidatos: protectedProcedure
     .input(z.object({
@@ -170,5 +170,33 @@ export const faturamentoUnificadoRouter = router({
     }))
     .query(async ({ input }) => {
       return await faturamentoService.buscarRecebimentosCandidatos(input);
+    }),
+
+  /**
+   * Executar conciliacao automatica
+   * Cruza faturamento_unificado com recebimentos_excel
+   */
+  conciliarAutomaticamente: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+      toleranciaPercentual: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.executarConciliacaoAutomatica(input);
+    }),
+
+  /**
+   * Resetar conciliacao (voltar itens para pendente)
+   */
+  resetarConciliacao: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.resetarConciliacao(input);
     }),
 });
