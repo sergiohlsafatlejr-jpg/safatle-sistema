@@ -793,7 +793,7 @@ export async function executarConciliacaoAutomatica(params: {
     SELECT 
       fu.id, fu.codigoItem, fu.codigoItemTuss, fu.numeroGuia, fu.contaNumero,
       fu.pacienteNome, fu.carteiraBeneficiario, fu.convenioId, fu.competencia,
-      fu.convenio, fu.origemSistema, fu.descricaoItem,
+      fu.convenio, fu.origemSistema, fu.descricaoItem, fu.tipoItem,
       COALESCE(fu.valorFaturado, 0) as valorFaturado,
       COALESCE(fu.quantidade, 0) as quantidade
     FROM faturamento_unificado fu
@@ -827,7 +827,10 @@ export async function executarConciliacaoAutomatica(params: {
       COALESCE(re.valor_pagamento, 0) as valorPago,
       COALESCE(re.valor_glosa, 0) as valorGlosa,
       re.situacao_item as situacao,
-      COALESCE(re.quantidade, 0) as quantidade
+      COALESCE(re.quantidade, 0) as quantidade,
+      re.item_desc as descricaoItem,
+      re.tipo_lancamento as tipoLancamento,
+      re.codigo_glosa as codigoGlosa
     FROM recebimentos_excel re
     ${whereRec}
     ORDER BY re.id
@@ -901,6 +904,8 @@ export async function executarConciliacaoAutomatica(params: {
     competencia: string;
     codigoItem: string;
     codigoItemTuss: string;
+    descricaoItem: string;
+    tipoItem: string;
     origemSistema: string;
     valorFaturado: number;
     quantidade: number;
@@ -908,6 +913,8 @@ export async function executarConciliacaoAutomatica(params: {
     recebimentoOrigem: string | null;
     valorPago: number;
     valorGlosa: number;
+    codigoGlosa: string | null;
+    motivoGlosa: string | null;
     statusConciliacao: string;
     metodoConciliacao: string | null;
     diferenca: number;
@@ -967,6 +974,8 @@ export async function executarConciliacaoAutomatica(params: {
     }
 
     // Dados base do faturamento para o INSERT
+    const descricaoFat = String(fat.descricaoItem || '');
+    const tipoItemFat = String(fat.tipoItem || '');
     const baseInsert = {
       faturamentoUnificadoId: fat.id,
       contaNumero: String(fat.contaNumero || ''),
@@ -977,9 +986,13 @@ export async function executarConciliacaoAutomatica(params: {
       competencia: String(fat.competencia || ''),
       codigoItem: codigoItem,
       codigoItemTuss: codigoTuss,
+      descricaoItem: descricaoFat,
+      tipoItem: tipoItemFat,
       origemSistema: String(fat.origemSistema || ''),
       valorFaturado,
       quantidade: Number(fat.quantidade) || 0,
+      codigoGlosa: null as string | null,
+      motivoGlosa: null as string | null,
     };
 
     if (matchEncontrado && recMatch) {
@@ -990,6 +1003,24 @@ export async function executarConciliacaoAutomatica(params: {
 
       const valorPagoRec = Number(recMatch.valorPago) || 0;
       const valorGlosaRec = Number(recMatch.valorGlosa) || 0;
+
+      // Enriquecer com dados do recebimento (demonstrativo)
+      // Paciente: preferir do recebimento pois vem do demonstrativo
+      if (recMatch.nomeBeneficiario) {
+        baseInsert.pacienteNome = String(recMatch.nomeBeneficiario);
+      }
+      // Descrição: preferir do recebimento se disponível
+      if (recMatch.descricaoItem) {
+        baseInsert.descricaoItem = String(recMatch.descricaoItem);
+      }
+      // Tipo de lançamento do demonstrativo
+      if (recMatch.tipoLancamento) {
+        baseInsert.tipoItem = String(recMatch.tipoLancamento);
+      }
+      // Código e motivo da glosa
+      if (recMatch.codigoGlosa) {
+        baseInsert.codigoGlosa = String(recMatch.codigoGlosa);
+      }
 
       if (percentualDiferenca <= tolerancia) {
         inserts.push({ ...baseInsert, recebimentoId: recMatch.id, recebimentoOrigem: 'excel', valorPago: valorPagoRec, valorGlosa: valorGlosaRec, statusConciliacao: 'conciliado', metodoConciliacao: metodo, diferenca, percentualDiferenca });
@@ -1030,13 +1061,13 @@ export async function executarConciliacaoAutomatica(params: {
     const batch = inserts.slice(i, i + BATCH_SIZE);
 
     const values = batch.map(r => {
-      const esc = (v: string | null) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
-      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.origemSistema)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
+      const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
+      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
     }).join(',\n');
 
     const insertQuery = `
       INSERT INTO conciliados_automatico 
-        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, origemSistema, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
+        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
       VALUES ${values}
     `;
     await db.execute(sql.raw(insertQuery));
@@ -1121,12 +1152,13 @@ export async function listarConciliadosAutomatico(params: {
     SELECT 
       ca.id, ca.faturamentoUnificadoId, ca.contaNumero, ca.numeroGuia,
       ca.pacienteNome, ca.convenio, ca.convenioId, ca.competencia,
-      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.origemSistema,
+      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.tipoItem, ca.origemSistema,
       COALESCE(ca.valorFaturado, 0) as valorFaturado,
       COALESCE(ca.quantidade, 0) as quantidade,
       ca.recebimentoId, ca.recebimentoOrigem,
       COALESCE(ca.valorPago, 0) as valorPago,
       COALESCE(ca.valorGlosa, 0) as valorGlosa,
+      ca.codigoGlosa, ca.motivoGlosa,
       ca.statusConciliacao, ca.metodoConciliacao,
       COALESCE(ca.diferenca, 0) as diferenca,
       COALESCE(ca.percentualDiferenca, 0) as percentualDiferenca,
@@ -1357,12 +1389,13 @@ export async function itensConciliadosPorGuia(params: {
     SELECT 
       ca.id, ca.faturamentoUnificadoId, ca.contaNumero, ca.numeroGuia,
       ca.pacienteNome, ca.convenio, ca.convenioId, ca.competencia,
-      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.origemSistema,
+      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.tipoItem, ca.origemSistema,
       COALESCE(ca.valorFaturado, 0) as valorFaturado,
       COALESCE(ca.quantidade, 0) as quantidade,
       ca.recebimentoId, ca.recebimentoOrigem,
       COALESCE(ca.valorPago, 0) as valorPago,
       COALESCE(ca.valorGlosa, 0) as valorGlosa,
+      ca.codigoGlosa, ca.motivoGlosa,
       ca.statusConciliacao, ca.metodoConciliacao,
       COALESCE(ca.diferenca, 0) as diferenca,
       COALESCE(ca.percentualDiferenca, 0) as percentualDiferenca,

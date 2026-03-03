@@ -589,10 +589,12 @@ export default function ConciliacaoCruzada() {
                             <tr className="border-b bg-muted/50">
                               <th className="text-left p-3 font-medium">Código</th>
                               <th className="text-left p-3 font-medium min-w-[200px]">Descrição</th>
+                              <th className="text-center p-3 font-medium">Tipo</th>
                               <th className="text-center p-3 font-medium">Qtd</th>
                               <th className="text-right p-3 font-medium">Faturado</th>
                               <th className="text-right p-3 font-medium">Recebido</th>
                               <th className="text-right p-3 font-medium">Glosa</th>
+                              <th className="text-left p-3 font-medium min-w-[150px]">Motivo Glosa</th>
                               <th className="text-right p-3 font-medium">Diferença</th>
                               <th className="text-center p-3 font-medium">Status</th>
                               <th className="text-center p-3 font-medium">Método</th>
@@ -605,11 +607,24 @@ export default function ConciliacaoCruzada() {
                                 item.statusConciliacao === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
                               }`}>
                                 <td className="p-3 font-mono text-sm">{item.codigoItem || '-'}</td>
-                                <td className="p-3 text-sm">{item.descricaoItem || '-'}</td>
+                                <td className="p-3 text-sm max-w-[200px] truncate" title={item.descricaoItem}>{item.descricaoItem || '-'}</td>
+                                <td className="p-3 text-center">
+                                  {item.tipoItem ? (
+                                    <Badge variant="outline" className="text-xs">{item.tipoItem}</Badge>
+                                  ) : '-'}
+                                </td>
                                 <td className="p-3 text-center">{Number(item.quantidade) || 1}</td>
                                 <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
                                 <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
                                 <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(item.valorGlosa))}</td>
+                                <td className="p-3 text-sm max-w-[150px] truncate" title={item.codigoGlosa ? `Cód: ${item.codigoGlosa} - ${item.motivoGlosa || ''}` : ''}>
+                                  {item.codigoGlosa ? (
+                                    <span className="text-red-600">
+                                      <span className="font-mono text-xs">{item.codigoGlosa}</span>
+                                      {item.motivoGlosa && <span className="text-xs ml-1">- {item.motivoGlosa}</span>}
+                                    </span>
+                                  ) : '-'}
+                                </td>
                                 <td className={`p-3 text-right font-medium ${Number(item.diferenca) > 0 ? 'text-red-600' : Number(item.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
                                   {Number(item.diferenca) !== 0 ? formatarMoeda(Number(item.diferenca)) : '-'}
                                 </td>
@@ -620,11 +635,12 @@ export default function ConciliacaoCruzada() {
                           </tbody>
                           <tfoot className="bg-muted/30 font-medium">
                             <tr className="border-t-2">
-                              <td className="p-3" colSpan={2}>Total</td>
+                              <td className="p-3" colSpan={3}>Total</td>
                               <td className="p-3 text-center">{itensConciliadosGuia.reduce((s: number, i: any) => s + (Number(i.quantidade) || 1), 0)}</td>
                               <td className="p-3 text-right text-blue-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorFaturado || 0), 0))}</td>
                               <td className="p-3 text-right text-green-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorPago || 0), 0))}</td>
                               <td className="p-3 text-right text-red-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorGlosa || 0), 0))}</td>
+                              <td></td>
                               <td className="p-3 text-right">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.diferenca || 0), 0))}</td>
                               <td colSpan={2}></td>
                             </tr>
@@ -763,8 +779,7 @@ export default function ConciliacaoCruzada() {
                             <thead>
                               <tr className="border-b bg-muted/50">
                                 <th className="text-left p-3 font-medium">Guia</th>
-                                <th className="text-left p-3 font-medium max-w-[180px]">Paciente</th>
-                                <th className="text-left p-3 font-medium">Convênio</th>
+                                <th className="text-left p-3 font-medium max-w-[200px]">Paciente</th>
                                 <th className="text-left p-3 font-medium">Comp.</th>
                                 <th className="text-center p-3 font-medium">Itens</th>
                                 <th className="text-right p-3 font-medium">Faturado</th>
@@ -782,8 +797,7 @@ export default function ConciliacaoCruzada() {
                                   guia.statusGuia === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
                                 }`} onClick={() => setGuiaConciliadaSelecionada(guia)}>
                                   <td className="p-3 font-mono text-sm font-medium">{guia.guia || '-'}</td>
-                                  <td className="p-3 text-sm max-w-[180px] truncate" title={guia.pacienteNome}>{guia.pacienteNome || '-'}</td>
-                                  <td className="p-3 text-sm max-w-[120px] truncate" title={guia.convenio}>{guia.convenio || `Conv. ${guia.convenioId}` || '-'}</td>
+                                  <td className="p-3 text-sm max-w-[200px] truncate" title={guia.pacienteNome}>{guia.pacienteNome || '-'}</td>
                                   <td className="p-3 text-sm">{formatarCompetencia(guia.competencia)}</td>
                                   <td className="p-3 text-center">
                                     <span className="text-sm">{guia.totalItens}</span>

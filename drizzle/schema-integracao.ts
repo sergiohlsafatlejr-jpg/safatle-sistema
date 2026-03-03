@@ -584,6 +584,7 @@ export const conciliadosAutomatico = mysqlTable(
     codigoItem: varchar({ length: 50 }),
     codigoItemTuss: varchar({ length: 50 }),
     descricaoItem: text(),
+    tipoItem: varchar({ length: 50 }), // MED, MAT, EXA, PROC, TAXA, etc.
     origemSistema: varchar({ length: 50 }), // WARLEINE ou XML_TISS
     
     // Valores do faturamento
@@ -597,6 +598,8 @@ export const conciliadosAutomatico = mysqlTable(
     // Valores do recebimento
     valorPago: decimal({ precision: 12, scale: 4 }).default('0'),
     valorGlosa: decimal({ precision: 12, scale: 4 }).default('0'),
+    codigoGlosa: varchar({ length: 20 }), // Código de glosa TISS
+    motivoGlosa: text(), // Descrição do motivo da glosa
     
     // Resultado da conciliação
     statusConciliacao: varchar({ length: 50 }).notNull(), // conciliado, divergente, nao_recebido

@@ -2331,3 +2331,8 @@
 - [x] Reestruturar aba Conciliados: agrupar por GUIA primeiro (Faturado, Recebido, Glosado, Diferença, Status)
 - [x] Criar tela de detalhes dedicada ao clicar na guia (itens que deram match com valores individuais, cards resumo + tabela detalhada)
 - [x] Criar query de agrupamento por guia na conciliados_automatico (resumoConciliadosPorGuia + itensConciliadosPorGuia)
+- [x] Adicionar nome do paciente na tabela de guias conciliadas (preferir do demonstrativo/recebimento)
+- [x] Remover coluna Convênio da tabela de guias conciliadas
+- [x] Adicionar descrição do item/medicamento na tela de detalhes da guia
+- [x] Adicionar tipo do item na tela de detalhes (tipoLancamento do demonstrativo)
+- [x] Adicionar código de glosa na tela de detalhes da guia (motivoGlosa pendente tabela motivosGlosa vazia)
