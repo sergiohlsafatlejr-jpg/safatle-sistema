@@ -1,0 +1,76 @@
+{
+  "query": "SELECT id, contaNumero, numeroGuia, codigoItem, descricaoItem, valorFaturado, valorPago, statusConciliacao, metodoConciliacao FROM conciliados_automatico WHERE codigoItem = '90094719' LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, contaNumero, numeroGuia, codigoItem, descricaoItem, valorFaturado, valorPago, statusConciliacao, metodoConciliacao FROM conciliados_automatico WHERE codigoItem = '90094719' LIMIT 20;",
+  "rows": [
+    {
+      "id": "15234",
+      "contaNumero": "NULL",
+      "numeroGuia": "2585810",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "5.5800",
+      "valorPago": "5.5800",
+      "statusConciliacao": "conciliado",
+      "metodoConciliacao": "guia_codigo"
+    },
+    {
+      "id": "15248",
+      "contaNumero": "NULL",
+      "numeroGuia": "2585810",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "5.5800",
+      "valorPago": "5.5800",
+      "statusConciliacao": "conciliado",
+      "metodoConciliacao": "guia_codigo"
+    },
+    {
+      "id": "15605",
+      "contaNumero": "NULL",
+      "numeroGuia": "2585810",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "5.5800",
+      "valorPago": "0.0000",
+      "statusConciliacao": "nao_recebido",
+      "metodoConciliacao": "NULL"
+    },
+    {
+      "id": "15619",
+      "contaNumero": "NULL",
+      "numeroGuia": "2585810",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "5.5800",
+      "valorPago": "0.0000",
+      "statusConciliacao": "nao_recebido",
+      "metodoConciliacao": "NULL"
+    },
+    {
+      "id": "26157",
+      "contaNumero": "NULL",
+      "numeroGuia": "2595865",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "5.5800",
+      "valorPago": "0.0000",
+      "statusConciliacao": "nao_recebido",
+      "metodoConciliacao": "NULL"
+    },
+    {
+      "id": "26225",
+      "contaNumero": "NULL",
+      "numeroGuia": "2606152",
+      "codigoItem": "90094719",
+      "descricaoItem": "NULL",
+      "valorFaturado": "11.1600",
+      "valorPago": "0.0000",
+      "statusConciliacao": "nao_recebido",
+      "metodoConciliacao": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcontaNumero\tnumeroGuia\tcodigoItem\tdescricaoItem\tvalorFaturado\tvalorPago\tstatusConciliacao\tmetodoConciliacao\n15234\tNULL\t2585810\t90094719\tNULL\t5.5800\t5.5800\tconciliado\tguia_codigo\n15248\tNULL\t2585810\t90094719\tNULL\t5.5800\t5.5800\tconciliado\tguia_codigo\n15605\tNULL\t2585810\t90094719\tNULL\t5.5800\t0.0000\tnao_recebido\tNULL\n15619\tNULL\t2585810\t90094719\tNULL\t5.5800\t0.0000\tnao_recebido\tNULL\n26157\tNULL\t2595865\t90094719\tNULL\t5.5800\t0.0000\tnao_recebido\tNULL\n26225\tNULL\t2606152\t90094719\tNULL\t11.1600\t0.0000\tnao_recebido\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 131
+}

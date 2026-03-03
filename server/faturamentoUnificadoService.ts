@@ -224,7 +224,8 @@ export async function popularDeXmlTiss(
     return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : String(val);
   })));
 
-  // Inserir dados do faturamento_tiss
+  // Inserir dados do faturamento_tiss (com deduplicação para evitar duplicatas
+  // quando o mesmo XML é importado em múltiplos convênios)
   let insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -239,30 +240,38 @@ export async function popularDeXmlTiss(
     )
     SELECT
       'XML_TISS',
-      CAST(ft.id AS CHAR),
-      ft.estabelecimentoId,
-      ft.numero_guia_prestador,
-      ft.numero_guia_operadora,
-      ft.senha,
-      ft.numero_lote,
-      ft.carteira_beneficiario,
-      ft.convenioId,
-      DATE_FORMAT(ft.data_referencia, '%Y-%m'),
-      ft.nome_prof,
-      ft.tipo_item,
-      ft.codigo_item,
-      ft.descricao_item,
-      ft.data_execucao,
-      ft.quantidade,
-      ft.valor_unitario,
-      ft.valor_faturado,
+      CAST(dedup.id AS CHAR),
+      dedup.estabelecimentoId,
+      dedup.numero_guia_prestador,
+      dedup.numero_guia_operadora,
+      dedup.senha,
+      dedup.numero_lote,
+      dedup.carteira_beneficiario,
+      dedup.convenioId,
+      DATE_FORMAT(dedup.data_referencia, '%Y-%m'),
+      dedup.nome_prof,
+      dedup.tipo_item,
+      dedup.codigo_item,
+      dedup.descricao_item,
+      dedup.data_execucao,
+      dedup.quantidade,
+      dedup.valor_unitario,
+      dedup.valor_faturado,
       NOW()
-    FROM faturamento_tiss ft
-    WHERE ft.estabelecimentoId = ${estabelecimentoId}
+    FROM (
+      SELECT ft.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY ft.numero_guia_prestador, ft.sequencial_item, ft.codigo_item, ft.data_execucao, ft.quantidade, ft.valor_faturado
+          ORDER BY ft.id ASC
+        ) as rn
+      FROM faturamento_tiss ft
+      WHERE ft.estabelecimentoId = ${estabelecimentoId}
+    ) dedup
+    WHERE dedup.rn = 1
   `;
 
   if (dataReferencia) {
-    insertQuery += ` AND DATE_FORMAT(ft.data_referencia, '%Y-%m') = '${dataReferencia.replace(/'/g, "''")}'`;
+    insertQuery += ` AND DATE_FORMAT(dedup.data_referencia, '%Y-%m') = '${dataReferencia.replace(/'/g, "''")}'`;
   }
 
   await db.execute(sql.raw(insertQuery));
@@ -1389,7 +1398,10 @@ export async function itensConciliadosPorGuia(params: {
     SELECT 
       ca.id, ca.faturamentoUnificadoId, ca.contaNumero, ca.numeroGuia,
       ca.pacienteNome, ca.convenio, ca.convenioId, ca.competencia,
-      ca.codigoItem, ca.codigoItemTuss, ca.descricaoItem, ca.tipoItem, ca.origemSistema,
+      ca.codigoItem, ca.codigoItemTuss,
+      COALESCE(ca.descricaoItem, fu.descricaoItem) as descricaoItem,
+      COALESCE(ca.tipoItem, fu.tipoItem) as tipoItem,
+      ca.origemSistema,
       COALESCE(ca.valorFaturado, 0) as valorFaturado,
       COALESCE(ca.quantidade, 0) as quantidade,
       ca.recebimentoId, ca.recebimentoOrigem,
@@ -1403,6 +1415,7 @@ export async function itensConciliadosPorGuia(params: {
       COALESCE(ca.percentualDiferenca, 0) as percentualDiferenca,
       ca.toleranciaUsada, ca.criadoEm
     FROM conciliados_automatico ca
+    LEFT JOIN faturamento_unificado fu ON ca.faturamentoUnificadoId = fu.id
     LEFT JOIN motivosGlosa mg ON ca.codigoGlosa = mg.codigo AND mg.ativo = 'sim'
     ${whereClause}
     ORDER BY ca.codigoItem, ca.id

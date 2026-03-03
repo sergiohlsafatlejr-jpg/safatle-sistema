@@ -2338,3 +2338,5 @@
 - [x] Adicionar código de glosa na tela de detalhes da guia (motivoGlosa pendente tabela motivosGlosa vazia)
 - [x] Popular tabela motivosGlosa com dicionário oficial TISS de códigos de glosa (527 códigos extraídos da Tabela 38 ANS)
 - [x] Integrar descrição do motivo de glosa na tela de detalhes da conciliação automática (LEFT JOIN motivosGlosa + exibição com grupo)
+- [x] Bug: Nomes dos medicamentos não aparecem na tela de detalhes da conciliação (COALESCE com faturamento_unificado via LEFT JOIN)
+- [x] Bug: Itens duplicados na tela de detalhes da conciliação (deduplicação com ROW_NUMBER na popularDeXmlTiss)
