@@ -9684,6 +9684,7 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
 
 /**
  * Gera XML no padrão ANS/TISS para recurso de glosa
+ * Formato validado conforme padrão TISS 4.01.00
  */
 export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | null> {
   const db = await getDb();
@@ -9703,82 +9704,253 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     .select()
     .from(recursosGlosa)
     .where(eq(recursosGlosa.loteId, loteId))
-    .orderBy(recursosGlosa.pacienteNome, recursosGlosa.guiaNumero);
+    .orderBy(recursosGlosa.guiaNumero, recursosGlosa.codigoProcedimento);
+
+  if (recursosDoLote.length === 0) return null;
 
   // Buscar convênio
   const [convenio] = lote.convenioId
     ? await db.select().from(convenios).where(eq(convenios.id, lote.convenioId)).limit(1)
     : [null];
 
-  // Buscar estabelecimento
-  const [estabelecimento] = lote.estabelecimentoId
-    ? await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1)
-    : [null];
+  // Buscar código do prestador na operadora via convenioEstabelecimentoPrestador
+  let codigoPrestador = "";
+  if (lote.convenioId && lote.estabelecimentoId) {
+    const [cep] = await db
+      .select({ codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador })
+      .from(convenioEstabelecimentoPrestador)
+      .where(
+        and(
+          eq(convenioEstabelecimentoPrestador.convenioId, lote.convenioId),
+          eq(convenioEstabelecimentoPrestador.estabelecimentoId, lote.estabelecimentoId)
+        )
+      )
+      .limit(1);
+    if (cep) codigoPrestador = cep.codigoPrestador;
+  }
+  // Fallback: buscar do estabelecimento
+  if (!codigoPrestador) {
+    const [estabelecimento] = lote.estabelecimentoId
+      ? await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1)
+      : [null];
+    codigoPrestador = estabelecimento?.cnpj || "0000";
+  }
 
-  // Gerar XML no padrão ANS/TISS
+  // Buscar registroANS do faturamento_tiss (fonte mais confiável)
+  let registroANS = "";
+  const guiasDoLote = [...new Set(recursosDoLote.map(r => r.guiaNumero).filter(Boolean))];
+  if (guiasDoLote.length > 0) {
+    const [ftReg] = await db
+      .select({ registroAns: faturamentoTiss.registroAns })
+      .from(faturamentoTiss)
+      .where(eq(faturamentoTiss.numeroGuiaPrestador, guiasDoLote[0]!))
+      .limit(1);
+    if (ftReg?.registroAns) registroANS = ftReg.registroAns;
+  }
+  // Fallback ao código do convênio
+  if (!registroANS) {
+    registroANS = convenio?.codigo || "000000";
+  }
+
+  const nomeOperadora = convenio?.nome?.trim() || "OPERADORA";
   const dataAtual = new Date().toISOString().split('T')[0];
-  const registroANS = (convenio as any)?.registroAns || convenio?.codigo || "000000";
-  const codigoPrestador = (estabelecimento as any)?.codigoPrestador || estabelecimento?.cnpj || "0000";
-  const nomeOperadora = convenio?.nome || "OPERADORA";
-  
+  const horaAtual = new Date().toTimeString().split(' ')[0];
+
+  // Buscar dados complementares do faturamento_tiss e demonstrativo para cada guia
+  // (senha, guia operadora, data execução real, código tabela, código glosa numérico)
+  const dadosComplementares: Record<string, {
+    senha?: string;
+    guiaOperadora?: string;
+    protocolo?: string;
+    itensFat: Array<{
+      codigoItem: string;
+      codigoTabela: string | null;
+      dataExecucao: string | null;
+      sequencialItem: number | null;
+    }>;
+    itensDemo: Array<{
+      codigoItem: string;
+      codigoGlosa: string | null;
+      dataExecucao: Date | null;
+    }>;
+  }> = {};
+
+  for (const guiaNumero of guiasDoLote) {
+    if (!guiaNumero) continue;
+
+    // Buscar do faturamento_tiss (dados do XML enviado)
+    const fatItens = await db
+      .select({
+        senha: faturamentoTiss.senha,
+        guiaOperadora: faturamentoTiss.numeroGuiaOperadora,
+        codigoItem: faturamentoTiss.codigoItem,
+        codigoTabela: faturamentoTiss.codigoTabela,
+        dataExecucao: faturamentoTiss.dataExecucao,
+        sequencialItem: faturamentoTiss.sequencialItem,
+      })
+      .from(faturamentoTiss)
+      .where(eq(faturamentoTiss.numeroGuiaPrestador, guiaNumero));
+
+    // Buscar do demonstrativo (dados do retorno com código de glosa)
+    const demoItens = await db
+      .select({
+        codigoItem: demonstrativo.codigoItem,
+        codigoGlosa: demonstrativo.codigoGlosa,
+        dataExecucao: demonstrativo.dataExecucao,
+        protocolo: demonstrativo.protocolo,
+      })
+      .from(demonstrativo)
+      .where(
+        and(
+          eq(demonstrativo.numeroGuia, guiaNumero),
+          sql`${demonstrativo.valorGlosa} > 0`
+        )
+      );
+
+    dadosComplementares[guiaNumero] = {
+      senha: fatItens[0]?.senha || undefined,
+      guiaOperadora: fatItens[0]?.guiaOperadora || undefined,
+      protocolo: demoItens[0]?.protocolo || undefined,
+      itensFat: fatItens.map(f => ({
+        codigoItem: f.codigoItem || "",
+        codigoTabela: f.codigoTabela,
+        dataExecucao: f.dataExecucao ? new Date(f.dataExecucao).toISOString().split('T')[0] : null,
+        sequencialItem: f.sequencialItem,
+      })),
+      itensDemo: demoItens.map(d => ({
+        codigoItem: d.codigoItem || "",
+        codigoGlosa: d.codigoGlosa,
+        dataExecucao: d.dataExecucao ? new Date(d.dataExecucao) : null,
+      })),
+    };
+  }
+
+  // Determinar número do protocolo (do lote ou do demonstrativo)
+  const protocoloEnvio = lote.protocoloEnvio || 
+    Object.values(dadosComplementares).find(d => d.protocolo)?.protocolo || 
+    "";
+
   // Agrupar recursos por guia
   const recursosPorGuia = recursosDoLote.reduce((acc, recurso) => {
     const guia = recurso.guiaNumero || "SEM_GUIA";
-    if (!acc[guia]) {
-      acc[guia] = [];
-    }
+    if (!acc[guia]) acc[guia] = [];
     acc[guia].push(recurso);
     return acc;
   }, {} as Record<string, typeof recursosDoLote>);
 
+  // Calcular valor total recursado
+  let valorTotalRecursado = 0;
+
   // Gerar itens XML para cada guia
-  const guiasXml = Object.entries(recursosPorGuia).map(([guiaNumero, recursos], guiaIndex) => {
+  const guiasXml = Object.entries(recursosPorGuia).map(([guiaNumero, recursos]) => {
+    const complementar = dadosComplementares[guiaNumero];
+    const senha = complementar?.senha || "";
+    const guiaOperadora = complementar?.guiaOperadora || guiaNumero;
+
     const itensXml = recursos.map((recurso, index) => {
-      const dataExecucao = recurso.dataGlosa 
-        ? new Date(recurso.dataGlosa).toISOString().split('T')[0] 
-        : dataAtual;
-      
+      // Buscar data de execução real do faturamento/demonstrativo
+      let dataExecucao = dataAtual;
+      if (recurso.dataGlosa) {
+        dataExecucao = new Date(recurso.dataGlosa).toISOString().split('T')[0];
+      } else if (complementar) {
+        // Tentar encontrar a data no demonstrativo pelo código do procedimento
+        const demoItem = complementar.itensDemo.find(d => d.codigoItem === recurso.codigoProcedimento);
+        if (demoItem?.dataExecucao) {
+          dataExecucao = demoItem.dataExecucao.toISOString().split('T')[0];
+        } else {
+          // Tentar encontrar no faturamento_tiss
+          const fatItem = complementar.itensFat.find(f => f.codigoItem === recurso.codigoProcedimento);
+          if (fatItem?.dataExecucao) {
+            dataExecucao = fatItem.dataExecucao;
+          }
+        }
+      }
+
+      // Buscar código de tabela real do faturamento_tiss
+      let codigoTabela = "22"; // default: procedimentos
+      if (complementar) {
+        const fatItem = complementar.itensFat.find(f => f.codigoItem === recurso.codigoProcedimento);
+        if (fatItem?.codigoTabela) {
+          codigoTabela = fatItem.codigoTabela;
+        }
+      }
+
+      // Extrair código numérico da glosa (ex: "1701-COBRANÇA FORA DO PRAZO" -> "1701")
+      let codGlosaItem = recurso.motivoGlosaConvenio || "";
+      const matchCodigo = codGlosaItem.match(/^(\d+)/);
+      if (matchCodigo) {
+        codGlosaItem = matchCodigo[1];
+      } else {
+        // Tentar buscar do demonstrativo
+        if (complementar) {
+          const demoItem = complementar.itensDemo.find(d => d.codigoItem === recurso.codigoProcedimento);
+          if (demoItem?.codigoGlosa) {
+            codGlosaItem = demoItem.codigoGlosa;
+          }
+        }
+      }
+
+      // Limpar justificativa (remover quebras de linha extras)
+      const justificativa = (recurso.justificativaRecurso || "")
+        .replace(/\r\n/g, ' ')
+        .replace(/\n/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+      const valorRecursado = parseFloat(recurso.valorGlosado || "0");
+      valorTotalRecursado += valorRecursado;
+
       return `
                             <ans:itensGuia>
                                 <ans:sequencialItem>${index + 1}</ans:sequencialItem>
                                 <ans:dataInicio>${dataExecucao}</ans:dataInicio>
                                 <ans:procRecurso>
-                                    <ans:codigoTabela>22</ans:codigoTabela>
+                                    <ans:codigoTabela>${codigoTabela}</ans:codigoTabela>
                                     <ans:codigoProcedimento>${recurso.codigoProcedimento || ""}</ans:codigoProcedimento>
                                     <ans:descricaoProcedimento>${escapeXml(recurso.descricaoProcedimento || "")}</ans:descricaoProcedimento>
                                 </ans:procRecurso>
-                                <ans:codGlosaItem>${recurso.motivoGlosaConvenio || ""}</ans:codGlosaItem>
-                                <ans:valorRecursado>${recurso.valorGlosado || "0.00"}</ans:valorRecursado>
-                                <ans:justificativaItem>${escapeXml(recurso.justificativaRecurso || "")}</ans:justificativaItem>
+                                <ans:codGlosaItem>${escapeXml(codGlosaItem)}</ans:codGlosaItem>
+                                <ans:valorRecursado>${valorRecursado.toFixed(2)}</ans:valorRecursado>
+                                <ans:justificativaItem>${escapeXml(justificativa)}</ans:justificativaItem>
                             </ans:itensGuia>`;
     }).join("");
 
-    const primeiroRecurso = recursos[0];
-    const senha = primeiroRecurso?.protocoloRecurso || "";
-    const guiaOperadora = `${new Date().getFullYear()}${String(guiaIndex + 1).padStart(20, '0')}`;
+    // Montar tag senha apenas se preenchida
+    const senhaTag = senha ? `
+                        <ans:senha>${escapeXml(senha)}</ans:senha>` : "";
 
     return `
                     <ans:recursoGuia>
                         <ans:numeroGuiaOrigem>${guiaNumero}</ans:numeroGuiaOrigem>
-                        <ans:numeroGuiaOperadora>${guiaOperadora}</ans:numeroGuiaOperadora>
-                        <ans:senha>${senha}</ans:senha>
+                        <ans:numeroGuiaOperadora>${escapeXml(guiaOperadora)}</ans:numeroGuiaOperadora>${senhaTag}
                         <ans:opcaoRecursoGuia>${itensXml}
                         </ans:opcaoRecursoGuia>
                     </ans:recursoGuia>`;
   }).join("");
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  // Montar tags opcionais apenas se preenchidas
+  const guiaRecGlosaOperadoraTag = protocoloEnvio 
+    ? `
+                <ans:numeroGuiaRecGlosaOperadora>${escapeXml(protocoloEnvio)}</ans:numeroGuiaRecGlosaOperadora>` 
+    : "";
+  const protocoloTag = protocoloEnvio 
+    ? `
+                <ans:numeroProtocolo>${escapeXml(protocoloEnvio)}</ans:numeroProtocolo>` 
+    : "";
+
+  // Montar o corpo do XML (sem epílogo ainda, para calcular o hash)
+  const xmlBody = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#">
     <ans:cabecalho>
         <ans:identificacaoTransacao>
             <ans:tipoTransacao>RECURSO_GLOSA</ans:tipoTransacao>
-            <ans:sequencialTransacao>${lote.numeroLote}</ans:sequencialTransacao>
+            <ans:sequencialTransacao>${escapeXml(lote.numeroLote)}</ans:sequencialTransacao>
             <ans:dataRegistroTransacao>${dataAtual}</ans:dataRegistroTransacao>
-            <ans:horaRegistroTransacao>${new Date().toTimeString().split(' ')[0]}</ans:horaRegistroTransacao>
+            <ans:horaRegistroTransacao>${horaAtual}</ans:horaRegistroTransacao>
         </ans:identificacaoTransacao>
         <ans:origem>
             <ans:identificacaoPrestador>
-                <ans:codigoPrestadorNaOperadora>${codigoPrestador}</ans:codigoPrestadorNaOperadora>
+                <ans:codigoPrestadorNaOperadora>${escapeXml(codigoPrestador)}</ans:codigoPrestadorNaOperadora>
             </ans:identificacaoPrestador>
         </ans:origem>
         <ans:destino>
@@ -9790,20 +9962,29 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         <ans:recursoGlosa>
             <ans:guiaRecursoGlosa>
                 <ans:registroANS>${registroANS}</ans:registroANS>
-                <ans:numeroGuiaRecGlosaPrestador>${lote.numeroLote}</ans:numeroGuiaRecGlosaPrestador>
+                <ans:numeroGuiaRecGlosaPrestador>${escapeXml(lote.numeroLote)}</ans:numeroGuiaRecGlosaPrestador>
                 <ans:nomeOperadora>${escapeXml(nomeOperadora)}</ans:nomeOperadora>
-                <ans:objetoRecurso>2</ans:objetoRecurso>
-                <ans:numeroGuiaRecGlosaOperadora>${lote.protocoloEnvio || ""}</ans:numeroGuiaRecGlosaOperadora>
+                <ans:objetoRecurso>2</ans:objetoRecurso>${guiaRecGlosaOperadoraTag}
                 <ans:dadosContratado>
-                    <ans:codigoPrestadorNaOperadora>${codigoPrestador}</ans:codigoPrestadorNaOperadora>
+                    <ans:codigoPrestadorNaOperadora>${escapeXml(codigoPrestador)}</ans:codigoPrestadorNaOperadora>
                 </ans:dadosContratado>
-                <ans:numeroLote>${lote.numeroLote}</ans:numeroLote>
-                <ans:numeroProtocolo>${lote.protocoloEnvio || ""}</ans:numeroProtocolo>
+                <ans:numeroLote>${escapeXml(lote.numeroLote)}</ans:numeroLote>${protocoloTag}
                 <ans:opcaoRecurso>${guiasXml}
                 </ans:opcaoRecurso>
+                <ans:valorTotalRecursado>${valorTotalRecursado.toFixed(2)}</ans:valorTotalRecursado>
+                <ans:dataRecurso>${dataAtual}</ans:dataRecurso>
             </ans:guiaRecursoGlosa>
         </ans:recursoGlosa>
-    </ans:prestadorParaOperadora>
+    </ans:prestadorParaOperadora>`;
+
+  // Calcular hash MD5 do corpo do XML (padrão TISS)
+  const { createHash } = await import('crypto');
+  const hash = createHash('md5').update(xmlBody, 'utf8').digest('hex');
+
+  const xml = `${xmlBody}
+    <ans:epilogo>
+        <ans:hash>${hash}</ans:hash>
+    </ans:epilogo>
 </ans:mensagemTISS>`;
 
   return xml;
