@@ -215,9 +215,9 @@ export default function ConciliacaoCruzada() {
       'Competencia': formatarCompetencia(c.competencia),
       'Origem': c.origemSistema || '-',
       'Total Itens': c.totalItens || 0,
-      'Valor Faturado': Number(c.valorTotalFaturado || 0),
-      'Valor Pago': Number(c.valorTotalPago || 0),
-      'Valor Glosado': Number(c.valorTotalGlosado || 0),
+      'Valor Faturado': Number(c.valorFaturado || 0),
+      'Valor Pago': Number(c.valorPago || 0),
+      'Valor Glosado': Number(c.valorGlosa || 0),
       'Status Conciliacao': c.statusConciliacao || 'pendente',
     }));
 
@@ -544,13 +544,13 @@ export default function ConciliacaoCruzada() {
                           <td className="p-3 text-sm">{formatarCompetencia(conta.competencia)}</td>
                           <td className="p-3 text-center">
                             <Badge variant="outline" className="text-xs">
-                              {conta.origemSistema === 'TASY' ? 'Tasy' : 'XML'}
+                              {conta.origemSistema === 'WARLEINE' ? 'Warleine' : 'XML'}
                             </Badge>
                           </td>
                           <td className="p-3 text-center">{conta.totalItens || 0}</td>
-                          <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(conta.valorTotalFaturado))}</td>
-                          <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(conta.valorTotalPago))}</td>
-                          <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(conta.valorTotalGlosado))}</td>
+                          <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(conta.valorFaturado))}</td>
+                          <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(conta.valorPago))}</td>
+                          <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(conta.valorGlosa))}</td>
                           <td className="p-3 text-center">{getStatusBadge(conta.statusConciliacao || 'pendente')}</td>
                           <td className="p-3 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -686,7 +686,7 @@ export default function ConciliacaoCruzada() {
                       <div><span className="text-muted-foreground">Guia:</span> {faturamentoParaVincular.contaNumero || faturamentoParaVincular.numeroGuia}</div>
                       <div><span className="text-muted-foreground">Paciente:</span> {faturamentoParaVincular.pacienteNome || '-'}</div>
                       <div><span className="text-muted-foreground">Convenio:</span> {faturamentoParaVincular.convenio || '-'}</div>
-                      <div><span className="text-muted-foreground">Valor:</span> {formatarMoeda(Number(faturamentoParaVincular.valorTotalFaturado))}</div>
+                      <div><span className="text-muted-foreground">Valor:</span> {formatarMoeda(Number(faturamentoParaVincular.valorFaturado))}</div>
                     </div>
                   </CardContent>
                 </Card>

@@ -2314,3 +2314,5 @@
 - [x] Atualizar frontend para mostrar as duas fontes (ConciliacaoCruzada atualizada)
 - [x] Testes vitest para popularDeIntegFaturado (9 testes passando + 15 conciliação)
 - [x] Corrigir erro de chaves duplicadas (duplicate key 2026-02, 2026-03) no SelectItem de competências na ConciliacaoCruzada
+- [x] Analisar e garantir segregação de dados por estabelecimento na tela Conciliação Cruzada (já estava correto - todas queries filtram por estabelecimentoId)
+- [x] Corrigir campos de valor zerados (R$ 0,00) na tabela principal da Conciliação Cruzada — nomes de campos desalinhados (valorTotalFaturado → valorFaturado)

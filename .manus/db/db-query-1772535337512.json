@@ -1,0 +1,26 @@
+{
+  "query": "SELECT origemSistema, COUNT(*) as total, SUM(valorFaturado) as somaFaturado, SUM(valorPago) as somaPago, SUM(valorGlosa) as somaGlosa, AVG(valorFaturado) as mediaFaturado FROM faturamento_unificado WHERE estabelecimentoId = 1260036 GROUP BY origemSistema LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT origemSistema, COUNT(*) as total, SUM(valorFaturado) as somaFaturado, SUM(valorPago) as somaPago, SUM(valorGlosa) as somaGlosa, AVG(valorFaturado) as mediaFaturado FROM faturamento_unificado WHERE estabelecimentoId = 1260036 GROUP BY origemSistema LIMIT 10;",
+  "rows": [
+    {
+      "origemSistema": "XML_TISS",
+      "total": "530",
+      "somaFaturado": "31785.0200",
+      "somaPago": "NULL",
+      "somaGlosa": "NULL",
+      "mediaFaturado": "59.97173585"
+    },
+    {
+      "origemSistema": "WARLEINE",
+      "total": "118718",
+      "somaFaturado": "8113276.5172",
+      "somaPago": "NULL",
+      "somaGlosa": "NULL",
+      "mediaFaturado": "68.34074460"
+    }
+  ],
+  "messages": [],
+  "stdout": "origemSistema\ttotal\tsomaFaturado\tsomaPago\tsomaGlosa\tmediaFaturado\nXML_TISS\t530\t31785.0200\tNULL\tNULL\t59.97173585\nWARLEINE\t118718\t8113276.5172\tNULL\tNULL\t68.34074460\n",
+  "stderr": "",
+  "execution_time_ms": 238
+}

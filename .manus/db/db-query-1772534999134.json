@@ -1,0 +1,36 @@
+{
+  "query": "SELECT 'faturamento_unificado' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM faturamento_unificado GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT 'integ_faturado' as tabela, estabelecimento_id, COUNT(*) as total FROM integ_faturado GROUP BY estabelecimento_id ORDER BY estabelecimento_id; SELECT 'faturamento_tiss' as tabela, estabelecimentoId, COUNT(*) as total FROM faturamento_tiss GROUP BY estabelecimentoId ORDER BY estabelecimentoId; SELECT 'recebimentos_excel' as tabela, estabelecimentoId, COUNT(*) as total FROM recebimentos_excel GROUP BY estabelecimentoId ORDER BY estabelecimentoId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT 'faturamento_unificado' as tabela, estabelecimentoId, origemSistema, COUNT(*) as total FROM faturamento_unificado GROUP BY estabelecimentoId, origemSistema ORDER BY estabelecimentoId; SELECT 'integ_faturado' as tabela, estabelecimento_id, COUNT(*) as total FROM integ_faturado GROUP BY estabelecimento_id ORDER BY estabelecimento_id; SELECT 'faturamento_tiss' as tabela, estabelecimentoId, COUNT(*) as total FROM faturamento_tiss GROUP BY estabelecimentoId ORDER BY estabelecimentoId; SELECT 'recebimentos_excel' as tabela, estabelecimentoId, COUNT(*) as total FROM recebimentos_excel GROUP BY estabelecimentoId ORDER BY estabelecimentoId;",
+  "rows": [
+    {
+      "tabela": "faturamento_unificado",
+      "estabelecimentoId": "1260036",
+      "origemSistema": "XML_TISS",
+      "total": "530"
+    },
+    {
+      "tabela": "faturamento_unificado",
+      "estabelecimentoId": "1260036",
+      "origemSistema": "WARLEINE",
+      "total": "118718"
+    }
+  ],
+  "messages": [
+    "tabela\testabelecimento_id\ttotal",
+    "integ_faturado\t1260036\t118718",
+    "tabela\testabelecimentoId\ttotal",
+    "faturamento_tiss\t1\t29066",
+    "faturamento_tiss\t3\t35642",
+    "faturamento_tiss\t6\t21911",
+    "faturamento_tiss\t1170001\t727",
+    "faturamento_tiss\t1260036\t530",
+    "tabela\testabelecimentoId\ttotal",
+    "recebimentos_excel\t1\t49456",
+    "recebimentos_excel\t3\t10637",
+    "recebimentos_excel\t6\t71052",
+    "recebimentos_excel\t1260036\t2886"
+  ],
+  "stdout": "tabela\testabelecimentoId\torigemSistema\ttotal\nfaturamento_unificado\t1260036\tXML_TISS\t530\nfaturamento_unificado\t1260036\tWARLEINE\t118718\ntabela\testabelecimento_id\ttotal\ninteg_faturado\t1260036\t118718\ntabela\testabelecimentoId\ttotal\nfaturamento_tiss\t1\t29066\nfaturamento_tiss\t3\t35642\nfaturamento_tiss\t6\t21911\nfaturamento_tiss\t1170001\t727\nfaturamento_tiss\t1260036\t530\ntabela\testabelecimentoId\ttotal\nrecebimentos_excel\t1\t49456\nrecebimentos_excel\t3\t10637\nrecebimentos_excel\t6\t71052\nrecebimentos_excel\t1260036\t2886\n",
+  "stderr": "",
+  "execution_time_ms": 1139
+}
