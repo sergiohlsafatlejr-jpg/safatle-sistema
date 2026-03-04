@@ -1,2 +1,0 @@
-ALTER TABLE `procedimentos` ADD `codigoDespesa` varchar(10);--> statement-breakpoint
-ALTER TABLE `procedimentos` ADD `tipoDespesa` enum('gas','medicamento','material','diaria','taxa','procedimento','outros') DEFAULT 'procedimento';

@@ -1,9 +1,0 @@
-{
-  "query": "\nCREATE INDEX `idx_notif_atend_numatend` ON `notificacoes_atendimento` (`numatend`);\nCREATE INDEX `idx_notif_atend_estab` ON `notificacoes_atendimento` (`estabelecimentoId`);\nCREATE INDEX `idx_notif_atend_criado` ON `notificacoes_atendimento` (`criadoEm`);\n\nCREATE TABLE IF NOT EXISTS `notificacoes_atendimento_item` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `notificacaoId` int NOT NULL,\n  `motivo` varchar(255) NOT NULL,\n  `setor` varchar(255) NOT NULL DEFAULT '',\n  `medico` varchar(255) NOT NULL DEFAULT '',\n  `criadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE INDEX `idx_notif_item_notificacao` ON `notificacoes_atendimento_item` (`notificacaoId`);\nCREATE INDEX `idx_notif_item_motivo` ON `notificacoes_atendimento_item` (`motivo`);\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute \nCREATE INDEX `idx_notif_atend_numatend` ON `notificacoes_atendimento` (`numatend`);\nCREATE INDEX `idx_notif_atend_estab` ON `notificacoes_atendimento` (`estabelecimentoId`);\nCREATE INDEX `idx_notif_atend_criado` ON `notificacoes_atendimento` (`criadoEm`);\n\nCREATE TABLE IF NOT EXISTS `notificacoes_atendimento_item` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `notificacaoId` int NOT NULL,\n  `motivo` varchar(255) NOT NULL,\n  `setor` varchar(255) NOT NULL DEFAULT '',\n  `medico` varchar(255) NOT NULL DEFAULT '',\n  `criadoEm` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE INDEX `idx_notif_item_notificacao` ON `notificacoes_atendimento_item` (`notificacaoId`);\nCREATE INDEX `idx_notif_item_motivo` ON `notificacoes_atendimento_item` (`motivo`);\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2691
-}

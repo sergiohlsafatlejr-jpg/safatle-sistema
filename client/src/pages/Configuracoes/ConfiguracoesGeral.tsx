@@ -71,7 +71,7 @@ export default function ConfiguracoesGeral() {
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
                 <img 
-                  src="/safatle-logo.png" 
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
                   alt="Logo" 
                   className="w-16 h-16 object-contain"
                 />
@@ -87,7 +87,7 @@ export default function ConfiguracoesGeral() {
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
                 <img 
-                  src="/safatle-logo.png" 
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
                   alt="Favicon" 
                   className="w-8 h-8 object-contain"
                 />

@@ -76,7 +76,7 @@ export default function SelecionarEstabelecimento() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img 
-                src="/safatle-logo.png" 
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
                 alt="Safatle Logo" 
                 className="w-10 h-10 object-contain"
               />
@@ -308,7 +308,7 @@ export default function SelecionarEstabelecimento() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <img 
-                src="/safatle-logo.png" 
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
                 alt="Safatle Logo" 
                 className="w-8 h-8 object-contain"
               />

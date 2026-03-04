@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE integracao_mapeamentos \n  ADD COLUMN IF NOT EXISTS modoImportacao ENUM('completa', 'incremental') NOT NULL DEFAULT 'completa',\n  ADD COLUMN IF NOT EXISTS colunaControle VARCHAR(255) NULL,\n  ADD COLUMN IF NOT EXISTS ultimoValorControle TEXT NULL,\n  ADD COLUMN IF NOT EXISTS ultimaSincronizacao TIMESTAMP NULL,\n  ADD COLUMN IF NOT EXISTS totalRegistrosImportados INT NOT NULL DEFAULT 0;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute ALTER TABLE integracao_mapeamentos \n  ADD COLUMN IF NOT EXISTS modoImportacao ENUM('completa', 'incremental') NOT NULL DEFAULT 'completa',\n  ADD COLUMN IF NOT EXISTS colunaControle VARCHAR(255) NULL,\n  ADD COLUMN IF NOT EXISTS ultimoValorControle TEXT NULL,\n  ADD COLUMN IF NOT EXISTS ultimaSincronizacao TIMESTAMP NULL,\n  ADD COLUMN IF NOT EXISTS totalRegistrosImportados INT NOT NULL DEFAULT 0;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2029
-}

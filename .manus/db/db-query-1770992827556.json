@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `avisosInternos` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `titulo` varchar(255) NOT NULL,\n  `conteudo` text NOT NULL,\n  `tipo` enum('informacao','alerta','urgente') NOT NULL DEFAULT 'informacao',\n  `ativo` enum('sim','nao') NOT NULL DEFAULT 'sim',\n  `criadoPorId` int NOT NULL,\n  `criadoPorNome` varchar(255),\n  `expiraEm` timestamp NULL,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `avisosInternos_id` PRIMARY KEY(`id`)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute CREATE TABLE IF NOT EXISTS `avisosInternos` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `titulo` varchar(255) NOT NULL,\n  `conteudo` text NOT NULL,\n  `tipo` enum('informacao','alerta','urgente') NOT NULL DEFAULT 'informacao',\n  `ativo` enum('sim','nao') NOT NULL DEFAULT 'sim',\n  `criadoPorId` int NOT NULL,\n  `criadoPorNome` varchar(255),\n  `expiraEm` timestamp NULL,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `avisosInternos_id` PRIMARY KEY(`id`)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 223
-}

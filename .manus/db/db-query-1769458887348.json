@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO estabelecimentos (id, nome, cnpj, endereco, createdAt, updatedAt) VALUES \n(2, 'Maternidade Ela', '24.790.438/0001-89', 'Rua 6A', NOW(), NOW()),\n(3, 'Ox Uti', '05.562.645/0001-31', 'Rua T49', NOW(), NOW());",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute INSERT INTO estabelecimentos (id, nome, cnpj, endereco, createdAt, updatedAt) VALUES \n(2, 'Maternidade Ela', '24.790.438/0001-89', 'Rua 6A', NOW(), NOW()),\n(3, 'Ox Uti', '05.562.645/0001-31', 'Rua T49', NOW(), NOW());",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 72
-}

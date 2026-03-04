@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO demonstrativo (arquivo_id, origem_tipo, numero_guia, descricao_item, valor_pago, situacao_item) \nSELECT arquivo_id, 'excel', numero_guia, item_desc, CAST(valor_pagamento AS DECIMAL(12,2)), situacao_item \nFROM recebimentos_excel \nWHERE arquivo_id = 32 \nLIMIT 10;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute INSERT INTO demonstrativo (arquivo_id, origem_tipo, numero_guia, descricao_item, valor_pago, situacao_item) \nSELECT arquivo_id, 'excel', numero_guia, item_desc, CAST(valor_pagamento AS DECIMAL(12,2)), situacao_item \nFROM recebimentos_excel \nWHERE arquivo_id = 32 \nLIMIT 10;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 116
-}

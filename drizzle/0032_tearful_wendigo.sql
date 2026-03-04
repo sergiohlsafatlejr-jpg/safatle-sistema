@@ -1,1 +1,0 @@
-ALTER TABLE `recursosGlosa` ADD `pacienteCarteirinha` varchar(100);

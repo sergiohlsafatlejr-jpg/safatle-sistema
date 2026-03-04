@@ -1,9 +1,0 @@
-{
-  "query": "RENAME TABLE resumoConciliacaoTasy TO resumoConciliacao;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute RENAME TABLE resumoConciliacaoTasy TO resumoConciliacao;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 908
-}

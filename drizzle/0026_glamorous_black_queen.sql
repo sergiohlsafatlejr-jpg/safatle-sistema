@@ -1,1 +1,0 @@
-ALTER TABLE `convenios` ADD `prazoRecursoGlosa` int DEFAULT 30;

@@ -286,7 +286,7 @@ export default function DashboardLayout({
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl">
           <div className="flex flex-col items-center gap-6">
             <img 
-              src="/safatle-logo.png" 
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
               alt="Safatle Logo" 
               className="w-20 h-20 object-contain"
             />
@@ -418,7 +418,7 @@ function DashboardLayoutContent({
             {/* Logo da Safatle */}
             <div className="flex items-center justify-center py-3 border-b border-sidebar-border/50">
               <img 
-                src="/safatle-logo.png" 
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png" 
                 alt="Safatle" 
                 className={`object-contain transition-all ${isCollapsed ? "w-8 h-8" : "w-12 h-12"}`}
               />

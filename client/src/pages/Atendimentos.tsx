@@ -155,7 +155,7 @@ async function gerarPDFNotificacao(
       img.crossOrigin = "anonymous";
       img.onload = () => resolve(img);
       img.onerror = reject;
-      img.src = "/safatle-logo.png";
+      img.src = "https://d2xsxph8kpxj0f.cloudfront.net/310519663295218967/98MRdVE9Uf2ZRMz25bPSye/safatle-logo_81045648.png";
     });
   } catch { /* fallback sem logo */ }
 

@@ -1,1 +1,0 @@
-ALTER TABLE `lotesRecurso` ADD `dataPrazoResposta` timestamp;

@@ -1,9 +1,0 @@
-{
-  "query": "SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, c.nome as convenioNome, e.nome as estabelecimentoNome FROM arquivos a LEFT JOIN convenios c ON a.convenioId = c.id LEFT JOIN estabelecimentos e ON a.estabelecimentoId = e.id WHERE c.nome LIKE '%IPASGO%' OR c.nome LIKE '%ipasgo%' ORDER BY a.estabelecimentoId, a.id",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT a.id, a.nome, a.estabelecimentoId, a.convenioId, a.status, c.nome as convenioNome, e.nome as estabelecimentoNome FROM arquivos a LEFT JOIN convenios c ON a.convenioId = c.id LEFT JOIN estabelecimentos e ON a.estabelecimentoId = e.id WHERE c.nome LIKE '%IPASGO%' OR c.nome LIKE '%ipasgo%' ORDER BY a.estabelecimentoId, a.id",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 100
-}

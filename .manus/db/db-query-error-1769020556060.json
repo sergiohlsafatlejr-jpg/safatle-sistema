@@ -1,8 +1,0 @@
-{
-  "query": "SELECT p.id, p.guiaNumero, p.codigo, p.descricao, p.quantidade, p.valorUnitario, p.valorTotal, p.dataExecucao, p.numeroLote, p.sequencialTransacao, p.statusConciliacao, a.tipoArquivo, a.nome as nomeArquivo\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE p.guiaNumero = '66883762' AND p.codigo = '1902776626'\nORDER BY a.tipoArquivo, p.id;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT p.id, p.guiaNumero, p.codigo, p.descricao, p.quantidade, p.valorUnitario, p.valorTotal, p.dataExecucao, p.numeroLote, p.sequencialTransacao, p.statusConciliacao, a.tipoArquivo, a.nome as nomeArquivo\nFROM procedimentos p\nJOIN arquivos a ON p.arquivoId = a.id\nWHERE p.guiaNumero = '66883762' AND p.codigo = '1902776626'\nORDER BY a.tipoArquivo, p.id;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'p.statusconciliacao' in 'field list'"
-  ]
-}

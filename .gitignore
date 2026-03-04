@@ -122,3 +122,19 @@ test_files/
 xml_analysis.md
 investigation_notes.md
 todo_backup.md
+.manus/db/
+
+# Analysis and temp files
+analise*.md
+analise*.txt
+comparacao*.md
+valores_*.md
+verificacao_*.txt
+check-*.ts
+test_*.ts
+test_*.xml
+MELHORIAS*.md
+MIGRATION*.md
+MOTOR*.md
+ROADMAP*.md
+debug_*.ts

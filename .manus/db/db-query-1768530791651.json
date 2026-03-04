@@ -1,9 +1,0 @@
-{
-  "query": "SELECT p.id, p.codigo, p.descricao, p.dadosExtras, a.nome as arquivo_nome, a.convenioId \nFROM procedimentos p \nJOIN arquivos a ON p.arquivoId = a.id \nWHERE a.convenioId = 1 AND a.direcao = 'retornado' AND a.status = 'processado'\nAND JSON_EXTRACT(p.dadosExtras, '$.valorGlosado') IS NOT NULL \nAND CAST(JSON_EXTRACT(p.dadosExtras, '$.valorGlosado') AS DECIMAL(10,2)) > 0\nLIMIT 10;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT p.id, p.codigo, p.descricao, p.dadosExtras, a.nome as arquivo_nome, a.convenioId \nFROM procedimentos p \nJOIN arquivos a ON p.arquivoId = a.id \nWHERE a.convenioId = 1 AND a.direcao = 'retornado' AND a.status = 'processado'\nAND JSON_EXTRACT(p.dadosExtras, '$.valorGlosado') IS NOT NULL \nAND CAST(JSON_EXTRACT(p.dadosExtras, '$.valorGlosado') AS DECIMAL(10,2)) > 0\nLIMIT 10;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 137
-}

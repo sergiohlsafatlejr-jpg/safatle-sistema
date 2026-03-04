@@ -1,8 +1,0 @@
-{
-  "query": "SELECT \n  e.nome as estabelecimento,\n  COUNT(*) as total_procedimentos,\n  SUM(CASE WHEN p.tipoArquivo = 'enviado' THEN 1 ELSE 0 END) as enviados,\n  SUM(CASE WHEN p.tipoArquivo = 'retornado' THEN 1 ELSE 0 END) as retornados\nFROM procedimentos p\nJOIN estabelecimentos e ON p.estabelecimentoId = e.id\nWHERE e.nome LIKE '%Pronto Socorro%'\nGROUP BY e.id, e.nome;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  e.nome as estabelecimento,\n  COUNT(*) as total_procedimentos,\n  SUM(CASE WHEN p.tipoArquivo = 'enviado' THEN 1 ELSE 0 END) as enviados,\n  SUM(CASE WHEN p.tipoArquivo = 'retornado' THEN 1 ELSE 0 END) as retornados\nFROM procedimentos p\nJOIN estabelecimentos e ON p.estabelecimentoId = e.id\nWHERE e.nome LIKE '%Pronto Socorro%'\nGROUP BY e.id, e.nome;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'p.estabelecimentoid' in 'on clause'"
-  ]
-}

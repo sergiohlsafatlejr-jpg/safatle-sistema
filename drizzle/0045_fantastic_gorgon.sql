@@ -1,1 +1,0 @@
-ALTER TABLE `procedimentos` ADD `codigoPrestadorExecutante` varchar(50);

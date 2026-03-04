@@ -1,9 +1,0 @@
-{
-  "query": "\nALTER TABLE recebimentos_excel \n  ADD COLUMN tipo_item VARCHAR(30) NULL,\n  ADD COLUMN valor_glosa DECIMAL(12,2) NULL,\n  ADD COLUMN codigo_glosa VARCHAR(20) NULL,\n  ADD COLUMN valor_informado DECIMAL(12,2) NULL\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute \nALTER TABLE recebimentos_excel \n  ADD COLUMN tipo_item VARCHAR(30) NULL,\n  ADD COLUMN valor_glosa DECIMAL(12,2) NULL,\n  ADD COLUMN codigo_glosa VARCHAR(20) NULL,\n  ADD COLUMN valor_informado DECIMAL(12,2) NULL\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1810
-}

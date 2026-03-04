@@ -1,9 +1,0 @@
-{
-  "query": "SELECT id, numero_guia, codigo_item, descricao_item, valor_informado, valor_pago, valor_glosa, codigo_glosa, situacao_item FROM demonstrativo WHERE numero_guia = '2573412' LIMIT 5;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT id, numero_guia, codigo_item, descricao_item, valor_informado, valor_pago, valor_glosa, codigo_glosa, situacao_item FROM demonstrativo WHERE numero_guia = '2573412' LIMIT 5;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 53
-}

@@ -1,8 +1,0 @@
-{
-  "query": "SELECT COUNT(*) as total, SUM(CAST(valor_informado AS DECIMAL(10,2))) as total_informado, SUM(CAST(valor_liberado AS DECIMAL(10,2))) as total_liberado, SUM(CAST(valor_glosado AS DECIMAL(10,2))) as total_glosado FROM recebimento_tiss WHERE estabelecimento_id = 1",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT COUNT(*) as total, SUM(CAST(valor_informado AS DECIMAL(10,2))) as total_informado, SUM(CAST(valor_liberado AS DECIMAL(10,2))) as total_liberado, SUM(CAST(valor_glosado AS DECIMAL(10,2))) as total_glosado FROM recebimento_tiss WHERE estabelecimento_id = 1",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'estabelecimento_id' in 'where clause'"
-  ]
-}

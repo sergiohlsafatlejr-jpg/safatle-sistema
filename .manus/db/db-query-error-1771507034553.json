@@ -1,8 +1,0 @@
-{
-  "query": "SELECT \n  COUNT(*) as total,\n  COUNT(CASE WHEN carteira_beneficiario IS NULL THEN 1 END) as carteira_null,\n  COUNT(CASE WHEN codigo_glosa IS NOT NULL THEN 1 END) as com_codigo_glosa,\n  COUNT(CASE WHEN valor_glosa > 0 THEN 1 END) as com_valor_glosa\nFROM recebimentos_excel \nWHERE arquivo_id IN (SELECT id FROM arquivos WHERE nome LIKE '%Demostrativo 12-2025%');",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT \n  COUNT(*) as total,\n  COUNT(CASE WHEN carteira_beneficiario IS NULL THEN 1 END) as carteira_null,\n  COUNT(CASE WHEN codigo_glosa IS NOT NULL THEN 1 END) as com_codigo_glosa,\n  COUNT(CASE WHEN valor_glosa > 0 THEN 1 END) as com_valor_glosa\nFROM recebimentos_excel \nWHERE arquivo_id IN (SELECT id FROM arquivos WHERE nome LIKE '%Demostrativo 12-2025%');",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'carteira_beneficiario' in 'field list'"
-  ]
-}

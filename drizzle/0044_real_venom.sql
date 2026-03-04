@@ -1,1 +1,0 @@
-ALTER TABLE `lotesRecurso` ADD `valorTotalRecebido` decimal(12,2) DEFAULT '0';

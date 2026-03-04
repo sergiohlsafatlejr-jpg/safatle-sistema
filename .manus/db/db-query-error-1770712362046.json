@@ -1,8 +1,0 @@
-{
-  "query": "SELECT arquivoId, COUNT(*) as total_itens, SUM(CAST(valorPago AS DECIMAL(12,2))) as total_pago, SUM(CAST(valorGlosa AS DECIMAL(12,2))) as total_glosa, SUM(CAST(valorApresentado AS DECIMAL(12,2))) as total_apresentado FROM demonstrativo WHERE arquivoId IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) GROUP BY arquivoId ORDER BY arquivoId",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute SELECT arquivoId, COUNT(*) as total_itens, SUM(CAST(valorPago AS DECIMAL(12,2))) as total_pago, SUM(CAST(valorGlosa AS DECIMAL(12,2))) as total_glosa, SUM(CAST(valorApresentado AS DECIMAL(12,2))) as total_apresentado FROM demonstrativo WHERE arquivoId IN (1020280, 1020281, 1020282, 1020283, 1020284, 1020285) GROUP BY arquivoId ORDER BY arquivoId",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'arquivoid' in 'group statement'"
-  ]
-}

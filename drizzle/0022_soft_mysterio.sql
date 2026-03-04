@@ -1,1 +1,0 @@
-ALTER TABLE `logAuditoriaPermissoes` MODIFY COLUMN `tipoAcao` enum('criar_permissao','alterar_permissao','remover_permissao','criar_usuario','alterar_grupo','criar_grupo','excluir_grupo','editar_estabelecimentos') NOT NULL;

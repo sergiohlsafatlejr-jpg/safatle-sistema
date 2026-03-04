@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE integ_faturado_x_recebido ADD COLUMN IF NOT EXISTS estabelecimento_id INT DEFAULT NULL; CREATE INDEX IF NOT EXISTS idx_estab_faturado ON integ_faturado_x_recebido (estabelecimento_id);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xKWvZvidGuv3Qt.root --database 98MRdVE9Uf2ZRMz25bPSye --execute ALTER TABLE integ_faturado_x_recebido ADD COLUMN IF NOT EXISTS estabelecimento_id INT DEFAULT NULL; CREATE INDEX IF NOT EXISTS idx_estab_faturado ON integ_faturado_x_recebido (estabelecimento_id);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 34886
-}
