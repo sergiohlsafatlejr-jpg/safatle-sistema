@@ -3026,3 +3026,140 @@ export const vinculacaoCodigos = mysqlTable("vinculacao_codigos", {
 
 export type VinculacaoCodigo = typeof vinculacaoCodigos.$inferSelect;
 export type InsertVinculacaoCodigo = typeof vinculacaoCodigos.$inferInsert;
+
+
+/**
+ * Padrão de Preço por Procedimento/Convênio
+ * Armazena estatísticas de preço para cada combinação item+convênio
+ */
+export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenio: varchar("convenio", { length: 255 }).notNull(),
+  
+  codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
+  descricaoItem: varchar("descricaoItem", { length: 500 }),
+  tipoItem: varchar("tipoItem", { length: 50 }),
+  
+  // Estatísticas de preço unitário
+  mediaUnitario: decimal("mediaUnitario", { precision: 12, scale: 4 }),
+  minUnitario: decimal("minUnitario", { precision: 12, scale: 4 }),
+  maxUnitario: decimal("maxUnitario", { precision: 12, scale: 4 }),
+  desvioUnitario: decimal("desvioUnitario", { precision: 12, scale: 4 }),
+  
+  // Estatísticas de valor faturado
+  mediaFaturado: decimal("mediaFaturado", { precision: 12, scale: 4 }),
+  minFaturado: decimal("minFaturado", { precision: 12, scale: 4 }),
+  maxFaturado: decimal("maxFaturado", { precision: 12, scale: 4 }),
+  desvioFaturado: decimal("desvioFaturado", { precision: 12, scale: 4 }),
+  
+  // Volume
+  totalOcorrencias: int("totalOcorrencias").default(0).notNull(),
+  totalContas: int("totalContas").default(0).notNull(),
+  
+  // Confiança (0-100) - baseada no volume de dados
+  confianca: int("confianca").default(0).notNull(),
+  
+  // Período analisado
+  competenciaInicio: varchar("competenciaInicio", { length: 7 }),
+  competenciaFim: varchar("competenciaFim", { length: 7 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabConvItemIdx: index("idx_ppc_estab_conv_item").on(table.estabelecimentoId, table.convenio, table.codigoItem),
+  convenioIdx: index("idx_ppc_convenio").on(table.convenio),
+}));
+export type PadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferSelect;
+export type InsertPadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferInsert;
+
+/**
+ * Padrão de Glosa por Convênio
+ * Armazena taxa de glosa histórica por item e convênio
+ */
+export const padraoGlosaConvenio = mysqlTable("padraoGlosaConvenio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenio: varchar("convenio", { length: 255 }).notNull(),
+  
+  codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
+  descricaoItem: varchar("descricaoItem", { length: 500 }),
+  tipoItem: varchar("tipoItem", { length: 50 }),
+  
+  // Estatísticas de glosa
+  totalFaturado: int("totalFaturado").default(0).notNull(), // Vezes que o item foi faturado
+  totalGlosado: int("totalGlosado").default(0).notNull(), // Vezes que foi glosado
+  taxaGlosa: decimal("taxaGlosa", { precision: 5, scale: 2 }).default("0"), // % de glosa
+  
+  valorTotalFaturado: decimal("valorTotalFaturado", { precision: 14, scale: 2 }).default("0"),
+  valorTotalGlosado: decimal("valorTotalGlosado", { precision: 14, scale: 2 }).default("0"),
+  valorTotalPago: decimal("valorTotalPago", { precision: 14, scale: 2 }).default("0"),
+  
+  // Códigos de glosa mais frequentes (JSON array)
+  // [{codigoGlosa, descricao, frequencia}]
+  codigosGlosaFrequentes: json("codigosGlosaFrequentes"),
+  
+  // Risco (calculado)
+  nivelRisco: mysqlEnum("nivelRisco", ["baixo", "medio", "alto", "critico"]).default("baixo").notNull(),
+  
+  // Período analisado
+  competenciaInicio: varchar("competenciaInicio", { length: 7 }),
+  competenciaFim: varchar("competenciaFim", { length: 7 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabConvItemIdx: index("idx_pgc_estab_conv_item").on(table.estabelecimentoId, table.convenio, table.codigoItem),
+  convenioIdx: index("idx_pgc_convenio").on(table.convenio),
+  riscoIdx: index("idx_pgc_risco").on(table.nivelRisco),
+}));
+export type PadraoGlosaConvenio = typeof padraoGlosaConvenio.$inferSelect;
+export type InsertPadraoGlosaConvenio = typeof padraoGlosaConvenio.$inferInsert;
+
+/**
+ * Padrão de Quantidade por Item
+ * Armazena estatísticas de quantidade utilizada por item e convênio
+ */
+export const padraoQuantidadeItem = mysqlTable("padraoQuantidadeItem", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenio: varchar("convenio", { length: 255 }),
+  setor: varchar("setor", { length: 255 }),
+  
+  codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
+  descricaoItem: varchar("descricaoItem", { length: 500 }),
+  tipoItem: varchar("tipoItem", { length: 50 }),
+  
+  // Estatísticas de quantidade por atendimento/conta
+  mediaQuantidade: decimal("mediaQuantidade", { precision: 10, scale: 4 }),
+  minQuantidade: decimal("minQuantidade", { precision: 10, scale: 4 }),
+  maxQuantidade: decimal("maxQuantidade", { precision: 10, scale: 4 }),
+  desvioQuantidade: decimal("desvioQuantidade", { precision: 10, scale: 4 }),
+  medianaQuantidade: decimal("medianaQuantidade", { precision: 10, scale: 4 }),
+  
+  // Volume
+  totalOcorrencias: int("totalOcorrencias").default(0).notNull(),
+  totalContas: int("totalContas").default(0).notNull(),
+  
+  // Limites sugeridos para alertas
+  limiteInferior: decimal("limiteInferior", { precision: 10, scale: 4 }),
+  limiteSuperior: decimal("limiteSuperior", { precision: 10, scale: 4 }),
+  
+  // Confiança (0-100)
+  confianca: int("confianca").default(0).notNull(),
+  
+  // Período analisado
+  competenciaInicio: varchar("competenciaInicio", { length: 7 }),
+  competenciaFim: varchar("competenciaFim", { length: 7 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabConvItemIdx: index("idx_pqi_estab_conv_item").on(table.estabelecimentoId, table.convenio, table.codigoItem),
+  setorIdx: index("idx_pqi_setor").on(table.setor),
+}));
+export type PadraoQuantidadeItem = typeof padraoQuantidadeItem.$inferSelect;
+export type InsertPadraoQuantidadeItem = typeof padraoQuantidadeItem.$inferInsert;

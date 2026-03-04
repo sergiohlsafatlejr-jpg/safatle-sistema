@@ -18,6 +18,7 @@ import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsP
 import { motorRegrasRouter } from "./routers/motorRegrasRouter";
 import { enviarEmail, gerarHtmlNotificacaoAtendimentos, verificarConexaoSMTP } from "./emailService";
 import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter";
+import { padroesCobrancaRouter } from "./routers/padroesCobrancaRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 import { faturamentoUnificadoRouter } from "./routers/faturamentoUnificadoRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
@@ -6911,6 +6912,9 @@ export const appRouter = router({
 
   // ============ PADRÕES DE PROCEDIMENTOS ============
   padroesProcedimentos: padroesProcedimentosRouter,
+
+  // ============ PADRÕES DE COBRANÇA POR CONVÊNIO ============
+  padroesCobranca: padroesCobrancaRouter,
 
   // ============ INTEGRADOR DE DADOS ============
   integradorDados: integradorDadosRouter,

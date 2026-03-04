@@ -2398,3 +2398,16 @@
 - [ ] Corrigir cabecalho/Padrao (versaoPadrao em vez de versaoTISS)
 - [x] Adicionar nomeContratado no dadosContratado
 - [ ] Adicionar sequentialItem e dataInicio nos itensGuia
+- [ ] Corrigir erros Factiss persistentes: Padrao->versaoPadrao, nomeContratado, sequencialItem nos itensGuia
+- [x] Corrigir skill: XML é específico por convênio, não universal. IPASGO é o primeiro modelo.
+
+## Padrões de Cobrança por Convênio (4 tipos)
+- [ ] Padrão 1: Preço por Procedimento/Convênio (média, min, max, desvio)
+- [ ] Padrão 2: Composição de Conta/Kit Cirúrgico (itens associados)
+- [ ] Padrão 3: Glosa por Convênio (taxa de glosa por item)
+- [ ] Padrão 4: Quantidade por Item (média, min, max por atendimento)
+- [ ] Backend: funções de análise no db.ts
+- [ ] Backend: procedures no routers.ts
+- [ ] Frontend: tela dedicada de Padrões de Cobrança
+- [ ] Testes unitários
+

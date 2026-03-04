@@ -64,6 +64,7 @@ const PopularHistoricoXml = lazy(() => import("./pages/PopularHistoricoXml").the
 const IntegradorDados = lazy(() => import("./pages/IntegradorDados").then(m => ({ default: m.IntegradorDados })));
 const MapeamentoConvenios = lazy(() => import("./pages/MapeamentoConvenios"));
 const RelatorioRecebimentoGeral = lazy(() => import("./pages/RelatorioRecebimentoGeral"));
+const PadroesCobranca = lazy(() => import("./pages/PadroesCobranca"));
 
 function PageLoader() {
   return (
@@ -141,6 +142,7 @@ function Router() {
         <Route path={"/integracao"} component={IntegradorDados} />
         <Route path={"/mapeamento-convenios"} component={MapeamentoConvenios} />
         <Route path={"/relatorio-recebimento-geral"} component={RelatorioRecebimentoGeral} />
+        <Route path={"/padroes-cobranca"} component={PadroesCobranca} />
         <Route path={"/relatorio-faturamento"} component={NotFound} />
         <Route path={"/relatorio-atendimentos"} component={NotFound} />
         <Route path={"/404"} component={NotFound} />
