@@ -1,11 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -27,38 +28,22 @@ import {
   Receipt,
   ExternalLink,
   Package,
-  Layers2
+  Layers2,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Search,
+  Database,
+  Loader2,
+  Trash2,
+  BarChart3,
+  ShieldAlert,
+  ArrowRight
 } from "lucide-react";
 import React, { useState, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
-
-// Gerar lista de competências no formato MM/AAAA
-const getCompetencias = () => {
-  const competencias = [];
-  const hoje = new Date();
-  const anoAtual = hoje.getFullYear();
-  const mesAtual = hoje.getMonth() + 1;
-  
-  // Gerar últimos 24 meses
-  for (let i = 0; i < 24; i++) {
-    let mes = mesAtual - i;
-    let ano = anoAtual;
-    
-    while (mes <= 0) {
-      mes += 12;
-      ano -= 1;
-    }
-    
-    const mesStr = String(mes).padStart(2, '0');
-    const value = `${mes}-${ano}`; // formato interno: mes-ano
-    const label = `${mesStr}/${ano}`; // formato exibição: MM/AAAA
-    
-    competencias.push({ value, label, mes, ano });
-  }
-  
-  return competencias;
-};
+import { toast } from "sonner";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -77,35 +62,57 @@ const formatDate = (date: Date | string | null | undefined) => {
   return d.toLocaleDateString("pt-BR");
 };
 
-// Formatar data de referência como MM/AAAA
-const formatDataReferencia = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const ano = d.getFullYear();
-  return `${mes}/${ano}`;
+// Badge de status de análise
+const StatusBadge = ({ status }: { status: string }) => {
+  switch (status) {
+    case "conforme":
+      return (
+        <Badge className="bg-green-100 text-green-800 border-green-200">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Conforme
+        </Badge>
+      );
+    case "divergente":
+      return (
+        <Badge className="bg-red-100 text-red-800 border-red-200">
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          Divergente
+        </Badge>
+      );
+    case "revisado":
+      return (
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+          <Eye className="h-3 w-3 mr-1" />
+          Revisado
+        </Badge>
+      );
+    default:
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
+          <Clock className="h-3 w-3 mr-1" />
+          Pendente
+        </Badge>
+      );
+  }
 };
 
-// Interface para conta agrupada (usando chave composta para separar altas administrativas)
-interface ContaAgrupada {
-  numeroGuia: string;
-  numeroLote: string;
-  protocolo: string;
-  carteirinha: string;
-  paciente: string;
-  dataExecucao: Date | null;
-  dataReferencia: Date | null;
-  totalItens: number;
-  valorTotal: number;
-  arquivoId: number;
-  convenioId: number;
-  tipoItem: string;
-  // Chave composta para identificar altas administrativas
-  chaveComposta: string;
-  // Flag para indicar se é alta administrativa
-  isAltaAdministrativa?: boolean;
-  totalLotes?: number;
-}
+// Badge de origem
+const OrigemBadge = ({ origem }: { origem: string }) => {
+  if (origem === "BANCO_CLIENTE") {
+    return (
+      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+        <Database className="h-3 w-3 mr-1" />
+        Banco Hospital
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
+      <FileText className="h-3 w-3 mr-1" />
+      XML
+    </Badge>
+  );
+};
 
 export default function ContaConvenio() {
   const { user } = useAuth();
@@ -114,214 +121,103 @@ export default function ContaConvenio() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   
-  // Inicializar com mês anterior (para mostrar dados mais recentes disponíveis)
-  const getCompetenciaInicial = () => {
-    const hoje = new Date();
-    const mesAtual = hoje.getMonth() + 1;
-    if (mesAtual === 1) {
-      return `12-${hoje.getFullYear() - 1}`;
-    }
-    return `${mesAtual - 1}-${hoje.getFullYear()}`;
-  };
-  
-  // Restaurar filtros da URL (quando volta dos detalhes)
-  const [convenioId, setConvenioId] = useState<string>(urlParams.get("convenioId") || "");
+  // Filtros
   const [searchTerm, setSearchTerm] = useState(urlParams.get("search") || "");
-  const [competencia, setCompetencia] = useState<string>(urlParams.get("competencia") || getCompetenciaInicial());
+  const [convenioFiltro, setConvenioFiltro] = useState(urlParams.get("convenio") || "");
+  const [origemFiltro, setOrigemFiltro] = useState(urlParams.get("origem") || "");
+  const [statusFiltro, setStatusFiltro] = useState(urlParams.get("status") || "");
   const [page, setPage] = useState(parseInt(urlParams.get("page") || "1"));
   const pageSize = 20;
 
-  // Extrair mês e ano da competência selecionada
-  const { mesReferencia, anoReferencia } = useMemo(() => {
-    if (!competencia || competencia === "all") {
-      return { mesReferencia: undefined, anoReferencia: undefined };
-    }
-    const [mes, ano] = competencia.split("-").map(Number);
-    return { mesReferencia: mes, anoReferencia: ano };
-  }, [competencia]);
-
-  // Lista de competências
-  const competencias = useMemo(() => getCompetencias(), []);
-
-  // Buscar convênios
-  const { data: convenios } = trpc.convenios.list.useQuery({});
-
-  // Buscar dados de faturamento_tiss
-  const { data: faturamentoData, isLoading, refetch } = trpc.faturamentoTiss.list.useQuery(
+  // Buscar contas da nova tabela contas_convenio_resumo
+  const { data: contasData, isLoading, refetch } = trpc.contasConvenio.listarContas.useQuery(
     {
       estabelecimentoId: estabelecimentoAtual?.id || undefined,
-      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia,
-      anoReferencia: anoReferencia,
+      convenio: convenioFiltro && convenioFiltro !== "all" ? convenioFiltro : undefined,
+      origem: origemFiltro && origemFiltro !== "all" ? origemFiltro as any : undefined,
+      statusAnalise: statusFiltro && statusFiltro !== "all" ? statusFiltro as any : undefined,
       search: searchTerm || undefined,
       page,
       pageSize,
     }
   );
 
-  // Buscar resumo total (sem paginação)
-  const { data: resumoTotal } = trpc.faturamentoTiss.resumo.useQuery(
-    {
-      estabelecimentoId: estabelecimentoAtual?.id || undefined,
-      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia,
-      anoReferencia: anoReferencia,
-    }
+  // Buscar convênios disponíveis nas contas
+  const { data: conveniosDisponiveis } = trpc.contasConvenio.listarConvenios.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || undefined }
   );
 
-  // Buscar guias com múltiplos lotes (altas administrativas)
-  const { data: guiasMultiplosLotes } = trpc.faturamentoTiss.guiasMultiplosLotes?.useQuery(
-    {
-      estabelecimentoId: estabelecimentoAtual?.id || undefined,
-      convenioId: convenioId && convenioId !== "all" ? parseInt(convenioId) : undefined,
-      mesReferencia: mesReferencia,
-      anoReferencia: anoReferencia,
+  // Mutation para excluir conta
+  const excluirContaMutation = trpc.contasConvenio.excluirConta.useMutation({
+    onSuccess: () => {
+      toast.success("Conta excluída com sucesso");
+      refetch();
     },
-    { enabled: !!estabelecimentoAtual?.id }
-  ) || { data: [] };
+    onError: (err) => toast.error(err.message),
+  });
 
-  // Criar mapa de guias com múltiplos lotes
-  const guiasAltaAdmMap = useMemo(() => {
-    const map = new Map<string, number>();
-    if (guiasMultiplosLotes && Array.isArray(guiasMultiplosLotes)) {
-      guiasMultiplosLotes.forEach((g: any) => {
-        map.set(g.numeroGuia, g.totalLotes);
-      });
-    }
-    return map;
-  }, [guiasMultiplosLotes]);
-
-  // Os dados já vem agrupados do backend por chave composta (guia + lote)
-  // Isso separa as altas administrativas (mesma guia, lotes diferentes)
-  const contasAgrupadas = useMemo(() => {
-    if (!faturamentoData?.items) return [];
-    
-    return faturamentoData.items.map((item: any) => {
-      const guia = item.numeroGuiaPrestador || "";
-      const lote = item.numeroLote || "";
-      const key = `${guia}|${lote}`;
-      const totalLotes = guiasAltaAdmMap.get(guia);
-      
-      return {
-        numeroGuia: guia || "-",
-        numeroLote: lote || "-",
-        protocolo: "-",
-        carteirinha: item.carteiraBeneficiario || "-",
-        paciente: item.nomeProf || "-",
-        dataExecucao: item.dataExecucao,
-        dataReferencia: item.dataReferencia,
-        totalItens: item.totalItens || 1,
-        valorTotal: parseFloat(item.valorFaturado || "0"),
-        arquivoId: item.arquivoId,
-        convenioId: item.convenioId,
-        tipoItem: item.tipoItem || "-",
-        chaveComposta: key,
-        isAltaAdministrativa: totalLotes ? totalLotes > 1 : false,
-        totalLotes: totalLotes || 1,
-      } as ContaAgrupada;
-    });
-  }, [faturamentoData?.items, guiasAltaAdmMap]);
+  // Mutation para comparar com padrões
+  const compararMutation = trpc.contasConvenio.compararComPadroes.useMutation({
+    onSuccess: (result) => {
+      if (result.statusGeral === "conforme") {
+        toast.success(`Conta conforme! ${result.totalItensAnalisados} itens analisados, nenhuma divergência crítica.`);
+      } else {
+        toast.warning(`${result.totalDivergencias} divergência(s) encontrada(s) (${result.totalCriticos} crítica(s), ${result.totalAlertas} alerta(s))`);
+      }
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   // Calcular totais
-  const totalContas = resumoTotal?.totalGuias || 0;
-  const totalItens = resumoTotal?.totalItens || 0;
-  const valorTotalGeral = resumoTotal?.valorTotal || 0;
-  const totalPages = Math.ceil((faturamentoData?.total || 0) / pageSize);
+  const resumo = contasData?.resumo;
+  const totalPages = Math.ceil((contasData?.total || 0) / pageSize);
 
-  // Obter nome do convênio selecionado
-  const convenioSelecionado = convenios?.find(c => c.id === parseInt(convenioId));
-
-  // Obter label da competência selecionada
-  const competenciaSelecionada = competencias.find(c => c.value === competencia);
-
-  // Navegar para detalhes da conta (preservando filtros atuais para o retorno)
-  const handleVerDetalhes = (conta: ContaAgrupada) => {
-    // Salvar filtros atuais como returnParams para restaurar ao voltar
-    const returnParams = new URLSearchParams();
-    if (convenioId) returnParams.set("returnConvenioId", convenioId);
-    if (searchTerm) returnParams.set("returnSearch", searchTerm);
-    if (competencia) returnParams.set("returnCompetencia", competencia);
-    if (page > 1) returnParams.set("returnPage", String(page));
-
+  // Navegar para detalhes da conta
+  const handleVerDetalhes = (conta: any) => {
     const params = new URLSearchParams({
-      guia: conta.numeroGuia,
-      lote: conta.numeroLote,
-      protocolo: conta.protocolo,
-      arquivoId: String(conta.arquivoId),
-      convenioId: String(conta.convenioId || convenioId),
-      origem: "faturamento",
+      numeroConta: conta.numeroConta,
+      estabelecimentoId: String(conta.estabelecimentoId),
     });
-    // Anexar returnParams
-    returnParams.forEach((value, key) => params.set(key, value));
     setLocation(`/conta-convenio-detalhes?${params.toString()}`);
   };
 
   // Exportar para Excel
   const handleExportExcel = () => {
-    if (!contasAgrupadas.length) return;
+    if (!contasData?.contas?.length) return;
 
-    const data = contasAgrupadas.map(conta => ({
-      "Guia": conta.numeroGuia,
-      "Nº Lote": conta.numeroLote,
-      "Alta Administrativa": conta.isAltaAdministrativa ? "Sim" : "Não",
-      "Protocolo": conta.protocolo,
-      "Carteirinha": conta.carteirinha,
-      "Paciente": conta.paciente,
-      "Data Execução": formatDate(conta.dataExecucao),
-      "Competência": formatDataReferencia(conta.dataReferencia),
-      "Qtd Itens": conta.totalItens,
-      "Valor Total": conta.valorTotal,
+    const data = contasData.contas.map((conta: any) => ({
+      "Nº Conta": conta.numeroConta,
+      "Convênio": conta.convenio || "-",
+      "Paciente": conta.pacienteNome || "-",
+      "Carteirinha": conta.carteiraBeneficiario || "-",
+      "Origem": conta.origem,
+      "Total Itens": conta.totalItens,
+      "Valor Total": parseFloat(conta.valorTotal || "0"),
+      "Status": conta.statusAnaliseResumo || conta.statusAnalise || "pendente",
+      "Divergências": conta.totalDivergencias || 0,
+      "Alertas": conta.totalAlertas || 0,
+      "Data Busca": formatDate(conta.dataBusca || conta.criadoEm),
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contas");
-    
-    const nomeArquivo = convenioSelecionado?.nome || "faturamento";
-    const competenciaLabel = competenciaSelecionada?.label?.replace("/", "-") || "";
-    XLSX.writeFile(wb, `contas_faturamento_${nomeArquivo}_${competenciaLabel}.xlsx`);
-  };
-
-  // Exportar itens detalhados
-  const handleExportExcelItens = () => {
-    if (!faturamentoData?.items?.length) return;
-
-    const data = faturamentoData.items.map((item: any) => ({
-      "Guia": item.numeroGuiaPrestador || "-",
-      "Nº Lote": item.numeroLote || "-",
-      "Seq. Transação": item.sequencialTransacao || "-",
-      "Senha": item.senha || "-",
-      "Carteirinha": item.carteiraBeneficiario || "-",
-      "Tipo Item": item.tipoItem || "-",
-      "Seq. Item": item.sequencialItem || "-",
-      "Código": item.codigoItem || "-",
-      "Descrição": item.descricaoItem || "-",
-      "Data Execução": formatDate(item.dataExecucao),
-      "Quantidade": item.quantidade || 0,
-      "Valor Unitário": parseFloat(item.valorUnitario || "0"),
-      "Valor Faturado": parseFloat(item.valorFaturado || "0"),
-      "Valor Total": parseFloat(item.valorFaturado || "0"),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Itens");
-    
-    const nomeArquivo = convenioSelecionado?.nome || "faturamento";
-    const competenciaLabel = competenciaSelecionada?.label?.replace("/", "-") || "";
-    XLSX.writeFile(wb, `itens_faturamento_${nomeArquivo}_${competenciaLabel}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Contas Convênio");
+    XLSX.writeFile(wb, `contas_convenio_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   // Limpar filtros
   const handleLimparFiltros = () => {
-    setConvenioId("");
-    setCompetencia(getCompetenciaInicial());
+    setConvenioFiltro("");
+    setOrigemFiltro("");
+    setStatusFiltro("");
     setSearchTerm("");
     setPage(1);
   };
 
-  const temFiltrosAtivos = (convenioId && convenioId !== "all") || 
-    (competencia && competencia !== "all") || 
+  const temFiltrosAtivos = (convenioFiltro && convenioFiltro !== "all") || 
+    (origemFiltro && origemFiltro !== "all") || 
+    (statusFiltro && statusFiltro !== "all") || 
     searchTerm;
 
   return (
@@ -332,7 +228,7 @@ export default function ContaConvenio() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Conta Convênio</h1>
             <p className="text-muted-foreground">
-              Arquivos XML enviados para as operadoras - Tabela faturamento_tiss
+              Contas importadas do banco do hospital e XML para análise e comparação com padrões
             </p>
           </div>
           <div className="flex gap-2">
@@ -344,18 +240,10 @@ export default function ContaConvenio() {
               variant="outline" 
               size="sm" 
               onClick={handleExportExcel}
-              disabled={!contasAgrupadas.length}
+              disabled={!contasData?.contas?.length}
             >
               <Download className="mr-2 h-4 w-4" />
-              Excel Resumo
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={handleExportExcelItens}
-              disabled={!faturamentoData?.items?.length}
-            >
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel Itens
+              Exportar Excel
             </Button>
           </div>
         </div>
@@ -369,39 +257,53 @@ export default function ContaConvenio() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Convênio */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>
-                <Select value={convenioId} onValueChange={(v) => { setConvenioId(v); setPage(1); }}>
+                <Select value={convenioFiltro} onValueChange={(v) => { setConvenioFiltro(v); setPage(1); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os convênios" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {convenios?.map(conv => (
-                      <SelectItem key={conv.id} value={String(conv.id)}>
-                        {conv.nome}
+                    {conveniosDisponiveis?.map((conv: any) => (
+                      <SelectItem key={conv.convenio || "sem"} value={conv.convenio || "sem"}>
+                        {conv.convenio || "Sem convênio"} ({conv.totalContas})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Competência (MM/AAAA) */}
+              {/* Origem */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Competência (MM/AAAA)</label>
-                <Select value={competencia} onValueChange={(v) => { setCompetencia(v); setPage(1); }}>
+                <label className="text-sm font-medium">Origem</label>
+                <Select value={origemFiltro} onValueChange={(v) => { setOrigemFiltro(v); setPage(1); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="BANCO_CLIENTE">Banco Hospital</SelectItem>
+                    <SelectItem value="XML">XML</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status Análise</label>
+                <Select value={statusFiltro} onValueChange={(v) => { setStatusFiltro(v); setPage(1); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {competencias.map(comp => (
-                      <SelectItem key={comp.value} value={comp.value}>
-                        {comp.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="conforme">Conforme</SelectItem>
+                    <SelectItem value="divergente">Divergente</SelectItem>
+                    <SelectItem value="revisado">Revisado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -412,7 +314,7 @@ export default function ContaConvenio() {
                 <div className="relative">
                   <FileSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Guia, paciente, carteirinha..."
+                    placeholder="Conta, paciente, convênio..."
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                     className="pl-10"
@@ -437,13 +339,13 @@ export default function ContaConvenio() {
         </Card>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card className="border-2">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Guias</p>
-                  <p className="text-2xl font-bold">{totalContas.toLocaleString("pt-BR")}</p>
+                  <p className="text-sm text-muted-foreground">Total Contas</p>
+                  <p className="text-2xl font-bold">{Number(resumo?.totalContas || 0).toLocaleString("pt-BR")}</p>
                 </div>
                 <Receipt className="h-8 w-8 text-blue-500" />
               </div>
@@ -454,36 +356,46 @@ export default function ContaConvenio() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Itens</p>
-                  <p className="text-2xl font-bold">{totalItens.toLocaleString("pt-BR")}</p>
-                </div>
-                <FileText className="h-8 w-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Valor Total Faturado</p>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(valorTotalGeral)}</p>
+                  <p className="text-sm text-muted-foreground">Valor Total</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(resumo?.valorTotal)}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2">
+          <Card className="border-2 border-green-200">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Média por Guia</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(totalContas > 0 ? valorTotalGeral / totalContas : 0)}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Conformes</p>
+                  <p className="text-2xl font-bold text-green-600">{Number(resumo?.totalConformes || 0)}</p>
                 </div>
-                <CreditCard className="h-8 w-8 text-blue-500" />
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-red-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Divergentes</p>
+                  <p className="text-2xl font-bold text-red-600">{Number(resumo?.totalDivergentes || 0)}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-yellow-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Pendentes</p>
+                  <p className="text-2xl font-bold text-yellow-600">{Number(resumo?.totalPendentes || 0)}</p>
+                </div>
+                <Clock className="h-8 w-8 text-yellow-500" />
               </div>
             </CardContent>
           </Card>
@@ -501,108 +413,143 @@ export default function ContaConvenio() {
                 </Card>
               ))}
             </div>
-          ) : contasAgrupadas.length === 0 ? (
+          ) : !contasData?.contas?.length ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <FileSearch className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">Nenhuma conta encontrada</h3>
-                <p className="text-muted-foreground">
-                  Ajuste os filtros ou selecione outro período
+                <p className="text-muted-foreground mb-4">
+                  Importe contas via Upload de XML ou busque uma conta no banco do hospital.
                 </p>
+                <Button variant="outline" onClick={() => setLocation("/upload")}>
+                  Ir para Upload
+                </Button>
               </CardContent>
             </Card>
           ) : (
-            contasAgrupadas.map((conta, index) => (
-              <Card key={`${conta.chaveComposta}-${index}`} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    {/* Informações da Guia */}
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="p-2 bg-blue-50 rounded-lg">
-                        <Receipt className="h-6 w-6 text-blue-600" />
+            contasData.contas.map((conta: any) => {
+              const status = conta.statusAnaliseResumo || conta.statusAnalise || "pendente";
+              return (
+                <Card key={conta.id} className={`hover:shadow-md transition-shadow ${
+                  status === "divergente" ? "border-l-4 border-l-red-400" : 
+                  status === "conforme" ? "border-l-4 border-l-green-400" : ""
+                }`}>
+                  <CardContent className="p-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      {/* Informações da Conta */}
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="p-2 bg-blue-50 rounded-lg">
+                          <Receipt className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm text-muted-foreground"># Conta</span>
+                            <span className="font-semibold font-mono">{conta.numeroConta}</span>
+                            <OrigemBadge origem={conta.origem} />
+                            <StatusBadge status={status} />
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <User className="h-4 w-4" />
+                            <span className="truncate">{conta.pacienteNome || "-"}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-muted-foreground"># Guia</span>
-                          <span className="font-semibold">{conta.numeroGuia}</span>
-                          {/* Badge de Alta Administrativa */}
-                          {conta.isAltaAdministrativa && (
-                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                              <Layers2 className="h-3 w-3 mr-1" />
-                              Alta Adm ({conta.totalLotes} lotes)
-                            </Badge>
+
+                      {/* Convênio e Carteirinha */}
+                      <div className="flex flex-col gap-1 min-w-[180px]">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="truncate">{conta.convenio || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CreditCard className="h-4 w-4" />
+                          <span>{conta.carteiraBeneficiario || "-"}</span>
+                        </div>
+                      </div>
+
+                      {/* Valores */}
+                      <div className="flex flex-col gap-1 min-w-[140px]">
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">Valores</span>
+                        </div>
+                        <span className="text-lg font-bold text-green-600">
+                          {formatCurrency(conta.valorTotal)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {conta.totalItens} itens
+                        </span>
+                      </div>
+
+                      {/* Divergências */}
+                      <div className="flex flex-col gap-1 min-w-[100px]">
+                        {(conta.totalDivergencias > 0 || conta.totalAlertas > 0) ? (
+                          <>
+                            <div className="flex items-center gap-1 text-sm text-red-600">
+                              <AlertTriangle className="h-4 w-4" />
+                              <span className="font-medium">{conta.totalDivergencias} div.</span>
+                            </div>
+                            {conta.totalAlertas > 0 && (
+                              <span className="text-xs text-orange-600">
+                                {conta.totalAlertas} alerta(s)
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sem divergências</span>
+                        )}
+                      </div>
+
+                      {/* Ações */}
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            if (!estabelecimentoAtual?.id) return;
+                            compararMutation.mutate({
+                              numeroConta: conta.numeroConta,
+                              estabelecimentoId: conta.estabelecimentoId,
+                            });
+                          }}
+                          disabled={compararMutation.isPending}
+                          title="Comparar com padrões de cobrança"
+                        >
+                          {compararMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <BarChart3 className="h-4 w-4" />
                           )}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                          <User className="h-4 w-4" />
-                          <span className="truncate">{conta.paciente}</span>
-                        </div>
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => handleVerDetalhes(conta)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (confirm(`Excluir conta ${conta.numeroConta}?`)) {
+                              excluirContaMutation.mutate({
+                                numeroConta: conta.numeroConta,
+                                estabelecimentoId: conta.estabelecimentoId,
+                              });
+                            }
+                          }}
+                          title="Excluir conta"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-
-                    {/* Carteirinha e Lote */}
-                    <div className="flex flex-col gap-1 min-w-[180px]">
-                      <div className="flex items-center gap-2 text-sm">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        <span>{conta.carteirinha}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Package className="h-4 w-4" />
-                        <span>Lote: {conta.numeroLote}</span>
-                      </div>
-                    </div>
-
-                    {/* Data Execução */}
-                    <div className="flex flex-col gap-1 min-w-[120px]">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Data Execução</span>
-                      </div>
-                      <span className="text-sm">{formatDate(conta.dataExecucao)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        Comp: {formatDataReferencia(conta.dataReferencia)}
-                      </span>
-                    </div>
-
-                    {/* Valores */}
-                    <div className="flex flex-col gap-1 min-w-[120px]">
-                      <div className="flex items-center gap-2 text-sm">
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Valores</span>
-                      </div>
-                      <span className="text-lg font-bold text-green-600">
-                        {formatCurrency(conta.valorTotal)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {conta.totalItens} itens
-                      </span>
-                    </div>
-
-                    {/* Ações */}
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="whitespace-nowrap">
-                        {conta.totalItens} itens
-                      </Badge>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleExportExcel()}
-                      >
-                        Excel
-                      </Button>
-                      <Button 
-                        size="sm"
-                        onClick={() => handleVerDetalhes(conta)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                        <ExternalLink className="h-3 w-3 ml-1" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
 
@@ -610,7 +557,7 @@ export default function ContaConvenio() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Página {page} de {totalPages} ({faturamentoData?.total || 0} itens)
+              Página {page} de {totalPages} ({contasData?.total || 0} contas)
             </p>
             <div className="flex gap-2">
               <Button

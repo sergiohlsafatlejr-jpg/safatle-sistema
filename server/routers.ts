@@ -21,6 +21,7 @@ import { padroesProcedimentosRouter } from "./routers/padroesProcedimentosRouter
 import { padroesCobrancaRouter } from "./routers/padroesCobrancaRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 import { faturamentoUnificadoRouter } from "./routers/faturamentoUnificadoRouter";
+import { contasConvenioRouter } from "./routers/contasConvenioRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 
@@ -6918,6 +6919,9 @@ export const appRouter = router({
 
   // ============ INTEGRADOR DE DADOS ============
   integradorDados: integradorDadosRouter,
+
+  // ============ CONTAS CONVÊNIO (OPERACIONAL) ============
+  contasConvenio: contasConvenioRouter,
 
   // ============ FATURAMENTO UNIFICADO & CONCILIAÇÃO CRUZADA ============
   faturamentoUnificado: faturamentoUnificadoRouter,

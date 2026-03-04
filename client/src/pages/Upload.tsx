@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
-import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, Plus, Loader2, X, Files } from "lucide-react";
+import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, Plus, Loader2, X, Files, Search, Database, ArrowRight } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -763,7 +764,140 @@ export default function Upload() {
             </Card>
           </div>
         </div>
+
+        {/* Buscar Conta no Banco do Cliente */}
+        <BuscarContaSection estabelecimentoId={estabelecimentoAtual?.id} />
       </div>
     </DashboardLayout>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscar Conta no Banco do Cliente
+// ============================================================
+function BuscarContaSection({ estabelecimentoId }: { estabelecimentoId?: number }) {
+  const [numeroConta, setNumeroConta] = useState("");
+  const [, setLocation] = useLocation();
+  const buscarContaMutation = trpc.contasConvenio.buscarConta.useMutation();
+
+  const handleBuscarConta = async () => {
+    if (!numeroConta.trim()) {
+      toast.error("Informe o número da conta");
+      return;
+    }
+    if (!estabelecimentoId) {
+      toast.error("Selecione um estabelecimento");
+      return;
+    }
+
+    try {
+      const result = await buscarContaMutation.mutateAsync({
+        numeroConta: numeroConta.trim(),
+        estabelecimentoId,
+      });
+
+      if (result.sucesso) {
+        toast.success(result.mensagem);
+        // Navegar para a tela de Conta Convênio com a conta buscada
+        setLocation(`/conta-convenio-v2?numeroConta=${encodeURIComponent(numeroConta.trim())}`);
+      } else {
+        toast.error(result.mensagem);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao buscar conta");
+    }
+  };
+
+  return (
+    <Card className="border-0 shadow-sm border-l-4 border-l-indigo-500">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="h-5 w-5 text-indigo-600" />
+          Buscar Conta no Sistema do Hospital
+        </CardTitle>
+        <CardDescription>
+          Busque uma conta diretamente no banco de dados do hospital (Warleine) pelo número da conta.
+          Os itens serão importados automaticamente para análise e comparação com padrões de cobrança.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1 space-y-2">
+            <Label htmlFor="numeroConta">Número da Conta</Label>
+            <Input
+              id="numeroConta"
+              placeholder="Ex: 123456"
+              value={numeroConta}
+              onChange={(e) => setNumeroConta(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleBuscarConta()}
+              className="font-mono"
+            />
+          </div>
+          <Button
+            onClick={handleBuscarConta}
+            disabled={buscarContaMutation.isPending || !numeroConta.trim() || !estabelecimentoId}
+            className="bg-indigo-600 hover:bg-indigo-700"
+          >
+            {buscarContaMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Buscando...
+              </>
+            ) : (
+              <>
+                <Search className="h-4 w-4 mr-2" />
+                Buscar Conta
+              </>
+            )}
+          </Button>
+        </div>
+
+        {buscarContaMutation.data?.sucesso && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 text-green-700 mb-2">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="font-medium">Conta importada com sucesso!</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div>
+                <span className="text-green-600">Convênio:</span>
+                <p className="font-medium text-green-800">{buscarContaMutation.data.convenio || "-"}</p>
+              </div>
+              <div>
+                <span className="text-green-600">Paciente:</span>
+                <p className="font-medium text-green-800">{buscarContaMutation.data.paciente || "-"}</p>
+              </div>
+              <div>
+                <span className="text-green-600">Itens:</span>
+                <p className="font-medium text-green-800">{buscarContaMutation.data.totalItens}</p>
+              </div>
+              <div>
+                <span className="text-green-600">Valor Total:</span>
+                <p className="font-medium text-green-800">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(buscarContaMutation.data.valorTotal || 0)}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+              onClick={() => setLocation(`/conta-convenio-v2?numeroConta=${encodeURIComponent(numeroConta.trim())}`)}
+            >
+              Ver Conta <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          </div>
+        )}
+
+        {buscarContaMutation.data && !buscarContaMutation.data.sucesso && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <span className="font-medium">{buscarContaMutation.data.mensagem}</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

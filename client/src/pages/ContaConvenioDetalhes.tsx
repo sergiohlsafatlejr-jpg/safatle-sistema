@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -33,13 +34,24 @@ import {
   Bed,
   Stethoscope,
   Activity,
-  MoreHorizontal,
   Shield,
-  Key
+  Key,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Database,
+  BarChart3,
+  Loader2,
+  Eye,
+  ArrowUpDown,
+  ShieldAlert,
+  Info,
+  XCircle
 } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -84,6 +96,32 @@ const getTipoColor = (tipo: string) => {
   return "bg-gray-100 text-gray-800";
 };
 
+// Badge de status
+const StatusBadge = ({ status }: { status: string }) => {
+  switch (status) {
+    case "conforme":
+      return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="h-3 w-3 mr-1" />Conforme</Badge>;
+    case "divergente":
+      return <Badge className="bg-red-100 text-red-800 border-red-200"><AlertTriangle className="h-3 w-3 mr-1" />Divergente</Badge>;
+    case "revisado":
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Eye className="h-3 w-3 mr-1" />Revisado</Badge>;
+    default:
+      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+  }
+};
+
+// Badge de severidade
+const SeveridadeBadge = ({ severidade }: { severidade: string }) => {
+  switch (severidade) {
+    case "critico":
+      return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Crítico</Badge>;
+    case "alerta":
+      return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><AlertTriangle className="h-3 w-3 mr-1" />Alerta</Badge>;
+    default:
+      return <Badge variant="outline"><Info className="h-3 w-3 mr-1" />Info</Badge>;
+  }
+};
+
 export default function ContaConvenioDetalhes() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -91,114 +129,74 @@ export default function ContaConvenioDetalhes() {
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   
-  const guia = params.get("guia") || "";
-  const lote = params.get("lote") || undefined;
-  const arquivoId = params.get("arquivoId") || "";
-  const convenioId = params.get("convenioId") || "";
+  const numeroConta = params.get("numeroConta") || "";
+  const estabelecimentoId = parseInt(params.get("estabelecimentoId") || "0") || estabelecimentoAtual?.id || 0;
 
-  // Buscar convênios
-  const { data: convenios } = trpc.convenios.list.useQuery({});
+  const [activeTab, setActiveTab] = useState("itens");
+  const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
 
-  // Buscar itens individuais da guia usando a nova procedure
-  const { data: itensGuia, isLoading, refetch } = trpc.faturamentoTiss.itensGuia.useQuery(
+  // Buscar itens da conta na nova tabela
+  const { data: itensData, isLoading, refetch } = trpc.contasConvenio.listarItens.useQuery(
     {
-      estabelecimentoId: estabelecimentoAtual?.id,
-      numeroGuiaPrestador: guia,
-      numeroLote: lote,
-      convenioId: convenioId ? parseInt(convenioId) : undefined,
+      numeroConta,
+      estabelecimentoId,
+      tipoItem: tipoFiltro || undefined,
     },
-    { enabled: !!estabelecimentoAtual?.id && !!guia }
+    { enabled: !!numeroConta && !!estabelecimentoId }
   );
 
-  // Calcular KPIs por tipo
-  const kpisPorTipo = useMemo(() => {
-    if (!itensGuia) return [];
-    const tipos = new Map<string, { quantidade: number; valor: number; itens: number }>();
-    
-    itensGuia.forEach((item: any) => {
-      const tipo = item.tipoItem || "Outros";
-      const valor = parseFloat(item.valorFaturado || "0");
-      const qtd = parseFloat(item.quantidade || "1");
-      
-      if (tipos.has(tipo)) {
-        const existing = tipos.get(tipo)!;
-        existing.quantidade += qtd;
-        existing.valor += valor;
-        existing.itens += 1;
+  // Buscar divergências
+  const { data: divergenciasData, isLoading: isLoadingDiv } = trpc.contasConvenio.getDivergencias.useQuery(
+    {
+      numeroConta,
+      estabelecimentoId,
+    },
+    { enabled: !!numeroConta && !!estabelecimentoId }
+  );
+
+  // Mutation para comparar com padrões
+  const compararMutation = trpc.contasConvenio.compararComPadroes.useMutation({
+    onSuccess: (result) => {
+      if (result.statusGeral === "conforme") {
+        toast.success(`Conta conforme! ${result.totalItensAnalisados} itens analisados.`);
       } else {
-        tipos.set(tipo, { quantidade: qtd, valor, itens: 1 });
+        toast.warning(`${result.totalDivergencias} divergência(s) encontrada(s)`);
       }
-    });
-    
-    return Array.from(tipos.entries())
-      .map(([tipo, data]) => ({ tipo, ...data }))
-      .sort((a, b) => b.valor - a.valor);
-  }, [itensGuia]);
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
-  // Calcular totais
-  const totais = useMemo(() => {
-    if (!itensGuia) return { valorTotal: 0, totalItens: 0 };
-    let valorTotal = 0;
-    let totalItens = 0;
-    
-    itensGuia.forEach((item: any) => {
-      valorTotal += parseFloat(item.valorFaturado || "0");
-      totalItens += 1;
-    });
-    
-    return { valorTotal, totalItens };
-  }, [itensGuia]);
-
-  // Obter informações da guia
-  const infoGuia = (itensGuia && itensGuia[0]) || {} as any;
-  const convenioSelecionado = convenios?.find(c => c.id === parseInt(convenioId));
+  // Dados da conta (primeiro item para info geral)
+  const primeiroItem = itensData?.items?.[0];
+  const resumoGeral = itensData?.resumoGeral;
+  const resumoPorTipo = itensData?.resumoPorTipo || [];
 
   // Exportar para Excel
   const handleExportExcel = () => {
-    if (!itensGuia?.length) return;
+    if (!itensData?.items?.length) return;
 
-    const data = itensGuia.map((item: any) => ({
-      "Guia": item.numeroGuiaPrestador || "-",
-      "Nº Lote": item.numeroLote || "-",
-      "Seq. Transação": item.sequencialTransacao || "-",
-      "Registro ANS": item.registroAns || "-",
-      "Guia Operadora": item.numeroGuiaOperadora || "-",
-      "Senha": item.senha || "-",
-      "Carteirinha": item.carteiraBeneficiario || "-",
+    const data = itensData.items.map((item: any) => ({
+      "Nº Conta": item.numeroConta,
       "Tipo Item": item.tipoItem || "-",
-      "Seq. Item": item.sequencialItem || "-",
       "Código": item.codigoItem || "-",
       "Descrição": item.descricaoItem || "-",
-      "Data Execução": formatDate(item.dataExecucao),
-      "Quantidade": item.quantidade || 0,
+      "Quantidade": parseFloat(item.quantidade || "1"),
       "Valor Unitário": parseFloat(item.valorUnitario || "0"),
-      "Valor Faturado": parseFloat(item.valorFaturado || "0"),
-      "Profissional": item.nomeProf || "-",
-      "CRM": item.conselhoProf || "-",
+      "Valor Total": parseFloat(item.valorTotal || "0"),
+      "Data Execução": formatDate(item.dataExecucao),
+      "Status": item.statusAnalise || "pendente",
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Itens");
-    
-    XLSX.writeFile(wb, `guia_${guia}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `conta_${numeroConta}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  // Voltar para lista (restaurando filtros preservados)
+  // Voltar para lista
   const handleVoltar = () => {
-    const returnParams = new URLSearchParams();
-    const returnConvenioId = params.get("returnConvenioId");
-    const returnSearch = params.get("returnSearch");
-    const returnCompetencia = params.get("returnCompetencia");
-    const returnPage = params.get("returnPage");
-    
-    if (returnConvenioId) returnParams.set("convenioId", returnConvenioId);
-    if (returnSearch) returnParams.set("search", returnSearch);
-    if (returnCompetencia) returnParams.set("competencia", returnCompetencia);
-    if (returnPage) returnParams.set("page", returnPage);
-    
-    const queryString = returnParams.toString();
-    setLocation(`/conta-convenio${queryString ? `?${queryString}` : ""}`);
+    setLocation("/conta-convenio");
   };
 
   return (
@@ -212,14 +210,29 @@ export default function ContaConvenioDetalhes() {
               Voltar
             </Button>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Detalhes da Guia</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Conta {numeroConta}</h1>
               <p className="text-muted-foreground">
-                Guia: {guia} | Convênio: {convenioSelecionado?.nome || "-"}
-                {lote && ` | Lote: ${lote}`}
+                {primeiroItem?.convenio || "Convênio não identificado"} | 
+                Paciente: {primeiroItem?.pacienteNome || "-"}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                compararMutation.mutate({ numeroConta, estabelecimentoId });
+              }}
+              disabled={compararMutation.isPending}
+            >
+              {compararMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <BarChart3 className="mr-2 h-4 w-4" />
+              )}
+              Comparar com Padrões
+            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Atualizar
@@ -227,7 +240,7 @@ export default function ContaConvenioDetalhes() {
             <Button 
               size="sm" 
               onClick={handleExportExcel}
-              disabled={!itensGuia?.length}
+              disabled={!itensData?.items?.length}
             >
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Exportar Excel
@@ -235,12 +248,12 @@ export default function ContaConvenioDetalhes() {
           </div>
         </div>
 
-        {/* Informações da Guia */}
+        {/* Informações da Conta */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Receipt className="h-5 w-5" />
-              Informações da Guia
+              Informações da Conta
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -248,57 +261,59 @@ export default function ContaConvenioDetalhes() {
               <div className="flex items-start gap-3">
                 <Hash className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Número da Guia</p>
-                  <p className="font-semibold">{guia}</p>
+                  <p className="text-sm text-muted-foreground">Número da Conta</p>
+                  <p className="font-semibold font-mono">{numeroConta}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Package className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Convênio</p>
+                  <p className="font-semibold">{primeiroItem?.convenio || "-"}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Paciente</p>
+                  <p className="font-semibold">{primeiroItem?.pacienteNome || "-"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <CreditCard className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm text-muted-foreground">Carteirinha</p>
-                  <p className="font-semibold">{infoGuia.carteiraBeneficiario || "-"}</p>
+                  <p className="font-semibold">{primeiroItem?.carteiraBeneficiario || "-"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm text-muted-foreground">Data Execução</p>
-                  <p className="font-semibold">{formatDate(infoGuia.dataExecucao)}</p>
+                  <p className="font-semibold">{formatDate(primeiroItem?.dataExecucao)}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <Database className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Profissional</p>
-                  <p className="font-semibold">{infoGuia.nomeProf || "-"}</p>
+                  <p className="text-sm text-muted-foreground">Origem</p>
+                  <p className="font-semibold">
+                    {primeiroItem?.origem === "BANCO_CLIENTE" ? "Banco Hospital" : primeiroItem?.origem || "-"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <Shield className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Registro ANS</p>
-                  <p className="font-semibold">{infoGuia.registroAns || "-"}</p>
+                  <p className="text-sm text-muted-foreground">Valor Total</p>
+                  <p className="font-semibold text-green-600">{formatCurrency(resumoGeral?.valorTotal)}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Guia Operadora</p>
-                  <p className="font-semibold">{infoGuia.numeroGuiaOperadora || "-"}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Key className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Senha</p>
-                  <p className="font-semibold">{infoGuia.senha || "-"}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Receipt className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Nº Lote</p>
-                  <p className="font-semibold">{infoGuia.numeroLote || "-"}</p>
+                  <p className="text-sm text-muted-foreground">Total de Itens</p>
+                  <p className="font-semibold">{resumoGeral?.totalItens || 0}</p>
                 </div>
               </div>
             </div>
@@ -312,19 +327,44 @@ export default function ContaConvenioDetalhes() {
             Valores por Tipo de Item
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {kpisPorTipo.map((kpi) => {
-              const TipoIcon = getTipoIcon(kpi.tipo);
-              const tipoColor = getTipoColor(kpi.tipo);
+            {/* Card "Todos" */}
+            <Card 
+              className={`cursor-pointer transition-all ${!tipoFiltro ? "ring-2 ring-primary" : "hover:shadow-md"}`}
+              onClick={() => setTipoFiltro(null)}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Todos</p>
+                    <p className="text-2xl font-bold text-emerald-600">{formatCurrency(resumoGeral?.valorTotal)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {resumoGeral?.totalItens || 0} itens
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-gray-100 text-gray-800">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            {resumoPorTipo.map((kpi: any) => {
+              const TipoIcon = getTipoIcon(kpi.tipoItem);
+              const tipoColor = getTipoColor(kpi.tipoItem);
+              const isActive = tipoFiltro === kpi.tipoItem;
               
               return (
-                <Card key={kpi.tipo}>
+                <Card 
+                  key={kpi.tipoItem} 
+                  className={`cursor-pointer transition-all ${isActive ? "ring-2 ring-primary" : "hover:shadow-md"}`}
+                  onClick={() => setTipoFiltro(isActive ? null : kpi.tipoItem)}
+                >
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">{kpi.tipo}</p>
-                        <p className="text-2xl font-bold text-emerald-600">{formatCurrency(kpi.valor)}</p>
+                        <p className="text-sm text-muted-foreground">{kpi.tipoItem || "Outros"}</p>
+                        <p className="text-2xl font-bold text-emerald-600">{formatCurrency(kpi.valorTotal)}</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {kpi.itens} {kpi.itens === 1 ? "item" : "itens"}
+                          {kpi.totalItens} {kpi.totalItens === 1 ? "item" : "itens"}
                         </p>
                       </div>
                       <div className={`p-3 rounded-full ${tipoColor}`}>
@@ -338,16 +378,38 @@ export default function ContaConvenioDetalhes() {
           </div>
         </div>
 
-        {/* Totais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Totais de Análise */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total de Itens</p>
-                  <p className="text-3xl font-bold">{totais.totalItens}</p>
+                  <p className="text-3xl font-bold">{resumoGeral?.totalItens || 0}</p>
                 </div>
                 <FileText className="h-10 w-10 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Conformes</p>
+                  <p className="text-3xl font-bold text-green-600">{Number(resumoGeral?.totalConformes || 0)}</p>
+                </div>
+                <CheckCircle2 className="h-10 w-10 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Divergentes</p>
+                  <p className="text-3xl font-bold text-red-600">{Number(resumoGeral?.totalDivergentes || 0)}</p>
+                </div>
+                <AlertTriangle className="h-10 w-10 text-red-500" />
               </div>
             </CardContent>
           </Card>
@@ -355,8 +417,8 @@ export default function ContaConvenioDetalhes() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Valor Total da Guia</p>
-                  <p className="text-3xl font-bold text-emerald-600">{formatCurrency(totais.valorTotal)}</p>
+                  <p className="text-sm text-muted-foreground">Valor Total</p>
+                  <p className="text-3xl font-bold text-emerald-600">{formatCurrency(resumoGeral?.valorTotal)}</p>
                 </div>
                 <DollarSign className="h-10 w-10 text-emerald-500" />
               </div>
@@ -364,74 +426,237 @@ export default function ContaConvenioDetalhes() {
           </Card>
         </div>
 
-        {/* Tabela de Itens */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Itens da Guia ({totais.totalItens})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : !itensGuia?.length ? (
-              <div className="text-center py-8">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Nenhum item encontrado para esta guia</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Seq.</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Data Exec.</TableHead>
-                      <TableHead className="text-right">Qtd</TableHead>
-                      <TableHead className="text-right">Valor Unit.</TableHead>
-                      <TableHead className="text-right">Valor Faturado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {itensGuia.map((item: any, index: number) => {
-                      const TipoIcon = getTipoIcon(item.tipoItem);
-                      const tipoColor = getTipoColor(item.tipoItem);
-                      
-                      return (
-                        <TableRow key={`${item.id}-${index}`}>
-                          <TableCell className="font-medium">{item.sequencialItem || index + 1}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={tipoColor}>
-                              <TipoIcon className="h-3 w-3 mr-1" />
-                              {item.tipoItem || "-"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
-                          <TableCell className="max-w-xs truncate" title={item.descricaoItem}>
-                            {item.descricaoItem || "-"}
-                          </TableCell>
-                          <TableCell>{formatDate(item.dataExecucao)}</TableCell>
-                          <TableCell className="text-right">{item.quantidade || 1}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.valorUnitario)}</TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-600">
-                            {formatCurrency(item.valorFaturado)}
-                          </TableCell>
+        {/* Tabs: Itens e Divergências */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="itens" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Itens ({itensData?.items?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="divergencias" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Divergências ({divergenciasData?.divergencias?.length || 0})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Itens */}
+          <TabsContent value="itens">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Itens da Conta {tipoFiltro && `- ${tipoFiltro}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : !itensData?.items?.length ? (
+                  <div className="text-center py-8">
+                    <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Nenhum item encontrado para esta conta</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead>Data Exec.</TableHead>
+                          <TableHead className="text-right">Qtd</TableHead>
+                          <TableHead className="text-right">Valor Unit.</TableHead>
+                          <TableHead className="text-right">Valor Total</TableHead>
+                          <TableHead>Status</TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {itensData.items.map((item: any, index: number) => {
+                          const TipoIcon = getTipoIcon(item.tipoItem);
+                          const tipoColor = getTipoColor(item.tipoItem);
+                          const hasDivergencias = item.divergencias && (item.divergencias as any[]).length > 0;
+                          
+                          return (
+                            <TableRow key={item.id || index} className={hasDivergencias ? "bg-red-50/50" : ""}>
+                              <TableCell className="font-medium">{index + 1}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={tipoColor}>
+                                  <TipoIcon className="h-3 w-3 mr-1" />
+                                  {item.tipoItem || "-"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
+                              <TableCell className="max-w-xs truncate" title={item.descricaoItem}>
+                                {item.descricaoItem || "-"}
+                              </TableCell>
+                              <TableCell>{formatDate(item.dataExecucao)}</TableCell>
+                              <TableCell className="text-right">{item.quantidade || 1}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(item.valorUnitario)}</TableCell>
+                              <TableCell className="text-right font-semibold text-emerald-600">
+                                {formatCurrency(item.valorTotal)}
+                              </TableCell>
+                              <TableCell>
+                                <StatusBadge status={item.statusAnalise || "pendente"} />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Divergências */}
+          <TabsContent value="divergencias">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  Divergências Encontradas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingDiv ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map(i => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : !divergenciasData?.divergencias?.length ? (
+                  <div className="text-center py-8">
+                    <CheckCircle2 className="mx-auto h-12 w-12 text-green-500 mb-4" />
+                    <h3 className="text-lg font-medium">Nenhuma divergência encontrada</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Execute a comparação com padrões para verificar a conta.
+                    </p>
+                    <Button 
+                      variant="outline"
+                      onClick={() => compararMutation.mutate({ numeroConta, estabelecimentoId })}
+                      disabled={compararMutation.isPending}
+                    >
+                      {compararMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                      )}
+                      Comparar com Padrões
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Resumo de Divergências */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="border-red-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Total Divergências</p>
+                              <p className="text-2xl font-bold text-red-600">{divergenciasData.resumo.total}</p>
+                            </div>
+                            <AlertTriangle className="h-8 w-8 text-red-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-red-200">
+                        <CardContent className="p-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">Por Severidade</p>
+                            <div className="flex flex-wrap gap-2">
+                              {Object.entries(divergenciasData.resumo.porSeveridade).map(([sev, count]) => (
+                                <div key={sev} className="flex items-center gap-1">
+                                  <SeveridadeBadge severidade={sev} />
+                                  <span className="text-sm font-medium">({count as number})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-orange-200">
+                        <CardContent className="p-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">Por Tipo</p>
+                            <div className="flex flex-wrap gap-2">
+                              {Object.entries(divergenciasData.resumo.porTipo).map(([tipo, count]) => (
+                                <Badge key={tipo} variant="outline" className="text-xs">
+                                  {tipo}: {count as number}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Tabela de Divergências */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Severidade</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Descrição da Divergência</TableHead>
+                            <TableHead className="text-right">Valor Cobrado</TableHead>
+                            <TableHead className="text-right">Valor Esperado</TableHead>
+                            <TableHead className="text-right">Diferença</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {divergenciasData.divergencias.map((div: any, index: number) => (
+                            <TableRow key={index} className={div.severidade === "critico" ? "bg-red-50/50" : ""}>
+                              <TableCell>
+                                <SeveridadeBadge severidade={div.severidade} />
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {div.tipo}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-mono text-sm">{div.codigoItem || "-"}</p>
+                                  <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={div.descricaoItem}>
+                                    {div.descricaoItem || "-"}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="max-w-xs">
+                                <p className="text-sm">{div.mensagem || div.descricao || "-"}</p>
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {div.valorCobrado != null ? formatCurrency(div.valorCobrado) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {div.valorEsperado != null ? formatCurrency(div.valorEsperado) : "-"}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {div.diferenca != null ? (
+                                  <span className={parseFloat(div.diferenca) > 0 ? "text-red-600" : "text-green-600"}>
+                                    {formatCurrency(div.diferenca)}
+                                  </span>
+                                ) : "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

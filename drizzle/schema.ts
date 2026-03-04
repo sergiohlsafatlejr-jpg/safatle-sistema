@@ -3163,3 +3163,149 @@ export const padraoQuantidadeItem = mysqlTable("padraoQuantidadeItem", {
 }));
 export type PadraoQuantidadeItem = typeof padraoQuantidadeItem.$inferSelect;
 export type InsertPadraoQuantidadeItem = typeof padraoQuantidadeItem.$inferInsert;
+
+
+// ============================================================
+// CONTAS CONVÊNIO - Tabela Operacional Unificada
+// ============================================================
+
+/**
+ * Tabela operacional para gestão de contas de convênio.
+ * Alimentada por DUAS fontes:
+ *   1. XML imports (TISS) - parseados e salvos
+ *   2. Busca em tempo real no banco do cliente (Warleine) por número de conta
+ * 
+ * Separada das tabelas de bulk sync (integ_faturado, faturamento_tiss, faturamento_unificado)
+ * que servem para análise e geração de padrões.
+ */
+export const contasConvenioItens = mysqlTable("contas_convenio_itens", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Origem do dado
+  origem: mysqlEnum("origem", ["XML", "BANCO_CLIENTE"]).notNull(),
+  
+  // Identificação da conta
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  numeroGuia: varchar("numeroGuia", { length: 100 }),
+  numeroGuiaOperadora: varchar("numeroGuiaOperadora", { length: 100 }),
+  numeroLote: varchar("numeroLote", { length: 50 }),
+  senha: varchar("senha", { length: 50 }),
+  protocolo: varchar("protocolo", { length: 100 }),
+  
+  // Paciente
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  carteiraBeneficiario: varchar("carteiraBeneficiario", { length: 100 }),
+  
+  // Convênio
+  convenio: varchar("convenio", { length: 255 }),
+  convenioId: int("convenioId"),
+  
+  // Estabelecimento
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Item
+  tipoItem: varchar("tipoItem", { length: 50 }), // PROCEDIMENTO, DIARIA, MAT_MED, TAXA, GASES, etc.
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  codigoItemTuss: varchar("codigoItemTuss", { length: 50 }),
+  descricaoItem: text("descricaoItem"),
+  codigoTabela: varchar("codigoTabela", { length: 10 }),
+  
+  // Valores
+  quantidade: decimal("quantidade", { precision: 12, scale: 4 }),
+  valorUnitario: decimal("valorUnitario", { precision: 12, scale: 4 }),
+  valorTotal: decimal("valorTotal", { precision: 14, scale: 2 }),
+  
+  // Datas
+  dataExecucao: timestamp("dataExecucao"),
+  dataReferencia: timestamp("dataReferencia"),
+  competencia: varchar("competencia", { length: 20 }),
+  
+  // Profissional
+  profissionalExecutante: varchar("profissionalExecutante", { length: 255 }),
+  setor: varchar("setor", { length: 255 }),
+  
+  // Referência ao arquivo de origem (se veio de XML)
+  arquivoId: int("arquivoId"),
+  
+  // Status da análise de padrões
+  statusAnalise: mysqlEnum("statusAnalise", [
+    "pendente",     // Ainda não analisado contra padrões
+    "conforme",     // Dentro dos padrões
+    "divergente",   // Fora dos padrões (tem alertas)
+    "revisado",     // Revisado manualmente
+  ]).default("pendente").notNull(),
+  
+  // Divergências encontradas (JSON array de alertas)
+  // [{tipo, severidade, mensagem, valorEsperado, valorEncontrado, padraoId}]
+  divergencias: json("divergencias"),
+  
+  // Metadados
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  numContaIdx: index("idx_cci_numconta").on(table.numeroConta),
+  convenioIdx: index("idx_cci_convenio").on(table.convenio),
+  estabIdx: index("idx_cci_estab").on(table.estabelecimentoId),
+  origemIdx: index("idx_cci_origem").on(table.origem),
+  statusIdx: index("idx_cci_status").on(table.statusAnalise),
+  competenciaIdx: index("idx_cci_competencia").on(table.competencia),
+  codigoItemIdx: index("idx_cci_codigo_item").on(table.codigoItem),
+  guiaIdx: index("idx_cci_guia").on(table.numeroGuia),
+}));
+
+export type ContaConvenioItem = typeof contasConvenioItens.$inferSelect;
+export type InsertContaConvenioItem = typeof contasConvenioItens.$inferInsert;
+
+/**
+ * Tabela de resumo de contas convênio (cabeçalho da conta)
+ * Armazena metadados da conta como um todo, não dos itens individuais
+ */
+export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Origem
+  origem: mysqlEnum("origem", ["XML", "BANCO_CLIENTE"]).notNull(),
+  
+  // Dados da conta
+  convenio: varchar("convenio", { length: 255 }),
+  convenioId: int("convenioId"),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  carteiraBeneficiario: varchar("carteiraBeneficiario", { length: 100 }),
+  
+  // Totais
+  totalItens: int("totalItens").default(0).notNull(),
+  valorTotal: decimal("valorTotal", { precision: 14, scale: 2 }).default("0"),
+  
+  // Datas
+  dataInternacao: timestamp("dataInternacao"),
+  dataAlta: timestamp("dataAlta"),
+  competencia: varchar("competencia", { length: 20 }),
+  
+  // Status geral da análise
+  statusAnalise: mysqlEnum("statusAnaliseResumo", [
+    "pendente",
+    "conforme",
+    "divergente",
+    "revisado",
+  ]).default("pendente").notNull(),
+  
+  // Resumo de divergências
+  totalDivergencias: int("totalDivergencias").default(0),
+  totalAlertas: int("totalAlertas").default(0),
+  
+  // Metadados
+  dataBusca: timestamp("dataBusca").defaultNow().notNull(),
+  buscadoPor: int("buscadoPor"), // userId
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  numContaEstabIdx: index("idx_ccr_numconta_estab").on(table.numeroConta, table.estabelecimentoId),
+  convenioIdx: index("idx_ccr_convenio").on(table.convenio),
+  statusIdx: index("idx_ccr_status").on(table.statusAnalise),
+}));
+
+export type ContaConvenioResumo = typeof contasConvenioResumo.$inferSelect;
+export type InsertContaConvenioResumo = typeof contasConvenioResumo.$inferInsert;

@@ -2411,3 +2411,33 @@
 - [ ] Frontend: tela dedicada de Padrões de Cobrança
 - [ ] Testes unitários
 
+
+## Padrões Editáveis + Comparação com Contas
+- [ ] Adicionar campos de edição nos padrões (valor ajustado, qtd ajustada, status revisado)
+- [ ] Criar interface de edição inline nos padrões gerados
+- [ ] Implementar motor de comparação: padrão vs contas importadas
+- [ ] Criar tela de divergências encontradas (preço, quantidade, composição, glosa)
+- [ ] Escrever testes para o motor de comparação
+- [ ] Alertas de divergência integrados na aba Conta Convênio
+- [ ] Dashboard gerencial de divergências (visão consolidada)
+
+## Busca de Conta via Integrador de Dados + Comparação com Padrões
+- [ ] Analisar Integrador de Dados existente para reaproveitar busca no banco do cliente
+- [ ] Adicionar opção "Buscar Conta" na tela de Upload (ao lado do upload XML)
+- [ ] Implementar busca de conta por número no banco do cliente via Integrador
+- [ ] Salvar conta buscada na estrutura da Conta Convênio
+- [ ] Comparar conta importada/buscada contra padrões de cobrança do convênio
+- [ ] Mostrar divergências na Conta Convênio
+- [ ] Dashboard gerencial de divergências
+
+## Nova Arquitetura: contas_convenio_itens
+- [x] Criar tabela contas_convenio_itens no schema
+- [x] Criar query de busca por número de conta no Warleine (baseada em integ_faturado)
+- [x] Implementar router para buscar conta e salvar na nova tabela
+- [x] Implementar import de XML para nova tabela (ao lado do fluxo existente)
+- [x] Adicionar opção "Buscar Conta" na tela de Upload
+- [x] Motor de comparação: conta vs padrões com divergências
+- [x] Alterar tela existente ContaConvenio para usar nova tabela contas_convenio_itens
+- [x] Adicionar aba de divergências na tela ContaConvenio existente
+- [ ] Implementar edição de padrões de cobrança (gabarito)
+- [ ] Dashboard gerencial de divergências
