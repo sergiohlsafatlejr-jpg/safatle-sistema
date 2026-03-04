@@ -2652,7 +2652,7 @@ export const appRouter = router({
         return { sucesso: true };
       }),
 
-    // Exportar XML ANS/TISS para recurso de glosa
+    // Exportar XML ANS/TISS para recurso de glosa (múltiplos XMLs por protocolo)
     exportarXml: protectedProcedure
       .input(
         z.object({
@@ -2660,24 +2660,51 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        const xml = await db.gerarXmlRecursoGlosa(input.loteId);
-        if (!xml) {
+        const xmls = await db.gerarXmlsRecursoGlosaPorProtocolo(input.loteId);
+        if (!xmls || xmls.length === 0) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lote não encontrado ou sem recursos" });
         }
         
-        // Validar XML contra padrão TISS
+        // Validar e salvar cada XML no S3
         const { validarXmlRecursoGlosa } = await import("./validadorTissRecursoGlosa");
-        const validacao = validarXmlRecursoGlosa(xml);
-        
-        // Salvar XML no S3 e atualizar lote
         const timestamp = Date.now();
-        const s3Key = `recursos-glosa/lote-${input.loteId}/recurso_glosa_lote_${input.loteId}_${timestamp}.xml`;
-        const { url: xmlUrl } = await storagePut(s3Key, Buffer.from(xml, 'utf-8'), 'application/xml');
+        const resultados = [];
         
-        // Atualizar lote com URL do XML
-        await db.atualizarXmlLote(input.loteId, xmlUrl, s3Key);
+        for (let i = 0; i < xmls.length; i++) {
+          const xmlItem = xmls[i];
+          const validacao = validarXmlRecursoGlosa(xmlItem.xml);
+          const protSuffix = xmls.length > 1 ? `_protocolo_${xmlItem.protocolo}` : "";
+          const s3Key = `recursos-glosa/lote-${input.loteId}/recurso_glosa_lote_${input.loteId}${protSuffix}_${timestamp}.xml`;
+          const { url: xmlUrl } = await storagePut(s3Key, Buffer.from(xmlItem.xml, 'utf-8'), 'application/xml');
+          
+          resultados.push({
+            protocolo: xmlItem.protocolo,
+            xml: xmlItem.xml,
+            xmlUrl,
+            validacao,
+            guias: xmlItem.guias,
+            valorTotalRecursado: xmlItem.valorTotalRecursado,
+          });
+        }
         
-        return { xml, validacao, xmlUrl };
+        // Atualizar lote com URL do primeiro XML (ou todos)
+        if (resultados.length === 1) {
+          await db.atualizarXmlLote(input.loteId, resultados[0].xmlUrl, `recursos-glosa/lote-${input.loteId}/recurso_glosa_lote_${input.loteId}_${timestamp}.xml`);
+        } else {
+          // Salvar URLs de todos os XMLs separados por vírgula
+          const allUrls = resultados.map(r => r.xmlUrl).join(",");
+          await db.atualizarXmlLote(input.loteId, allUrls, `recursos-glosa/lote-${input.loteId}/`);
+        }
+        
+        // Retorno compatível: xml do primeiro + array completo
+        return {
+          xml: resultados[0].xml,
+          validacao: resultados[0].validacao,
+          xmlUrl: resultados[0].xmlUrl,
+          // Novos campos para múltiplos protocolos
+          xmlsPorProtocolo: resultados,
+          totalProtocolos: resultados.length,
+        };
       }),
 
     // Validar XML sem gerar/salvar

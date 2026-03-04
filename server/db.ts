@@ -9777,10 +9777,32 @@ function apenasNumeros(str: string): string {
 }
 
 /**
- * Gera XML no padrão ANS/TISS para recurso de glosa
+ * Gera XML(s) no padrão ANS/TISS para recurso de glosa
  * Formato validado conforme padrão TISS 3.02.00 (compatível com IPASGO e demais operadoras)
+ * Retorna múltiplos XMLs quando as guias pertencem a protocolos diferentes
  */
 export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | null> {
+  const xmls = await gerarXmlsRecursoGlosaPorProtocolo(loteId);
+  if (!xmls || xmls.length === 0) return null;
+  // Retorna o primeiro XML para manter compatibilidade com chamadas existentes
+  return xmls[0].xml;
+}
+
+/**
+ * Resultado de um XML gerado por protocolo
+ */
+export interface XmlPorProtocolo {
+  protocolo: string;
+  xml: string;
+  guias: string[];
+  valorTotalRecursado: number;
+}
+
+/**
+ * Gera múltiplos XMLs no padrão ANS/TISS, um por protocolo
+ * Cada XML contém apenas as guias que pertencem ao respectivo protocolo
+ */
+export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise<XmlPorProtocolo[] | null> {
   const db = await getDb();
   if (!db) return null;
 
@@ -9967,10 +9989,15 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     };
   }
 
-  // Determinar número do protocolo (do lote ou do demonstrativo)
-  const protocoloEnvio = lote.protocoloEnvio || 
-    Object.values(dadosComplementares).find(d => d.protocolo)?.protocolo || 
-    "";
+  // Agrupar guias por protocolo
+  const guiasPorProtocolo: Record<string, string[]> = {};
+  for (const guiaNumero of guiasDoLote) {
+    if (!guiaNumero) continue;
+    const complementar = dadosComplementares[guiaNumero];
+    const protocolo = complementar?.protocolo || lote.protocoloEnvio || "SEM_PROTOCOLO";
+    if (!guiasPorProtocolo[protocolo]) guiasPorProtocolo[protocolo] = [];
+    guiasPorProtocolo[protocolo].push(guiaNumero);
+  }
 
   // Agrupar recursos por guia
   const recursosPorGuia = recursosDoLote.reduce((acc, recurso) => {
@@ -9980,11 +10007,24 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     return acc;
   }, {} as Record<string, typeof recursosDoLote>);
 
-  // Calcular valor total recursado
-  let valorTotalRecursado = 0;
+  // Gerar um XML por protocolo
+  const xmlsPorProtocolo: XmlPorProtocolo[] = [];
+  const protocolos = Object.entries(guiasPorProtocolo);
+  
+  for (let protIdx = 0; protIdx < protocolos.length; protIdx++) {
+    const [protocoloAtual, guiasDoProtocolo] = protocolos[protIdx];
+    let valorTotalRecursado = 0;
 
-  // Gerar itens XML para cada guia
-  const guiasXml = Object.entries(recursosPorGuia).map(([guiaNumero, recursos]) => {
+  // TISS 3.02: sequencialTransacao e numeroGuiaRecGlosa únicos por protocolo
+  const seqSuffix = protocolos.length > 1 ? String(protIdx + 1) : "";
+  const sequencialTransacaoProto = String(lote.id).padStart(6, '0').slice(-10 + seqSuffix.length) + seqSuffix;
+  const numeroGuiaRecGlosaProto = apenasNumeros(lote.numeroLote || String(lote.id)).slice(0, 20 - seqSuffix.length) + seqSuffix;
+  const numeroLoteNumericoProto = apenasNumeros(lote.numeroLote || String(lote.id)).slice(0, 12 - seqSuffix.length) + seqSuffix;
+
+  // Gerar itens XML para cada guia deste protocolo
+  const guiasXml = guiasDoProtocolo.map((guiaNumero) => {
+    const recursos = recursosPorGuia[guiaNumero] || [];
+    if (recursos.length === 0) return "";
     const complementar = dadosComplementares[guiaNumero];
     const senha = complementar?.senha || "";
     const guiaOperadora = complementar?.guiaOperadora || guiaNumero;
@@ -10082,9 +10122,10 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
                         <ans:opcaoRecursoGuia>${itensXml}
                         </ans:opcaoRecursoGuia>
                     </ans:recursoGuia>`;
-  }).join("");
+  }).filter(Boolean).join("");
 
-  // Montar tags opcionais apenas se preenchidas
+  // Montar tags opcionais com o protocolo DESTE grupo
+  const protocoloEnvio = protocoloAtual !== "SEM_PROTOCOLO" ? protocoloAtual : (lote.protocoloEnvio || "");
   const guiaRecGlosaOperadoraTag = protocoloEnvio 
     ? `
                 <ans:numeroGuiaRecGlosaOperadora>${escapeXml(protocoloEnvio)}</ans:numeroGuiaRecGlosaOperadora>` 
@@ -10102,7 +10143,7 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     <ans:cabecalho>
         <ans:identificacaoTransacao>
             <ans:tipoTransacao>RECURSO_GLOSA</ans:tipoTransacao>
-            <ans:sequencialTransacao>${sequencialTransacao}</ans:sequencialTransacao>
+            <ans:sequencialTransacao>${sequencialTransacaoProto}</ans:sequencialTransacao>
             <ans:dataRegistroTransacao>${dataAtual}</ans:dataRegistroTransacao>
             <ans:horaRegistroTransacao>${horaAtual}</ans:horaRegistroTransacao>
         </ans:identificacaoTransacao>
@@ -10120,13 +10161,13 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         <ans:recursoGlosa>
             <ans:guiaRecursoGlosa>
                 <ans:registroANS>${registroANS}</ans:registroANS>
-                <ans:numeroGuiaRecGlosaPrestador>${numeroGuiaRecGlosa}</ans:numeroGuiaRecGlosaPrestador>
+                <ans:numeroGuiaRecGlosaPrestador>${numeroGuiaRecGlosaProto}</ans:numeroGuiaRecGlosaPrestador>
                 <ans:nomeOperadora>${escapeXml(nomeOperadora)}</ans:nomeOperadora>
                 <ans:objetoRecurso>2</ans:objetoRecurso>${guiaRecGlosaOperadoraTag}
                 <ans:dadosContratado>
                     <ans:codigoPrestadorNaOperadora>${escapeXml(codigoPrestador)}</ans:codigoPrestadorNaOperadora>
                 </ans:dadosContratado>
-                <ans:numeroLote>${numeroLoteNumerico}</ans:numeroLote>${protocoloTag}
+                <ans:numeroLote>${numeroLoteNumericoProto}</ans:numeroLote>${protocoloTag}
                 <ans:opcaoRecurso>${guiasXml}
                 </ans:opcaoRecurso>
                 <ans:valorTotalRecursado>${valorTotalRecursado.toFixed(2)}</ans:valorTotalRecursado>
@@ -10145,7 +10186,16 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     </ans:epilogo>
 </ans:mensagemTISS>`;
 
-  return xml;
+  xmlsPorProtocolo.push({
+    protocolo: protocoloAtual,
+    xml,
+    guias: guiasDoProtocolo,
+    valorTotalRecursado,
+  });
+
+  } // fim do loop por protocolo
+
+  return xmlsPorProtocolo.length > 0 ? xmlsPorProtocolo : null;
 }
 
 // Função auxiliar para escapar caracteres especiais em XML

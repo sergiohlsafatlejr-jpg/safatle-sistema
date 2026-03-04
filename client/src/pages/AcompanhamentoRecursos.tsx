@@ -363,32 +363,64 @@ export default function AcompanhamentoRecursos() {
   const [dialogValidacao, setDialogValidacao] = useState(false);
   const [resultadoValidacao, setResultadoValidacao] = useState<any>(null);
 
-  // Mutation para exportar XML ANS/TISS
+  // Mutation para exportar XML ANS/TISS (múltiplos por protocolo)
   const exportarXmlMutation = trpc.recursos.exportarXml.useMutation({
-    onSuccess: (data, variables) => {
+    onSuccess: (data: any, variables) => {
       setExportandoXml(null);
-      // Criar blob e download do XML
-      const blob = new Blob([data.xml], { type: "application/xml" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `recurso_glosa_lote_${variables.loteId}.xml`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
       
-      // Exibir resultado de validação
-      if (data.validacao) {
-        setResultadoValidacao(data.validacao);
-        if (data.validacao.valido) {
-          toast.success("XML TISS exportado e validado com sucesso! Salvo no histórico.");
-        } else {
+      // Verificar se há múltiplos XMLs por protocolo
+      const xmlsPorProtocolo = data.xmlsPorProtocolo as Array<{ protocolo: string; xml: string; validacao: any; guias: string[]; valorTotalRecursado: number }> | undefined;
+      
+      if (xmlsPorProtocolo && xmlsPorProtocolo.length > 1) {
+        // Múltiplos protocolos: baixar cada XML separadamente
+        let temErros = false;
+        for (const xmlItem of xmlsPorProtocolo) {
+          const blob = new Blob([xmlItem.xml], { type: "application/xml" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `recurso_glosa_lote_${variables.loteId}_protocolo_${xmlItem.protocolo}.xml`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          if (xmlItem.validacao && !xmlItem.validacao.valido) {
+            temErros = true;
+          }
+        }
+        
+        if (temErros) {
+          setResultadoValidacao(xmlsPorProtocolo[0].validacao);
           setDialogValidacao(true);
-          toast.warning(`XML exportado com ${data.validacao.erros.length} erro(s) de validação TISS.`);
+          toast.warning(`${xmlsPorProtocolo.length} XMLs exportados (1 por protocolo). Alguns contêm erros de validação.`);
+        } else {
+          toast.success(`${xmlsPorProtocolo.length} XMLs TISS exportados com sucesso! (1 por protocolo: ${xmlsPorProtocolo.map(x => x.protocolo).join(", ")})`);
         }
       } else {
-        toast.success("XML ANS/TISS exportado com sucesso!");
+        // Protocolo único: download normal
+        const blob = new Blob([data.xml], { type: "application/xml" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `recurso_glosa_lote_${variables.loteId}.xml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // Exibir resultado de validação
+        if (data.validacao) {
+          setResultadoValidacao(data.validacao);
+          if (data.validacao.valido) {
+            toast.success("XML TISS exportado e validado com sucesso! Salvo no histórico.");
+          } else {
+            setDialogValidacao(true);
+            toast.warning(`XML exportado com ${data.validacao.erros.length} erro(s) de validação TISS.`);
+          }
+        } else {
+          toast.success("XML ANS/TISS exportado com sucesso!");
+        }
       }
       
       refetch(); // Atualizar para mostrar xmlUrl no lote
