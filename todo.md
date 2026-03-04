@@ -2386,3 +2386,9 @@
 - [x] Remover arquivos de dados do git tracking
 - [x] Atualizar .gitignore
 - [x] Verificar build funcional após limpeza
+
+## Otimização Agressiva de Deploy (v2)
+- [x] Analisar dependências pesadas do node_modules
+- [x] Implementar manualChunks no Vite
+- [x] Reduzir tamanho total do projeto
+- [ ] Otimizar snapshots drizzle/meta

@@ -24,6 +24,30 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-xlsx': ['xlsx'],
+          'vendor-recharts': ['recharts'],
+          'vendor-jspdf': ['jspdf', 'jspdf-autotable'],
+          'vendor-radix': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-select',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-scroll-area',
+          ],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-date': ['date-fns'],
+          'vendor-motion': ['framer-motion'],
+        },
+      },
+    },
   },
   server: {
     host: true,

@@ -1359,24 +1359,10 @@ function extractProcedimentoFromRow(row: Record<string, unknown>): ParsedProcedi
  */
 export async function parsePDF(content: Buffer): Promise<ParseResult> {
   try {
-    // Use pdfjs-dist legacy build for Node.js compatibility
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    
-    // Load the PDF document
-    const uint8Array = new Uint8Array(content);
-    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
-    const pdf = await loadingTask.promise;
-    
-    // Extract text from all pages
-    let text = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: unknown) => (item as { str: string }).str)
-        .join(" ");
-      text += pageText + "\n";
-    }
+    // Use pdf-parse for lightweight PDF text extraction
+    const pdfParse = (await import("pdf-parse")).default;
+    const data = await pdfParse(content);
+    const text = data.text || "";
     
     // Try to extract procedures from text
     const procedimentos = extractProcedimentosFromText(text);
@@ -1384,7 +1370,7 @@ export async function parsePDF(content: Buffer): Promise<ParseResult> {
     return {
       success: true,
       procedimentos,
-      rawData: { text, numPages: pdf.numPages },
+      rawData: { text, numPages: data.numpages || 1 },
     };
   } catch (error) {
     return {
