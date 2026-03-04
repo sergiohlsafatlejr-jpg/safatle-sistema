@@ -105,3 +105,20 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Test/debug scripts
+*.mjs
+
+# Sample data files
+*.xlsx
+*.xls
+*.csv
+*.pdf
+
+# Test files directory
+test_files/
+
+# Analysis/investigation notes
+xml_analysis.md
+investigation_notes.md
+todo_backup.md

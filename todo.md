@@ -2372,3 +2372,17 @@
 - [x] Módulo 8 - Configurações: adicionar abas Integrador de Dados, Mapeamento Convênios, Avisos Internos, Regras de IA, Dicionário de Glosas
 - [x] Excluir aba Conciliação Contas Pagas - removida rota e import do App.tsx
 - [x] Otimizar build: code-splitting e lazy loading - bundle principal reduzido de 5.4 MB para 905 KB (-83%), build de 50s para 16s
+
+## Limpeza e Otimização de Deploy
+- [x] Remover scripts .mjs temporários do git tracking (~100 arquivos)
+- [x] Remover arquivos de dados (.xlsx, .pdf, .xml) do git tracking
+- [x] Atualizar .gitignore para prevenir re-adição de arquivos temporários
+- [x] Limpar arquivos deletados do git cache
+- [x] Manter test_files necessários para testes unitários
+- [x] Verificar build funcional após limpeza (1006 testes passando)
+
+## Limpeza e Otimização de Deploy
+- [x] Remover scripts .mjs temporários do git tracking
+- [x] Remover arquivos de dados do git tracking
+- [x] Atualizar .gitignore
+- [x] Verificar build funcional após limpeza
