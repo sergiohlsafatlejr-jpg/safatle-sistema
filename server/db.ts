@@ -9683,8 +9683,102 @@ export async function getRecursosLoteParaExportacao(loteId: number) {
 }
 
 /**
+ * Mapeamento de textos de motivo de glosa para códigos numéricos TISS (Tabela 38 ANS)
+ * Usado quando o convênio envia texto em vez de código numérico
+ */
+const MAPEAMENTO_GLOSA_TEXTO_PARA_CODIGO: Record<string, string> = {
+  // Glosas genéricas
+  "PROCEDIMENTO NÃO INDICADO": "1813",
+  "PROCEDIMENTO NAO INDICADO": "1813",
+  "PROCEDIMENTO NÃO AUTORIZADO": "1402",
+  "PROCEDIMENTO NAO AUTORIZADO": "1402",
+  "PROCEDIMENTO DUPLICADO": "1702",
+  "COBRANÇA EM DUPLICIDADE": "1702",
+  "COBRANCA EM DUPLICIDADE": "1702",
+  "COBRANÇA FORA DO PRAZO": "1701",
+  "COBRANCA FORA DO PRAZO": "1701",
+  "VALOR APRESENTADO A MAIOR": "1705",
+  "VALOR COBRADO SUPERIOR": "1704",
+  "FALTA PRESCRIÇÃO MÉDICA": "1709",
+  "FALTA PRESCRICAO MEDICA": "1709",
+  // Medicamentos
+  "ATB NÃO AUTORIZADO": "2115",
+  "ATB NAO AUTORIZADO": "2115",
+  "MEDICAMENTO NÃO AUTORIZADO": "2115",
+  "MEDICAMENTO NAO AUTORIZADO": "2115",
+  "MEDICAMENTO NÃO INDICADO": "2115",
+  "MEDICAMENTO NAO INDICADO": "2115",
+  "MEDICAMENTO INVÁLIDO": "2101",
+  "MEDICAMENTO INVALIDO": "2101",
+  "MEDICAMENTO NÃO COBERTO": "2106",
+  "MEDICAMENTO NAO COBERTO": "2106",
+  // Materiais
+  "MATERIAL NÃO AUTORIZADO": "2015",
+  "MATERIAL NAO AUTORIZADO": "2015",
+  "MATERIAL NÃO INDICADO": "2015",
+  "MATERIAL NAO INDICADO": "2015",
+  "MATERIAL INVÁLIDO": "2001",
+  "MATERIAL INVALIDO": "2001",
+  // OPME
+  "OPME NÃO AUTORIZADO": "2206",
+  "OPME NAO AUTORIZADO": "2206",
+  // Diárias
+  "DIÁRIA INCOMPATÍVEL": "1903",
+  "DIARIA INCOMPATIVEL": "1903",
+  // Taxas
+  "TAXA INVÁLIDA": "2401",
+  "TAXA INVALIDA": "2401",
+  // Exames
+  "EXAME NÃO AUTORIZADO": "2707",
+  "EXAME NAO AUTORIZADO": "2707",
+  // Recurso
+  "GLOSA MANTIDA": "2902",
+  "RECURSO SEM JUSTIFICATIVA": "2903",
+};
+
+/**
+ * Tenta mapear texto de motivo de glosa para código numérico TISS
+ */
+function mapearCodigoGlosa(textoGlosa: string): string {
+  if (!textoGlosa) return "1813"; // default: sem justificativa
+  
+  // Se já é numérico, retornar direto
+  const matchNumerico = textoGlosa.match(/^(\d{4})/);
+  if (matchNumerico) return matchNumerico[1];
+  
+  // Normalizar texto para busca
+  const textoNormalizado = textoGlosa.trim().toUpperCase();
+  
+  // Busca exata
+  if (MAPEAMENTO_GLOSA_TEXTO_PARA_CODIGO[textoNormalizado]) {
+    return MAPEAMENTO_GLOSA_TEXTO_PARA_CODIGO[textoNormalizado];
+  }
+  
+  // Busca parcial (contém)
+  for (const [texto, codigo] of Object.entries(MAPEAMENTO_GLOSA_TEXTO_PARA_CODIGO)) {
+    if (textoNormalizado.includes(texto) || texto.includes(textoNormalizado)) {
+      return codigo;
+    }
+  }
+  
+  // Fallback: tentar extrair código numérico de qualquer posição
+  const matchQualquer = textoGlosa.match(/(\d{4})/);
+  if (matchQualquer) return matchQualquer[1];
+  
+  // Default: "Cobrança de procedimento sem justificativa"
+  return "1813";
+}
+
+/**
+ * Remove caracteres não numéricos de uma string (para CNPJ, guias, etc.)
+ */
+function apenasNumeros(str: string): string {
+  return str.replace(/\D/g, '');
+}
+
+/**
  * Gera XML no padrão ANS/TISS para recurso de glosa
- * Formato validado conforme padrão TISS 4.01.00
+ * Formato validado conforme padrão TISS 3.02.00 (compatível com IPASGO e demais operadoras)
  */
 export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | null> {
   const db = await getDb();
@@ -9735,6 +9829,8 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
       : [null];
     codigoPrestador = estabelecimento?.cnpj || "0000";
   }
+  // TISS 3.02: codigoPrestadorNaOperadora deve ser apenas números
+  codigoPrestador = apenasNumeros(codigoPrestador);
 
   // Buscar registroANS do faturamento_tiss (fonte mais confiável)
   let registroANS = "";
@@ -9747,14 +9843,35 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
       .limit(1);
     if (ftReg?.registroAns) registroANS = ftReg.registroAns;
   }
-  // Fallback ao código do convênio
-  if (!registroANS) {
-    registroANS = convenio?.codigo || "000000";
+  // Fallback: buscar do recebimentoTiss (tem registroAns correto)
+  if (!registroANS && guiasDoLote.length > 0) {
+    const [recTissReg] = await db
+      .select({ registroANS: recebimentoTiss.registroANS })
+      .from(recebimentoTiss)
+      .where(eq(recebimentoTiss.numeroGuiaPrestador, guiasDoLote[0]!))
+      .limit(1);
+    if (recTissReg?.registroANS) registroANS = recTissReg.registroANS;
   }
+  // Fallback ao código do convênio (padded para 6 dígitos)
+  if (!registroANS) {
+    registroANS = (convenio?.codigo || "000000").padStart(6, '0');
+  }
+  // Garantir que registroANS tenha 6 dígitos
+  registroANS = registroANS.padStart(6, '0');
 
   const nomeOperadora = convenio?.nome?.trim() || "OPERADORA";
   const dataAtual = new Date().toISOString().split('T')[0];
   const horaAtual = new Date().toTimeString().split(' ')[0];
+  
+  // TISS 3.02: sequencialTransacao deve ser numérico e max 10 dígitos (IPASGO aceita max 6)
+  // Gerar sequencial numérico a partir do ID do lote (max 10 dígitos)
+  const sequencialTransacao = String(lote.id).padStart(6, '0').slice(-10);
+  
+  // TISS 3.02: numeroLote deve ser numérico e max 12 chars
+  const numeroLoteNumerico = apenasNumeros(lote.numeroLote || String(lote.id)).slice(0, 12);
+  
+  // TISS 3.02: numeroGuiaRecGlosaPrestador deve ser numérico, max 20 chars
+  const numeroGuiaRecGlosa = apenasNumeros(lote.numeroLote || String(lote.id)).slice(0, 20);
 
   // Buscar dados complementares do faturamento_tiss e demonstrativo para cada guia
   // (senha, guia operadora, data execução real, código tabela, código glosa numérico)
@@ -9807,6 +9924,35 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         )
       );
 
+    // Buscar também do recebimentos_excel (para glosas do IPASGO e outros Excel)
+    const excelItens = await db
+      .select({
+        codigoItem: recebimentosExcel.item,
+        codigoGlosa: recebimentosExcel.codigoGlosa,
+        dataExecucao: recebimentosExcel.dataExecucao,
+      })
+      .from(recebimentosExcel)
+      .where(
+        and(
+          eq(recebimentosExcel.numeroGuia, guiaNumero),
+          sql`${recebimentosExcel.situacaoItem} = 'GLOSADO'`
+        )
+      );
+
+    // Mesclar itens do demonstrativo e do Excel (demonstrativo tem prioridade)
+    const todosItensGlosa = [
+      ...demoItens.map(d => ({
+        codigoItem: d.codigoItem || "",
+        codigoGlosa: d.codigoGlosa,
+        dataExecucao: d.dataExecucao ? new Date(d.dataExecucao) : null,
+      })),
+      ...excelItens.map(e => ({
+        codigoItem: e.codigoItem || "",
+        codigoGlosa: e.codigoGlosa,
+        dataExecucao: e.dataExecucao ? new Date(e.dataExecucao) : null,
+      })),
+    ];
+
     dadosComplementares[guiaNumero] = {
       senha: fatItens[0]?.senha || undefined,
       guiaOperadora: fatItens[0]?.guiaOperadora || undefined,
@@ -9817,11 +9963,7 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         dataExecucao: f.dataExecucao ? new Date(f.dataExecucao).toISOString().split('T')[0] : null,
         sequencialItem: f.sequencialItem,
       })),
-      itensDemo: demoItens.map(d => ({
-        codigoItem: d.codigoItem || "",
-        codigoGlosa: d.codigoGlosa,
-        dataExecucao: d.dataExecucao ? new Date(d.dataExecucao) : null,
-      })),
+      itensDemo: todosItensGlosa,
     };
   }
 
@@ -9875,27 +10017,41 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         }
       }
 
-      // Extrair código numérico da glosa (ex: "1701-COBRANÇA FORA DO PRAZO" -> "1701")
+      // TISS 3.02: codGlosaItem deve ser código numérico (Tabela 38 ANS)
       let codGlosaItem = recurso.motivoGlosaConvenio || "";
-      const matchCodigo = codGlosaItem.match(/^(\d+)/);
+      // Primeiro tentar extrair código numérico direto
+      const matchCodigo = codGlosaItem.match(/^(\d{4})/);
       if (matchCodigo) {
         codGlosaItem = matchCodigo[1];
       } else {
-        // Tentar buscar do demonstrativo
+        // Tentar buscar do demonstrativo/recebimentos_excel
+        let codigoEncontrado = false;
         if (complementar) {
           const demoItem = complementar.itensDemo.find(d => d.codigoItem === recurso.codigoProcedimento);
           if (demoItem?.codigoGlosa) {
-            codGlosaItem = demoItem.codigoGlosa;
+            const matchDemo = demoItem.codigoGlosa.match(/^(\d{4})/);
+            if (matchDemo) {
+              codGlosaItem = matchDemo[1];
+              codigoEncontrado = true;
+            }
           }
+        }
+        // Se não encontrou código numérico, mapear texto para código TISS
+        if (!codigoEncontrado) {
+          codGlosaItem = mapearCodigoGlosa(codGlosaItem);
         }
       }
 
-      // Limpar justificativa (remover quebras de linha extras)
-      const justificativa = (recurso.justificativaRecurso || "")
+      // TISS 3.02: justificativaItem máximo 150 caracteres (st_texto150)
+      let justificativa = (recurso.justificativaRecurso || "")
         .replace(/\r\n/g, ' ')
         .replace(/\n/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
+      // Truncar em 150 caracteres
+      if (justificativa.length > 150) {
+        justificativa = justificativa.substring(0, 147) + "...";
+      }
 
       const valorRecursado = parseFloat(recurso.valorGlosado || "0");
       valorTotalRecursado += valorRecursado;
@@ -9933,9 +10089,11 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     ? `
                 <ans:numeroGuiaRecGlosaOperadora>${escapeXml(protocoloEnvio)}</ans:numeroGuiaRecGlosaOperadora>` 
     : "";
-  const protocoloTag = protocoloEnvio 
+  // TISS 3.02: numeroProtocolo é st_numerico12 (apenas dígitos)
+  const protocoloNumerico = protocoloEnvio ? apenasNumeros(protocoloEnvio).slice(0, 12) : "";
+  const protocoloTag = protocoloNumerico 
     ? `
-                <ans:numeroProtocolo>${escapeXml(protocoloEnvio)}</ans:numeroProtocolo>` 
+                <ans:numeroProtocolo>${protocoloNumerico}</ans:numeroProtocolo>` 
     : "";
 
   // Montar o corpo do XML (sem epílogo ainda, para calcular o hash)
@@ -9944,7 +10102,7 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
     <ans:cabecalho>
         <ans:identificacaoTransacao>
             <ans:tipoTransacao>RECURSO_GLOSA</ans:tipoTransacao>
-            <ans:sequencialTransacao>${escapeXml(lote.numeroLote)}</ans:sequencialTransacao>
+            <ans:sequencialTransacao>${sequencialTransacao}</ans:sequencialTransacao>
             <ans:dataRegistroTransacao>${dataAtual}</ans:dataRegistroTransacao>
             <ans:horaRegistroTransacao>${horaAtual}</ans:horaRegistroTransacao>
         </ans:identificacaoTransacao>
@@ -9956,19 +10114,19 @@ export async function gerarXmlRecursoGlosa(loteId: number): Promise<string | nul
         <ans:destino>
             <ans:registroANS>${registroANS}</ans:registroANS>
         </ans:destino>
-        <ans:Padrao>4.01.00</ans:Padrao>
+        <ans:Padrao>3.02.00</ans:Padrao>
     </ans:cabecalho>
     <ans:prestadorParaOperadora>
         <ans:recursoGlosa>
             <ans:guiaRecursoGlosa>
                 <ans:registroANS>${registroANS}</ans:registroANS>
-                <ans:numeroGuiaRecGlosaPrestador>${escapeXml(lote.numeroLote)}</ans:numeroGuiaRecGlosaPrestador>
+                <ans:numeroGuiaRecGlosaPrestador>${numeroGuiaRecGlosa}</ans:numeroGuiaRecGlosaPrestador>
                 <ans:nomeOperadora>${escapeXml(nomeOperadora)}</ans:nomeOperadora>
                 <ans:objetoRecurso>2</ans:objetoRecurso>${guiaRecGlosaOperadoraTag}
                 <ans:dadosContratado>
                     <ans:codigoPrestadorNaOperadora>${escapeXml(codigoPrestador)}</ans:codigoPrestadorNaOperadora>
                 </ans:dadosContratado>
-                <ans:numeroLote>${escapeXml(lote.numeroLote)}</ans:numeroLote>${protocoloTag}
+                <ans:numeroLote>${numeroLoteNumerico}</ans:numeroLote>${protocoloTag}
                 <ans:opcaoRecurso>${guiasXml}
                 </ans:opcaoRecurso>
                 <ans:valorTotalRecursado>${valorTotalRecursado.toFixed(2)}</ans:valorTotalRecursado>
