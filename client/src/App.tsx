@@ -5,60 +5,74 @@ import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useEstabelecimento } from "./contexts/EstabelecimentoContext";
+import { lazy, Suspense } from "react";
+
+// Eager load: pages that are always needed or very small
 import Home from "./pages/Home";
 import Inicio from "./pages/Inicio";
 import SelecionarEstabelecimento from "./pages/SelecionarEstabelecimento";
-import Upload from "./pages/Upload";
-import Arquivos from "./pages/Arquivos";
-import Comparacoes from "./pages/Comparacoes";
-import Relatorios from "./pages/Relatorios";
-import Configuracoes from "./pages/Configuracoes";
-import ContaConvenio from "./pages/ContaConvenio";
-import DemonstrativoDetalhes from "./pages/DemonstrativoDetalhes";
-import Conciliacao from "./pages/Conciliacao";
-import AnaliseGlosa from "./pages/AnaliseGlosa";
-import RecursosGlosa from "./pages/RecursosGlosa";
-import Tendencias from "./pages/Tendencias";
-import Demonstrativo from "./pages/Demonstrativo";
-import Repasse from "./pages/Repasse";
-import DicionarioGlosas from "./pages/DicionarioGlosas";
-import Estabelecimentos from "./pages/Estabelecimentos";
-import Convenios from "./pages/Convenios";
-import RegrasConciliacao from "./pages/RegrasConciliacao";
-import TabelasPreco from "./pages/TabelasPreco";
-import RegrasNegocio from "./pages/RegrasNegocio";
-import DashboardConsolidado from "./pages/DashboardConsolidado";
-import GerenciarPermissoes from "./pages/GerenciarPermissoes";
-import DashboardProdutividade from "./pages/DashboardProdutividade";
-import AlterarSenha from "./pages/AlterarSenha";
-import ContaDetalhes from "./pages/ContaDetalhes";
-import AcompanhamentoRecursos from "./pages/AcompanhamentoRecursos";
-import DashboardIA from "./pages/DashboardIA";
-import NaoRecebidos from "./pages/NaoRecebidos";
-import EnvioRecursosLote from "./pages/EnvioRecursosLote";
-import RegrasIA from "./pages/RegrasIA";
-import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
-import RelatoriosBI from "./pages/RelatoriosBI";
-// ConciliacaoContasPagas removido - aba excluída
-import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
-import ConciliacaoCruzada from "./pages/ConciliacaoCruzada";
-import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
-import ContaConvenioDetalhes from "./pages/ContaConvenioDetalhes";
-import RecebimentosXml from "./pages/RecebimentosXml";
-import RecebimentosExcel from "./pages/RecebimentosExcel";
-import Atendimentos from "./pages/Atendimentos";
-import AtendimentosFaturar from "./pages/AtendimentosFaturar";
-import GerenciarAvisos from "./pages/GerenciarAvisos";
-import AuditDashboard from "./pages/AuditDashboard";
-import { PrevisaoGlosa } from "./pages/PrevisaoGlosa";
-import DashboardMotorRegras from "./pages/DashboardMotorRegras";
-import CacheDashboard from "./pages/CacheDashboard";
-import { HistoricoValidacaoXml } from "./pages/HistoricoValidacaoXml";
-import { PopularHistoricoXml } from "./pages/PopularHistoricoXml";
-import { IntegradorDados } from "./pages/IntegradorDados";
-import MapeamentoConvenios from "./pages/MapeamentoConvenios";
-import RelatorioRecebimentoGeral from "./pages/RelatorioRecebimentoGeral";
-// import ImportacaoXML from "./pages/ImportacaoXML"; // Removido temporariamente
+
+// Lazy load: all other pages for code-splitting
+const Upload = lazy(() => import("./pages/Upload"));
+const Arquivos = lazy(() => import("./pages/Arquivos"));
+const Comparacoes = lazy(() => import("./pages/Comparacoes"));
+const Relatorios = lazy(() => import("./pages/Relatorios"));
+const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const ContaConvenio = lazy(() => import("./pages/ContaConvenio"));
+const DemonstrativoDetalhes = lazy(() => import("./pages/DemonstrativoDetalhes"));
+const Conciliacao = lazy(() => import("./pages/Conciliacao"));
+const AnaliseGlosa = lazy(() => import("./pages/AnaliseGlosa"));
+const RecursosGlosa = lazy(() => import("./pages/RecursosGlosa"));
+const Tendencias = lazy(() => import("./pages/Tendencias"));
+const Demonstrativo = lazy(() => import("./pages/Demonstrativo"));
+const Repasse = lazy(() => import("./pages/Repasse"));
+const DicionarioGlosas = lazy(() => import("./pages/DicionarioGlosas"));
+const Estabelecimentos = lazy(() => import("./pages/Estabelecimentos"));
+const Convenios = lazy(() => import("./pages/Convenios"));
+const RegrasConciliacao = lazy(() => import("./pages/RegrasConciliacao"));
+const TabelasPreco = lazy(() => import("./pages/TabelasPreco"));
+const RegrasNegocio = lazy(() => import("./pages/RegrasNegocio"));
+const DashboardConsolidado = lazy(() => import("./pages/DashboardConsolidado"));
+const GerenciarPermissoes = lazy(() => import("./pages/GerenciarPermissoes"));
+const DashboardProdutividade = lazy(() => import("./pages/DashboardProdutividade"));
+const AlterarSenha = lazy(() => import("./pages/AlterarSenha"));
+const ContaDetalhes = lazy(() => import("./pages/ContaDetalhes"));
+const AcompanhamentoRecursos = lazy(() => import("./pages/AcompanhamentoRecursos"));
+const DashboardIA = lazy(() => import("./pages/DashboardIA"));
+const NaoRecebidos = lazy(() => import("./pages/NaoRecebidos"));
+const EnvioRecursosLote = lazy(() => import("./pages/EnvioRecursosLote"));
+const RegrasIA = lazy(() => import("./pages/RegrasIA"));
+const ConciliacaoDetalhes = lazy(() => import("./pages/ConciliacaoDetalhes"));
+const RelatoriosBI = lazy(() => import("./pages/RelatoriosBI"));
+const ConciliacaoContasFaturadas = lazy(() => import("./pages/ConciliacaoContasFaturadas"));
+const ConciliacaoCruzada = lazy(() => import("./pages/ConciliacaoCruzada"));
+const DetalhesContaFaturada = lazy(() => import("./pages/DetalhesContaFaturada"));
+const ContaConvenioDetalhes = lazy(() => import("./pages/ContaConvenioDetalhes"));
+const RecebimentosXml = lazy(() => import("./pages/RecebimentosXml"));
+const RecebimentosExcel = lazy(() => import("./pages/RecebimentosExcel"));
+const Atendimentos = lazy(() => import("./pages/Atendimentos"));
+const AtendimentosFaturar = lazy(() => import("./pages/AtendimentosFaturar"));
+const GerenciarAvisos = lazy(() => import("./pages/GerenciarAvisos"));
+const AuditDashboard = lazy(() => import("./pages/AuditDashboard"));
+const PrevisaoGlosa = lazy(() => import("./pages/PrevisaoGlosa").then(m => ({ default: m.PrevisaoGlosa })));
+const DashboardMotorRegras = lazy(() => import("./pages/DashboardMotorRegras"));
+const CacheDashboard = lazy(() => import("./pages/CacheDashboard"));
+const HistoricoValidacaoXml = lazy(() => import("./pages/HistoricoValidacaoXml").then(m => ({ default: m.HistoricoValidacaoXml })));
+const PopularHistoricoXml = lazy(() => import("./pages/PopularHistoricoXml").then(m => ({ default: m.PopularHistoricoXml })));
+const IntegradorDados = lazy(() => import("./pages/IntegradorDados").then(m => ({ default: m.IntegradorDados })));
+const MapeamentoConvenios = lazy(() => import("./pages/MapeamentoConvenios"));
+const RelatorioRecebimentoGeral = lazy(() => import("./pages/RelatorioRecebimentoGeral"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-sm text-muted-foreground">Carregando...</p>
+      </div>
+    </div>
+  );
+}
 
 function Router() {
   const { selecionado, isLoading } = useEstabelecimento();
@@ -71,64 +85,66 @@ function Router() {
   }
 
   return (
-    <Switch>
-      <Route path={"/selecionar-estabelecimento"} component={SelecionarEstabelecimento} />
-      <Route path={"/"} component={Inicio} />
-      <Route path={"/dashboard"} component={Home} />
-      <Route path={"/upload"} component={Upload} />
-      <Route path={"/arquivos"} component={Arquivos} />
-      <Route path={"/comparacoes"} component={Comparacoes} />
-      <Route path={"/relatorios"} component={Relatorios} />
-      <Route path={"/configuracoes/:rest*"} component={Configuracoes} />
-      <Route path={"/conta-convenio"} component={ContaConvenio} />
-      <Route path={"/conta-convenio-detalhes"} component={ContaConvenioDetalhes} />
-      <Route path={"/demonstrativo-detalhes"} component={DemonstrativoDetalhes} />
-      <Route path={"/contas/:guiaNumero"} component={ContaDetalhes} />
-      <Route path={"/conciliacao"} component={Conciliacao} />
-      <Route path={"/conciliacao/:convenioId/:guiaNumero"} component={ConciliacaoDetalhes} />
-      <Route path={"/analise-glosa"} component={AnaliseGlosa} />
-      <Route path={"/recursos"} component={RecursosGlosa} />
-      <Route path={"/regras-conciliacao"} component={RegrasConciliacao} />
-      <Route path={"/tendencias"} component={Tendencias} />
-      <Route path={"/demonstrativo"} component={Demonstrativo} />
-      <Route path={"/repasse"} component={Repasse} />
-      <Route path={"/dicionario-glosas"} component={DicionarioGlosas} />
-      <Route path={"/estabelecimentos"} component={Estabelecimentos} />
-      <Route path={"/convenios"} component={Convenios} />
-      <Route path={"/tabelas-preco"} component={TabelasPreco} />
-      <Route path={"/regras-negocio"} component={RegrasNegocio} />
-      <Route path={"/dashboard-consolidado"} component={DashboardConsolidado} />
-      <Route path={"/gerenciar-permissoes"} component={GerenciarPermissoes} />
-      <Route path={"/produtividade"} component={DashboardProdutividade} />
-      <Route path={"/alterar-senha"} component={AlterarSenha} />
-      <Route path={"/acompanhamento-recursos"} component={AcompanhamentoRecursos} />
-      <Route path={"/dashboard-ia"} component={DashboardIA} />
-      <Route path={"/nao-recebidos"} component={NaoRecebidos} />
-      <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
-      <Route path={"/regras-ia"} component={RegrasIA} />
-      <Route path={"/relatorios-bi"} component={RelatoriosBI} />
-      <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
-      <Route path={"/motor-regras"} component={DashboardMotorRegras} />
-      <Route path={"/conciliacao-cruzada"} component={ConciliacaoCruzada} />
-      <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
-      <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
-      <Route path={"/recebimentos-xml"} component={RecebimentosXml} />
-      <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
-      <Route path={"/atendimentos"} component={Atendimentos} />
-      <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
-      <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
-      <Route path={"/auditoria"} component={AuditDashboard} />
-      <Route path={"/cache-dashboard"} component={CacheDashboard} />
-      <Route path={"/historico-validacao-xml"} component={HistoricoValidacaoXml} />
-      <Route path={"/popular-historico-xml"} component={PopularHistoricoXml} />
-      <Route path={"/integracao"} component={IntegradorDados} />
-      <Route path={"/mapeamento-convenios"} component={MapeamentoConvenios} />
-      <Route path={"/relatorio-recebimento-geral"} component={RelatorioRecebimentoGeral} />
-      <Route path={"/relatorio-faturamento"} component={NotFound} />
-      <Route path={"/relatorio-atendimentos"} component={NotFound} />
-      <Route path={"/404"} component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path={"/selecionar-estabelecimento"} component={SelecionarEstabelecimento} />
+        <Route path={"/"} component={Inicio} />
+        <Route path={"/dashboard"} component={Home} />
+        <Route path={"/upload"} component={Upload} />
+        <Route path={"/arquivos"} component={Arquivos} />
+        <Route path={"/comparacoes"} component={Comparacoes} />
+        <Route path={"/relatorios"} component={Relatorios} />
+        <Route path={"/configuracoes/:rest*"} component={Configuracoes} />
+        <Route path={"/conta-convenio"} component={ContaConvenio} />
+        <Route path={"/conta-convenio-detalhes"} component={ContaConvenioDetalhes} />
+        <Route path={"/demonstrativo-detalhes"} component={DemonstrativoDetalhes} />
+        <Route path={"/contas/:guiaNumero"} component={ContaDetalhes} />
+        <Route path={"/conciliacao"} component={Conciliacao} />
+        <Route path={"/conciliacao/:convenioId/:guiaNumero"} component={ConciliacaoDetalhes} />
+        <Route path={"/analise-glosa"} component={AnaliseGlosa} />
+        <Route path={"/recursos"} component={RecursosGlosa} />
+        <Route path={"/regras-conciliacao"} component={RegrasConciliacao} />
+        <Route path={"/tendencias"} component={Tendencias} />
+        <Route path={"/demonstrativo"} component={Demonstrativo} />
+        <Route path={"/repasse"} component={Repasse} />
+        <Route path={"/dicionario-glosas"} component={DicionarioGlosas} />
+        <Route path={"/estabelecimentos"} component={Estabelecimentos} />
+        <Route path={"/convenios"} component={Convenios} />
+        <Route path={"/tabelas-preco"} component={TabelasPreco} />
+        <Route path={"/regras-negocio"} component={RegrasNegocio} />
+        <Route path={"/dashboard-consolidado"} component={DashboardConsolidado} />
+        <Route path={"/gerenciar-permissoes"} component={GerenciarPermissoes} />
+        <Route path={"/produtividade"} component={DashboardProdutividade} />
+        <Route path={"/alterar-senha"} component={AlterarSenha} />
+        <Route path={"/acompanhamento-recursos"} component={AcompanhamentoRecursos} />
+        <Route path={"/dashboard-ia"} component={DashboardIA} />
+        <Route path={"/nao-recebidos"} component={NaoRecebidos} />
+        <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
+        <Route path={"/regras-ia"} component={RegrasIA} />
+        <Route path={"/relatorios-bi"} component={RelatoriosBI} />
+        <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
+        <Route path={"/motor-regras"} component={DashboardMotorRegras} />
+        <Route path={"/conciliacao-cruzada"} component={ConciliacaoCruzada} />
+        <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
+        <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
+        <Route path={"/recebimentos-xml"} component={RecebimentosXml} />
+        <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
+        <Route path={"/atendimentos"} component={Atendimentos} />
+        <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
+        <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
+        <Route path={"/auditoria"} component={AuditDashboard} />
+        <Route path={"/cache-dashboard"} component={CacheDashboard} />
+        <Route path={"/historico-validacao-xml"} component={HistoricoValidacaoXml} />
+        <Route path={"/popular-historico-xml"} component={PopularHistoricoXml} />
+        <Route path={"/integracao"} component={IntegradorDados} />
+        <Route path={"/mapeamento-convenios"} component={MapeamentoConvenios} />
+        <Route path={"/relatorio-recebimento-geral"} component={RelatorioRecebimentoGeral} />
+        <Route path={"/relatorio-faturamento"} component={NotFound} />
+        <Route path={"/relatorio-atendimentos"} component={NotFound} />
+        <Route path={"/404"} component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

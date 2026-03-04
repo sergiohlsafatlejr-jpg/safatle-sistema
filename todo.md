@@ -2371,3 +2371,4 @@
 - [x] Módulo 7 - Gerenciamento: sub-abas Dashboard, Dashboard Consolidado, Dashboard IA, Produtividade, Tendências
 - [x] Módulo 8 - Configurações: adicionar abas Integrador de Dados, Mapeamento Convênios, Avisos Internos, Regras de IA, Dicionário de Glosas
 - [x] Excluir aba Conciliação Contas Pagas - removida rota e import do App.tsx
+- [x] Otimizar build: code-splitting e lazy loading - bundle principal reduzido de 5.4 MB para 905 KB (-83%), build de 50s para 16s
