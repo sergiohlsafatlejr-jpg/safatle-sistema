@@ -70,6 +70,14 @@ import {
   AlertCircle,
   ChevronRight,
   Link2,
+  FolderUp,
+  ClipboardList,
+  Inbox,
+  Search,
+  Send,
+  Eye,
+  Gauge,
+  Package,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -94,67 +102,65 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   // Início
   { icon: Home, label: "Início", path: "/" },
-  // Dashboards
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", modulo: "dashboard" },
-  { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado", adminOnly: true },
-  { icon: Brain, label: "Dashboard IA", path: "/dashboard-ia", modulo: "comparacoes" },
-  { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
-  
-  // Arquivos e Upload
-  { icon: Upload, label: "Upload de Arquivos", path: "/upload", modulo: "arquivos" },
-  { icon: FileSearch, label: "Arquivos", path: "/arquivos", modulo: "arquivos" },
-  { icon: List, label: "Conta Convênio", path: "/conta-convenio", modulo: "arquivos" },
 
-  
-  // Comparações e Conciliação
-  { icon: GitCompare, label: "Comparações", path: "/comparacoes", modulo: "comparacoes" },
-  { icon: Scale, label: "Conciliação", path: "/conciliacao", modulo: "comparacoes" },
-  
-  // Faturamento
-  { icon: FileSpreadsheet, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
-  
-  // Recebimentos (fontes de dados do Demonstrativo)
-  { icon: FileCode2, label: "Recebimentos XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
-  { icon: FileSpreadsheet, label: "Recebimentos Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
-  
-  // Análise e Recursos de Glosa
-  { icon: PieChart, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },
-  { icon: Gavel, label: "Recursos de Glosa", path: "/recursos", modulo: "recursosGlosa" },
-  { icon: History, label: "Acompanhamento Recursos", path: "/acompanhamento-recursos", modulo: "recursosGlosa" },
-  { icon: Gavel, label: "Envio em Lote", path: "/envio-recursos-lote", modulo: "recursosGlosa" },
-  
-  // Itens Não Recebidos
-  { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "faturamento" },
-  
-  // Relatórios e Históricos
-  { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
-  { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
-  { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
-  
-  // Administração
+  // Módulo 7 - Gerenciamento
+  { icon: Gauge, label: "Gerenciamento", path: "/dashboard", modulo: "dashboard", children: [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", modulo: "dashboard" },
+    { icon: LayoutGrid, label: "Dashboard Consolidado", path: "/dashboard-consolidado", adminOnly: true },
+    { icon: Brain, label: "Dashboard IA", path: "/dashboard-ia", modulo: "comparacoes" },
+    { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
+    { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
+  ]},
 
-  { icon: BookOpen, label: "Dicionário de Glosas", path: "/dicionario-glosas", modulo: "dicionarioGlosas" },
-  { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
-  { icon: Settings2, label: "Regras de IA", path: "/regras-ia", adminOnly: true },
+  // Módulo 1 - Upload Contas
+  { icon: FolderUp, label: "Upload Contas", path: "/upload", modulo: "arquivos", children: [
+    { icon: Upload, label: "Upload de Arquivos", path: "/upload", modulo: "arquivos" },
+    { icon: FileSearch, label: "Arquivos", path: "/arquivos", modulo: "arquivos" },
+    { icon: List, label: "Conta Convênio", path: "/conta-convenio", modulo: "arquivos" },
+  ]},
+
+  // Módulo 2 - Regras de Contas
+  { icon: ClipboardList, label: "Regras de Contas", path: "/comparacoes", modulo: "comparacoes", children: [
+    { icon: GitCompare, label: "Comparativos", path: "/comparacoes", modulo: "comparacoes" },
+    { icon: Activity, label: "Motor de Regras", path: "/motor-regras", modulo: "relatoriosBi" },
+    { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
+  ]},
+
+  // Módulo 3 - Recebimentos
+  { icon: Inbox, label: "Recebimentos", path: "/recebimentos-xml", modulo: "recebimentosXml", children: [
+    { icon: FileCode2, label: "Upload XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
+    { icon: FileSpreadsheet, label: "Upload Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
+    { icon: FileText, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
+  ]},
+
+  // Módulo 4 - Recurso de Glosa
+  { icon: Gavel, label: "Recurso de Glosa", path: "/analise-glosa", modulo: "analiseGlosa", children: [
+    { icon: Search, label: "Análise de Glosa", path: "/analise-glosa", modulo: "analiseGlosa" },
+    { icon: Eye, label: "Recursos Analisados", path: "/recursos", modulo: "recursosGlosa" },
+    { icon: Send, label: "Envio de Lote", path: "/envio-recursos-lote", modulo: "recursosGlosa" },
+    { icon: History, label: "Acompanhamento Recursos", path: "/acompanhamento-recursos", modulo: "recursosGlosa" },
+  ]},
+
+  // Módulo 5 - Relatórios BI
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
     { icon: BarChart3, label: "Dashboard BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
     { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relatoriosBi" },
     { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relatoriosBi" },
     { icon: Users, label: "Rel. Atendimentos", path: "/relatorio-atendimentos", modulo: "relatoriosBi" },
+    { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
+    { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
+    { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "faturamento" },
+    { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
   ]},
-  { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
-  { icon: Activity, label: "Motor de Regras", path: "/motor-regras", modulo: "relatoriosBi" },
-  { icon: DollarSign, label: "Conciliação Contas Pagas", path: "/conciliacao-contas-pagas", modulo: "conciliacaoContasPagas" },
-  { icon: Link2, label: "Conciliação Cruzada", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas" },
-  
-  // Integração de Dados
-  { icon: Database, label: "Integrador de Dados", path: "/integracao", adminOnly: true },
-  { icon: ArrowLeftRight, label: "Mapeamento Convênios", path: "/mapeamento-convenios", adminOnly: true },
-  
-  // Atendimentos
-  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
-  { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
-  { icon: Megaphone, label: "Avisos Internos", path: "/gerenciar-avisos", adminOnly: true },
+
+  // Módulo 6 - Conciliações
+  { icon: Scale, label: "Conciliações", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas", children: [
+    { icon: Link2, label: "Conciliação Cruzada", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas" },
+  ]},
+
+  // Relatórios avulsos
+  { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
+  { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

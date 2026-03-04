@@ -2361,3 +2361,13 @@
 - [x] Bug: XML recurso de glosa IPASGO - guias informadas não constam no protocolo recursado (496070) - corrigido: agora gera múltiplos XMLs (1 por protocolo), agrupando guias pelo protocolo do demonstrativo. Frontend baixa cada XML separadamente com nome do protocolo.
 - [x] Adicionar indicador visual no card do lote mostrando quantos protocolos/XMLs serão gerados antes de exportar - badge azul com ícone Layers mostrando "X protocolos (X XMLs)"
 - [x] Implementar botão para baixar todos os XMLs de um lote em arquivo ZIP - botão roxo "Baixar ZIP (X XMLs)" com archiver, salva no S3 e abre download
+- [x] Reorganizar navegação lateral em módulos com sub-abas colapsáveis
+- [x] Módulo 1 - Upload Contas: sub-abas Upload de Arquivos, Arquivos, Conta Convênio
+- [x] Módulo 2 - Regras de Contas: sub-abas Comparativos, Motor de Regras, Regras de Negócios
+- [x] Módulo 3 - Recebimentos: sub-abas Upload XML (renomear Recebimentos XML), Upload Excel (renomear Recebimentos Excel), Demonstrativo
+- [x] Módulo 4 - Recurso de Glosa: sub-abas Análise de Glosa, Recursos Analisados (renomear Recursos de Glosa), Envio de Lote, Acompanhamento Recursos
+- [x] Módulo 5 - Relatórios BI: adicionar abas Atendimentos, Atendimentos a Faturar, Não Recebidos (manter existentes)
+- [x] Módulo 6 - Conciliações: sub-aba Conciliação Cruzada
+- [x] Módulo 7 - Gerenciamento: sub-abas Dashboard, Dashboard Consolidado, Dashboard IA, Produtividade, Tendências
+- [x] Módulo 8 - Configurações: adicionar abas Integrador de Dados, Mapeamento Convênios, Avisos Internos, Regras de IA, Dicionário de Glosas
+- [x] Excluir aba Conciliação Contas Pagas - removida rota e import do App.tsx

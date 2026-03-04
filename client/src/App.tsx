@@ -39,7 +39,7 @@ import EnvioRecursosLote from "./pages/EnvioRecursosLote";
 import RegrasIA from "./pages/RegrasIA";
 import ConciliacaoDetalhes from "./pages/ConciliacaoDetalhes";
 import RelatoriosBI from "./pages/RelatoriosBI";
-import ConciliacaoContasPagas from "./pages/ConciliacaoContasPagas";
+// ConciliacaoContasPagas removido - aba excluída
 import ConciliacaoContasFaturadas from "./pages/ConciliacaoContasFaturadas";
 import ConciliacaoCruzada from "./pages/ConciliacaoCruzada";
 import DetalhesContaFaturada from "./pages/DetalhesContaFaturada";
@@ -109,7 +109,6 @@ function Router() {
       <Route path={"/relatorios-bi"} component={RelatoriosBI} />
       <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
       <Route path={"/motor-regras"} component={DashboardMotorRegras} />
-      <Route path={"/conciliacao-contas-pagas"} component={ConciliacaoContasPagas} />
       <Route path={"/conciliacao-cruzada"} component={ConciliacaoCruzada} />
       <Route path={"/contas-faturadas"} component={ConciliacaoContasFaturadas} />
       <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />

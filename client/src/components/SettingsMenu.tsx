@@ -11,6 +11,11 @@ import {
   Shield,
   DollarSign,
   FileText,
+  ArrowLeftRight,
+  Megaphone,
+  Settings2,
+  BookOpen,
+  Brain,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -32,6 +37,7 @@ type SettingsMenuItem = {
   path: string;
   description?: string;
   section?: string;
+  adminOnly?: boolean;
 };
 
 const settingsMenuItems: SettingsMenuItem[] = [
@@ -65,21 +71,56 @@ const settingsMenuItems: SettingsMenuItem[] = [
     description: "Gerenciar usuários, roles e permissões",
     section: "Acesso",
   },
-  // Sistema
+  // Integrações
   {
     icon: Database,
-    label: "Integração de Dados",
-    path: "/configuracoes/integracao",
+    label: "Integrador de Dados",
+    path: "/integracao",
     description: "WARLEINE, TASY, OMNI, GESTHOR",
-    section: "Sistema",
+    section: "Integrações",
+    adminOnly: true,
+  },
+  {
+    icon: ArrowLeftRight,
+    label: "Mapeamento Convênios",
+    path: "/mapeamento-convenios",
+    description: "Mapear códigos entre convênios",
+    section: "Integrações",
+    adminOnly: true,
+  },
+  // IA e Regras
+  {
+    icon: Brain,
+    label: "Regras de IA",
+    path: "/regras-ia",
+    description: "Configurar regras de inteligência artificial",
+    section: "IA e Regras",
+    adminOnly: true,
+  },
+  {
+    icon: BookOpen,
+    label: "Dicionário de Glosas",
+    path: "/dicionario-glosas",
+    description: "Gerenciar dicionário de glosas",
+    section: "IA e Regras",
+  },
+  // Comunicação
+  {
+    icon: Megaphone,
+    label: "Avisos Internos",
+    path: "/gerenciar-avisos",
+    description: "Gerenciar avisos e comunicados",
+    section: "Comunicação",
+    adminOnly: true,
   },
   {
     icon: Bell,
     label: "Notificações",
     path: "/configuracoes/notificacoes",
     description: "Alertas e canais de notificação",
-    section: "Sistema",
+    section: "Comunicação",
   },
+  // Sistema
   {
     icon: Download,
     label: "Backup e Dados",
@@ -93,6 +134,9 @@ const settingsMenuItems: SettingsMenuItem[] = [
 const sections = [
   { label: "Cadastros", items: settingsMenuItems.filter(i => i.section === "Cadastros") },
   { label: "Acesso", items: settingsMenuItems.filter(i => i.section === "Acesso") },
+  { label: "Integrações", items: settingsMenuItems.filter(i => i.section === "Integrações") },
+  { label: "IA e Regras", items: settingsMenuItems.filter(i => i.section === "IA e Regras") },
+  { label: "Comunicação", items: settingsMenuItems.filter(i => i.section === "Comunicação") },
   { label: "Sistema", items: settingsMenuItems.filter(i => i.section === "Sistema") },
 ];
 
