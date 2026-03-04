@@ -2394,3 +2394,7 @@
 - [ ] Otimizar snapshots drizzle/meta
 - [x] Sincronizar com repositório GitHub safatle-sistema
 - [x] Implementar lazy loading nas páginas pesadas
+- [ ] Corrigir XML de Recurso de Glosa TISS para validação Factiss
+- [ ] Corrigir cabecalho/Padrao (versaoPadrao em vez de versaoTISS)
+- [x] Adicionar nomeContratado no dadosContratado
+- [ ] Adicionar sequentialItem e dataInicio nos itensGuia

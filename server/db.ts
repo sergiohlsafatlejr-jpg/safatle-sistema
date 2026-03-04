@@ -9875,15 +9875,25 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
       .limit(1);
     if (cep) codigoPrestador = cep.codigoPrestador;
   }
-  // Fallback: buscar do estabelecimento
+  // Buscar nome do estabelecimento (obrigatório no ct_contratadoDados TISS 3.02)
+  let nomeContratado = "";
+  if (lote.estabelecimentoId) {
+    const [estabelecimento] = await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1);
+    if (estabelecimento) {
+      nomeContratado = estabelecimento.nome || "";
+      // Fallback: buscar do estabelecimento se codigoPrestador não encontrado
+      if (!codigoPrestador) {
+        codigoPrestador = estabelecimento.cnpj || "0000";
+      }
+    }
+  }
   if (!codigoPrestador) {
-    const [estabelecimento] = lote.estabelecimentoId
-      ? await db.select().from(estabelecimentos).where(eq(estabelecimentos.id, lote.estabelecimentoId)).limit(1)
-      : [null];
-    codigoPrestador = estabelecimento?.cnpj || "0000";
+    codigoPrestador = "0000";
   }
   // TISS 3.02: codigoPrestadorNaOperadora deve ser apenas números
   codigoPrestador = apenasNumeros(codigoPrestador);
+  // TISS 3.02: nomeContratado max 70 chars (st_texto70)
+  nomeContratado = nomeContratado.substring(0, 70);
 
   // Buscar registroANS do faturamento_tiss (fonte mais confiável)
   let registroANS = "";
@@ -10129,7 +10139,6 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
 
       return `
                             <ans:itensGuia>
-                                <ans:sequencialItem>${index + 1}</ans:sequencialItem>
                                 <ans:dataInicio>${dataExecucao}</ans:dataInicio>
                                 <ans:procRecurso>
                                     <ans:codigoTabela>${codigoTabela}</ans:codigoTabela>
@@ -10186,7 +10195,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
         <ans:destino>
             <ans:registroANS>${registroANS}</ans:registroANS>
         </ans:destino>
-        <ans:Padrao>3.02.00</ans:Padrao>
+        <ans:versaoPadrao>3.02.00</ans:versaoPadrao>
     </ans:cabecalho>
     <ans:prestadorParaOperadora>
         <ans:recursoGlosa>
@@ -10197,6 +10206,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
                 <ans:objetoRecurso>2</ans:objetoRecurso>${guiaRecGlosaOperadoraTag}
                 <ans:dadosContratado>
                     <ans:codigoPrestadorNaOperadora>${escapeXml(codigoPrestador)}</ans:codigoPrestadorNaOperadora>
+                    <ans:nomeContratado>${escapeXml(nomeContratado)}</ans:nomeContratado>
                 </ans:dadosContratado>
                 <ans:numeroLote>${numeroLoteNumericoProto}</ans:numeroLote>${protocoloTag}
                 <ans:opcaoRecurso>${guiasXml}

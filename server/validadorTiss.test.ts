@@ -19,7 +19,7 @@ const xmlValido = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <ans:destino>
       <ans:registroANS>311383</ans:registroANS>
     </ans:destino>
-    <ans:Padrao>4.01.00</ans:Padrao>
+    <ans:versaoPadrao>3.02.00</ans:versaoPadrao>
   </ans:cabecalho>
   <ans:prestadorParaOperadora>
     <ans:recursoGlosa>
@@ -30,6 +30,7 @@ const xmlValido = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <ans:objetoRecurso>2</ans:objetoRecurso>
         <ans:dadosContratado>
           <ans:codigoPrestadorNaOperadora>123456</ans:codigoPrestadorNaOperadora>
+          <ans:nomeContratado>HOSPITAL EXEMPLO LTDA</ans:nomeContratado>
         </ans:dadosContratado>
         <ans:numeroLote>120001</ans:numeroLote>
         <ans:numeroProtocolo>PROT-001</ans:numeroProtocolo>
@@ -38,7 +39,6 @@ const xmlValido = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <ans:numeroGuiaOrigem>2585810</ans:numeroGuiaOrigem>
             <ans:opcaoRecursoGuia>
               <ans:itensGuia>
-                <ans:sequencialItem>1</ans:sequencialItem>
                 <ans:dataInicio>2024-12-07</ans:dataInicio>
                 <ans:procRecurso>
                   <ans:codigoTabela>22</ans:codigoTabela>

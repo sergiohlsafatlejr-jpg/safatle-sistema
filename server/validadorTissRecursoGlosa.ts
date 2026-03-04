@@ -35,7 +35,7 @@ const TISS_TIPOS = {
   st_decimal8_2: { pattern: /^\d{1,8}(\.\d{1,2})?$/ },
   st_decimal10_2: { pattern: /^\d{1,10}(\.\d{1,2})?$/ },
   dm_tipoGlosa: { pattern: /^\d{1,4}$/ },
-  dm_versao: { values: ["4.01.00", "4.00.01", "4.00.00", "3.05.00", "3.04.01", "3.04.00", "3.03.03"] },
+  dm_versao: { values: ["4.01.00", "4.00.01", "4.00.00", "3.05.00", "3.04.01", "3.04.00", "3.03.03", "3.02.00", "3.01.02"] },
   dm_objetoRecurso: { values: ["1", "2"] }, // 1=Protocolo, 2=Guia
 };
 
@@ -175,8 +175,11 @@ function validarCabecalho(cabecalho: any, erros: ValidacaoErro[], avisos: Valida
     }
   }
 
-  // Versão padrão
-  validarCampoObrigatorio(cabecalho, "ans:Padrao", "Versão do padrão TISS", erros);
+  // Versão padrão (aceitar tanto ans:Padrao quanto ans:versaoPadrao para compatibilidade entre versões TISS)
+  const versaoPadrao = cabecalho["ans:versaoPadrao"] || cabecalho["ans:Padrao"];
+  if (!versaoPadrao) {
+    erros.push({ campo: "ans:versaoPadrao", mensagem: "Versão do padrão TISS é obrigatório", tipo: "obrigatorio" });
+  }
 }
 
 function validarGuiaRecursoGlosa(guia: any, erros: ValidacaoErro[], avisos: ValidacaoErro[]) {
@@ -198,16 +201,21 @@ function validarGuiaRecursoGlosa(guia: any, erros: ValidacaoErro[], avisos: Vali
     erros.push({ campo: "ans:objetoRecurso", mensagem: `Objeto do recurso inválido: ${objetoRecurso} (deve ser 1=Protocolo ou 2=Guia)`, tipo: "valor" });
   }
 
-  // dadosContratado
+  // dadosContratado (ct_contratadoDados: choice(codigoPrestadorNaOperadora|cpfContratado|cnpjContratado) + nomeContratado)
   const dadosContratado = guia["ans:dadosContratado"];
   if (!dadosContratado) {
     erros.push({ campo: "ans:dadosContratado", mensagem: "Dados do contratado obrigatórios", tipo: "obrigatorio" });
   } else {
     const codigo = dadosContratado["ans:codigoPrestadorNaOperadora"];
-    const cnpj = dadosContratado["ans:CNPJ"];
-    const cpf = dadosContratado["ans:CPF"];
+    const cnpj = dadosContratado["ans:cnpjContratado"] || dadosContratado["ans:CNPJ"];
+    const cpf = dadosContratado["ans:cpfContratado"] || dadosContratado["ans:CPF"];
     if (!codigo && !cnpj && !cpf) {
       erros.push({ campo: "ans:dadosContratado", mensagem: "Código do prestador, CNPJ ou CPF obrigatório nos dados do contratado", tipo: "obrigatorio" });
+    }
+    // nomeContratado é obrigatório no ct_contratadoDados (TISS 3.02+)
+    const nomeContratado = dadosContratado["ans:nomeContratado"];
+    if (!nomeContratado) {
+      avisos.push({ campo: "ans:nomeContratado", mensagem: "Nome do contratado recomendado nos dados do contratado (obrigatório no XSD)", tipo: "obrigatorio" });
     }
   }
 
@@ -283,8 +291,7 @@ function validarOpcaoRecurso(opcao: any, erros: ValidacaoErro[], avisos: Validac
 }
 
 function validarItemGuia(item: any, prefix: string, erros: ValidacaoErro[], avisos: ValidacaoErro[]) {
-  // sequencialItem obrigatório (st_numerico4)
-  validarCampoObrigatorio(item, "ans:sequencialItem", `${prefix} - Sequencial do item`, erros);
+  // sequencialItem - NÃO EXISTE no XSD TISS 3.02 (removido). Apenas validar se presente.
   if (item["ans:sequencialItem"]) {
     const seq = String(item["ans:sequencialItem"]);
     if (!/^\d{1,4}$/.test(seq)) {
