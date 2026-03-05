@@ -2459,3 +2459,4 @@
 - [x] Popular tela Conta Convênio com dados importados dos XMLs do estabelecimento Ox Uti
 - [x] Adicionar indicador visual de Alta Administrativa na tela Conta Convênio (badge para guias com múltiplos lotes)
 - [x] Adicionar indicador visual de Alta Administrativa na tela Conciliação Cruzada (badge para guias com múltiplos lotes - já existia)
+- [x] Corrigir Padrões de Cobrança: composição deve ser gerada apenas para procedimentos, excluindo materiais e medicamentos

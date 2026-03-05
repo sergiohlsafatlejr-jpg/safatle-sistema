@@ -315,8 +315,10 @@ export const padroesCobrancaRouter = router({
         contasMap.get(key)!.push(item);
       }
 
-      // Tipos de procedimentos principais
-      const tiposPrincipais = new Set(["P", "C", "PROCEDIMENTO", "O"]);
+      // Tipos de procedimentos principais (apenas procedimentos, excluindo materiais, medicamentos, taxas e diárias)
+      const tiposPrincipais = new Set(["P", "C", "PROCEDIMENTO", "O", "01", "PROC"]);
+      // Tipos que NÃO devem gerar padrão de composição (materiais, medicamentos, taxas, diárias)
+      const tiposExcluidos = new Set(["02", "03", "05", "07", "M", "MATERIAL", "MEDICAMENTO", "TAXA", "TAXA/ALUGUÉIS", "DIÁRIA", "DIARIA", "MAT", "MED"]);
 
       // Para cada procedimento principal, encontrar itens associados
       const padroesMap = new Map<string, {
@@ -337,11 +339,25 @@ export const padroesCobrancaRouter = router({
       }>();
 
       for (const [contaNum, itensConta] of Array.from(contasMap.entries())) {
+        // Procedimentos principais: deve ser tipo de procedimento E não pode ser tipo excluído
         const procedimentosPrincipais = itensConta.filter(
-          (i: any) => tiposPrincipais.has(String(i.tipoItem || ""))
+          (i: any) => {
+            const tipo = String(i.tipoItem || "").toUpperCase();
+            // Se está na lista de excluídos, nunca é procedimento principal
+            if (tiposExcluidos.has(tipo)) return false;
+            // Se está na lista de tipos principais, é procedimento
+            if (tiposPrincipais.has(tipo)) return true;
+            // Tipo desconhecido: não considerar como procedimento principal
+            return false;
+          }
         );
         const outrosItens = itensConta.filter(
-          (i: any) => !tiposPrincipais.has(String(i.tipoItem || ""))
+          (i: any) => {
+            const tipo = String(i.tipoItem || "").toUpperCase();
+            if (tiposExcluidos.has(tipo)) return true;
+            if (tiposPrincipais.has(tipo)) return false;
+            return true; // Tipos desconhecidos vão como itens associados
+          }
         );
 
         for (const proc of procedimentosPrincipais) {
