@@ -145,11 +145,28 @@ export const contasConvenioRouter = router({
       // ============================================================
       const connector = new EasyVisionConnector(conexaoConfig);
 
-      const conectado = await connector.conectar();
+      let conectado = false;
+      try {
+        conectado = await connector.conectar();
+      } catch (connError) {
+        const errMsg = connError instanceof Error ? connError.message : String(connError);
+        logger.error({
+          message: "Erro ao conectar ao banco do hospital",
+          error: errMsg,
+          host: conexaoConfig.host,
+          port: conexaoConfig.port,
+          database: conexaoConfig.database,
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Falha ao conectar ao banco do hospital (${conexaoConfig.host}:${conexaoConfig.port}/${conexaoConfig.database}): ${errMsg}`,
+        });
+      }
+
       if (!conectado) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Falha ao conectar ao banco do hospital. Verifique a configuração de conexão no Integrador de Dados.",
+          message: `Falha ao conectar ao banco do hospital (${conexaoConfig.host}:${conexaoConfig.port}/${conexaoConfig.database}). Verifique se o servidor está acessível e as credenciais estão corretas no Integrador de Dados.`,
         });
       }
 
@@ -226,11 +243,24 @@ export const contasConvenioRouter = router({
           };
         }
 
-        logger.info({
-          message: "Conta encontrada no Warleine",
-          numeroConta: input.numeroConta,
-          totalItens: dados.length,
-        });
+        // Log dos campos retornados para debug
+        if (dados.length > 0) {
+          logger.info({
+            message: "Conta encontrada - campos retornados",
+            numeroConta: input.numeroConta,
+            totalItens: dados.length,
+            camposDisponiveis: Object.keys(dados[0]),
+            amostra: Object.fromEntries(
+              Object.entries(dados[0]).map(([k, v]) => [k, v === null ? 'NULL' : String(v).substring(0, 50)])
+            ),
+          });
+        } else {
+          logger.info({
+            message: "Conta encontrada no Warleine (sem itens)",
+            numeroConta: input.numeroConta,
+            totalItens: dados.length,
+          });
+        }
 
         // Limpar dados existentes desta conta (se já foi buscada antes)
         await db.delete(contasConvenioItens).where(
@@ -256,42 +286,82 @@ export const contasConvenioRouter = router({
         let valorTotalConta = 0;
         const primeiroItem = dados[0];
 
+        // Helper: busca campo flexível (aceita múltiplos nomes possíveis)
+        const getField = (row: any, ...names: string[]): any => {
+          for (const name of names) {
+            if (row[name] !== undefined && row[name] !== null) return row[name];
+            // Tentar lowercase
+            if (row[name.toLowerCase()] !== undefined && row[name.toLowerCase()] !== null) return row[name.toLowerCase()];
+          }
+          return null;
+        };
+
+        const parseNum = (val: any): number => {
+          if (val === null || val === undefined) return 0;
+          const n = parseFloat(String(val).replace(',', '.'));
+          return isNaN(n) ? 0 : n;
+        };
+
         for (let i = 0; i < dados.length; i += BATCH_SIZE) {
           const batch = dados.slice(i, i + BATCH_SIZE);
           const values = batch.map((row: any) => {
-            const vt = parseFloat(row.valortotal) || 0;
+            // Flexibilizar nomes de campos - aceita tanto aliases quanto nomes originais do banco
+            const vlUnitario = getField(row, 'valorunitario', 'vl_unitario', 'valor_unitario', 'vlunitario');
+            const vlTotal = getField(row, 'valortotal', 'vl_faturado', 'valor_total', 'vlfaturado', 'valor_faturado');
+            const qtd = getField(row, 'quantidade', 'qtd', 'qtde');
+            const numConta = getField(row, 'numconta', 'numero_conta', 'conta');
+            const guia = getField(row, 'guiacobra', 'guia_cobra', 'guia');
+            const aihGuia = getField(row, 'aihguia', 'aih_guia', 'aih');
+            const nomeConv = getField(row, 'nomeconv', 'nome_conv', 'convenio', 'nomeconvenio');
+            const codConv = getField(row, 'codconv', 'cod_conv', 'codigo_convenio');
+            const codItem = getField(row, 'codigoitem', 'procdisco', 'cod_item', 'cd_item', 'codigo_item');
+            const codTuss = getField(row, 'codigoitemtuss', 'codproprio', 'cod_tuss', 'codigo_tuss', 'cd_item_tuss');
+            const desc = getField(row, 'descricao', 'desc_item', 'ds_item');
+            const dataExec = getField(row, 'dataexecucao', 'data', 'dt_item', 'data_execucao');
+            const dataInt = getField(row, 'datainternacao', 'dataint', 'data_internacao');
+            const dataAlta = getField(row, 'dataalta', 'datasai', 'data_alta', 'data_saida');
+            const comp = getField(row, 'competencia', 'mesprod', 'mes_prod', 'comp');
+            const prest = getField(row, 'nomeprest', 'prestexe', 'nome_prest', 'prof_exec');
+            const setor = getField(row, 'setor', 'nomecc', 'nome_cc', 'centro_custo');
+            const paciente = getField(row, 'pacientenome', 'nomepac', 'nome_paciente', 'paciente');
+            const tipoProc = getField(row, 'tipoproc', 'tipo_proc', 'tipo_item');
+
+            const vt = parseNum(vlTotal);
             valorTotalConta += vt;
             
             // Mapear tipo de procedimento
-            let tipoItem = row.tipoproc || 'OUTROS';
-            if (tipoItem.toLowerCase().includes('proc')) tipoItem = 'PROCEDIMENTO';
-            else if (tipoItem.toLowerCase().includes('diar')) tipoItem = 'DIARIA';
-            else if (tipoItem.toLowerCase().includes('mat') || tipoItem.toLowerCase().includes('med')) tipoItem = 'MAT_MED';
-            else if (tipoItem.toLowerCase().includes('tax')) tipoItem = 'TAXA';
-            else if (tipoItem.toLowerCase().includes('gas')) tipoItem = 'GASES';
+            let tipoItem = tipoProc || 'OUTROS';
+            if (typeof tipoItem === 'string') {
+              const ti = tipoItem.toLowerCase();
+              if (ti.includes('proc')) tipoItem = 'PROCEDIMENTO';
+              else if (ti.includes('diar')) tipoItem = 'DIARIA';
+              else if (ti.includes('mat') || ti.includes('med')) tipoItem = 'MAT_MED';
+              else if (ti.includes('tax')) tipoItem = 'TAXA';
+              else if (ti.includes('gas')) tipoItem = 'GASES';
+            }
 
             return {
               origem: "BANCO_CLIENTE" as const,
-              numeroConta: String(row.numconta || input.numeroConta),
-              numeroGuia: row.guiacobra || null,
-              numeroGuiaOperadora: row.aihguia || null,
-              protocolo: row.protocolo || null,
-              numeroLote: row.numfatura || null,
-              pacienteNome: row.pacientenome || null,
-              carteiraBeneficiario: row.matricula || null,
-              convenio: row.nomeconv ? String(row.nomeconv).trim() : null,
+              numeroConta: String(numConta || input.numeroConta),
+              numeroGuia: guia ? String(guia) : null,
+              numeroGuiaOperadora: aihGuia ? String(aihGuia) : null,
+              protocolo: row.protocolo ? String(row.protocolo) : null,
+              numeroLote: row.numfatura ? String(row.numfatura) : null,
+              pacienteNome: paciente ? String(paciente) : null,
+              carteiraBeneficiario: row.matricula ? String(row.matricula) : null,
+              convenio: nomeConv ? String(nomeConv).trim() : null,
               estabelecimentoId: input.estabelecimentoId,
               tipoItem,
-              codigoItem: row.codigoitem || null,
-              codigoItemTuss: row.codigoitemtuss || null,
-              descricaoItem: row.descricao || null,
-              quantidade: row.quantidade ? String(parseFloat(row.quantidade)) : null,
-              valorUnitario: row.valorunitario ? String(parseFloat(row.valorunitario)) : null,
-              valorTotal: row.valortotal ? String(parseFloat(row.valortotal)) : null,
-              dataExecucao: row.dataexecucao ? new Date(row.dataexecucao) : null,
-              competencia: row.competencia ? String(row.competencia).replace('/', '-') : null,
-              profissionalExecutante: row.nomeprest || row.prestexe || null,
-              setor: row.setor || null,
+              codigoItem: codItem ? String(codItem) : null,
+              codigoItemTuss: codTuss ? String(codTuss) : null,
+              descricaoItem: desc ? String(desc) : null,
+              quantidade: qtd ? String(parseNum(qtd)) : null,
+              valorUnitario: vlUnitario ? String(parseNum(vlUnitario)) : null,
+              valorTotal: vt ? String(vt) : null,
+              dataExecucao: dataExec ? new Date(dataExec) : null,
+              competencia: comp ? String(comp).replace('/', '-') : null,
+              profissionalExecutante: prest ? String(prest) : null,
+              setor: setor ? String(setor) : null,
               statusAnalise: "pendente" as const,
             };
           });
@@ -300,19 +370,26 @@ export const contasConvenioRouter = router({
           totalInseridos += batch.length;
         }
 
-        // Criar resumo da conta
+        // Criar resumo da conta (usando getField para flexibilidade)
+        const resumoConvenio = getField(primeiroItem, 'nomeconv', 'nome_conv', 'convenio', 'nomeconvenio');
+        const resumoPaciente = getField(primeiroItem, 'pacientenome', 'nomepac', 'nome_paciente', 'paciente');
+        const resumoMatricula = getField(primeiroItem, 'matricula', 'carteirinha', 'carteira');
+        const resumoDataInt = getField(primeiroItem, 'datainternacao', 'dataint', 'data_internacao');
+        const resumoDataAlta = getField(primeiroItem, 'dataalta', 'datasai', 'data_alta', 'data_saida');
+        const resumoComp = getField(primeiroItem, 'competencia', 'mesprod', 'mes_prod', 'comp');
+
         await db.insert(contasConvenioResumo).values({
           numeroConta: input.numeroConta,
           estabelecimentoId: input.estabelecimentoId,
           origem: "BANCO_CLIENTE",
-          convenio: primeiroItem.nomeconv ? String(primeiroItem.nomeconv).trim() : null,
-          pacienteNome: primeiroItem.pacientenome || null,
-          carteiraBeneficiario: primeiroItem.matricula || null,
+          convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
+          pacienteNome: resumoPaciente ? String(resumoPaciente) : null,
+          carteiraBeneficiario: resumoMatricula ? String(resumoMatricula) : null,
           totalItens: totalInseridos,
           valorTotal: String(valorTotalConta),
-          dataInternacao: primeiroItem.datainternacao ? new Date(primeiroItem.datainternacao) : null,
-          dataAlta: primeiroItem.dataalta ? new Date(primeiroItem.dataalta) : null,
-          competencia: primeiroItem.competencia ? String(primeiroItem.competencia).replace('/', '-') : null,
+          dataInternacao: resumoDataInt ? new Date(resumoDataInt) : null,
+          dataAlta: resumoDataAlta ? new Date(resumoDataAlta) : null,
+          competencia: resumoComp ? String(resumoComp).replace('/', '-') : null,
           statusAnalise: "pendente",
           buscadoPor: ctx.user?.id || null,
         });
@@ -322,12 +399,12 @@ export const contasConvenioRouter = router({
           mensagem: `Conta ${input.numeroConta} importada com ${totalInseridos} itens. Valor total: R$ ${valorTotalConta.toFixed(2)}`,
           totalItens: totalInseridos,
           valorTotal: valorTotalConta,
-          convenio: primeiroItem.nomeconv ? String(primeiroItem.nomeconv).trim() : null,
-          paciente: primeiroItem.pacientenome || null,
+          convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
+          paciente: resumoPaciente ? String(resumoPaciente) : null,
           conta: {
             numeroConta: input.numeroConta,
-            convenio: primeiroItem.nomeconv ? String(primeiroItem.nomeconv).trim() : null,
-            paciente: primeiroItem.pacientenome || null,
+            convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
+            paciente: resumoPaciente ? String(resumoPaciente) : null,
             totalItens: totalInseridos,
             valorTotal: valorTotalConta,
           },

@@ -2443,3 +2443,6 @@
 - [ ] Dashboard gerencial de divergências
 - [x] Refatorar busca de conta para usar query_configuracoes do Integrador de Dados (parametrizado por estabelecimento)
 - [x] Fix: buscarConta procura em query_configuracoes mas a Busca Conta foi cadastrada como Mapeamento de Dados
+- [x] Fix: buscarConta falha ao conectar - melhorar log/mensagem de erro com detalhes da conexão
+- [ ] Fix: página 404 no frontend (rota não encontrada)
+- [x] Fix: conta importada com valores R$ 0,00 - mapeamento flexível de campos (aceita nomes originais e aliases)
