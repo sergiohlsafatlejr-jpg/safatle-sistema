@@ -1024,9 +1024,11 @@ export const contasConvenioRouter = router({
           ft.convenioId,
           ft.data_referencia,
           ft.data_importacao,
-          c.nome as convenio_nome
+          c.nome as convenio_nome,
+          a.dataReferencia as arquivo_data_referencia
         FROM faturamento_tiss ft
         LEFT JOIN convenios c ON c.id = ft.convenioId
+        LEFT JOIN arquivos a ON a.id = ft.arquivo_id
         WHERE ft.estabelecimentoId = ${input.estabelecimentoId}
         ORDER BY ft.numero_guia_prestador, ft.data_execucao
       `);
@@ -1110,6 +1112,7 @@ export const contasConvenioRouter = router({
         totalItens: number;
         valorTotal: number;
         dataExecucao: Date | null;
+        arquivoDataReferencia: Date | null;
       }>();
 
       for (const row of data) {
@@ -1121,6 +1124,7 @@ export const contasConvenioRouter = router({
           totalItens: 0,
           valorTotal: 0,
           dataExecucao: null,
+          arquivoDataReferencia: null,
         };
 
         existing.convenio = existing.convenio || (row.convenio_nome ? String(row.convenio_nome) : null);
@@ -1133,6 +1137,10 @@ export const contasConvenioRouter = router({
         existing.valorTotal += vlFat || (vlUnit * qtd);
         if (row.data_execucao && !existing.dataExecucao) {
           existing.dataExecucao = new Date(row.data_execucao);
+        }
+        // Usar data de referência do arquivo de upload como competência
+        if (row.arquivo_data_referencia && !existing.arquivoDataReferencia) {
+          existing.arquivoDataReferencia = new Date(row.arquivo_data_referencia);
         }
 
         resumosPorGuia.set(guia, existing);
@@ -1158,7 +1166,12 @@ export const contasConvenioRouter = router({
           statusAnalise: "pendente" as const,
           buscadoPor: ctx.user?.id || null,
           competencia: (() => {
-            // Determinar competência baseada na dataExecucao predominante
+            // Prioridade: usar data de referência do arquivo de upload
+            if (r.arquivoDataReferencia) {
+              const d = r.arquivoDataReferencia;
+              return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }
+            // Fallback: usar dataExecucao se não houver data de referência
             if (r.dataExecucao) {
               const d = r.dataExecucao;
               return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;

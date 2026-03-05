@@ -2455,3 +2455,4 @@
 - [x] Botão "Importar XMLs" na tela Conta Convênio para migrar dados XML do faturamento_tiss para contas_convenio_itens
 - [x] Testes unitários para migrarDadosXml (14 testes passando: migração, listagem, itens, divergências)
 - [x] Adicionar filtro de mês/período (competência MM/AAAA) na tela de Conta Convênio para análise mensal
+- [x] Corrigir competência das contas XML na Conta Convênio para usar data_referencia do upload em vez de dataExecucao calculada
