@@ -2449,3 +2449,4 @@
 - [ ] Fix: nome do paciente não vem na busca de conta (subquery de paciente não retorna)
 - [x] Fix: botão "Ver" redireciona para /conta-convenio-v2 que não existe (404) - corrigido para /conta-convenio-detalhes
 - [x] Feature: após importar conta com sucesso, redirecionar automaticamente para tela de Conta Convênio (1s delay)
+- [x] Feature: botão de edição na tabela de Mapeamentos de Dados para editar query SQL e configurações
