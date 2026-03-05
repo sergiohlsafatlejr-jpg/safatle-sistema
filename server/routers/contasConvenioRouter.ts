@@ -323,8 +323,26 @@ export const contasConvenioRouter = router({
             const comp = getField(row, 'competencia', 'mesprod', 'mes_prod', 'comp');
             const prest = getField(row, 'nomeprest', 'prestexe', 'nome_prest', 'prof_exec');
             const setor = getField(row, 'setor', 'nomecc', 'nome_cc', 'centro_custo');
-            const paciente = getField(row, 'pacientenome', 'nomepac', 'nome_paciente', 'paciente');
+            const paciente = getField(row, 'pacientenome', 'nomepaciente', 'nomepac', 'nome_paciente', 'paciente');
             const tipoProc = getField(row, 'tipoproc', 'tipo_proc', 'tipo_item');
+            const codRecur = getField(row, 'codrecur', 'cod_recur', 'codigo_recurso');
+            const complRecur = getField(row, 'complrecur', 'compl_recur', 'complemento_recurso');
+            const codTissGlosa = getField(row, 'codtiss', 'cod_tiss', 'codigo_tiss_glosa');
+            const descMotivoGlosa = getField(row, 'descmotivo', 'desc_motivo', 'motivo_glosa');
+            const tipoAtend = getField(row, 'tipoatend', 'tipo_atend', 'tipo_atendimento');
+            const dataBaixa = getField(row, 'databaixa', 'data_baixa');
+            const codPlaco = getField(row, 'codplaco', 'cod_placo');
+            const nomePlaco = getField(row, 'nomeplaco', 'nome_placo', 'plano');
+            const medSolic = getField(row, 'medsolic', 'med_solic', 'medico_solicitante');
+            const nomeMedSolic = getField(row, 'nomemedsolic', 'nome_med_solic', 'nome_medico_solicitante');
+            const codGrufi = getField(row, 'codgrufi', 'cod_grufi', 'grupo_financeiro');
+            const funcaoTiss = getField(row, 'funcaotiss', 'funcao_tiss');
+            const receber = getField(row, 'receber', 'a_receber');
+            const codConvVal = getField(row, 'codconv', 'cod_conv', 'codigo_convenio');
+            const protocolo = getField(row, 'protocolo', 'num_protocolo');
+            const numFatura = getField(row, 'numfatura', 'num_fatura');
+            const matricula = getField(row, 'matricula', 'carteirinha');
+            const prestExe = getField(row, 'prestexe', 'prest_exe', 'cod_prestador');
 
             const vt = parseNum(vlTotal);
             valorTotalConta += vt;
@@ -345,10 +363,10 @@ export const contasConvenioRouter = router({
               numeroConta: String(numConta || input.numeroConta),
               numeroGuia: guia ? String(guia) : null,
               numeroGuiaOperadora: aihGuia ? String(aihGuia) : null,
-              protocolo: row.protocolo ? String(row.protocolo) : null,
-              numeroLote: row.numfatura ? String(row.numfatura) : null,
+              protocolo: protocolo ? String(protocolo) : null,
+              numeroLote: numFatura ? String(numFatura) : null,
               pacienteNome: paciente ? String(paciente) : null,
-              carteiraBeneficiario: row.matricula ? String(row.matricula) : null,
+              carteiraBeneficiario: matricula ? String(matricula) : null,
               convenio: nomeConv ? String(nomeConv).trim() : null,
               estabelecimentoId: input.estabelecimentoId,
               tipoItem,
@@ -360,7 +378,7 @@ export const contasConvenioRouter = router({
               valorTotal: vt ? String(vt) : null,
               dataExecucao: dataExec ? new Date(dataExec) : null,
               competencia: comp ? String(comp).replace('/', '-') : null,
-              profissionalExecutante: prest ? String(prest) : null,
+              profissionalExecutante: prest ? String(prest) : (nomeMedSolic ? String(nomeMedSolic) : null),
               setor: setor ? String(setor) : null,
               statusAnalise: "pendente" as const,
             };
@@ -372,7 +390,7 @@ export const contasConvenioRouter = router({
 
         // Criar resumo da conta (usando getField para flexibilidade)
         const resumoConvenio = getField(primeiroItem, 'nomeconv', 'nome_conv', 'convenio', 'nomeconvenio');
-        const resumoPaciente = getField(primeiroItem, 'pacientenome', 'nomepac', 'nome_paciente', 'paciente');
+        const resumoPaciente = getField(primeiroItem, 'pacientenome', 'nomepaciente', 'nomepac', 'nome_paciente', 'paciente');
         const resumoMatricula = getField(primeiroItem, 'matricula', 'carteirinha', 'carteira');
         const resumoDataInt = getField(primeiroItem, 'datainternacao', 'dataint', 'data_internacao');
         const resumoDataAlta = getField(primeiroItem, 'dataalta', 'datasai', 'data_alta', 'data_saida');
