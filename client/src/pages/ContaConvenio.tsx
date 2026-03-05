@@ -127,8 +127,41 @@ export default function ContaConvenio() {
   const [convenioFiltro, setConvenioFiltro] = useState(urlParams.get("convenio") || "");
   const [origemFiltro, setOrigemFiltro] = useState(urlParams.get("origem") || "");
   const [statusFiltro, setStatusFiltro] = useState(urlParams.get("status") || "");
+  const [anoFiltro, setAnoFiltro] = useState(urlParams.get("ano") || "");
+  const [mesFiltro, setMesFiltro] = useState(urlParams.get("mes") || "");
   const [page, setPage] = useState(parseInt(urlParams.get("page") || "1"));
   const pageSize = 20;
+
+  // Buscar competências disponíveis
+  const { data: competenciasData } = trpc.contasConvenio.listarCompetencias.useQuery(
+    { estabelecimentoId: estabelecimentoAtual?.id || undefined }
+  );
+
+  // Meses do ano para o select
+  const nomesMeses = [
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
+
+  // Filtrar meses disponíveis para o ano selecionado
+  const mesesDisponiveis = useMemo(() => {
+    if (!competenciasData?.meses || !anoFiltro || anoFiltro === "all") return nomesMeses;
+    const anoNum = parseInt(anoFiltro);
+    const mesesComDados = competenciasData.meses
+      .filter(m => m.ano === anoNum)
+      .map(m => m.mes);
+    return nomesMeses.filter(m => mesesComDados.includes(parseInt(m.value)));
+  }, [competenciasData, anoFiltro]);
 
   // Buscar contas da nova tabela contas_convenio_resumo
   const { data: contasData, isLoading, refetch } = trpc.contasConvenio.listarContas.useQuery(
@@ -137,6 +170,8 @@ export default function ContaConvenio() {
       convenio: convenioFiltro && convenioFiltro !== "all" ? convenioFiltro : undefined,
       origem: origemFiltro && origemFiltro !== "all" ? origemFiltro as any : undefined,
       statusAnalise: statusFiltro && statusFiltro !== "all" ? statusFiltro as any : undefined,
+      competenciaAno: anoFiltro && anoFiltro !== "all" ? parseInt(anoFiltro) : undefined,
+      competenciaMes: mesFiltro && mesFiltro !== "all" ? parseInt(mesFiltro) : undefined,
       search: searchTerm || undefined,
       page,
       pageSize,
@@ -221,6 +256,8 @@ export default function ContaConvenio() {
     setConvenioFiltro("");
     setOrigemFiltro("");
     setStatusFiltro("");
+    setAnoFiltro("");
+    setMesFiltro("");
     setSearchTerm("");
     setPage(1);
   };
@@ -228,6 +265,8 @@ export default function ContaConvenio() {
   const temFiltrosAtivos = (convenioFiltro && convenioFiltro !== "all") || 
     (origemFiltro && origemFiltro !== "all") || 
     (statusFiltro && statusFiltro !== "all") || 
+    (anoFiltro && anoFiltro !== "all") ||
+    (mesFiltro && mesFiltro !== "all") ||
     searchTerm;
 
   return (
@@ -286,7 +325,43 @@ export default function ContaConvenio() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+              {/* Ano */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Ano</label>
+                <Select value={anoFiltro} onValueChange={(v) => { setAnoFiltro(v); setMesFiltro(""); setPage(1); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {competenciasData?.anos?.map((ano: number) => (
+                      <SelectItem key={ano} value={String(ano)}>
+                        {ano}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Mês */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Mês</label>
+                <Select value={mesFiltro} onValueChange={(v) => { setMesFiltro(v); setPage(1); }} disabled={!anoFiltro || anoFiltro === "all"}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {mesesDisponiveis.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Convênio */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Convênio</label>

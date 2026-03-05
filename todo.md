@@ -2454,3 +2454,4 @@
 - [x] Popular tela Conta Convênio com dados importados dos XMLs do Pronto Socorro Infantil (migrar dados de faturamento_tiss para contas_convenio_itens)
 - [x] Botão "Importar XMLs" na tela Conta Convênio para migrar dados XML do faturamento_tiss para contas_convenio_itens
 - [x] Testes unitários para migrarDadosXml (14 testes passando: migração, listagem, itens, divergências)
+- [x] Adicionar filtro de mês/período (competência MM/AAAA) na tela de Conta Convênio para análise mensal

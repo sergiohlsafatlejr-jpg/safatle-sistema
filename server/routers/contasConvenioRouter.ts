@@ -450,6 +450,8 @@ export const contasConvenioRouter = router({
       convenio: z.string().optional(),
       origem: z.enum(["XML", "BANCO_CLIENTE"]).optional(),
       statusAnalise: z.enum(["pendente", "conforme", "divergente", "revisado"]).optional(),
+      competenciaAno: z.number().optional(),
+      competenciaMes: z.number().optional(),
       search: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
@@ -462,6 +464,8 @@ export const contasConvenioRouter = router({
       const convenio = input?.convenio;
       const origem = input?.origem;
       const statusAnalise = input?.statusAnalise;
+      const competenciaAno = input?.competenciaAno;
+      const competenciaMes = input?.competenciaMes;
       const search = input?.search;
       const page = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 20;
@@ -479,6 +483,15 @@ export const contasConvenioRouter = router({
       }
       if (statusAnalise) {
         conditions.push(eq(contasConvenioResumo.statusAnalise, statusAnalise));
+      }
+      // Filtro de competência (Ano/Mês)
+      if (competenciaAno && competenciaMes) {
+        const mesStr = String(competenciaMes).padStart(2, '0');
+        const competenciaPattern = `${competenciaAno}/${mesStr}%`;
+        conditions.push(like(contasConvenioResumo.competencia, competenciaPattern));
+      } else if (competenciaAno) {
+        const competenciaPattern = `${competenciaAno}/%`;
+        conditions.push(like(contasConvenioResumo.competencia, competenciaPattern));
       }
       if (search) {
         const searchPattern = `%${search}%`;
@@ -769,6 +782,77 @@ export const contasConvenioRouter = router({
         mensagem: `${totalInseridos} itens importados de ${guias.size} guia(s) do XML.`,
         totalItens: totalInseridos,
         totalGuias: guias.size,
+      };
+    }),
+
+  // ============================================================
+  // LISTAR COMPETÊNCIAS (MESES) DISPONÍVEIS
+  // ============================================================
+  listarCompetencias: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const conditions: any[] = [];
+      if (input?.estabelecimentoId) {
+        conditions.push(eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const result = await db
+        .select({
+          competencia: contasConvenioResumo.competencia,
+          totalContas: sql<number>`COUNT(*)`,
+          valorTotal: sql<string>`COALESCE(SUM(CAST(valorTotal AS DECIMAL(14,2))), 0)`,
+        })
+        .from(contasConvenioResumo)
+        .where(and(
+          whereClause,
+          sql`${contasConvenioResumo.competencia} IS NOT NULL AND ${contasConvenioResumo.competencia} != ''`
+        ))
+        .groupBy(contasConvenioResumo.competencia)
+        .orderBy(desc(contasConvenioResumo.competencia));
+
+      // Extrair anos e meses únicos
+      const anos = new Set<number>();
+      const meses = new Map<string, { ano: number; mes: number; totalContas: number; valorTotal: string }>(); 
+
+      for (const r of result) {
+        if (r.competencia) {
+          // Formato esperado: YYYY/MM ou MM/YYYY
+          const parts = r.competencia.split('/');
+          let ano: number, mesNum: number;
+          if (parts[0].length === 4) {
+            // YYYY/MM
+            ano = parseInt(parts[0]);
+            mesNum = parseInt(parts[1]);
+          } else {
+            // MM/YYYY
+            mesNum = parseInt(parts[0]);
+            ano = parseInt(parts[1]);
+          }
+          if (!isNaN(ano) && !isNaN(mesNum)) {
+            anos.add(ano);
+            const key = `${ano}-${String(mesNum).padStart(2, '0')}`;
+            meses.set(key, { ano, mes: mesNum, totalContas: r.totalContas, valorTotal: r.valorTotal });
+          }
+        }
+      }
+
+      return {
+        anos: Array.from(anos).sort((a, b) => b - a),
+        meses: Array.from(meses.entries()).map(([key, v]) => ({
+          key,
+          ano: v.ano,
+          mes: v.mes,
+          label: `${String(v.mes).padStart(2, '0')}/${v.ano}`,
+          totalContas: v.totalContas,
+          valorTotal: v.valorTotal,
+        })).sort((a, b) => b.key.localeCompare(a.key)),
       };
     }),
 
@@ -1073,6 +1157,14 @@ export const contasConvenioRouter = router({
           dataInternacao: r.dataExecucao,
           statusAnalise: "pendente" as const,
           buscadoPor: ctx.user?.id || null,
+          competencia: (() => {
+            // Determinar competência baseada na dataExecucao predominante
+            if (r.dataExecucao) {
+              const d = r.dataExecucao;
+              return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }
+            return null;
+          })(),
         }));
 
         await db.insert(contasConvenioResumo).values(resumoValues);
