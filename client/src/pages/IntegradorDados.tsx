@@ -49,6 +49,7 @@ const TIPO_DADOS_LABELS: Record<string, string> = {
   faturamento: "Faturamento",
   procedimentos: "Procedimentos",
   pacientes: "Pacientes",
+  busca_conta: "Busca Conta",
 };
 
 const FREQUENCIA_LABELS: Record<string, string> = {

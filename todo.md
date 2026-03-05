@@ -2441,3 +2441,4 @@
 - [x] Adicionar aba de divergências na tela ContaConvenio existente
 - [ ] Implementar edição de padrões de cobrança (gabarito)
 - [ ] Dashboard gerencial de divergências
+- [x] Refatorar busca de conta para usar query_configuracoes do Integrador de Dados (parametrizado por estabelecimento)

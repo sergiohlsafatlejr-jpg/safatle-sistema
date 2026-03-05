@@ -28,7 +28,7 @@ const querySchema = z.object({
 const configSchema = z.object({
   estabelecimentoId: z.number().min(1, "Estabelecimento é obrigatório"),
   sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
-  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes"]),
+  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta"]),
   frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
   descricao: z.string().optional(),
 });
@@ -437,6 +437,7 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                       <SelectItem value="faturamento">Faturamento</SelectItem>
                       <SelectItem value="procedimentos">Procedimentos</SelectItem>
                       <SelectItem value="pacientes">Pacientes</SelectItem>
+                      <SelectItem value="busca_conta">Busca Conta (por nº conta)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

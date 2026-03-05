@@ -101,7 +101,7 @@ export const integradorDadosRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
-        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes"]),
+        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta"]),
         querySql: z.string(),
         frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
         descricao: z.string().optional(),

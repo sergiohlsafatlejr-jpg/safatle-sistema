@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { contasConvenioItens, contasConvenioResumo } from "../../drizzle/schema";
+import { queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq, and, sql, desc, like, or, inArray } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 import { ENV } from "../_core/env";
@@ -20,7 +21,7 @@ import { logger } from "../_core/logger";
 export const contasConvenioRouter = router({
 
   // ============================================================
-  // BUSCAR CONTA NO BANCO DO CLIENTE (WARLEINE)
+  // BUSCAR CONTA NO BANCO DO CLIENTE (via Integrador de Dados)
   // ============================================================
   buscarConta: protectedProcedure
     .input(z.object({
@@ -32,169 +33,140 @@ export const contasConvenioRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB não disponível" });
 
       logger.info({
-        message: "Buscando conta no Warleine",
+        message: "Buscando conta via Integrador de Dados",
         numeroConta: input.numeroConta,
         estabelecimentoId: input.estabelecimentoId,
       });
 
-      // Conectar ao Warleine usando credenciais do env
-      const connector = new WarleineConnector({
-        host: ENV.warleineDbHost,
-        port: parseInt(ENV.warleineDbPort),
-        database: ENV.warleineDbName,
-        user: ENV.warleineDbUser,
-        password: ENV.warleineDbPassword,
+      // ============================================================
+      // 1. Buscar a query_configuracoes do tipo "busca_conta" para este estabelecimento
+      // ============================================================
+      const configs = await db
+        .select()
+        .from(queryConfiguracoes)
+        .where(
+          and(
+            eq(queryConfiguracoes.estabelecimentoId, input.estabelecimentoId),
+            eq(queryConfiguracoes.tipoDados, "busca_conta"),
+            eq(queryConfiguracoes.ativo, true),
+          )
+        )
+        .limit(1);
+
+      if (configs.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Nenhuma query de busca de conta configurada para este estabelecimento. Acesse o Integrador de Dados e cadastre uma query do tipo "Busca Conta" com a conexão e SQL do banco do hospital.`,
+        });
+      }
+
+      const config = configs[0];
+
+      // ============================================================
+      // 2. Parse da configuração de conexão
+      // ============================================================
+      let conexao: any = {};
+      if (config.conexaoConfig) {
+        if (typeof config.conexaoConfig === "string") {
+          conexao = JSON.parse(config.conexaoConfig);
+        } else {
+          conexao = config.conexaoConfig;
+        }
+      }
+
+      // Fallback para variáveis de ambiente se a conexão não estiver na config
+      if (!conexao.host && ENV.warleineDbHost) {
+        conexao = {
+          host: ENV.warleineDbHost,
+          port: parseInt(ENV.warleineDbPort),
+          database: ENV.warleineDbName,
+          user: ENV.warleineDbUser,
+          password: ENV.warleineDbPassword,
+        };
+      }
+
+      logger.info({
+        message: "Usando configuração do Integrador de Dados",
+        configId: config.id,
+        sistema: config.sistema,
+        conexao: { ...conexao, password: "***" },
       });
+
+      // ============================================================
+      // 3. Conectar ao banco do hospital
+      // ============================================================
+      const connector = new WarleineConnector(conexao);
 
       const conectado = await connector.conectar();
       if (!conectado) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Falha ao conectar ao banco do cliente (Warleine). Verifique as credenciais nas configurações.",
+          message: "Falha ao conectar ao banco do hospital. Verifique a configuração de conexão no Integrador de Dados.",
         });
       }
 
       try {
-        // Query para buscar todos os itens de uma conta específica
-        // Baseada na estrutura do integ_faturado
-        const query = `
-          SELECT 
-            c.numconta::text,
-            c.guiacobra::text as guiacobra,
-            c.aihguia::text as aihguia,
-            c.protocolo::text,
-            c.numfatura::text,
-            c.nomeconv,
-            c.codconv::text,
-            c.matricula::text,
-            c.tipoproc,
-            c.procdisco::text as codigoitem,
-            c.codproprio::text as codigoitemtuss,
-            c.descricao,
-            c.data::text as dataexecucao,
-            c.dataint::text as datainternacao,
-            c.datasai::text as dataalta,
-            c.mesprod::text as competencia,
-            c.nomeprest,
-            c.prestexe,
-            c.nomecc as setor,
-            c.vl_unitario::text as valorunitario,
-            c.quantidade::text as quantidade,
-            c.vl_faturado::text as valortotal,
-            c.codtiss::text,
-            c.funcaotiss,
-            c.codcc::text,
-            c.receber::text,
-            (SELECT p.nomepac FROM cadpac p WHERE p.codpac = (
-              SELECT a.codpac FROM arqatend a WHERE a.numatend = (
-                SELECT MIN(at2.numatend) FROM arqatend at2 
-                JOIN contas ct ON ct.numatend = at2.numatend 
-                WHERE ct.numconta = c.numconta
-              )
-            )) as pacientenome
-          FROM (
-            SELECT DISTINCT ON (numconta, procdisco, data, vl_unitario, quantidade)
-              *
-            FROM c33581562000206.din_faturamento_completo
-            WHERE numconta = $1
-          ) c
-          ORDER BY c.data, c.tipoproc, c.descricao
-        `;
+        // ============================================================
+        // 4. Executar a query cadastrada no Integrador
+        //    A query deve usar $1 como placeholder para o número da conta
+        // ============================================================
+        const querySql = config.querySql;
+
+        logger.info({
+          message: "Executando query de busca de conta",
+          configId: config.id,
+          numeroConta: input.numeroConta,
+          queryPreview: querySql.substring(0, 200) + "...",
+        });
 
         let dados: any[];
         try {
-          dados = await connector.executarQuery(query, [input.numeroConta]);
+          dados = await connector.executarQuery(querySql, [input.numeroConta]);
         } catch (queryError) {
-          // Se a view din_faturamento_completo não existir, tentar query alternativa
           logger.warn({
-            message: "View din_faturamento_completo não disponível, tentando query alternativa",
+            message: "Query do Integrador falhou, tentando busca local",
             error: queryError instanceof Error ? queryError.message : String(queryError),
           });
 
-          // Query alternativa usando tabelas base do Warleine
-          const queryAlternativa = `
+          await connector.desconectar();
+
+          // Fallback: buscar da tabela local integ_faturado (dados já sincronizados)
+          const localResult = await db.execute(sql`
             SELECT 
-              co.numconta::text,
-              co.guiacobra::text,
-              co.aihguia::text,
-              co.protocolo::text,
-              co.numfatura::text,
-              co.nomeconv,
-              co.codconv::text,
-              co.matricula::text,
-              co.tipoproc,
-              co.procdisco::text as codigoitem,
-              co.codproprio::text as codigoitemtuss,
-              co.descricao,
-              co.data::text as dataexecucao,
-              co.dataint::text as datainternacao,
-              co.datasai::text as dataalta,
-              co.mesprod::text as competencia,
-              co.nomeprest,
-              co.prestexe,
-              co.nomecc as setor,
-              co.vl_unitario::text as valorunitario,
-              co.quantidade::text as quantidade,
-              co.vl_faturado::text as valortotal,
-              co.codtiss::text,
-              co.funcaotiss,
-              co.codcc::text,
-              co.receber::text,
+              numconta as numconta,
+              guiacobra,
+              aihguia,
+              protocolo,
+              numfatura,
+              nomeconv,
+              codconv,
+              matricula,
+              tipoproc,
+              procdisco as codigoitem,
+              codproprio as codigoitemtuss,
+              descricao,
+              data as dataexecucao,
+              dataint as datainternacao,
+              datasai as dataalta,
+              mesprod as competencia,
+              nomeprest,
+              prestexe,
+              nomecc as setor,
+              vl_unitario as valorunitario,
+              quantidade,
+              vl_faturado as valortotal,
+              codtiss,
+              funcaotiss,
+              codcc,
+              receber,
               '' as pacientenome
-            FROM c33581562000206.integ_faturado co
-            WHERE co.numconta = $1
-            ORDER BY co.data, co.tipoproc, co.descricao
-          `;
+            FROM integ_faturado
+            WHERE numconta = ${input.numeroConta}
+              AND estabelecimento_id = ${input.estabelecimentoId}
+            ORDER BY data, tipoproc, descricao
+          `);
 
-          try {
-            dados = await connector.executarQuery(queryAlternativa, [input.numeroConta]);
-          } catch (altError) {
-            // Última tentativa: buscar da integ_faturado local (já sincronizada)
-            logger.warn({
-              message: "Query alternativa também falhou, buscando da integ_faturado local",
-              error: altError instanceof Error ? altError.message : String(altError),
-            });
-
-            await connector.desconectar();
-
-            // Buscar da tabela local integ_faturado
-            const localResult = await db.execute(sql`
-              SELECT 
-                numconta as numconta,
-                guiacobra,
-                aihguia,
-                protocolo,
-                numfatura,
-                nomeconv,
-                codconv,
-                matricula,
-                tipoproc,
-                procdisco as codigoitem,
-                codproprio as codigoitemtuss,
-                descricao,
-                data as dataexecucao,
-                dataint as datainternacao,
-                datasai as dataalta,
-                mesprod as competencia,
-                nomeprest,
-                prestexe,
-                nomecc as setor,
-                vl_unitario as valorunitario,
-                quantidade,
-                vl_faturado as valortotal,
-                codtiss,
-                funcaotiss,
-                codcc,
-                receber,
-                '' as pacientenome
-              FROM integ_faturado
-              WHERE numconta = ${input.numeroConta}
-                AND estabelecimento_id = ${input.estabelecimentoId}
-              ORDER BY data, tipoproc, descricao
-            `);
-
-            dados = (localResult as any)[0] || [];
-          }
+          dados = (localResult as any)[0] || [];
         }
 
         await connector.desconectar();
