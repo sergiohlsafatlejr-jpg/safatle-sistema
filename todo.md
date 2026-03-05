@@ -2451,3 +2451,6 @@
 - [x] Feature: após importar conta com sucesso, redirecionar automaticamente para tela de Conta Convênio (1s delay)
 - [x] Feature: botão de edição na tabela de Mapeamentos de Dados para editar query SQL e configurações
 - [x] Ajustar mapeamento de campos no buscarConta para nova query (lancamen/contas/faturas com campos: nomepaciente, codrecur, complrecur, codtiss, descmotivo, tipoatend, databaixa, codplaco, nomeplaco, medsolic, nomemedsolic)
+- [x] Popular tela Conta Convênio com dados importados dos XMLs do Pronto Socorro Infantil (migrar dados de faturamento_tiss para contas_convenio_itens)
+- [x] Botão "Importar XMLs" na tela Conta Convênio para migrar dados XML do faturamento_tiss para contas_convenio_itens
+- [x] Testes unitários para migrarDadosXml (14 testes passando: migração, listagem, itens, divergências)

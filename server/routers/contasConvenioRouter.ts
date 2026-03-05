@@ -902,4 +902,193 @@ export const contasConvenioRouter = router({
         resumo,
       };
     }),
+
+  // ============================================================
+  // MIGRAR DADOS XML (faturamento_tiss) PARA contas_convenio_itens
+  // ============================================================
+  migrarDadosXml: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
+
+      // Buscar dados do faturamento_tiss para o estabelecimento
+      // Usando SQL direto para JOIN com convênios
+      const rows = await db.execute(sql`
+        SELECT 
+          ft.id,
+          ft.numero_lote,
+          ft.numero_guia_prestador,
+          ft.numero_guia_operadora,
+          ft.senha,
+          ft.carteira_beneficiario,
+          ft.tipo_item,
+          ft.sequencial_item,
+          ft.data_execucao,
+          ft.codigo_tabela,
+          ft.codigo_item,
+          ft.descricao_item,
+          ft.quantidade,
+          ft.valor_unitario,
+          ft.valor_faturado,
+          ft.nome_prof,
+          ft.valor_total_geral_guia,
+          ft.estabelecimentoId,
+          ft.arquivo_id,
+          ft.convenioId,
+          ft.data_referencia,
+          ft.data_importacao,
+          c.nome as convenio_nome
+        FROM faturamento_tiss ft
+        LEFT JOIN convenios c ON c.id = ft.convenioId
+        WHERE ft.estabelecimentoId = ${input.estabelecimentoId}
+        ORDER BY ft.numero_guia_prestador, ft.data_execucao
+      `);
+
+      const data = (rows as any)[0] || rows;
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Nenhum dado XML encontrado para este estabelecimento.",
+        });
+      }
+
+      logger.info({ message: `Migrando ${data.length} itens XML para contas_convenio_itens`, estabelecimentoId: input.estabelecimentoId });
+
+      // Limpar dados XML anteriores deste estabelecimento na tabela destino
+      await db.delete(contasConvenioItens).where(
+        and(
+          eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+          eq(contasConvenioItens.origem, "XML")
+        )
+      );
+      await db.delete(contasConvenioResumo).where(
+        and(
+          eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+          eq(contasConvenioResumo.origem, "XML")
+        )
+      );
+
+      // Inserir itens em batches
+      let totalInseridos = 0;
+      const BATCH_SIZE = 500;
+
+      for (let i = 0; i < data.length; i += BATCH_SIZE) {
+        const batch = data.slice(i, i + BATCH_SIZE);
+        const values = batch.map((row: any) => {
+          const guia = row.numero_guia_prestador || row.numero_guia_operadora || 'SEM_GUIA';
+          const vlUnit = row.valor_unitario ? parseFloat(String(row.valor_unitario)) : 0;
+          const vlFat = row.valor_faturado ? parseFloat(String(row.valor_faturado)) : 0;
+          const qtd = row.quantidade ? parseFloat(String(row.quantidade)) : 0;
+          const vlTotal = vlFat || (vlUnit * qtd);
+
+          return {
+            origem: "XML" as const,
+            numeroConta: String(guia),
+            numeroGuia: row.numero_guia_prestador ? String(row.numero_guia_prestador) : null,
+            numeroGuiaOperadora: row.numero_guia_operadora ? String(row.numero_guia_operadora) : null,
+            numeroLote: row.numero_lote ? String(row.numero_lote) : null,
+            senha: row.senha ? String(row.senha) : null,
+            pacienteNome: null, // XML não tem nome do paciente
+            carteiraBeneficiario: row.carteira_beneficiario ? String(row.carteira_beneficiario) : null,
+            convenio: row.convenio_nome ? String(row.convenio_nome) : null,
+            convenioId: row.convenioId || null,
+            estabelecimentoId: input.estabelecimentoId,
+            tipoItem: row.tipo_item ? String(row.tipo_item) : 'OUTROS',
+            codigoItem: row.codigo_item ? String(row.codigo_item) : null,
+            codigoItemTuss: null,
+            descricaoItem: row.descricao_item ? String(row.descricao_item) : null,
+            codigoTabela: row.codigo_tabela ? String(row.codigo_tabela) : null,
+            quantidade: qtd ? String(qtd) : null,
+            valorUnitario: vlUnit ? String(vlUnit) : null,
+            valorTotal: vlTotal ? String(vlTotal) : null,
+            dataExecucao: row.data_execucao ? new Date(row.data_execucao) : null,
+            dataReferencia: row.data_referencia ? new Date(row.data_referencia) : null,
+            competencia: null,
+            profissionalExecutante: row.nome_prof ? String(row.nome_prof) : null,
+            setor: null,
+            arquivoId: row.arquivo_id || null,
+            statusAnalise: "pendente" as const,
+          };
+        });
+
+        await db.insert(contasConvenioItens).values(values);
+        totalInseridos += batch.length;
+      }
+
+      // Criar resumos agrupados por guia
+      const resumosPorGuia = new Map<string, {
+        convenio: string | null;
+        convenioId: number | null;
+        carteira: string | null;
+        totalItens: number;
+        valorTotal: number;
+        dataExecucao: Date | null;
+      }>();
+
+      for (const row of data) {
+        const guia = String(row.numero_guia_prestador || row.numero_guia_operadora || 'SEM_GUIA');
+        const existing = resumosPorGuia.get(guia) || {
+          convenio: null,
+          convenioId: null,
+          carteira: null,
+          totalItens: 0,
+          valorTotal: 0,
+          dataExecucao: null,
+        };
+
+        existing.convenio = existing.convenio || (row.convenio_nome ? String(row.convenio_nome) : null);
+        existing.convenioId = existing.convenioId || row.convenioId || null;
+        existing.carteira = existing.carteira || (row.carteira_beneficiario ? String(row.carteira_beneficiario) : null);
+        existing.totalItens += 1;
+        const vlFat = row.valor_faturado ? parseFloat(String(row.valor_faturado)) : 0;
+        const vlUnit = row.valor_unitario ? parseFloat(String(row.valor_unitario)) : 0;
+        const qtd = row.quantidade ? parseFloat(String(row.quantidade)) : 0;
+        existing.valorTotal += vlFat || (vlUnit * qtd);
+        if (row.data_execucao && !existing.dataExecucao) {
+          existing.dataExecucao = new Date(row.data_execucao);
+        }
+
+        resumosPorGuia.set(guia, existing);
+      }
+
+      // Inserir resumos em batches
+      const resumoEntries = Array.from(resumosPorGuia.entries());
+      let totalResumos = 0;
+
+      for (let i = 0; i < resumoEntries.length; i += BATCH_SIZE) {
+        const batch = resumoEntries.slice(i, i + BATCH_SIZE);
+        const resumoValues = batch.map(([guia, r]) => ({
+          numeroConta: guia,
+          estabelecimentoId: input.estabelecimentoId,
+          origem: "XML" as const,
+          convenio: r.convenio,
+          convenioId: r.convenioId,
+          pacienteNome: null,
+          carteiraBeneficiario: r.carteira,
+          totalItens: r.totalItens,
+          valorTotal: String(r.valorTotal.toFixed(2)),
+          dataInternacao: r.dataExecucao,
+          statusAnalise: "pendente" as const,
+          buscadoPor: ctx.user?.id || null,
+        }));
+
+        await db.insert(contasConvenioResumo).values(resumoValues);
+        totalResumos += batch.length;
+      }
+
+      logger.info({
+        message: `Migração concluída: ${totalInseridos} itens, ${totalResumos} contas`,
+        estabelecimentoId: input.estabelecimentoId,
+      });
+
+      return {
+        sucesso: true,
+        mensagem: `Migração concluída: ${totalInseridos} itens importados em ${totalResumos} contas.`,
+        totalItens: totalInseridos,
+        totalContas: totalResumos,
+      };
+    }),
 });

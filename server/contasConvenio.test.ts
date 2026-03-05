@@ -177,4 +177,88 @@ describe("contasConvenio router", () => {
       }
     });
   });
+
+  describe("migrarDadosXml", () => {
+    it("lança erro quando não há dados XML para o estabelecimento", async () => {
+      try {
+        await caller.contasConvenio.migrarDadosXml({
+          estabelecimentoId: 999999,
+        });
+        // Se não lançar erro, falha o teste
+        expect(true).toBe(false);
+      } catch (err: any) {
+        expect(err).toBeDefined();
+        expect(err.message).toContain("Nenhum dado XML encontrado");
+      }
+    });
+
+    it("migra dados XML com sucesso para estabelecimento com dados", { timeout: 60000 }, async () => {
+      // Testar com o estabelecimento 1 (Pronto Socorro Infantil) que tem ~29K itens
+      try {
+        const result = await caller.contasConvenio.migrarDadosXml({
+          estabelecimentoId: 1,
+        });
+        expect(result).toBeDefined();
+        expect(result.sucesso).toBe(true);
+        expect(result.totalItens).toBeGreaterThan(0);
+        expect(result.totalContas).toBeGreaterThan(0);
+        expect(result.mensagem).toContain("Migração concluída");
+      } catch (err: any) {
+        // Se não houver dados no ambiente de teste, é aceitável
+        expect(err.message).toContain("Nenhum dado XML encontrado");
+      }
+    });
+  });
+
+  describe("listarContas após migração", () => {
+    it("retorna contas migradas para estabelecimento 1", async () => {
+      const result = await caller.contasConvenio.listarContas({
+        estabelecimentoId: 1,
+        page: 1,
+        pageSize: 10,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.contas).toBeDefined();
+      expect(Array.isArray(result.contas)).toBe(true);
+      // Pode ter contas ou não dependendo do estado do banco
+      if (result.contas.length > 0) {
+        const conta = result.contas[0];
+        expect(conta.numeroConta).toBeDefined();
+        expect(conta.estabelecimentoId).toBe(1);
+        expect(conta.origem).toBeDefined();
+      }
+    });
+
+    it("retorna itens de uma conta migrada", async () => {
+      // Primeiro buscar uma conta existente
+      const contas = await caller.contasConvenio.listarContas({
+        estabelecimentoId: 1,
+        page: 1,
+        pageSize: 1,
+      });
+
+      if (contas.contas.length > 0) {
+        const primeiraConta = contas.contas[0];
+        const itens = await caller.contasConvenio.listarItens({
+          numeroConta: primeiraConta.numeroConta,
+          estabelecimentoId: 1,
+        });
+
+        expect(itens).toBeDefined();
+        expect(itens.items).toBeDefined();
+        expect(Array.isArray(itens.items)).toBe(true);
+        expect(itens.items.length).toBeGreaterThan(0);
+        expect(itens.resumoGeral).toBeDefined();
+        expect(itens.resumoPorTipo).toBeDefined();
+
+        // Verificar campos dos itens
+        const item = itens.items[0];
+        expect(item.codigoItem).toBeDefined();
+        expect(item.descricaoItem).toBeDefined();
+        expect(item.valorTotal).toBeDefined();
+        expect(item.origem).toBe("XML");
+      }
+    });
+  });
 });

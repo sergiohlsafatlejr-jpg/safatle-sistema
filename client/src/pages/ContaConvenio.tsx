@@ -44,6 +44,7 @@ import React, { useState, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { Upload } from "lucide-react";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -169,6 +170,15 @@ export default function ContaConvenio() {
     onError: (err) => toast.error(err.message),
   });
 
+  // Mutation para migrar dados XML para contas_convenio_itens
+  const migrarXml = trpc.contasConvenio.migrarDadosXml.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.mensagem);
+      refetch();
+    },
+    onError: (err) => toast.error(`Erro na migração: ${err.message}`),
+  });
+
   // Calcular totais
   const resumo = contasData?.resumo;
   const totalPages = Math.ceil((contasData?.total || 0) / pageSize);
@@ -231,7 +241,26 @@ export default function ContaConvenio() {
               Contas importadas do banco do hospital e XML para análise e comparação com padrões
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={() => {
+                if (!estabelecimentoAtual?.id) {
+                  toast.error("Selecione um estabelecimento primeiro");
+                  return;
+                }
+                migrarXml.mutate({ estabelecimentoId: estabelecimentoAtual.id });
+              }}
+              disabled={migrarXml.isPending || !estabelecimentoAtual?.id}
+            >
+              {migrarXml.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              {migrarXml.isPending ? "Migrando..." : "Importar XMLs"}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Atualizar
