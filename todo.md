@@ -2457,3 +2457,5 @@
 - [x] Adicionar filtro de mês/período (competência MM/AAAA) na tela de Conta Convênio para análise mensal
 - [x] Corrigir competência das contas XML na Conta Convênio para usar data_referencia do upload em vez de dataExecucao calculada
 - [x] Popular tela Conta Convênio com dados importados dos XMLs do estabelecimento Ox Uti
+- [x] Adicionar indicador visual de Alta Administrativa na tela Conta Convênio (badge para guias com múltiplos lotes)
+- [x] Adicionar indicador visual de Alta Administrativa na tela Conciliação Cruzada (badge para guias com múltiplos lotes - já existia)

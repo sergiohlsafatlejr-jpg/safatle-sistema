@@ -551,6 +551,11 @@ export default function ContaConvenio() {
                             <span className="font-semibold font-mono">{conta.numeroConta}</span>
                             <OrigemBadge origem={conta.origem} />
                             <StatusBadge status={status} />
+                            {(conta as any).isAltaAdministrativa && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300" title={`Esta conta possui ${(conta as any).totalLotes} lotes de envio XML (Alta Administrativa)`}>
+                                Alta Adm. ({(conta as any).totalLotes} lotes)
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <User className="h-4 w-4" />
