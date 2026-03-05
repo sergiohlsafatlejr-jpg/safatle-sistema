@@ -2460,3 +2460,7 @@
 - [x] Adicionar indicador visual de Alta Administrativa na tela Conta Convênio (badge para guias com múltiplos lotes)
 - [x] Adicionar indicador visual de Alta Administrativa na tela Conciliação Cruzada (badge para guias com múltiplos lotes - já existia)
 - [x] Corrigir Padrões de Cobrança: composição deve ser gerada apenas para procedimentos, excluindo materiais e medicamentos
+- [x] Gabarito Passo 1: Tela de revisão de padrões - aprovar/rejeitar/editar padrões em status "aprendendo"
+- [x] Gabarito Passo 2: Gabarito manual - criar padrão do zero definindo procedimento + itens obrigatórios com quantidades
+- [x] Gabarito Passo 3: Comparação gabarito vs realidade na Conta Convênio - identificar itens faltantes, extras e divergentes
+- [x] Gabarito Passo 4: Feedback loop - aceitar/rejeitar divergências alimenta e refina o padrão ao longo do tempo

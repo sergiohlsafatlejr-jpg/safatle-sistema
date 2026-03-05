@@ -10,11 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   DollarSign, BarChart3, AlertTriangle, Package, Search, RefreshCw, Loader2,
   TrendingUp, TrendingDown, ArrowUpDown, ChevronDown, ChevronUp, Info, Zap,
-  ShieldAlert, CheckCircle2, XCircle, Activity
+  ShieldAlert, CheckCircle2, XCircle, Activity, FileCheck, PlusCircle, Edit3,
+  ThumbsUp, ThumbsDown, Eye, Trash2, BookOpen, ClipboardCheck
 } from "lucide-react";
 
 export default function PadroesCobranca() {
@@ -30,6 +34,27 @@ export default function PadroesCobranca() {
   const [pageGlosa, setPageGlosa] = useState(1);
   const [pageQtd, setPageQtd] = useState(1);
   const [pageComp, setPageComp] = useState(1);
+  const [pageGab, setPageGab] = useState(1);
+
+  // Revisão de padrão
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewPadraoId, setReviewPadraoId] = useState<number | null>(null);
+  const [reviewObservacoes, setReviewObservacoes] = useState("");
+
+  // Editar padrão
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editPadraoId, setEditPadraoId] = useState<number | null>(null);
+  const [editItens, setEditItens] = useState<any[]>([]);
+
+  // Criar gabarito
+  const [gabDialogOpen, setGabDialogOpen] = useState(false);
+  const [gabCodigo, setGabCodigo] = useState("");
+  const [gabDescricao, setGabDescricao] = useState("");
+  const [gabObservacoes, setGabObservacoes] = useState("");
+  const [gabItens, setGabItens] = useState<any[]>([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
+
+  // Filtro de status na composição
+  const [selectedStatusComp, setSelectedStatusComp] = useState<string>("");
 
   const estabelecimentoId = estabelecimentoAtual?.id || 1;
 
@@ -54,41 +79,79 @@ export default function PadroesCobranca() {
   );
 
   const padroesComposicao = trpc.padroesCobranca.consultarPadroesComposicao.useQuery(
-    { estabelecimentoId, busca: searchTerm || undefined, page: pageComp },
+    { estabelecimentoId, busca: searchTerm || undefined, page: pageComp, status: (selectedStatusComp || undefined) as any },
     { enabled: activeTab === "composicao" }
+  );
+
+  const gabaritos = trpc.padroesCobranca.listarGabaritos.useQuery(
+    { estabelecimentoId, busca: searchTerm || undefined, page: pageGab },
+    { enabled: activeTab === "gabarito" }
+  );
+
+  // Detalhes do padrão para revisão
+  const padraoDetalhes = trpc.padroesCobranca.getPadraoDetalhes.useQuery(
+    { id: reviewPadraoId! },
+    { enabled: !!reviewPadraoId && reviewDialogOpen }
   );
 
   // Mutations
   const gerarPreco = trpc.padroesCobranca.gerarPadroesPreco.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-      padroesPreco.refetch();
-      resumo.refetch();
-    },
+    onSuccess: (data) => { toast.success(data.message); padroesPreco.refetch(); resumo.refetch(); },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
 
   const gerarGlosa = trpc.padroesCobranca.gerarPadroesGlosa.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-      padroesGlosa.refetch();
-      resumo.refetch();
-    },
+    onSuccess: (data) => { toast.success(data.message); padroesGlosa.refetch(); resumo.refetch(); },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
 
   const gerarQuantidade = trpc.padroesCobranca.gerarPadroesQuantidade.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-      padroesQuantidade.refetch();
-      resumo.refetch();
-    },
+    onSuccess: (data) => { toast.success(data.message); padroesQuantidade.refetch(); resumo.refetch(); },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
 
   const gerarComposicao = trpc.padroesCobranca.gerarPadroesComposicao.useMutation({
+    onSuccess: (data) => { toast.success(data.message); padroesComposicao.refetch(); resumo.refetch(); },
+    onError: (err) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const validarPadrao = trpc.padroesCobranca.validarPadrao.useMutation({
     onSuccess: (data) => {
-      toast.success(data.message);
+      toast.success(`Padrão ${data.novoStatus === "ativo" ? "aprovado" : data.novoStatus === "inativo" ? "rejeitado" : "em revisão"} com sucesso!`);
+      padroesComposicao.refetch();
+      gabaritos.refetch();
+      setReviewDialogOpen(false);
+      setReviewObservacoes("");
+    },
+    onError: (err) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const editarPadrao = trpc.padroesCobranca.editarPadrao.useMutation({
+    onSuccess: () => {
+      toast.success("Padrão editado e aprovado com sucesso!");
+      padroesComposicao.refetch();
+      gabaritos.refetch();
+      setEditDialogOpen(false);
+    },
+    onError: (err) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const criarGabarito = trpc.padroesCobranca.criarGabarito.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.atualizado ? "Gabarito atualizado com sucesso!" : "Gabarito criado com sucesso!");
+      gabaritos.refetch();
+      padroesComposicao.refetch();
+      resumo.refetch();
+      setGabDialogOpen(false);
+      resetGabForm();
+    },
+    onError: (err) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const excluirGabarito = trpc.padroesCobranca.excluirGabarito.useMutation({
+    onSuccess: () => {
+      toast.success("Gabarito excluído com sucesso!");
+      gabaritos.refetch();
       padroesComposicao.refetch();
       resumo.refetch();
     },
@@ -110,6 +173,27 @@ export default function PadroesCobranca() {
 
   const isGenerating = gerarPreco.isPending || gerarGlosa.isPending || gerarQuantidade.isPending || gerarComposicao.isPending;
 
+  const resetGabForm = () => {
+    setGabCodigo("");
+    setGabDescricao("");
+    setGabObservacoes("");
+    setGabItens([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
+  };
+
+  const openReview = (id: number) => {
+    setReviewPadraoId(id);
+    setReviewObservacoes("");
+    setReviewDialogOpen(true);
+  };
+
+  const openEdit = (padrao: any) => {
+    setEditPadraoId(padrao.id);
+    const itens = Array.isArray(padrao.itensAssociados) ? padrao.itensAssociados : (typeof padrao.itensAssociados === "string" ? JSON.parse(padrao.itensAssociados) : []);
+    setEditItens(itens.map((i: any) => ({ ...i })));
+    setEditDialogOpen(true);
+  };
+
+  // Helpers
   const nivelRiscoBadge = (nivel: string) => {
     const config: Record<string, { color: string; icon: any }> = {
       critico: { color: "bg-red-500/20 text-red-400 border-red-500/30", icon: XCircle },
@@ -131,6 +215,17 @@ export default function PadroesCobranca() {
     if (valor >= 85) return <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/30">{valor}%</Badge>;
     if (valor >= 55) return <Badge variant="outline" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">{valor}%</Badge>;
     return <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/30">{valor}%</Badge>;
+  };
+
+  const statusBadge = (status: string, isGabarito?: number) => {
+    if (isGabarito === 1) return <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/30 gap-1"><BookOpen className="h-3 w-3" />Gabarito</Badge>;
+    const config: Record<string, string> = {
+      ativo: "bg-green-500/20 text-green-400 border-green-500/30",
+      aprendendo: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+      revisao: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+      inativo: "bg-red-500/20 text-red-400 border-red-500/30",
+    };
+    return <Badge variant="outline" className={config[status] || config.aprendendo}>{status}</Badge>;
   };
 
   const formatCurrency = (val: string | number | null) => {
@@ -184,18 +279,18 @@ export default function PadroesCobranca() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchTerm(""); setPagePreco(1); setPageGlosa(1); setPageQtd(1); setPageComp(1); }}>
-          <TabsList className="grid grid-cols-5 w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchTerm(""); setPagePreco(1); setPageGlosa(1); setPageQtd(1); setPageComp(1); setPageGab(1); }}>
+          <TabsList className="grid grid-cols-6 w-full">
             <TabsTrigger value="resumo" className="gap-2"><Activity className="h-4 w-4" />Resumo</TabsTrigger>
             <TabsTrigger value="preco" className="gap-2"><DollarSign className="h-4 w-4" />Preços</TabsTrigger>
             <TabsTrigger value="glosa" className="gap-2"><AlertTriangle className="h-4 w-4" />Glosas</TabsTrigger>
             <TabsTrigger value="quantidade" className="gap-2"><BarChart3 className="h-4 w-4" />Quantidades</TabsTrigger>
             <TabsTrigger value="composicao" className="gap-2"><Package className="h-4 w-4" />Composição</TabsTrigger>
+            <TabsTrigger value="gabarito" className="gap-2"><ClipboardCheck className="h-4 w-4" />Gabarito</TabsTrigger>
           </TabsList>
 
           {/* ========== RESUMO ========== */}
           <TabsContent value="resumo" className="space-y-6">
-            {/* Cards de dados disponíveis */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="pb-2">
@@ -223,9 +318,8 @@ export default function PadroesCobranca() {
               </Card>
             </div>
 
-            {/* Cards de padrões gerados */}
             <h3 className="text-lg font-semibold">Padrões Gerados</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("preco")}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
@@ -234,9 +328,7 @@ export default function PadroesCobranca() {
                   </div>
                   <CardTitle className="text-2xl">{resumo.data?.padroes?.preco?.toLocaleString("pt-BR") || "0"}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">Valor médio, mín, máx e desvio por item/convênio</p>
-                </CardContent>
+                <CardContent><p className="text-xs text-muted-foreground">Valor médio, mín, máx e desvio por item/convênio</p></CardContent>
               </Card>
               <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("glosa")}>
                 <CardHeader className="pb-2">
@@ -246,9 +338,7 @@ export default function PadroesCobranca() {
                   </div>
                   <CardTitle className="text-2xl">{resumo.data?.padroes?.glosa?.toLocaleString("pt-BR") || "0"}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">Taxa de glosa e códigos frequentes por item/convênio</p>
-                </CardContent>
+                <CardContent><p className="text-xs text-muted-foreground">Taxa de glosa e códigos frequentes por item/convênio</p></CardContent>
               </Card>
               <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("quantidade")}>
                 <CardHeader className="pb-2">
@@ -258,9 +348,7 @@ export default function PadroesCobranca() {
                   </div>
                   <CardTitle className="text-2xl">{resumo.data?.padroes?.quantidade?.toLocaleString("pt-BR") || "0"}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">Quantidade média e limites por item/setor</p>
-                </CardContent>
+                <CardContent><p className="text-xs text-muted-foreground">Quantidade média e limites por item/setor</p></CardContent>
               </Card>
               <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("composicao")}>
                 <CardHeader className="pb-2">
@@ -270,34 +358,28 @@ export default function PadroesCobranca() {
                   </div>
                   <CardTitle className="text-2xl">{resumo.data?.padroes?.composicao?.toLocaleString("pt-BR") || "0"}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">Kit cirúrgico: itens associados a cada procedimento</p>
-                </CardContent>
+                <CardContent><p className="text-xs text-muted-foreground">Kit cirúrgico: itens associados a cada procedimento</p></CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:border-blue-500/50 transition-colors border-blue-500/20" onClick={() => setActiveTab("gabarito")}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="h-5 w-5 text-blue-400" />
+                    <CardDescription>Gabaritos Manuais</CardDescription>
+                  </div>
+                  <CardTitle className="text-2xl">{gabaritos.data?.total || "0"}</CardTitle>
+                </CardHeader>
+                <CardContent><p className="text-xs text-muted-foreground">Padrões definidos manualmente pelo auditor</p></CardContent>
               </Card>
             </div>
 
-            {/* Convênios */}
             <h3 className="text-lg font-semibold">Convênios com Dados</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {(convenios.data as any[])?.map((c: any) => (
                 <Card key={c.convenio} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => { setSelectedConvenio(c.convenio); setActiveTab("preco"); }}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">{c.convenio}</CardTitle>
+                    <CardDescription>{c.convenio}</CardDescription>
+                    <CardTitle className="text-lg">{Number(c.totalContas).toLocaleString("pt-BR")} contas</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Itens:</span>
-                      <span>{Number(c.totalItens).toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Contas:</span>
-                      <span>{Number(c.totalContas).toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Faturado:</span>
-                      <span className="font-medium text-green-400">{formatCurrency(c.totalFaturado)}</span>
-                    </div>
-                  </CardContent>
                 </Card>
               ))}
             </div>
@@ -316,12 +398,10 @@ export default function PadroesCobranca() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos os tipos</SelectItem>
-                  <SelectItem value="P">Procedimento</SelectItem>
-                  <SelectItem value="T">Taxa</SelectItem>
-                  <SelectItem value="M">Material</SelectItem>
-                  <SelectItem value="D">Medicamento</SelectItem>
-                  <SelectItem value="H">Honorário</SelectItem>
-                  <SelectItem value="DI">Diária</SelectItem>
+                  <SelectItem value="procedimento">Procedimento</SelectItem>
+                  <SelectItem value="mat_med">Mat/Med</SelectItem>
+                  <SelectItem value="diaria">Diária</SelectItem>
+                  <SelectItem value="taxa">Taxa</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={() => gerarPreco.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined })} disabled={gerarPreco.isPending} className="gap-2">
@@ -333,9 +413,7 @@ export default function PadroesCobranca() {
             {padroesPreco.isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : padroesPreco.data?.items?.length === 0 ? (
-              <Card className="py-12 text-center">
-                <p className="text-muted-foreground">Nenhum padrão de preço encontrado. Clique em "Atualizar Padrões" para gerar.</p>
-              </Card>
+              <Card className="py-12 text-center"><p className="text-muted-foreground">Nenhum padrão de preço encontrado. Clique em "Atualizar Padrões" para gerar.</p></Card>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">{padroesPreco.data?.total} padrões encontrados</p>
@@ -347,37 +425,22 @@ export default function PadroesCobranca() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline" className="text-xs">{item.codigoItem}</Badge>
-                              <Badge variant="secondary" className="text-xs">{item.tipoItem || "?"}</Badge>
+                              <Badge variant="secondary" className="text-xs">{item.tipoItem}</Badge>
                               <span className="text-xs text-muted-foreground">{item.convenio}</span>
                             </div>
                             <p className="text-sm font-medium truncate">{item.descricaoItem || "Sem descrição"}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-lg font-bold text-green-400">{formatCurrency(item.mediaFaturado)}</p>
-                            <p className="text-xs text-muted-foreground">média faturado</p>
+                            <p className="text-lg font-bold text-green-400">{formatCurrency(item.valorMedio)}</p>
+                            <p className="text-xs text-muted-foreground">valor médio</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 text-sm">
-                          <div>
-                            <p className="text-muted-foreground text-xs">Unitário Médio</p>
-                            <p className="font-medium">{formatCurrency(item.mediaUnitario)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Mín / Máx</p>
-                            <p className="font-medium">{formatCurrency(item.minFaturado)} - {formatCurrency(item.maxFaturado)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Desvio Padrão</p>
-                            <p className="font-medium">{formatCurrency(item.desvioFaturado)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Ocorrências</p>
-                            <p className="font-medium">{item.totalOcorrencias} ({item.totalContas} contas)</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Confiança</p>
-                            {confiancaBadge(item.confianca)}
-                          </div>
+                          <div><p className="text-muted-foreground text-xs">Mínimo</p><p className="font-medium">{formatCurrency(item.valorMinimo)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Máximo</p><p className="font-medium">{formatCurrency(item.valorMaximo)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Desvio Padrão</p><p className="font-medium">{formatCurrency(item.desvioPadrao)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Ocorrências</p><p className="font-medium">{item.totalOcorrencias}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Confiança</p>{confiancaBadge(item.confianca)}</div>
                         </div>
                       </div>
                     </Card>
@@ -396,9 +459,7 @@ export default function PadroesCobranca() {
                 <Input placeholder="Buscar por código ou descrição..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageGlosa(1); }} className="pl-9" />
               </div>
               <Select value={selectedNivelRisco} onValueChange={setSelectedNivelRisco}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Nível de risco" />
-                </SelectTrigger>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Nível de risco" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos os níveis</SelectItem>
                   <SelectItem value="critico">Crítico</SelectItem>
@@ -416,9 +477,7 @@ export default function PadroesCobranca() {
             {padroesGlosa.isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : padroesGlosa.data?.items?.length === 0 ? (
-              <Card className="py-12 text-center">
-                <p className="text-muted-foreground">Nenhum padrão de glosa encontrado. Clique em "Atualizar Padrões" para gerar.</p>
-              </Card>
+              <Card className="py-12 text-center"><p className="text-muted-foreground">Nenhum padrão de glosa encontrado.</p></Card>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">{padroesGlosa.data?.total} padrões encontrados</p>
@@ -441,31 +500,17 @@ export default function PadroesCobranca() {
                           </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
-                          <div>
-                            <p className="text-muted-foreground text-xs">Faturado</p>
-                            <p className="font-medium">{formatCurrency(item.valorTotalFaturado)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Glosado</p>
-                            <p className="font-medium text-red-400">{formatCurrency(item.valorTotalGlosado)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Pago</p>
-                            <p className="font-medium text-green-400">{formatCurrency(item.valorTotalPago)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Ocorrências</p>
-                            <p className="font-medium">{item.totalFaturado} faturados / {item.totalGlosado} glosados</p>
-                          </div>
+                          <div><p className="text-muted-foreground text-xs">Faturado</p><p className="font-medium">{formatCurrency(item.valorTotalFaturado)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Glosado</p><p className="font-medium text-red-400">{formatCurrency(item.valorTotalGlosado)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Pago</p><p className="font-medium text-green-400">{formatCurrency(item.valorTotalPago)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Ocorrências</p><p className="font-medium">{item.totalFaturado} faturados / {item.totalGlosado} glosados</p></div>
                         </div>
                         {item.codigosGlosaFrequentes && (item.codigosGlosaFrequentes as any[]).length > 0 && (
                           <div className="mt-3 pt-3 border-t border-border">
                             <p className="text-xs text-muted-foreground mb-2">Códigos de glosa frequentes:</p>
                             <div className="flex flex-wrap gap-2">
                               {(item.codigosGlosaFrequentes as any[]).slice(0, 5).map((cg: any, idx: number) => (
-                                <Badge key={idx} variant="outline" className="text-xs" title={cg.descricao}>
-                                  {cg.codigoGlosa} ({cg.frequencia}x)
-                                </Badge>
+                                <Badge key={idx} variant="outline" className="text-xs" title={cg.descricao}>{cg.codigoGlosa} ({cg.frequencia}x)</Badge>
                               ))}
                             </div>
                           </div>
@@ -487,9 +532,7 @@ export default function PadroesCobranca() {
                 <Input placeholder="Buscar por código ou descrição..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageQtd(1); }} className="pl-9" />
               </div>
               <Select value={selectedSetor} onValueChange={setSelectedSetor}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todos os setores" />
-                </SelectTrigger>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Todos os setores" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos os setores</SelectItem>
                   {(setores.data as any[])?.map((s: any) => (
@@ -506,9 +549,7 @@ export default function PadroesCobranca() {
             {padroesQuantidade.isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : padroesQuantidade.data?.items?.length === 0 ? (
-              <Card className="py-12 text-center">
-                <p className="text-muted-foreground">Nenhum padrão de quantidade encontrado. Clique em "Atualizar Padrões" para gerar.</p>
-              </Card>
+              <Card className="py-12 text-center"><p className="text-muted-foreground">Nenhum padrão de quantidade encontrado.</p></Card>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">{padroesQuantidade.data?.total} padrões encontrados</p>
@@ -520,38 +561,22 @@ export default function PadroesCobranca() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline" className="text-xs">{item.codigoItem}</Badge>
-                              {item.tipoItem && <Badge variant="secondary" className="text-xs">{item.tipoItem}</Badge>}
-                              {item.convenio && <span className="text-xs text-muted-foreground">{item.convenio}</span>}
-                              {item.setor && <span className="text-xs text-muted-foreground">| {item.setor}</span>}
+                              <Badge variant="secondary" className="text-xs">{item.setor}</Badge>
+                              <span className="text-xs text-muted-foreground">{item.convenio}</span>
                             </div>
                             <p className="text-sm font-medium truncate">{item.descricaoItem || "Sem descrição"}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-lg font-bold text-blue-400">{formatNumber(item.mediaQuantidade, 2)}</p>
-                            <p className="text-xs text-muted-foreground">média</p>
+                            <p className="text-lg font-bold text-blue-400">{formatNumber(item.quantidadeMedia)}</p>
+                            <p className="text-xs text-muted-foreground">qtd média</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 text-sm">
-                          <div>
-                            <p className="text-muted-foreground text-xs">Mín / Máx</p>
-                            <p className="font-medium">{formatNumber(item.minQuantidade)} - {formatNumber(item.maxQuantidade)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Desvio Padrão</p>
-                            <p className="font-medium">{formatNumber(item.desvioQuantidade)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Limites (2σ)</p>
-                            <p className="font-medium">{formatNumber(item.limiteInferior)} - {formatNumber(item.limiteSuperior)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Ocorrências</p>
-                            <p className="font-medium">{item.totalOcorrencias} ({item.totalContas} contas)</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground text-xs">Confiança</p>
-                            {confiancaBadge(item.confianca)}
-                          </div>
+                          <div><p className="text-muted-foreground text-xs">Mínimo</p><p className="font-medium">{formatNumber(item.quantidadeMinima)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Máximo</p><p className="font-medium">{formatNumber(item.quantidadeMaxima)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Desvio</p><p className="font-medium">{formatNumber(item.desvioPadrao)}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Ocorrências</p><p className="font-medium">{item.totalOcorrencias} ({item.totalContas} contas)</p></div>
+                          <div><p className="text-muted-foreground text-xs">Confiança</p>{confiancaBadge(item.confianca)}</div>
                         </div>
                       </div>
                     </Card>
@@ -562,13 +587,23 @@ export default function PadroesCobranca() {
             )}
           </TabsContent>
 
-          {/* ========== COMPOSIÇÃO ========== */}
+          {/* ========== COMPOSIÇÃO (com ações de revisão) ========== */}
           <TabsContent value="composicao" className="space-y-4">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Buscar por código ou descrição do procedimento..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageComp(1); }} className="pl-9" />
               </div>
+              <Select value={selectedStatusComp} onValueChange={setSelectedStatusComp}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Todos os status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os status</SelectItem>
+                  <SelectItem value="aprendendo">Aprendendo</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="revisao">Em Revisão</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
               <Button variant="outline" onClick={() => gerarComposicao.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined })} disabled={gerarComposicao.isPending} className="gap-2">
                 {gerarComposicao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Atualizar Padrões
@@ -578,9 +613,7 @@ export default function PadroesCobranca() {
             {padroesComposicao.isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : padroesComposicao.data?.items?.length === 0 ? (
-              <Card className="py-12 text-center">
-                <p className="text-muted-foreground">Nenhum padrão de composição encontrado. Clique em "Atualizar Padrões" para gerar.</p>
-              </Card>
+              <Card className="py-12 text-center"><p className="text-muted-foreground">Nenhum padrão de composição encontrado.</p></Card>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">{padroesComposicao.data?.total} padrões encontrados</p>
@@ -589,13 +622,14 @@ export default function PadroesCobranca() {
                     const isExpanded = expandedItem === item.id;
                     const itensAssoc = Array.isArray(item.itensAssociados) ? item.itensAssociados : (typeof item.itensAssociados === "string" ? JSON.parse(item.itensAssociados) : []);
                     return (
-                      <Card key={item.id} className="overflow-hidden">
+                      <Card key={item.id} className={`overflow-hidden ${item.isGabarito === 1 ? "border-blue-500/30" : ""}`}>
                         <div className="p-4 cursor-pointer" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
-                                <Badge variant={item.status === "ativo" ? "default" : "secondary"} className="text-xs">{item.status}</Badge>
+                                {statusBadge(item.status, item.isGabarito)}
+                                {confiancaBadge(item.confianca || 0)}
                               </div>
                               <p className="text-sm font-medium truncate">{item.descricaoProcedimentoPrincipal || "Sem descrição"}</p>
                             </div>
@@ -611,23 +645,40 @@ export default function PadroesCobranca() {
                             <p className="text-sm text-muted-foreground mt-1">Valor médio da conta: <span className="font-medium text-green-400">{formatCurrency(item.valorMedioConta)}</span></p>
                           )}
                         </div>
-                        {isExpanded && itensAssoc.length > 0 && (
+                        {isExpanded && (
                           <div className="border-t border-border px-4 pb-4 pt-3 bg-muted/30">
-                            <p className="text-xs font-medium text-muted-foreground mb-3">Itens frequentemente associados:</p>
-                            <div className="space-y-2">
-                              {itensAssoc.map((assoc: any, idx: number) => (
-                                <div key={idx} className="flex items-center gap-3 text-sm">
-                                  <div className="w-12 shrink-0">
-                                    <Progress value={assoc.frequencia} className="h-2" />
-                                  </div>
-                                  <span className="text-xs text-muted-foreground w-10 shrink-0">{assoc.frequencia}%</span>
-                                  <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
-                                  <span className="truncate flex-1">{assoc.descricao}</span>
-                                  <span className="text-xs text-muted-foreground shrink-0">Qtd: {assoc.quantidadeMedia}</span>
-                                  <span className="text-xs text-green-400 shrink-0">{formatCurrency(assoc.valorMedio)}</span>
-                                </div>
-                              ))}
+                            {/* Ações de revisão */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <Button size="sm" variant="outline" className="gap-1 text-green-400 border-green-500/30 hover:bg-green-500/10" onClick={(e) => { e.stopPropagation(); validarPadrao.mutate({ id: item.id, acao: "aprovar" }); }}>
+                                <ThumbsUp className="h-3 w-3" /> Aprovar
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); validarPadrao.mutate({ id: item.id, acao: "rejeitar" }); }}>
+                                <ThumbsDown className="h-3 w-3" /> Rejeitar
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
+                                <Edit3 className="h-3 w-3" /> Editar
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); openReview(item.id); }}>
+                                <Eye className="h-3 w-3" /> Detalhes
+                              </Button>
                             </div>
+                            {itensAssoc.length > 0 && (
+                              <>
+                                <p className="text-xs font-medium text-muted-foreground mb-3">Itens frequentemente associados:</p>
+                                <div className="space-y-2">
+                                  {itensAssoc.map((assoc: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-3 text-sm">
+                                      <div className="w-12 shrink-0"><Progress value={assoc.frequencia} className="h-2" /></div>
+                                      <span className="text-xs text-muted-foreground w-10 shrink-0">{assoc.frequencia}%</span>
+                                      <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
+                                      <span className="truncate flex-1">{assoc.descricao}</span>
+                                      <span className="text-xs text-muted-foreground shrink-0">Qtd: {assoc.quantidadeMedia}</span>
+                                      <span className="text-xs text-green-400 shrink-0">{formatCurrency(assoc.valorMedio)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
                       </Card>
@@ -638,8 +689,378 @@ export default function PadroesCobranca() {
               </>
             )}
           </TabsContent>
+
+          {/* ========== GABARITO MANUAL ========== */}
+          <TabsContent value="gabarito" className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar por código ou descrição do procedimento..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageGab(1); }} className="pl-9" />
+              </div>
+              <Button className="gap-2" onClick={() => { resetGabForm(); setGabDialogOpen(true); }}>
+                <PlusCircle className="h-4 w-4" /> Criar Gabarito
+              </Button>
+            </div>
+
+            <Card className="p-4 bg-blue-500/5 border-blue-500/20">
+              <div className="flex items-start gap-3">
+                <BookOpen className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">O que são Gabaritos?</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Gabaritos são padrões de composição definidos manualmente pelo auditor. Diferente dos padrões aprendidos automaticamente,
+                    gabaritos não são sobrescritos na regeneração e têm confiança 100%. Use para definir kits cirúrgicos, protocolos de atendimento
+                    e composições que você sabe que devem estar presentes em determinados procedimentos.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {gabaritos.isLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+            ) : gabaritos.data?.items?.length === 0 ? (
+              <Card className="py-12 text-center">
+                <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Nenhum gabarito criado ainda.</p>
+                <p className="text-xs text-muted-foreground mt-1">Clique em "Criar Gabarito" para definir um padrão manualmente.</p>
+              </Card>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">{gabaritos.data?.total} gabaritos encontrados</p>
+                <div className="space-y-2">
+                  {gabaritos.data?.items?.map((item: any) => {
+                    const isExpanded = expandedItem === item.id;
+                    const itensAssoc = Array.isArray(item.itensAssociados) ? item.itensAssociados : (typeof item.itensAssociados === "string" ? JSON.parse(item.itensAssociados) : []);
+                    return (
+                      <Card key={item.id} className="overflow-hidden border-blue-500/20">
+                        <div className="p-4 cursor-pointer" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
+                                <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/30 gap-1"><BookOpen className="h-3 w-3" />Gabarito</Badge>
+                                {confiancaBadge(item.confianca || 100)}
+                              </div>
+                              <p className="text-sm font-medium truncate">{item.descricaoProcedimentoPrincipal || "Sem descrição"}</p>
+                              {item.observacoesValidacao && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">"{item.observacoesValidacao}"</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-blue-400">{itensAssoc.length} itens</p>
+                                <p className="text-xs text-muted-foreground">gabarito manual</p>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                            </div>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div className="border-t border-border px-4 pb-4 pt-3 bg-muted/30">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
+                                <Edit3 className="h-3 w-3" /> Editar
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10" onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm("Tem certeza que deseja excluir este gabarito?")) {
+                                  excluirGabarito.mutate({ id: item.id });
+                                }
+                              }}>
+                                <Trash2 className="h-3 w-3" /> Excluir
+                              </Button>
+                            </div>
+                            {itensAssoc.length > 0 && (
+                              <>
+                                <p className="text-xs font-medium text-muted-foreground mb-3">Itens definidos no gabarito:</p>
+                                <div className="space-y-2">
+                                  {itensAssoc.map((assoc: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-3 text-sm">
+                                      <div className="w-12 shrink-0"><Progress value={assoc.frequencia} className="h-2" /></div>
+                                      <span className="text-xs text-muted-foreground w-10 shrink-0">{assoc.frequencia}%</span>
+                                      <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
+                                      <span className="truncate flex-1">{assoc.descricao}</span>
+                                      <span className="text-xs text-muted-foreground shrink-0">Qtd: {assoc.quantidadeMedia}</span>
+                                      {assoc.valorMedio ? <span className="text-xs text-green-400 shrink-0">{formatCurrency(assoc.valorMedio)}</span> : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+                <Pagination page={pageGab} totalPages={gabaritos.data?.totalPages || 1} setPage={setPageGab} />
+              </>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* ========== DIALOG: DETALHES DO PADRÃO ========== */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Padrão</DialogTitle>
+            <DialogDescription>Revise o padrão e decida se deve ser aprovado, rejeitado ou mantido em revisão.</DialogDescription>
+          </DialogHeader>
+          {padraoDetalhes.isLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+          ) : padraoDetalhes.data ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{padraoDetalhes.data.padrao.codigoProcedimentoPrincipal}</Badge>
+                {statusBadge(padraoDetalhes.data.padrao.status, padraoDetalhes.data.padrao.isGabarito)}
+                {confiancaBadge(padraoDetalhes.data.padrao.confianca || 0)}
+              </div>
+              <p className="font-medium">{padraoDetalhes.data.padrao.descricaoProcedimentoPrincipal}</p>
+              <p className="text-sm text-muted-foreground">{padraoDetalhes.data.padrao.totalOcorrencias} ocorrências | Valor médio: {formatCurrency(padraoDetalhes.data.padrao.valorMedioConta)}</p>
+
+              <Separator />
+
+              <div>
+                <p className="text-sm font-medium mb-2">Itens Associados ({(Array.isArray(padraoDetalhes.data.padrao.itensAssociados) ? padraoDetalhes.data.padrao.itensAssociados : []).length})</p>
+                <div className="space-y-1">
+                  {(Array.isArray(padraoDetalhes.data.padrao.itensAssociados) ? padraoDetalhes.data.padrao.itensAssociados : []).map((assoc: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-3 text-sm py-1">
+                      <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
+                      <span className="truncate flex-1">{assoc.descricao}</span>
+                      <span className="text-xs text-muted-foreground">{assoc.frequencia}%</span>
+                      <span className="text-xs text-muted-foreground">Qtd: {assoc.quantidadeMedia}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {padraoDetalhes.data.feedbacks.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-sm font-medium mb-2">Feedbacks Anteriores ({padraoDetalhes.data.feedbacks.length})</p>
+                    <div className="space-y-2">
+                      {padraoDetalhes.data.feedbacks.map((fb: any) => (
+                        <div key={fb.id} className="text-xs p-2 rounded bg-muted/50">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={fb.decisao === "aceitar" ? "text-green-400" : fb.decisao === "rejeitar" ? "text-red-400" : "text-gray-400"}>
+                              {fb.decisao}
+                            </Badge>
+                            <span className="text-muted-foreground">{fb.tipoDivergencia}</span>
+                            <span className="text-muted-foreground ml-auto">{fb.usuarioNome}</span>
+                          </div>
+                          {fb.justificativa && <p className="mt-1 italic">{fb.justificativa}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Separator />
+
+              <div>
+                <Label>Observações (opcional)</Label>
+                <Textarea value={reviewObservacoes} onChange={(e) => setReviewObservacoes(e.target.value)} placeholder="Justificativa para a decisão..." className="mt-1" />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="gap-1 text-green-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "aprovar", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
+              <ThumbsUp className="h-4 w-4" /> Aprovar
+            </Button>
+            <Button variant="outline" className="gap-1 text-yellow-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "revisao", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
+              <Eye className="h-4 w-4" /> Manter em Revisão
+            </Button>
+            <Button variant="outline" className="gap-1 text-red-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "rejeitar", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
+              <ThumbsDown className="h-4 w-4" /> Rejeitar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== DIALOG: EDITAR PADRÃO ========== */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Itens do Padrão</DialogTitle>
+            <DialogDescription>Ajuste as quantidades, frequências ou remova itens. Ao salvar, o padrão será aprovado automaticamente.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {editItens.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-2 p-2 rounded border border-border">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs shrink-0">{item.codigo}</Badge>
+                    <span className="text-sm truncate">{item.descricao}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-20">
+                    <Label className="text-xs">Freq %</Label>
+                    <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
+                      const newItens = [...editItens];
+                      newItens[idx].frequencia = Number(e.target.value);
+                      setEditItens(newItens);
+                    }} className="h-8 text-xs" />
+                  </div>
+                  <div className="w-20">
+                    <Label className="text-xs">Qtd</Label>
+                    <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
+                      const newItens = [...editItens];
+                      newItens[idx].quantidadeMedia = Number(e.target.value);
+                      setEditItens(newItens);
+                    }} className="h-8 text-xs" />
+                  </div>
+                  <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
+                    setEditItens(editItens.filter((_, i) => i !== idx));
+                  }}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={() => editarPadrao.mutate({ id: editPadraoId!, itensAssociados: editItens })} disabled={editarPadrao.isPending} className="gap-2">
+              {editarPadrao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Salvar e Aprovar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== DIALOG: CRIAR GABARITO ========== */}
+      <Dialog open={gabDialogOpen} onOpenChange={setGabDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Gabarito Manual</DialogTitle>
+            <DialogDescription>Defina um padrão de composição manualmente. Este gabarito não será sobrescrito na regeneração automática.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Código do Procedimento *</Label>
+                <Input value={gabCodigo} onChange={(e) => setGabCodigo(e.target.value)} placeholder="Ex: 10101039" className="mt-1" />
+              </div>
+              <div>
+                <Label>Descrição do Procedimento *</Label>
+                <Input value={gabDescricao} onChange={(e) => setGabDescricao(e.target.value)} placeholder="Ex: Consulta em Pronto Socorro" className="mt-1" />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label>Itens do Kit / Composição</Label>
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => setGabItens([...gabItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }])}>
+                  <PlusCircle className="h-3 w-3" /> Adicionar Item
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {gabItens.map((item, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2 items-end p-2 rounded border border-border">
+                    <div className="col-span-2">
+                      <Label className="text-xs">Código</Label>
+                      <Input value={item.codigo} onChange={(e) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].codigo = e.target.value;
+                        setGabItens(newItens);
+                      }} placeholder="Código" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-4">
+                      <Label className="text-xs">Descrição</Label>
+                      <Input value={item.descricao} onChange={(e) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].descricao = e.target.value;
+                        setGabItens(newItens);
+                      }} placeholder="Descrição do item" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Tipo</Label>
+                      <Select value={item.tipo} onValueChange={(v) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].tipo = v;
+                        setGabItens(newItens);
+                      }}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MAT_MED">Mat/Med</SelectItem>
+                          <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
+                          <SelectItem value="TAXA">Taxa</SelectItem>
+                          <SelectItem value="DIARIA">Diária</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-1">
+                      <Label className="text-xs">Freq %</Label>
+                      <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].frequencia = Number(e.target.value);
+                        setGabItens(newItens);
+                      }} className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-1">
+                      <Label className="text-xs">Qtd</Label>
+                      <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].quantidadeMedia = Number(e.target.value);
+                        setGabItens(newItens);
+                      }} className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-1">
+                      <Label className="text-xs">Valor</Label>
+                      <Input type="number" min={0} step={0.01} value={item.valorMedio} onChange={(e) => {
+                        const newItens = [...gabItens];
+                        newItens[idx].valorMedio = Number(e.target.value);
+                        setGabItens(newItens);
+                      }} className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-1 flex justify-center">
+                      <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
+                        if (gabItens.length > 1) setGabItens(gabItens.filter((_, i) => i !== idx));
+                      }} disabled={gabItens.length <= 1}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label>Observações (opcional)</Label>
+              <Textarea value={gabObservacoes} onChange={(e) => setGabObservacoes(e.target.value)} placeholder="Notas sobre este gabarito..." className="mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGabDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={() => {
+              if (!gabCodigo || !gabDescricao) {
+                toast.error("Código e descrição do procedimento são obrigatórios.");
+                return;
+              }
+              if (gabItens.some(i => !i.codigo || !i.descricao)) {
+                toast.error("Todos os itens devem ter código e descrição.");
+                return;
+              }
+              criarGabarito.mutate({
+                estabelecimentoId,
+                codigoProcedimentoPrincipal: gabCodigo,
+                descricaoProcedimentoPrincipal: gabDescricao,
+                itensAssociados: gabItens,
+                observacoes: gabObservacoes || undefined,
+              });
+            }} disabled={criarGabarito.isPending} className="gap-2">
+              {criarGabarito.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+              Criar Gabarito
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

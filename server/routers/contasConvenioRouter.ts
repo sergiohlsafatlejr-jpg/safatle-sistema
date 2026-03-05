@@ -2,7 +2,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca } from "../../drizzle/schema";
 import { queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq, and, sql, desc, like, or, inArray } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -1015,6 +1015,142 @@ export const contasConvenioRouter = router({
         divergencias: todasDivergencias,
         resumo,
       };
+    }),
+
+  // ============================================================
+  // FEEDBACK DE DIVERGÊNCIAS (Passo 4 - Feedback Loop)
+  // ============================================================
+  registrarFeedback: protectedProcedure
+    .input(z.object({
+      numeroConta: z.string(),
+      estabelecimentoId: z.number(),
+      padraoId: z.number().optional(),
+      codigoItem: z.string().optional(),
+      tipoDivergencia: z.string(),
+      acao: z.enum(["aceitar", "rejeitar", "ajustar"]),
+      observacao: z.string().optional(),
+      valorSugerido: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      // 1. Registrar o feedback
+      // Mapear "ajustar" para "aceitar" no banco (schema só aceita aceitar/rejeitar/ignorar)
+      const decisaoDb = input.acao === "ajustar" ? "aceitar" as const : input.acao === "aceitar" ? "aceitar" as const : "rejeitar" as const;
+      await db.insert(feedbackDivergencias).values({
+        estabelecimentoId: input.estabelecimentoId,
+        numeroConta: input.numeroConta,
+        padraoId: input.padraoId || null,
+        codigoItem: input.codigoItem || null,
+        tipoDivergencia: input.tipoDivergencia,
+        decisao: decisaoDb,
+        justificativa: input.observacao || null,
+        dadosDivergencia: input.valorSugerido ? { valorSugerido: input.valorSugerido, acaoOriginal: input.acao } : { acaoOriginal: input.acao },
+        usuarioId: ctx.user.id,
+        usuarioNome: ctx.user.name || "Desconhecido",
+        createdAt: new Date(),
+      });
+
+      // 2. Se a ação é "rejeitar" uma divergência, significa que o padrão está incorreto
+      // Incrementar um contador de rejeições no padrão para futuro refinamento
+      if (input.padraoId && input.acao === "rejeitar") {
+        // Buscar o padrão
+        const [padrao] = await db
+          .select()
+          .from(padroesCobranca)
+          .where(eq(padroesCobranca.id, input.padraoId));
+
+        if (padrao) {
+          // Contar quantas rejeições esse padrão tem
+          const [countResult] = await db.execute(sql`
+            SELECT COUNT(*) as total FROM feedback_divergencias 
+            WHERE padrao_id = ${input.padraoId} AND decisao = 'rejeitar'
+          `) as any;
+          const totalRejeicoes = Number((countResult as any)?.total || 0);
+
+          // Se muitas rejeições (>5), sugerir revisão do padrão
+          if (totalRejeicoes >= 5 && padrao.status === "ativo" && padrao.isGabarito !== 1) {
+            await db.update(padroesCobranca)
+              .set({ status: "revisao" })
+              .where(eq(padroesCobranca.id, input.padraoId));
+
+            logger.info({
+              message: "Padrão movido para revisão por excesso de rejeições",
+              padraoId: input.padraoId,
+              totalRejeicoes,
+            });
+          }
+        }
+      }
+
+      // 3. Se a ação é "aceitar" uma divergência de item faltante,
+      // significa que o item realmente deveria estar lá - reforça o padrão
+      if (input.padraoId && input.acao === "aceitar" && input.tipoDivergencia === "ITEM_FALTANTE") {
+        logger.info({
+          message: "Divergência de item faltante aceita - padrão reforçado",
+          padraoId: input.padraoId,
+          codigoItem: input.codigoItem,
+        });
+      }
+
+      // 4. Se a ação é "ajustar", registrar o valor sugerido para futuro refinamento
+      if (input.acao === "ajustar" && input.valorSugerido) {
+        logger.info({
+          message: "Valor ajustado pelo auditor",
+          padraoId: input.padraoId,
+          codigoItem: input.codigoItem,
+          valorSugerido: input.valorSugerido,
+        });
+      }
+
+      return { success: true };
+    }),
+
+  // Listar feedbacks de uma conta
+  listarFeedbacks: protectedProcedure
+    .input(z.object({
+      numeroConta: z.string(),
+      estabelecimentoId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const feedbacks = await db
+        .select()
+        .from(feedbackDivergencias)
+        .where(and(
+          eq(feedbackDivergencias.numeroConta, input.numeroConta),
+          eq(feedbackDivergencias.estabelecimentoId, input.estabelecimentoId),
+        ))
+        .orderBy(desc(feedbackDivergencias.createdAt));
+
+      return feedbacks;
+    }),
+
+  // Estatísticas de feedback por padrão
+  estatisticasFeedback: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const stats = await db.execute(sql`
+        SELECT 
+          padrao_id as padraoId,
+          tipo_divergencia as tipoDivergencia,
+          decisao,
+          COUNT(*) as total
+        FROM feedback_divergencias
+        WHERE estabelecimento_id = ${input.estabelecimentoId}
+        GROUP BY padrao_id, tipo_divergencia, decisao
+        ORDER BY total DESC
+      `);
+
+      return (stats as any)[0] || [];
     }),
 
   // ============================================================

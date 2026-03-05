@@ -1135,9 +1135,13 @@ export const padroesCobranca = mysqlTable("padroesCobranca", {
     "inativo"        // Desativado
   ]).default("aprendendo").notNull(),
   
+  // Gabarito manual (não é sobrescrito na regeneração)
+  isGabarito: int("isGabarito").default(0).notNull(),
+  
   // Validação manual
   validadoPor: int("validadoPor"),
   dataValidacao: timestamp("dataValidacao"),
+  observacoesValidacao: text("observacoesValidacao"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -3309,3 +3313,48 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
 
 export type ContaConvenioResumo = typeof contasConvenioResumo.$inferSelect;
 export type InsertContaConvenioResumo = typeof contasConvenioResumo.$inferInsert;
+
+/**
+ * Feedback de Divergências - Registra decisões do auditor sobre divergências encontradas
+ * Alimenta o feedback loop para refinar os padrões de cobrança
+ */
+export const feedbackDivergencias = mysqlTable("feedback_divergencias", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência à conta e item
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  
+  // Referência ao padrão
+  padraoId: int("padraoId"),
+  
+  // Tipo da divergência original
+  tipoDivergencia: varchar("tipoDivergencia", { length: 50 }).notNull(), // PRECO, QUANTIDADE, ITEM_FALTANTE, ITEM_EXTRA, COMPOSICAO, GLOSA_RISCO
+  
+  // Decisão do auditor
+  decisao: mysqlEnum("decisao", [
+    "aceitar",       // Divergência é válida, padrão deve ser ajustado
+    "rejeitar",      // Divergência é falso positivo, conta está correta
+    "ignorar",       // Não relevante para este caso
+  ]).notNull(),
+  
+  // Justificativa do auditor
+  justificativa: text("justificativa"),
+  
+  // Dados da divergência original (snapshot)
+  dadosDivergencia: json("dadosDivergencia"),
+  
+  // Usuário que deu o feedback
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  padraoIdx: index("idx_fd_padrao").on(table.padraoId),
+  estabIdx: index("idx_fd_estab").on(table.estabelecimentoId),
+  decisaoIdx: index("idx_fd_decisao").on(table.decisao),
+}));
+
+export type FeedbackDivergencia = typeof feedbackDivergencias.$inferSelect;
+export type InsertFeedbackDivergencia = typeof feedbackDivergencias.$inferInsert;

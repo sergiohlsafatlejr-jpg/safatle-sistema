@@ -7,8 +7,10 @@ import {
   padraoGlosaConvenio,
   padraoQuantidadeItem,
   padroesCobranca,
+  feedbackDivergencias,
 } from "../../drizzle/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
+import { logger } from "../_core/logger";
 
 /**
  * Router para Padrões de Cobrança por Convênio
@@ -897,6 +899,389 @@ export const padroesCobrancaRouter = router({
           competenciaMax: fatStats?.competenciaMax || null,
         },
       };
+    }),
+
+  // ============================================================
+  // PASSO 1: REVISÃO DE PADRÕES (aprovar/rejeitar/editar)
+  // ============================================================
+  
+  /**
+   * Obter detalhes de um padrão específico para revisão
+   */
+  getPadraoDetalhes: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const [padrao] = await db
+        .select()
+        .from(padroesCobranca)
+        .where(eq(padroesCobranca.id, input.id));
+
+      if (!padrao) throw new TRPCError({ code: "NOT_FOUND", message: "Padrão não encontrado" });
+
+      // Buscar feedbacks anteriores deste padrão
+      const feedbacks = await db
+        .select()
+        .from(feedbackDivergencias)
+        .where(eq(feedbackDivergencias.padraoId, input.id))
+        .orderBy(desc(feedbackDivergencias.createdAt))
+        .limit(20);
+
+      return { padrao, feedbacks };
+    }),
+
+  /**
+   * Validar padrão (aprovar, rejeitar, colocar em revisão)
+   */
+  validarPadrao: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      acao: z.enum(["aprovar", "rejeitar", "revisao"]),
+      observacoes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const novoStatus = input.acao === "aprovar" ? "ativo" as const
+        : input.acao === "rejeitar" ? "inativo" as const
+        : "revisao" as const;
+
+      await db.update(padroesCobranca)
+        .set({
+          status: novoStatus,
+          validadoPor: ctx.user.id,
+          dataValidacao: new Date(),
+          observacoesValidacao: input.observacoes || null,
+          confianca: input.acao === "aprovar" ? 100 : input.acao === "rejeitar" ? 0 : 50,
+        })
+        .where(eq(padroesCobranca.id, input.id));
+
+      logger.info({ message: `Padrão ${input.id} ${input.acao}`, userId: ctx.user.id });
+      return { success: true, novoStatus };
+    }),
+
+  /**
+   * Editar itens associados de um padrão (ajustar quantidades, remover itens, etc.)
+   */
+  editarPadrao: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      itensAssociados: z.array(z.object({
+        codigo: z.string(),
+        descricao: z.string(),
+        tipo: z.string().optional(),
+        frequencia: z.number(),
+        quantidadeMedia: z.number(),
+        quantidadeMin: z.number().optional(),
+        quantidadeMax: z.number().optional(),
+        valorMedio: z.number().optional(),
+      })),
+      observacoes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      await db.update(padroesCobranca)
+        .set({
+          itensAssociados: input.itensAssociados,
+          validadoPor: ctx.user.id,
+          dataValidacao: new Date(),
+          observacoesValidacao: input.observacoes || null,
+          status: "ativo",
+          confianca: 100,
+        })
+        .where(eq(padroesCobranca.id, input.id));
+
+      logger.info({ message: `Padrão ${input.id} editado manualmente`, userId: ctx.user.id });
+      return { success: true };
+    }),
+
+  // ============================================================
+  // PASSO 2: GABARITO MANUAL (criar padrão do zero)
+  // ============================================================
+  
+  /**
+   * Criar gabarito manual - padrão definido pelo auditor
+   */
+  criarGabarito: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      convenioId: z.number().optional(),
+      codigoProcedimentoPrincipal: z.string(),
+      descricaoProcedimentoPrincipal: z.string(),
+      itensAssociados: z.array(z.object({
+        codigo: z.string(),
+        descricao: z.string(),
+        tipo: z.string().optional(),
+        frequencia: z.number().default(100),
+        quantidadeMedia: z.number(),
+        quantidadeMin: z.number().optional(),
+        quantidadeMax: z.number().optional(),
+        valorMedio: z.number().optional(),
+      })),
+      observacoes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      // Verificar se já existe gabarito para este procedimento
+      const existente = await db
+        .select({ id: padroesCobranca.id })
+        .from(padroesCobranca)
+        .where(and(
+          eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
+          eq(padroesCobranca.codigoProcedimentoPrincipal, input.codigoProcedimentoPrincipal),
+          sql`isGabarito = 1`,
+        ));
+
+      if (existente.length > 0) {
+        // Atualizar gabarito existente
+        await db.update(padroesCobranca)
+          .set({
+            descricaoProcedimentoPrincipal: input.descricaoProcedimentoPrincipal,
+            itensAssociados: input.itensAssociados,
+            convenioId: input.convenioId || null,
+            validadoPor: ctx.user.id,
+            dataValidacao: new Date(),
+            observacoesValidacao: input.observacoes || null,
+            status: "ativo",
+            confianca: 100,
+          })
+          .where(eq(padroesCobranca.id, existente[0].id));
+
+        return { success: true, id: existente[0].id, atualizado: true };
+      }
+
+      // Criar novo gabarito
+      const [result] = await db.insert(padroesCobranca).values({
+        estabelecimentoId: input.estabelecimentoId,
+        convenioId: input.convenioId || null,
+        codigoProcedimentoPrincipal: input.codigoProcedimentoPrincipal,
+        descricaoProcedimentoPrincipal: input.descricaoProcedimentoPrincipal,
+        tipoProcedimentoPrincipal: "PROCEDIMENTO",
+        itensAssociados: input.itensAssociados,
+        totalOcorrencias: 0,
+        confianca: 100,
+        status: "ativo",
+        isGabarito: 1,
+        validadoPor: ctx.user.id,
+        dataValidacao: new Date(),
+        observacoesValidacao: input.observacoes || null,
+      });
+
+      logger.info({ message: `Gabarito manual criado para ${input.codigoProcedimentoPrincipal}`, userId: ctx.user.id });
+      return { success: true, id: result.insertId, atualizado: false };
+    }),
+
+  /**
+   * Listar gabaritos manuais
+   */
+  listarGabaritos: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      busca: z.string().optional(),
+      page: z.number().default(1),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const conditions: any[] = [
+        eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
+        sql`isGabarito = 1`,
+      ];
+      if (input.busca) {
+        conditions.push(
+          sql`(${padroesCobranca.codigoProcedimentoPrincipal} LIKE ${`%${input.busca}%`} OR ${padroesCobranca.descricaoProcedimentoPrincipal} LIKE ${`%${input.busca}%`})`
+        );
+      }
+
+      const offset = (input.page - 1) * input.limit;
+
+      const [items, countResult] = await Promise.all([
+        db.select().from(padroesCobranca)
+          .where(and(...conditions))
+          .orderBy(desc(padroesCobranca.updatedAt))
+          .limit(input.limit)
+          .offset(offset),
+        db.select({ total: sql<number>`COUNT(*)` })
+          .from(padroesCobranca)
+          .where(and(...conditions)),
+      ]);
+
+      return {
+        items,
+        total: countResult[0]?.total || 0,
+        page: input.page,
+        totalPages: Math.ceil((countResult[0]?.total || 0) / input.limit),
+      };
+    }),
+
+  /**
+   * Excluir gabarito manual
+   */
+  excluirGabarito: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      // Verificar se é gabarito
+      const [padrao] = await db.select({ isGabarito: padroesCobranca.isGabarito })
+        .from(padroesCobranca).where(eq(padroesCobranca.id, input.id));
+      if (!padrao || padrao.isGabarito !== 1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Apenas gabaritos manuais podem ser excluídos" });
+      }
+
+      await db.delete(padroesCobranca).where(eq(padroesCobranca.id, input.id));
+      logger.info({ message: `Gabarito ${input.id} excluído`, userId: ctx.user.id });
+      return { success: true };
+    }),
+
+  // ============================================================
+  // PASSO 4: FEEDBACK LOOP (aceitar/rejeitar divergências)
+  // ============================================================
+  
+  /**
+   * Registrar feedback do auditor sobre uma divergência
+   */
+  registrarFeedback: protectedProcedure
+    .input(z.object({
+      numeroConta: z.string(),
+      estabelecimentoId: z.number(),
+      codigoItem: z.string().optional(),
+      padraoId: z.number().optional(),
+      tipoDivergencia: z.string(),
+      decisao: z.enum(["aceitar", "rejeitar", "ignorar"]),
+      justificativa: z.string().optional(),
+      dadosDivergencia: z.any().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      // Registrar feedback
+      await db.insert(feedbackDivergencias).values({
+        numeroConta: input.numeroConta,
+        estabelecimentoId: input.estabelecimentoId,
+        codigoItem: input.codigoItem || null,
+        padraoId: input.padraoId || null,
+        tipoDivergencia: input.tipoDivergencia,
+        decisao: input.decisao,
+        justificativa: input.justificativa || null,
+        dadosDivergencia: input.dadosDivergencia || null,
+        usuarioId: ctx.user.id,
+        usuarioNome: ctx.user.name || null,
+      });
+
+      // Se "aceitar" (divergência é válida) e tem padrãoId, ajustar o padrão
+      if (input.decisao === "aceitar" && input.padraoId) {
+        // Contar feedbacks "aceitar" para este padrão
+        const [countResult] = await db
+          .select({ total: sql<number>`COUNT(*)` })
+          .from(feedbackDivergencias)
+          .where(and(
+            eq(feedbackDivergencias.padraoId, input.padraoId),
+            eq(feedbackDivergencias.decisao, "aceitar"),
+          ));
+
+        const totalAceitos = countResult?.total || 0;
+
+        // Se muitos feedbacks "aceitar", colocar padrão em revisão
+        if (totalAceitos >= 3) {
+          await db.update(padroesCobranca)
+            .set({ status: "revisao" })
+            .where(eq(padroesCobranca.id, input.padraoId));
+
+          logger.info({ message: `Padrão ${input.padraoId} movido para revisão após ${totalAceitos} feedbacks de aceite`, userId: ctx.user.id });
+        }
+      }
+
+      // Se "rejeitar" (falso positivo) e tem padrãoId, aumentar confiança
+      if (input.decisao === "rejeitar" && input.padraoId) {
+        const [padrao] = await db.select({ confianca: padroesCobranca.confianca })
+          .from(padroesCobranca).where(eq(padroesCobranca.id, input.padraoId));
+        if (padrao) {
+          const novaConfianca = Math.min(100, (padrao.confianca || 50) + 5);
+          await db.update(padroesCobranca)
+            .set({ confianca: novaConfianca })
+            .where(eq(padroesCobranca.id, input.padraoId));
+        }
+      }
+
+      logger.info({ message: `Feedback registrado: ${input.decisao} para ${input.tipoDivergencia}`, userId: ctx.user.id });
+      return { success: true };
+    }),
+
+  /**
+   * Listar feedbacks de um padrão ou estabelecimento
+   */
+  listarFeedbacks: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      padraoId: z.number().optional(),
+      page: z.number().default(1),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const conditions: any[] = [
+        eq(feedbackDivergencias.estabelecimentoId, input.estabelecimentoId),
+      ];
+      if (input.padraoId) conditions.push(eq(feedbackDivergencias.padraoId, input.padraoId));
+
+      const offset = (input.page - 1) * input.limit;
+
+      const [items, countResult] = await Promise.all([
+        db.select().from(feedbackDivergencias)
+          .where(and(...conditions))
+          .orderBy(desc(feedbackDivergencias.createdAt))
+          .limit(input.limit)
+          .offset(offset),
+        db.select({ total: sql<number>`COUNT(*)` })
+          .from(feedbackDivergencias)
+          .where(and(...conditions)),
+      ]);
+
+      return {
+        items,
+        total: countResult[0]?.total || 0,
+        page: input.page,
+        totalPages: Math.ceil((countResult[0]?.total || 0) / input.limit),
+      };
+    }),
+
+  /**
+   * Estatísticas de feedbacks por padrão
+   */
+  estatisticasFeedback: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const stats = await db.execute(sql`
+        SELECT 
+          padraoId,
+          SUM(CASE WHEN decisao = 'aceitar' THEN 1 ELSE 0 END) as totalAceitos,
+          SUM(CASE WHEN decisao = 'rejeitar' THEN 1 ELSE 0 END) as totalRejeitados,
+          SUM(CASE WHEN decisao = 'ignorar' THEN 1 ELSE 0 END) as totalIgnorados,
+          COUNT(*) as totalFeedbacks
+        FROM feedback_divergencias
+        WHERE estabelecimentoId = ${input.estabelecimentoId}
+          AND padraoId IS NOT NULL
+        GROUP BY padraoId
+      `);
+
+      return (stats as any)[0] || [];
     }),
 });
 

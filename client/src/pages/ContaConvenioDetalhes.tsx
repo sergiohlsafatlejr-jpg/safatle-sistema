@@ -46,8 +46,29 @@ import {
   ArrowUpDown,
   ShieldAlert,
   Info,
-  XCircle
+  XCircle,
+  ThumbsUp,
+  ThumbsDown,
+  Pencil,
+  MessageSquare
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import React, { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
@@ -134,6 +155,13 @@ export default function ContaConvenioDetalhes() {
 
   const [activeTab, setActiveTab] = useState("itens");
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
+  const [feedbackDialog, setFeedbackDialog] = useState<{
+    open: boolean;
+    div: any;
+    acao: "aceitar" | "rejeitar" | "ajustar";
+  }>({ open: false, div: null, acao: "aceitar" });
+  const [feedbackObs, setFeedbackObs] = useState("");
+  const [feedbackValor, setFeedbackValor] = useState("");
 
   // Buscar itens da conta na nova tabela
   const { data: itensData, isLoading, refetch } = trpc.contasConvenio.listarItens.useQuery(
@@ -153,6 +181,50 @@ export default function ContaConvenioDetalhes() {
     },
     { enabled: !!numeroConta && !!estabelecimentoId }
   );
+
+  // Mutation para registrar feedback
+  const feedbackMutation = trpc.contasConvenio.registrarFeedback.useMutation({
+    onSuccess: () => {
+      toast.success("Feedback registrado com sucesso!");
+      setFeedbackDialog({ open: false, div: null, acao: "aceitar" });
+      setFeedbackObs("");
+      setFeedbackValor("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleFeedback = (div: any, acao: "aceitar" | "rejeitar" | "ajustar") => {
+    if (acao === "aceitar") {
+      // Aceitar direto sem dialog
+      feedbackMutation.mutate({
+        numeroConta,
+        estabelecimentoId,
+        padraoId: div.padraoId,
+        codigoItem: div.codigoItem,
+        tipoDivergencia: div.tipo,
+        acao: "aceitar",
+      });
+    } else {
+      // Abrir dialog para rejeitar ou ajustar
+      setFeedbackDialog({ open: true, div, acao });
+      setFeedbackObs("");
+      setFeedbackValor(div.valorEsperado?.toString() || "");
+    }
+  };
+
+  const submitFeedback = () => {
+    if (!feedbackDialog.div) return;
+    feedbackMutation.mutate({
+      numeroConta,
+      estabelecimentoId,
+      padraoId: feedbackDialog.div.padraoId,
+      codigoItem: feedbackDialog.div.codigoItem,
+      tipoDivergencia: feedbackDialog.div.tipo,
+      acao: feedbackDialog.div.acao === "ajustar" ? "ajustar" : "rejeitar",
+      observacao: feedbackObs || undefined,
+      valorSugerido: feedbackDialog.acao === "ajustar" ? feedbackValor : undefined,
+    });
+  };
 
   // Mutation para comparar com padrões
   const compararMutation = trpc.contasConvenio.compararComPadroes.useMutation({
@@ -609,6 +681,7 @@ export default function ContaConvenioDetalhes() {
                             <TableHead className="text-right">Valor Cobrado</TableHead>
                             <TableHead className="text-right">Valor Esperado</TableHead>
                             <TableHead className="text-right">Diferença</TableHead>
+                            <TableHead className="text-center">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -646,6 +719,58 @@ export default function ContaConvenioDetalhes() {
                                   </span>
                                 ) : "-"}
                               </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center gap-1">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                          onClick={() => handleFeedback(div, "aceitar")}
+                                          disabled={feedbackMutation.isPending}
+                                        >
+                                          <ThumbsUp className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Aceitar divergência (padrão correto)</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() => handleFeedback(div, "rejeitar")}
+                                          disabled={feedbackMutation.isPending}
+                                        >
+                                          <ThumbsDown className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Rejeitar divergência (falso positivo)</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                          onClick={() => handleFeedback(div, "ajustar")}
+                                          disabled={feedbackMutation.isPending}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Ajustar valor esperado</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -657,6 +782,81 @@ export default function ContaConvenioDetalhes() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Dialog de Feedback */}
+        <Dialog open={feedbackDialog.open} onOpenChange={(open) => setFeedbackDialog(prev => ({ ...prev, open }))}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                {feedbackDialog.acao === "rejeitar" ? "Rejeitar Divergência" : "Ajustar Valor"}
+              </DialogTitle>
+              <DialogDescription>
+                {feedbackDialog.acao === "rejeitar"
+                  ? "Informe o motivo da rejeição. Isso ajudará a refinar os padrões de cobrança."
+                  : "Informe o valor correto esperado. Isso ajustará o padrão de cobrança."}
+              </DialogDescription>
+            </DialogHeader>
+
+            {feedbackDialog.div && (
+              <div className="space-y-4">
+                <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+                  <p className="text-sm"><strong>Item:</strong> {feedbackDialog.div.codigoItem} - {feedbackDialog.div.descricaoItem}</p>
+                  <p className="text-sm"><strong>Tipo:</strong> {feedbackDialog.div.tipo}</p>
+                  <p className="text-sm"><strong>Mensagem:</strong> {feedbackDialog.div.mensagem || feedbackDialog.div.descricao}</p>
+                </div>
+
+                {feedbackDialog.acao === "ajustar" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="valor-sugerido">Valor Correto Esperado</Label>
+                    <Input
+                      id="valor-sugerido"
+                      type="text"
+                      value={feedbackValor}
+                      onChange={(e) => setFeedbackValor(e.target.value)}
+                      placeholder="Ex: 150.00"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="observacao">
+                    {feedbackDialog.acao === "rejeitar" ? "Motivo da Rejeição" : "Observação"}
+                  </Label>
+                  <Textarea
+                    id="observacao"
+                    value={feedbackObs}
+                    onChange={(e) => setFeedbackObs(e.target.value)}
+                    placeholder={feedbackDialog.acao === "rejeitar"
+                      ? "Ex: Este item é cobrado separadamente neste convênio..."
+                      : "Ex: O valor correto conforme tabela do convênio é..."}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFeedbackDialog({ open: false, div: null, acao: "aceitar" })}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={submitFeedback}
+                disabled={feedbackMutation.isPending}
+                variant={feedbackDialog.acao === "rejeitar" ? "destructive" : "default"}
+              >
+                {feedbackMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : feedbackDialog.acao === "rejeitar" ? (
+                  <ThumbsDown className="mr-2 h-4 w-4" />
+                ) : (
+                  <Pencil className="mr-2 h-4 w-4" />
+                )}
+                {feedbackDialog.acao === "rejeitar" ? "Rejeitar" : "Salvar Ajuste"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

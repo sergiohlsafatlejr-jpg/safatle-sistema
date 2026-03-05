@@ -1,16 +1,16 @@
 import { getDb } from "../db";
 import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca } from "../../drizzle/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
 /**
- * Motor de Comparação de Padrões de Cobrança
+ * Motor de Comparação de Padrões de Cobrança (com suporte a Gabarito)
  * 
- * Compara os itens de uma conta contra os padrões aprovados:
+ * Compara os itens de uma conta contra os padrões ATIVOS e GABARITOS:
  * 1. Preço: valor unitário/total vs média ± 2 desvios
  * 2. Quantidade: qtd vs média ± 2 desvios
  * 3. Glosa: risco de glosa baseado no histórico
- * 4. Composição: itens faltantes ou extras vs kit padrão
+ * 4. Composição: itens faltantes ou extras vs kit padrão (gabarito tem prioridade)
  */
 
 export interface Divergencia {
@@ -23,6 +23,7 @@ export interface Divergencia {
   padraoId?: number;
   codigoItem?: string;
   descricaoItem?: string;
+  isGabarito?: boolean;
   detalhes?: Record<string, any>;
 }
 
@@ -35,10 +36,14 @@ export interface ResultadoComparacao {
   divergencias: Divergencia[];
   resumoPorTipo: Record<string, number>;
   statusGeral: "conforme" | "divergente";
+  gabaritosUsados: number;
+  padroesUsados: number;
 }
 
 /**
  * Compara todos os itens de uma conta contra os padrões de cobrança
+ * Prioriza gabaritos (isGabarito=1) sobre padrões aprendidos
+ * Filtra apenas padrões com status "ativo"
  */
 export async function compararContaComPadroes(
   numeroConta: string,
@@ -66,6 +71,8 @@ export async function compararContaComPadroes(
       divergencias: [],
       resumoPorTipo: {},
       statusGeral: "conforme",
+      gabaritosUsados: 0,
+      padroesUsados: 0,
     };
   }
 
@@ -86,6 +93,8 @@ export async function compararContaComPadroes(
       }],
       resumoPorTipo: { COMPOSICAO: 1 },
       statusGeral: "conforme",
+      gabaritosUsados: 0,
+      padroesUsados: 0,
     };
   }
 
@@ -106,11 +115,8 @@ export async function compararContaComPadroes(
   const padroesQtd = await db
     .select()
     .from(padraoQuantidadeItem)
-    .where(and(
-      eq(padraoQuantidadeItem.estabelecimentoId, estabelecimentoId),
-    ));
+    .where(eq(padraoQuantidadeItem.estabelecimentoId, estabelecimentoId));
 
-  // Filtrar por convênio ou sem convênio (padrão geral)
   const padroesQtdFiltrados = padroesQtd.filter(p => 
     p.convenio === convenio || !p.convenio
   );
@@ -127,18 +133,35 @@ export async function compararContaComPadroes(
 
   const mapGlosa = new Map(padroesGlosa.map(p => [p.codigoItem, p]));
 
-  // 6. Buscar padrões de composição (kit cirúrgico)
+  // 6. Buscar padrões de composição - APENAS ATIVOS (inclui gabaritos)
   const padroesComposicao = await db
     .select()
     .from(padroesCobranca)
     .where(and(
       eq(padroesCobranca.estabelecimentoId, estabelecimentoId),
+      eq(padroesCobranca.status, "ativo"),
     ));
 
   // Filtrar por convênio
   const padroesCompFiltrados = padroesComposicao.filter(p => 
     !p.convenioId || p.convenioId === itens[0].convenioId
   );
+
+  // Priorizar gabaritos: se há gabarito e padrão aprendido para o mesmo procedimento,
+  // usar apenas o gabarito
+  const mapComposicao = new Map<string, typeof padroesCompFiltrados[0]>();
+  for (const padrao of padroesCompFiltrados) {
+    const codigo = padrao.codigoProcedimentoPrincipal;
+    if (!codigo) continue;
+    const existente = mapComposicao.get(codigo);
+    if (!existente || padrao.isGabarito === 1) {
+      // Gabarito sempre sobrescreve, ou adiciona se não existia
+      mapComposicao.set(codigo, padrao);
+    }
+  }
+
+  let gabaritosUsados = 0;
+  let padroesUsados = 0;
 
   // 7. Analisar cada item
   for (const item of itens) {
@@ -158,7 +181,6 @@ export async function compararContaComPadroes(
       const maxUnit = parseFloat(padraoP.maxUnitario || "0");
 
       if (mediaUnit > 0 && valorUnitario > 0) {
-        // Verificar se está fora de 2 desvios padrão
         const limiteInferior = Math.max(0, mediaUnit - 2 * desvioUnit);
         const limiteSuperior = mediaUnit + 2 * desvioUnit;
 
@@ -257,42 +279,126 @@ export async function compararContaComPadroes(
     }
   }
 
-  // 8. Verificar composição (itens faltantes no kit)
+  // 8. Verificar composição (itens faltantes no kit) usando gabaritos prioritários
   const codigosNaConta = new Set(itens.map(i => i.codigoItem).filter(Boolean));
+  
+  // Identificar procedimentos na conta (vários formatos de tipo)
+  const tiposProcedimento = new Set(["PROCEDIMENTO", "P", "C", "O", "01", "PROC"]);
   const procedimentosNaConta = itens
-    .filter(i => i.tipoItem === "PROCEDIMENTO" || i.tipoItem?.toLowerCase().includes("proc"))
+    .filter(i => {
+      const tipo = (i.tipoItem || "").toUpperCase().trim();
+      return tiposProcedimento.has(tipo) || tipo.includes("PROC");
+    })
     .map(i => i.codigoItem)
     .filter(Boolean);
 
-  for (const padrao of padroesCompFiltrados) {
+  for (const [codigoProc, padrao] of mapComposicao) {
     // Verificar se o procedimento principal está na conta
-    if (procedimentosNaConta.includes(padrao.codigoProcedimentoPrincipal)) {
+    if (procedimentosNaConta.includes(codigoProc)) {
+      const isGab = padrao.isGabarito === 1;
+      if (isGab) gabaritosUsados++;
+      else padroesUsados++;
+
       const itensAssociados = padrao.itensAssociados as Array<{
         codigo: string;
         descricao: string;
         tipo: string;
         frequencia: number;
         quantidadeMedia: number;
+        valorMedio?: number;
       }>;
 
       if (Array.isArray(itensAssociados)) {
         for (const itemEsperado of itensAssociados) {
-          // Só alertar para itens com frequência > 70% (aparecem na maioria dos kits)
-          if (itemEsperado.frequencia >= 0.7 && !codigosNaConta.has(itemEsperado.codigo)) {
+          // Frequência está em porcentagem (0-100)
+          // Gabaritos: alertar para todos os itens (frequência geralmente 100%)
+          // Padrões aprendidos: alertar para itens com frequência >= 70%
+          const limiteFrequencia = isGab ? 50 : 70;
+          
+          if (itemEsperado.frequencia >= limiteFrequencia && !codigosNaConta.has(itemEsperado.codigo)) {
+            const severidade = isGab 
+              ? (itemEsperado.frequencia >= 90 ? "critico" : "alerta")
+              : (itemEsperado.frequencia >= 90 ? "alerta" : "aviso");
+            
+            const fonte = isGab ? "gabarito" : "padrão aprendido";
             divergencias.push({
               tipo: "ITEM_FALTANTE",
-              severidade: itemEsperado.frequencia >= 0.9 ? "alerta" : "aviso",
-              mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${(itemEsperado.frequencia * 100).toFixed(0)}%) não encontrado na conta.`,
+              severidade,
+              mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${itemEsperado.frequencia.toFixed(0)}%) não encontrado na conta. [Fonte: ${fonte}]`,
               codigoItem: itemEsperado.codigo,
               descricaoItem: itemEsperado.descricao,
               padraoId: padrao.id,
+              isGabarito: isGab,
               detalhes: {
                 procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
                 descricaoProcedimentoPrincipal: padrao.descricaoProcedimentoPrincipal,
                 frequenciaEsperada: itemEsperado.frequencia,
                 quantidadeMedia: itemEsperado.quantidadeMedia,
+                valorMedio: itemEsperado.valorMedio,
+                fonte,
               },
             });
+          }
+
+          // Verificar quantidade se o item existe na conta
+          if (codigosNaConta.has(itemEsperado.codigo) && itemEsperado.quantidadeMedia > 0) {
+            const itemNaConta = itens.find(i => i.codigoItem === itemEsperado.codigo);
+            if (itemNaConta) {
+              const qtdNaConta = parseFloat(itemNaConta.quantidade || "0");
+              const qtdEsperada = itemEsperado.quantidadeMedia;
+              
+              // Se quantidade na conta é significativamente diferente (>50% de diferença)
+              if (qtdNaConta > 0 && qtdEsperada > 0) {
+                const diffPercent = Math.abs(qtdNaConta - qtdEsperada) / qtdEsperada * 100;
+                if (diffPercent > 50) {
+                  const fonte = isGab ? "gabarito" : "padrão aprendido";
+                  divergencias.push({
+                    tipo: "COMPOSICAO",
+                    severidade: isGab ? "alerta" : "aviso",
+                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" divergente do ${fonte}: esperado ~${qtdEsperada.toFixed(1)}, encontrado ${qtdNaConta.toFixed(1)} (diferença de ${diffPercent.toFixed(0)}%)`,
+                    codigoItem: itemEsperado.codigo,
+                    descricaoItem: itemEsperado.descricao,
+                    valorEsperado: `${qtdEsperada.toFixed(1)}`,
+                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+                    padraoId: padrao.id,
+                    isGabarito: isGab,
+                    detalhes: {
+                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                      fonte,
+                    },
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // Verificar itens extras (na conta mas não no kit) - apenas para gabaritos
+        if (isGab) {
+          const codigosEsperados = new Set(itensAssociados.map(i => i.codigo));
+          const itensNaoProc = itens.filter(i => {
+            const tipo = (i.tipoItem || "").toUpperCase().trim();
+            return !tiposProcedimento.has(tipo) && !tipo.includes("PROC");
+          });
+          
+          for (const itemNaConta of itensNaoProc) {
+            if (itemNaConta.codigoItem && !codigosEsperados.has(itemNaConta.codigoItem)) {
+              // Verificar se este item extra pertence ao contexto do procedimento
+              // (simplificação: marcar como info para revisão)
+              divergencias.push({
+                tipo: "ITEM_EXTRA",
+                severidade: "info",
+                mensagem: `Item "${itemNaConta.descricaoItem || itemNaConta.codigoItem}" presente na conta mas não definido no gabarito de "${padrao.descricaoProcedimentoPrincipal}".`,
+                codigoItem: itemNaConta.codigoItem,
+                descricaoItem: itemNaConta.descricaoItem || undefined,
+                padraoId: padrao.id,
+                isGabarito: true,
+                detalhes: {
+                  procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                  fonte: "gabarito",
+                },
+              });
+            }
           }
         }
       }
@@ -323,6 +429,8 @@ export async function compararContaComPadroes(
     divergencias,
     resumoPorTipo,
     statusGeral,
+    gabaritosUsados,
+    padroesUsados,
   };
 }
 
@@ -361,7 +469,7 @@ export async function executarComparacaoESalvar(
     const status = divs && divs.some(d => d.severidade === "critico" || d.severidade === "alerta")
       ? "divergente" as const
       : divs && divs.length > 0
-        ? "conforme" as const // Tem divergências leves (info/aviso) mas não é crítico
+        ? "conforme" as const
         : "conforme" as const;
 
     await db.update(contasConvenioItens)
@@ -388,6 +496,8 @@ export async function executarComparacaoESalvar(
     message: "Comparação com padrões concluída",
     numeroConta,
     totalDivergencias: resultado.totalDivergencias,
+    gabaritosUsados: resultado.gabaritosUsados,
+    padroesUsados: resultado.padroesUsados,
     statusGeral: resultado.statusGeral,
   });
 
