@@ -2470,3 +2470,5 @@
 - [x] Feature: Gabarito com múltiplos procedimentos (CIRURGIA A + CIRURGIA B como padrão combinado)
 - [x] UI: Aumentar tamanho da modal de criação de gabarito manual
 - [x] UI: Aumentar tamanho da modal de edição de itens do padrão
+- [x] Feature: Adicionar campos Qtd Mínima e Qtd Máxima permitida nos itens do gabarito/padrão
+- [x] UI: Aumentar ainda mais o tamanho da modal de edição de itens do padrão (quase fullscreen)

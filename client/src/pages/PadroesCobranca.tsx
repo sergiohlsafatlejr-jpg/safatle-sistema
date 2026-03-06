@@ -175,7 +175,7 @@ export default function PadroesCobranca() {
   const resetGabForm = () => {
     setGabProcedimentos([{ codigo: "", descricao: "" }]);
     setGabObservacoes("");
-    setGabItens([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
+    setGabItens([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }]);
   };
 
   // Helpers para múltiplos procedimentos
@@ -840,7 +840,7 @@ export default function PadroesCobranca() {
                       <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
                       <span className="truncate flex-1">{assoc.descricao}</span>
                       <span className="text-xs text-muted-foreground">{assoc.frequencia}%</span>
-                      <span className="text-xs text-muted-foreground">Qtd: {assoc.quantidadeMedia}</span>
+                      <span className="text-xs text-muted-foreground">Qtd: {assoc.quantidadeMin != null && assoc.quantidadeMax != null ? `${assoc.quantidadeMin} - ${assoc.quantidadeMax}` : assoc.quantidadeMedia}</span>
                     </div>
                   ))}
                 </div>
@@ -893,52 +893,60 @@ export default function PadroesCobranca() {
 
       {/* ========== DIALOG: EDITAR PADRÃO ========== */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Itens do Padrão</DialogTitle>
             <DialogDescription>Ajuste as quantidades, frequências ou remova itens. Ao salvar, o padrão será aprovado automaticamente.</DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-12 gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
-              <div className="col-span-2">Código</div>
-              <div className="col-span-5">Descrição</div>
-              <div className="col-span-1">Tipo</div>
-              <div className="col-span-1">Freq %</div>
-              <div className="col-span-1">Qtd</div>
-              <div className="col-span-1">Valor</div>
-              <div className="col-span-1 text-center">Ação</div>
+            <div className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
+              <div>Código</div>
+              <div>Descrição</div>
+              <div>Tipo</div>
+              <div>Freq %</div>
+              <div>Qtd Mín</div>
+              <div>Qtd Máx</div>
+              <div>Valor</div>
+              <div className="text-center">Ação</div>
             </div>
             <div className="divide-y divide-border">
               {editItens.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center p-3 hover:bg-muted/20">
-                  <div className="col-span-2">
+                <div key={idx} className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 items-center p-3 hover:bg-muted/20">
+                  <div>
                     <Badge variant="outline" className="text-xs">{item.codigo}</Badge>
                   </div>
-                  <div className="col-span-5">
+                  <div>
                     <span className="text-sm">{item.descricao}</span>
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <span className="text-xs text-muted-foreground">{item.tipo || "-"}</span>
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
                       const newItens = [...editItens];
                       newItens[idx].frequencia = Number(e.target.value);
                       setEditItens(newItens);
                     }} className="h-8 text-xs" />
                   </div>
-                  <div className="col-span-1">
-                    <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
+                  <div>
+                    <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? item.quantidadeMedia ?? 1} onChange={(e) => {
                       const newItens = [...editItens];
-                      newItens[idx].quantidadeMedia = Number(e.target.value);
+                      newItens[idx].quantidadeMin = Number(e.target.value);
                       setEditItens(newItens);
-                    }} className="h-8 text-xs" />
+                    }} placeholder="Mín" className="h-8 text-xs" />
                   </div>
-                  <div className="col-span-1">
+                  <div>
+                    <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? item.quantidadeMedia ?? 1} onChange={(e) => {
+                      const newItens = [...editItens];
+                      newItens[idx].quantidadeMax = Number(e.target.value);
+                      setEditItens(newItens);
+                    }} placeholder="Máx" className="h-8 text-xs" />
+                  </div>
+                  <div>
                     <span className="text-xs text-green-400">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
                   </div>
-                  <div className="col-span-1 flex justify-center">
+                  <div className="flex justify-center">
                     <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
                       setEditItens(editItens.filter((_, i) => i !== idx));
                     }}>
@@ -952,7 +960,12 @@ export default function PadroesCobranca() {
           <p className="text-xs text-muted-foreground mt-2">{editItens.length} item(ns) no padrão</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => editarPadrao.mutate({ id: editPadraoId!, itensAssociados: editItens })} disabled={editarPadrao.isPending} className="gap-2">
+            <Button onClick={() => editarPadrao.mutate({ id: editPadraoId!, itensAssociados: editItens.map(item => ({
+              ...item,
+              quantidadeMedia: ((item.quantidadeMin ?? item.quantidadeMedia ?? 1) + (item.quantidadeMax ?? item.quantidadeMedia ?? 1)) / 2,
+              quantidadeMin: item.quantidadeMin ?? item.quantidadeMedia ?? 1,
+              quantidadeMax: item.quantidadeMax ?? item.quantidadeMedia ?? 1,
+            })) })} disabled={editarPadrao.isPending} className="gap-2">
               {editarPadrao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Salvar e Aprovar
             </Button>
@@ -962,7 +975,7 @@ export default function PadroesCobranca() {
 
       {/* ========== DIALOG: CRIAR GABARITO ========== */}
       <Dialog open={gabDialogOpen} onOpenChange={setGabDialogOpen}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Gabarito Manual</DialogTitle>
             <DialogDescription>Defina um padrão de composição manualmente. Você pode combinar múltiplos procedimentos (ex: CIRURGIA A + CIRURGIA B). Este gabarito não será sobrescrito na regeneração automática.</DialogDescription>
@@ -1012,40 +1025,41 @@ export default function PadroesCobranca() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <Label className="text-base font-semibold">Itens do Kit / Composição</Label>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => setGabItens([...gabItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }])}>
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => setGabItens([...gabItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }])}>
                   <PlusCircle className="h-3 w-3" /> Adicionar Item
                 </Button>
               </div>
               <div className="rounded-lg border border-border overflow-hidden">
                 {/* Header da tabela */}
-                <div className="grid grid-cols-12 gap-2 p-2 bg-muted/50 text-xs font-medium text-muted-foreground">
-                  <div className="col-span-2">Código</div>
-                  <div className="col-span-3">Descrição</div>
-                  <div className="col-span-2">Tipo</div>
-                  <div className="col-span-1">Freq %</div>
-                  <div className="col-span-1">Qtd</div>
-                  <div className="col-span-2">Valor (R$)</div>
-                  <div className="col-span-1 text-center">Ação</div>
+                <div className="grid grid-cols-[2fr_3fr_1.5fr_1fr_1fr_1fr_1.5fr_0.5fr] gap-2 p-2 bg-muted/50 text-xs font-medium text-muted-foreground">
+                  <div>Código</div>
+                  <div>Descrição</div>
+                  <div>Tipo</div>
+                  <div>Freq %</div>
+                  <div>Qtd Mín</div>
+                  <div>Qtd Máx</div>
+                  <div>Valor (R$)</div>
+                  <div className="text-center">Ação</div>
                 </div>
                 {/* Linhas dos itens */}
                 <div className="divide-y divide-border">
                   {gabItens.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/20">
-                      <div className="col-span-2">
+                    <div key={idx} className="grid grid-cols-[2fr_3fr_1.5fr_1fr_1fr_1fr_1.5fr_0.5fr] gap-2 items-center p-2 hover:bg-muted/20">
+                      <div>
                         <Input value={item.codigo} onChange={(e) => {
                           const newItens = [...gabItens];
                           newItens[idx].codigo = e.target.value;
                           setGabItens(newItens);
                         }} placeholder="Código" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-3">
+                      <div>
                         <Input value={item.descricao} onChange={(e) => {
                           const newItens = [...gabItens];
                           newItens[idx].descricao = e.target.value;
                           setGabItens(newItens);
                         }} placeholder="Descrição do item" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-2">
+                      <div>
                         <Select value={item.tipo} onValueChange={(v) => {
                           const newItens = [...gabItens];
                           newItens[idx].tipo = v;
@@ -1060,28 +1074,35 @@ export default function PadroesCobranca() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="col-span-1">
+                      <div>
                         <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
                           const newItens = [...gabItens];
                           newItens[idx].frequencia = Number(e.target.value);
                           setGabItens(newItens);
                         }} className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-1">
-                        <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
+                      <div>
+                        <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? 1} onChange={(e) => {
                           const newItens = [...gabItens];
-                          newItens[idx].quantidadeMedia = Number(e.target.value);
+                          newItens[idx].quantidadeMin = Number(e.target.value);
                           setGabItens(newItens);
-                        }} className="h-8 text-xs" />
+                        }} placeholder="Mín" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-2">
+                      <div>
+                        <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? 1} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].quantidadeMax = Number(e.target.value);
+                          setGabItens(newItens);
+                        }} placeholder="Máx" className="h-8 text-xs" />
+                      </div>
+                      <div>
                         <Input type="number" min={0} step={0.01} value={item.valorMedio} onChange={(e) => {
                           const newItens = [...gabItens];
                           newItens[idx].valorMedio = Number(e.target.value);
                           setGabItens(newItens);
                         }} className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-1 flex justify-center">
+                      <div className="flex justify-center">
                         <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
                           if (gabItens.length > 1) setGabItens(gabItens.filter((_, i) => i !== idx));
                         }} disabled={gabItens.length <= 1}>
@@ -1117,7 +1138,12 @@ export default function PadroesCobranca() {
                 estabelecimentoId,
                 codigoProcedimentoPrincipal: codigoCombinado,
                 descricaoProcedimentoPrincipal: descricaoCombinada,
-                itensAssociados: gabItens,
+                itensAssociados: gabItens.map(item => ({
+                  ...item,
+                  quantidadeMedia: ((item.quantidadeMin ?? item.quantidadeMedia ?? 1) + (item.quantidadeMax ?? item.quantidadeMedia ?? 1)) / 2,
+                  quantidadeMin: item.quantidadeMin ?? item.quantidadeMedia ?? 1,
+                  quantidadeMax: item.quantidadeMax ?? item.quantidadeMedia ?? 1,
+                })),
                 observacoes: gabObservacoes || undefined,
               });
             }} disabled={criarGabarito.isPending} className="gap-2">

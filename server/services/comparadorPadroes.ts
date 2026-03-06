@@ -310,6 +310,8 @@ export async function compararContaComPadroes(
         tipo: string;
         frequencia: number;
         quantidadeMedia: number;
+        quantidadeMin?: number;
+        quantidadeMax?: number;
         valorMedio?: number;
       }>;
 
@@ -346,17 +348,58 @@ export async function compararContaComPadroes(
           }
 
           // Verificar quantidade se o item existe na conta
-          if (codigosNaConta.has(itemEsperado.codigo) && itemEsperado.quantidadeMedia > 0) {
+          if (codigosNaConta.has(itemEsperado.codigo) && (itemEsperado.quantidadeMedia > 0 || (itemEsperado.quantidadeMin ?? 0) > 0 || (itemEsperado.quantidadeMax ?? 0) > 0)) {
             const itemNaConta = itens.find(i => i.codigoItem === itemEsperado.codigo);
             if (itemNaConta) {
               const qtdNaConta = parseFloat(itemNaConta.quantidade || "0");
+              const qtdMin = itemEsperado.quantidadeMin ?? itemEsperado.quantidadeMedia;
+              const qtdMax = itemEsperado.quantidadeMax ?? itemEsperado.quantidadeMedia;
               const qtdEsperada = itemEsperado.quantidadeMedia;
+              const fonte = isGab ? "gabarito" : "padrão aprendido";
               
-              // Se quantidade na conta é significativamente diferente (>50% de diferença)
-              if (qtdNaConta > 0 && qtdEsperada > 0) {
+              // Se tem faixa min/max definida, usar essa faixa
+              if (qtdMin > 0 || qtdMax > 0) {
+                if (qtdNaConta < qtdMin) {
+                  divergencias.push({
+                    tipo: "COMPOSICAO",
+                    severidade: isGab ? "alerta" : "aviso",
+                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ABAIXO do mínimo permitido pelo ${fonte}: mínimo ${qtdMin}, encontrado ${qtdNaConta.toFixed(1)}`,
+                    codigoItem: itemEsperado.codigo,
+                    descricaoItem: itemEsperado.descricao,
+                    valorEsperado: `${qtdMin} - ${qtdMax}`,
+                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+                    padraoId: padrao.id,
+                    isGabarito: isGab,
+                    detalhes: {
+                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                      fonte,
+                      quantidadeMin: qtdMin,
+                      quantidadeMax: qtdMax,
+                    },
+                  });
+                } else if (qtdNaConta > qtdMax) {
+                  divergencias.push({
+                    tipo: "COMPOSICAO",
+                    severidade: isGab ? "alerta" : "aviso",
+                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ACIMA do máximo permitido pelo ${fonte}: máximo ${qtdMax}, encontrado ${qtdNaConta.toFixed(1)}`,
+                    codigoItem: itemEsperado.codigo,
+                    descricaoItem: itemEsperado.descricao,
+                    valorEsperado: `${qtdMin} - ${qtdMax}`,
+                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+                    padraoId: padrao.id,
+                    isGabarito: isGab,
+                    detalhes: {
+                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                      fonte,
+                      quantidadeMin: qtdMin,
+                      quantidadeMax: qtdMax,
+                    },
+                  });
+                }
+              } else if (qtdNaConta > 0 && qtdEsperada > 0) {
+                // Fallback: usar diferença percentual (>50%) se não tem min/max
                 const diffPercent = Math.abs(qtdNaConta - qtdEsperada) / qtdEsperada * 100;
                 if (diffPercent > 50) {
-                  const fonte = isGab ? "gabarito" : "padrão aprendido";
                   divergencias.push({
                     tipo: "COMPOSICAO",
                     severidade: isGab ? "alerta" : "aviso",
