@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
-import { AutocompleteCodigoItem } from "@/components/AutocompleteCodigoItem";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+
 import { toast } from "sonner";
 import {
   DollarSign, BarChart3, AlertTriangle, Package, Search, RefreshCw, Loader2,
@@ -24,6 +22,7 @@ import {
 
 export default function PadroesCobranca() {
   const { estabelecimentoAtual } = useEstabelecimento();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("resumo");
   const [selectedConvenio, setSelectedConvenio] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,21 +36,7 @@ export default function PadroesCobranca() {
   const [pageComp, setPageComp] = useState(1);
   const [pageGab, setPageGab] = useState(1);
 
-  // Revisão de padrão
-  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
-  const [reviewPadraoId, setReviewPadraoId] = useState<number | null>(null);
-  const [reviewObservacoes, setReviewObservacoes] = useState("");
-
-  // Editar padrão
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editPadraoId, setEditPadraoId] = useState<number | null>(null);
-  const [editItens, setEditItens] = useState<any[]>([]);
-
-  // Criar gabarito
-  const [gabDialogOpen, setGabDialogOpen] = useState(false);
-  const [gabProcedimentos, setGabProcedimentos] = useState<Array<{ codigo: string; descricao: string }>>([{ codigo: "", descricao: "" }]);
-  const [gabObservacoes, setGabObservacoes] = useState("");
-  const [gabItens, setGabItens] = useState<any[]>([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
+  // Estados de modais removidos - agora usamos telas dedicadas
 
   // Filtro de status na composição
   const [selectedStatusComp, setSelectedStatusComp] = useState<string>("");
@@ -88,11 +73,7 @@ export default function PadroesCobranca() {
     { enabled: activeTab === "gabarito" }
   );
 
-  // Detalhes do padrão para revisão
-  const padraoDetalhes = trpc.padroesCobranca.getPadraoDetalhes.useQuery(
-    { id: reviewPadraoId! },
-    { enabled: !!reviewPadraoId && reviewDialogOpen }
-  );
+
 
   // Mutations
   const gerarPreco = trpc.padroesCobranca.gerarPadroesPreco.useMutation({
@@ -120,30 +101,6 @@ export default function PadroesCobranca() {
       toast.success(`Padrão ${data.novoStatus === "ativo" ? "aprovado" : data.novoStatus === "inativo" ? "rejeitado" : "em revisão"} com sucesso!`);
       padroesComposicao.refetch();
       gabaritos.refetch();
-      setReviewDialogOpen(false);
-      setReviewObservacoes("");
-    },
-    onError: (err) => toast.error(`Erro: ${err.message}`),
-  });
-
-  const editarPadrao = trpc.padroesCobranca.editarPadrao.useMutation({
-    onSuccess: () => {
-      toast.success("Padrão editado e aprovado com sucesso!");
-      padroesComposicao.refetch();
-      gabaritos.refetch();
-      setEditDialogOpen(false);
-    },
-    onError: (err) => toast.error(`Erro: ${err.message}`),
-  });
-
-  const criarGabarito = trpc.padroesCobranca.criarGabarito.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.atualizado ? "Gabarito atualizado com sucesso!" : "Gabarito criado com sucesso!");
-      gabaritos.refetch();
-      padroesComposicao.refetch();
-      resumo.refetch();
-      setGabDialogOpen(false);
-      resetGabForm();
     },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
@@ -173,37 +130,9 @@ export default function PadroesCobranca() {
 
   const isGenerating = gerarPreco.isPending || gerarGlosa.isPending || gerarQuantidade.isPending || gerarComposicao.isPending;
 
-  const resetGabForm = () => {
-    setGabProcedimentos([{ codigo: "", descricao: "" }]);
-    setGabObservacoes("");
-    setGabItens([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }]);
-  };
-
-  // Helpers para múltiplos procedimentos
-  const addProcedimento = () => setGabProcedimentos(prev => [...prev, { codigo: "", descricao: "" }]);
-  const removeProcedimento = (idx: number) => {
-    if (gabProcedimentos.length > 1) setGabProcedimentos(prev => prev.filter((_, i) => i !== idx));
-  };
-  const updateProcedimento = (idx: number, field: "codigo" | "descricao", value: string) => {
-    setGabProcedimentos(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
-  };
-
-  // Gerar código e descrição combinados
-  const gabCodigoCombinado = gabProcedimentos.map(p => p.codigo).filter(Boolean).join(" + ");
-  const gabDescricaoCombinada = gabProcedimentos.map(p => p.descricao).filter(Boolean).join(" + ");
-
-  const openReview = (id: number) => {
-    setReviewPadraoId(id);
-    setReviewObservacoes("");
-    setReviewDialogOpen(true);
-  };
-
-  const openEdit = (padrao: any) => {
-    setEditPadraoId(padrao.id);
-    const itens = Array.isArray(padrao.itensAssociados) ? padrao.itensAssociados : (typeof padrao.itensAssociados === "string" ? JSON.parse(padrao.itensAssociados) : []);
-    setEditItens(itens.map((i: any) => ({ ...i })));
-    setEditDialogOpen(true);
-  };
+  // Navegação para telas dedicadas
+  const openEdit = (padrao: any) => setLocation(`/editar-padrao/${padrao.id}`);
+  const openReview = (id: number) => setLocation(`/editar-padrao/${id}`);
 
   // Helpers
   const nivelRiscoBadge = (nivel: string) => {
@@ -709,7 +638,7 @@ export default function PadroesCobranca() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Buscar por código ou descrição do procedimento..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageGab(1); }} className="pl-9" />
               </div>
-              <Button className="gap-2" onClick={() => { resetGabForm(); setGabDialogOpen(true); }}>
+              <Button className="gap-2" onClick={() => setLocation("/criar-gabarito")}>
                 <PlusCircle className="h-4 w-4" /> Criar Gabarito
               </Button>
             </div>
@@ -770,7 +699,7 @@ export default function PadroesCobranca() {
                         {isExpanded && (
                           <div className="border-t border-border px-4 pb-4 pt-3 bg-muted/30">
                             <div className="flex items-center gap-2 mb-3">
-                              <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
+                              <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); setLocation(`/editar-padrao/${item.id}`); }}>
                                 <Edit3 className="h-3 w-3" /> Editar
                               </Button>
                               <Button size="sm" variant="outline" className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10" onClick={(e) => {
@@ -812,410 +741,6 @@ export default function PadroesCobranca() {
         </Tabs>
       </div>
 
-      {/* ========== DIALOG: DETALHES DO PADRÃO ========== */}
-      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalhes do Padrão</DialogTitle>
-            <DialogDescription>Revise o padrão e decida se deve ser aprovado, rejeitado ou mantido em revisão.</DialogDescription>
-          </DialogHeader>
-          {padraoDetalhes.isLoading ? (
-            <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-          ) : padraoDetalhes.data ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{padraoDetalhes.data.padrao.codigoProcedimentoPrincipal}</Badge>
-                {statusBadge(padraoDetalhes.data.padrao.status, padraoDetalhes.data.padrao.isGabarito)}
-                {confiancaBadge(padraoDetalhes.data.padrao.confianca || 0)}
-              </div>
-              <p className="font-medium">{padraoDetalhes.data.padrao.descricaoProcedimentoPrincipal}</p>
-              <p className="text-sm text-muted-foreground">{padraoDetalhes.data.padrao.totalOcorrencias} ocorrências | Valor médio: {formatCurrency(padraoDetalhes.data.padrao.valorMedioConta)}</p>
-
-              <Separator />
-
-              <div>
-                <p className="text-sm font-medium mb-2">Itens Associados ({(Array.isArray(padraoDetalhes.data.padrao.itensAssociados) ? padraoDetalhes.data.padrao.itensAssociados : []).length})</p>
-                <div className="space-y-1">
-                  {(Array.isArray(padraoDetalhes.data.padrao.itensAssociados) ? padraoDetalhes.data.padrao.itensAssociados : []).map((assoc: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-3 text-sm py-1">
-                      <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
-                      <span className="truncate flex-1">{assoc.descricao}</span>
-                      <span className="text-xs text-muted-foreground">{assoc.frequencia}%</span>
-                      <span className="text-xs text-muted-foreground">Qtd: {assoc.quantidadeMin != null && assoc.quantidadeMax != null ? `${assoc.quantidadeMin} - ${assoc.quantidadeMax}` : assoc.quantidadeMedia}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {padraoDetalhes.data.feedbacks.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm font-medium mb-2">Feedbacks Anteriores ({padraoDetalhes.data.feedbacks.length})</p>
-                    <div className="space-y-2">
-                      {padraoDetalhes.data.feedbacks.map((fb: any) => (
-                        <div key={fb.id} className="text-xs p-2 rounded bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={fb.decisao === "aceitar" ? "text-green-400" : fb.decisao === "rejeitar" ? "text-red-400" : "text-gray-400"}>
-                              {fb.decisao}
-                            </Badge>
-                            <span className="text-muted-foreground">{fb.tipoDivergencia}</span>
-                            <span className="text-muted-foreground ml-auto">{fb.usuarioNome}</span>
-                          </div>
-                          {fb.justificativa && <p className="mt-1 italic">{fb.justificativa}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <Separator />
-
-              <div>
-                <Label>Observações (opcional)</Label>
-                <Textarea value={reviewObservacoes} onChange={(e) => setReviewObservacoes(e.target.value)} placeholder="Justificativa para a decisão..." className="mt-1" />
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" className="gap-1 text-green-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "aprovar", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
-              <ThumbsUp className="h-4 w-4" /> Aprovar
-            </Button>
-            <Button variant="outline" className="gap-1 text-yellow-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "revisao", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
-              <Eye className="h-4 w-4" /> Manter em Revisão
-            </Button>
-            <Button variant="outline" className="gap-1 text-red-400" onClick={() => validarPadrao.mutate({ id: reviewPadraoId!, acao: "rejeitar", observacoes: reviewObservacoes })} disabled={validarPadrao.isPending}>
-              <ThumbsDown className="h-4 w-4" /> Rejeitar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ========== DIALOG: EDITAR PADRÃO ========== */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Itens do Padrão</DialogTitle>
-            <DialogDescription>Ajuste as quantidades, frequências ou remova itens. Ao salvar, o padrão será aprovado automaticamente.</DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground">Adicione ou remova itens do padrão</span>
-            <Button size="sm" variant="outline" className="gap-1" onClick={() => setEditItens([...editItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }])}>
-              <PlusCircle className="h-3 w-3" /> Adicionar Item
-            </Button>
-          </div>
-          <div className="rounded-lg border border-border overflow-hidden">
-            {/* Header */}
-            <div className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
-              <div>Código</div>
-              <div>Descrição</div>
-              <div>Tipo</div>
-              <div>Freq %</div>
-              <div>Qtd Mín</div>
-              <div>Qtd Máx</div>
-              <div>Valor</div>
-              <div className="text-center">Ação</div>
-            </div>
-            <div className="divide-y divide-border">
-              {editItens.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 items-center p-3 hover:bg-muted/20">
-                  <div>
-                    <AutocompleteCodigoItem
-                      estabelecimentoId={estabelecimentoId}
-                      value={item.codigo}
-                      onChange={(selected) => {
-                        const newItens = [...editItens];
-                        newItens[idx] = {
-                          ...newItens[idx],
-                          codigo: selected.codigo,
-                          descricao: selected.descricao,
-                          tipo: selected.tipo || newItens[idx].tipo,
-                          quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
-                          quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
-                          valorMedio: selected.valorMedio || newItens[idx].valorMedio,
-                        };
-                        setEditItens(newItens);
-                      }}
-                      onChangeRaw={(val) => {
-                        const newItens = [...editItens];
-                        newItens[idx].codigo = val;
-                        setEditItens(newItens);
-                      }}
-                      placeholder="Buscar código..."
-                    />
-                  </div>
-                  <div>
-                    <Input value={item.descricao} onChange={(e) => {
-                      const newItens = [...editItens];
-                      newItens[idx].descricao = e.target.value;
-                      setEditItens(newItens);
-                    }} placeholder="Descrição" className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Select value={item.tipo || "MAT_MED"} onValueChange={(v) => {
-                      const newItens = [...editItens];
-                      newItens[idx].tipo = v;
-                      setEditItens(newItens);
-                    }}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MAT_MED">Mat/Med</SelectItem>
-                        <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
-                        <SelectItem value="TAXA">Taxa</SelectItem>
-                        <SelectItem value="DIARIA">Diária</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
-                      const newItens = [...editItens];
-                      newItens[idx].frequencia = Number(e.target.value);
-                      setEditItens(newItens);
-                    }} className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? item.quantidadeMedia ?? 1} onChange={(e) => {
-                      const newItens = [...editItens];
-                      newItens[idx].quantidadeMin = Number(e.target.value);
-                      setEditItens(newItens);
-                    }} placeholder="Mín" className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? item.quantidadeMedia ?? 1} onChange={(e) => {
-                      const newItens = [...editItens];
-                      newItens[idx].quantidadeMax = Number(e.target.value);
-                      setEditItens(newItens);
-                    }} placeholder="Máx" className="h-8 text-xs" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-green-400">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
-                  </div>
-                  <div className="flex justify-center">
-                    <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
-                      setEditItens(editItens.filter((_, i) => i !== idx));
-                    }}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">{editItens.length} item(ns) no padrão</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => editarPadrao.mutate({ id: editPadraoId!, itensAssociados: editItens.map(item => ({
-              ...item,
-              quantidadeMedia: ((item.quantidadeMin ?? item.quantidadeMedia ?? 1) + (item.quantidadeMax ?? item.quantidadeMedia ?? 1)) / 2,
-              quantidadeMin: item.quantidadeMin ?? item.quantidadeMedia ?? 1,
-              quantidadeMax: item.quantidadeMax ?? item.quantidadeMedia ?? 1,
-            })) })} disabled={editarPadrao.isPending} className="gap-2">
-              {editarPadrao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Salvar e Aprovar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ========== DIALOG: CRIAR GABARITO ========== */}
-      <Dialog open={gabDialogOpen} onOpenChange={setGabDialogOpen}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Criar Gabarito Manual</DialogTitle>
-            <DialogDescription>Defina um padrão de composição manualmente. Você pode combinar múltiplos procedimentos (ex: CIRURGIA A + CIRURGIA B). Este gabarito não será sobrescrito na regeneração automática.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5">
-            {/* Procedimentos Principais */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base font-semibold">Procedimentos Principais *</Label>
-                <Button size="sm" variant="outline" className="gap-1" onClick={addProcedimento}>
-                  <PlusCircle className="h-3 w-3" /> Adicionar Procedimento
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">Adicione um ou mais procedimentos que juntos formam o padrão. Ex: Cirurgia A + Cirurgia B = um padrão combinado.</p>
-              <div className="space-y-2">
-                {gabProcedimentos.map((proc, idx) => (
-                  <div key={idx} className="flex items-center gap-3">
-                    {idx > 0 && <Badge variant="outline" className="shrink-0 bg-blue-500/10 text-blue-400 border-blue-500/30">+</Badge>}
-                    <div className="grid grid-cols-2 gap-3 flex-1">
-                      <div>
-                        <Label className="text-xs">Código {idx + 1}</Label>
-                        <Input value={proc.codigo} onChange={(e) => updateProcedimento(idx, "codigo", e.target.value)} placeholder="Ex: 10101039" className="mt-1" />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Descrição {idx + 1}</Label>
-                        <Input value={proc.descricao} onChange={(e) => updateProcedimento(idx, "descricao", e.target.value)} placeholder="Ex: Consulta em Pronto Socorro" className="mt-1" />
-                      </div>
-                    </div>
-                    <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0 shrink-0" onClick={() => removeProcedimento(idx)} disabled={gabProcedimentos.length <= 1}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              {gabProcedimentos.length > 1 && (
-                <div className="mt-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <p className="text-xs font-medium text-blue-400">Padrão combinado:</p>
-                  <p className="text-sm mt-1">{gabCodigoCombinado || "..."}</p>
-                  <p className="text-xs text-muted-foreground">{gabDescricaoCombinada || "..."}</p>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Itens do Kit */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base font-semibold">Itens do Kit / Composição</Label>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => setGabItens([...gabItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }])}>
-                  <PlusCircle className="h-3 w-3" /> Adicionar Item
-                </Button>
-              </div>
-              <div className="rounded-lg border border-border overflow-hidden">
-                {/* Header da tabela */}
-                <div className="grid grid-cols-[2fr_3fr_1.5fr_1fr_1fr_1fr_1.5fr_0.5fr] gap-2 p-2 bg-muted/50 text-xs font-medium text-muted-foreground">
-                  <div>Código</div>
-                  <div>Descrição</div>
-                  <div>Tipo</div>
-                  <div>Freq %</div>
-                  <div>Qtd Mín</div>
-                  <div>Qtd Máx</div>
-                  <div>Valor (R$)</div>
-                  <div className="text-center">Ação</div>
-                </div>
-                {/* Linhas dos itens */}
-                <div className="divide-y divide-border">
-                  {gabItens.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-[2fr_3fr_1.5fr_1fr_1fr_1fr_1.5fr_0.5fr] gap-2 items-center p-2 hover:bg-muted/20">
-                      <div>
-                        <AutocompleteCodigoItem
-                          estabelecimentoId={estabelecimentoId}
-                          value={item.codigo}
-                          onChange={(selected) => {
-                            const newItens = [...gabItens];
-                            newItens[idx] = {
-                              ...newItens[idx],
-                              codigo: selected.codigo,
-                              descricao: selected.descricao,
-                              tipo: selected.tipo || newItens[idx].tipo,
-                              quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
-                              quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
-                              valorMedio: selected.valorMedio || newItens[idx].valorMedio,
-                            };
-                            setGabItens(newItens);
-                          }}
-                          onChangeRaw={(val) => {
-                            const newItens = [...gabItens];
-                            newItens[idx].codigo = val;
-                            setGabItens(newItens);
-                          }}
-                          placeholder="Buscar código..."
-                        />
-                      </div>
-                      <div>
-                        <Input value={item.descricao} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].descricao = e.target.value;
-                          setGabItens(newItens);
-                        }} placeholder="Descrição do item" className="h-8 text-xs" />
-                      </div>
-                      <div>
-                        <Select value={item.tipo} onValueChange={(v) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].tipo = v;
-                          setGabItens(newItens);
-                        }}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MAT_MED">Mat/Med</SelectItem>
-                            <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
-                            <SelectItem value="TAXA">Taxa</SelectItem>
-                            <SelectItem value="DIARIA">Diária</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].frequencia = Number(e.target.value);
-                          setGabItens(newItens);
-                        }} className="h-8 text-xs" />
-                      </div>
-                      <div>
-                        <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? 1} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].quantidadeMin = Number(e.target.value);
-                          setGabItens(newItens);
-                        }} placeholder="Mín" className="h-8 text-xs" />
-                      </div>
-                      <div>
-                        <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? 1} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].quantidadeMax = Number(e.target.value);
-                          setGabItens(newItens);
-                        }} placeholder="Máx" className="h-8 text-xs" />
-                      </div>
-                      <div>
-                        <Input type="number" min={0} step={0.01} value={item.valorMedio} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].valorMedio = Number(e.target.value);
-                          setGabItens(newItens);
-                        }} className="h-8 text-xs" />
-                      </div>
-                      <div className="flex justify-center">
-                        <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
-                          if (gabItens.length > 1) setGabItens(gabItens.filter((_, i) => i !== idx));
-                        }} disabled={gabItens.length <= 1}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">{gabItens.length} item(ns) no kit</p>
-            </div>
-
-            <div>
-              <Label>Observações (opcional)</Label>
-              <Textarea value={gabObservacoes} onChange={(e) => setGabObservacoes(e.target.value)} placeholder="Notas sobre este gabarito..." className="mt-1" rows={3} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGabDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => {
-              const codigoCombinado = gabProcedimentos.map(p => p.codigo.trim()).filter(Boolean).join(" + ");
-              const descricaoCombinada = gabProcedimentos.map(p => p.descricao.trim()).filter(Boolean).join(" + ");
-              if (!codigoCombinado || !descricaoCombinada) {
-                toast.error("Todos os procedimentos devem ter código e descrição.");
-                return;
-              }
-              if (gabItens.some(i => !i.codigo || !i.descricao)) {
-                toast.error("Todos os itens devem ter código e descrição.");
-                return;
-              }
-              criarGabarito.mutate({
-                estabelecimentoId,
-                codigoProcedimentoPrincipal: codigoCombinado,
-                descricaoProcedimentoPrincipal: descricaoCombinada,
-                itensAssociados: gabItens.map(item => ({
-                  ...item,
-                  quantidadeMedia: ((item.quantidadeMin ?? item.quantidadeMedia ?? 1) + (item.quantidadeMax ?? item.quantidadeMedia ?? 1)) / 2,
-                  quantidadeMin: item.quantidadeMin ?? item.quantidadeMedia ?? 1,
-                  quantidadeMax: item.quantidadeMax ?? item.quantidadeMedia ?? 1,
-                })),
-                observacoes: gabObservacoes || undefined,
-              });
-            }} disabled={criarGabarito.isPending} className="gap-2">
-              {criarGabarito.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-              Criar Gabarito
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }

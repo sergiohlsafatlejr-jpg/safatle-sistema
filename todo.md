@@ -2475,3 +2475,5 @@
 - [x] Feature: Autocomplete de códigos nos campos de itens do gabarito (busca do faturamento_unificado)
 - [x] BUG: XMLs importados (status Processado) não aparecem na Conta Convênio - corrigido: migração automática adicionada ao fluxo de upload
 - [x] BUG: Filtros da tela Conta Convênio são perdidos ao navegar para detalhes e voltar
+- [x] UI: Substituir modal de criação de gabarito por tela dedicada (página completa)
+- [x] UI: Substituir modal de edição de itens do padrão por tela dedicada (página completa)
