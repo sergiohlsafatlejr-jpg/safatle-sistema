@@ -268,9 +268,11 @@ export const padroesCobrancaRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         convenio: z.string().optional(),
+        setor: z.string().optional(),
         competenciaInicio: z.string().optional(),
         competenciaFim: z.string().optional(),
         minOcorrencias: z.number().default(5),
+        agruparPorSetor: z.boolean().default(true), // Agrupar padrões por setor de atendimento
       })
     )
     .mutation(async ({ input }) => {
@@ -284,6 +286,9 @@ export const padroesCobrancaRouter = router({
       if (input.convenio) {
         whereClause += ` AND convenio = ${escapeSql(input.convenio)}`;
       }
+      if (input.setor) {
+        whereClause += ` AND setor = ${escapeSql(input.setor)}`;
+      }
       if (input.competenciaInicio) {
         whereClause += ` AND competencia >= ${escapeSql(input.competenciaInicio)}`;
       }
@@ -291,9 +296,12 @@ export const padroesCobrancaRouter = router({
         whereClause += ` AND competencia <= ${escapeSql(input.competenciaFim)}`;
       }
 
-      // Buscar todos os itens agrupados por conta
+      // Buscar todos os itens agrupados por conta E setor (se agruparPorSetor)
+      const setorSelect = input.agruparPorSetor ? `COALESCE(setor, 'GERAL') as setor,` : `'GERAL' as setor,`;
+      const setorGroupBy = input.agruparPorSetor ? `, COALESCE(setor, 'GERAL')` : ``;
       const itensResult = await db.execute(sql.raw(`
         SELECT contaNumero, codigoItem, 
+          ${setorSelect}
           SUBSTRING(MAX(descricaoItem), 1, 500) as descricaoItem,
           MAX(tipoItem) as tipoItem,
           SUM(CAST(quantidade AS DECIMAL(10,4))) as quantidade,
@@ -301,7 +309,7 @@ export const padroesCobrancaRouter = router({
           MAX(convenio) as convenio
         FROM faturamento_unificado
         ${whereClause}
-        GROUP BY contaNumero, codigoItem
+        GROUP BY contaNumero, codigoItem${setorGroupBy}
       `));
 
       const itens = (itensResult as any)[0] || [];
@@ -309,10 +317,10 @@ export const padroesCobrancaRouter = router({
         return { total: 0, message: "Nenhum dado encontrado" };
       }
 
-      // Agrupar por conta
+      // Agrupar por conta+setor (cada setor da conta gera padrões separados)
       const contasMap = new Map<string, any[]>();
       for (const item of itens) {
-        const key = String(item.contaNumero);
+        const key = `${item.contaNumero}|${item.setor || 'GERAL'}`;
         if (!contasMap.has(key)) contasMap.set(key, []);
         contasMap.get(key)!.push(item);
       }
@@ -322,12 +330,13 @@ export const padroesCobrancaRouter = router({
       // Tipos que NÃO devem gerar padrão de composição (materiais, medicamentos, taxas, diárias)
       const tiposExcluidos = new Set(["02", "03", "05", "07", "M", "MATERIAL", "MEDICAMENTO", "TAXA", "TAXA/ALUGUÉIS", "DIÁRIA", "DIARIA", "MAT", "MED"]);
 
-      // Para cada procedimento principal, encontrar itens associados
+      // Para cada procedimento principal, encontrar itens associados (agora com setor)
       const padroesMap = new Map<string, {
         codigo: string;
         descricao: string;
         tipo: string;
         convenio: string;
+        setor: string;
         contas: number;
         valorTotal: number;
         itensAssociados: Map<string, {
@@ -340,16 +349,15 @@ export const padroesCobrancaRouter = router({
         }>;
       }>();
 
-      for (const [contaNum, itensConta] of Array.from(contasMap.entries())) {
+      for (const [contaSetorKey, itensConta] of Array.from(contasMap.entries())) {
+        const setorDaConta = itensConta[0]?.setor || 'GERAL';
+        
         // Procedimentos principais: deve ser tipo de procedimento E não pode ser tipo excluído
         const procedimentosPrincipais = itensConta.filter(
           (i: any) => {
             const tipo = String(i.tipoItem || "").toUpperCase();
-            // Se está na lista de excluídos, nunca é procedimento principal
             if (tiposExcluidos.has(tipo)) return false;
-            // Se está na lista de tipos principais, é procedimento
             if (tiposPrincipais.has(tipo)) return true;
-            // Tipo desconhecido: não considerar como procedimento principal
             return false;
           }
         );
@@ -358,18 +366,20 @@ export const padroesCobrancaRouter = router({
             const tipo = String(i.tipoItem || "").toUpperCase();
             if (tiposExcluidos.has(tipo)) return true;
             if (tiposPrincipais.has(tipo)) return false;
-            return true; // Tipos desconhecidos vão como itens associados
+            return true;
           }
         );
 
         for (const proc of procedimentosPrincipais) {
-          const key = `${proc.codigoItem}|${proc.convenio || "TODOS"}`;
+          // Chave inclui setor para diferenciar padrões do mesmo procedimento em setores diferentes
+          const key = `${proc.codigoItem}|${proc.convenio || "TODOS"}|${setorDaConta}`;
           if (!padroesMap.has(key)) {
             padroesMap.set(key, {
               codigo: String(proc.codigoItem),
               descricao: String(proc.descricaoItem || ""),
               tipo: String(proc.tipoItem || ""),
               convenio: String(proc.convenio || ""),
+              setor: setorDaConta,
               contas: 0,
               valorTotal: 0,
               itensAssociados: new Map(),
@@ -422,6 +432,7 @@ export const padroesCobrancaRouter = router({
         padroesParaSalvar.push({
           convenioId: null,
           estabelecimentoId: input.estabelecimentoId,
+          setor: padrao.setor !== 'GERAL' ? padrao.setor : null,
           codigoProcedimentoPrincipal: padrao.codigo,
           descricaoProcedimentoPrincipal: padrao.descricao,
           tipoProcedimentoPrincipal: padrao.tipo,
@@ -435,15 +446,16 @@ export const padroesCobrancaRouter = router({
         });
       }
 
-      // Limpar padrões antigos gerados automaticamente
+      // Limpar padrões antigos gerados automaticamente (não gabaritos)
+      const deleteConditions: any[] = [
+        eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
+        eq(padroesCobranca.status, "aprendendo"),
+      ];
+      // Não deletar gabaritos manuais
+      deleteConditions.push(sql`isGabarito = 0`);
       await db
         .delete(padroesCobranca)
-        .where(
-          and(
-            eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
-            eq(padroesCobranca.status, "aprendendo")
-          )
-        );
+        .where(and(...deleteConditions));
 
       if (padroesParaSalvar.length > 0) {
         const batchSize = 50;
@@ -453,10 +465,14 @@ export const padroesCobrancaRouter = router({
         }
       }
 
+      // Contar setores distintos nos padrões gerados
+      const setoresDistintos = new Set(padroesParaSalvar.map(p => p.setor || 'GERAL'));
+
       return {
         total: padroesParaSalvar.length,
         totalContas: contasMap.size,
-        message: `${padroesParaSalvar.length} padrões de composição gerados a partir de ${contasMap.size} contas`,
+        totalSetores: setoresDistintos.size,
+        message: `${padroesParaSalvar.length} padrões de composição gerados a partir de ${contasMap.size} contas em ${setoresDistintos.size} setor(es)`,
       };
     }),
 
@@ -465,6 +481,7 @@ export const padroesCobrancaRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         busca: z.string().optional(),
+        setor: z.string().optional(),
         status: z.enum(["aprendendo", "ativo", "revisao", "inativo"]).optional(),
         page: z.number().default(1),
         limit: z.number().default(50),
@@ -478,6 +495,7 @@ export const padroesCobrancaRouter = router({
         eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
       ];
       if (input.status) conditions.push(eq(padroesCobranca.status, input.status));
+      if (input.setor) conditions.push(eq(padroesCobranca.setor, input.setor));
       if (input.busca) {
         conditions.push(
           sql`(${padroesCobranca.codigoProcedimentoPrincipal} LIKE ${`%${input.busca}%`} OR ${padroesCobranca.descricaoProcedimentoPrincipal} LIKE ${`%${input.busca}%`})`
@@ -1011,6 +1029,7 @@ export const padroesCobrancaRouter = router({
     .input(z.object({
       estabelecimentoId: z.number(),
       convenioId: z.number().optional(),
+      setor: z.string().optional(), // Setor de atendimento (ex: CENTRO CIRURGICO)
       codigoProcedimentoPrincipal: z.string(),
       descricaoProcedimentoPrincipal: z.string(),
       itensAssociados: z.array(z.object({
@@ -1029,15 +1048,21 @@ export const padroesCobrancaRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
 
-      // Verificar se já existe gabarito para este procedimento
+      // Verificar se já existe gabarito para este procedimento+setor
+      const existenteConditions: any[] = [
+        eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
+        eq(padroesCobranca.codigoProcedimentoPrincipal, input.codigoProcedimentoPrincipal),
+        sql`isGabarito = 1`,
+      ];
+      if (input.setor) {
+        existenteConditions.push(eq(padroesCobranca.setor, input.setor));
+      } else {
+        existenteConditions.push(sql`setor IS NULL`);
+      }
       const existente = await db
         .select({ id: padroesCobranca.id })
         .from(padroesCobranca)
-        .where(and(
-          eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
-          eq(padroesCobranca.codigoProcedimentoPrincipal, input.codigoProcedimentoPrincipal),
-          sql`isGabarito = 1`,
-        ));
+        .where(and(...existenteConditions));
 
       if (existente.length > 0) {
         // Atualizar gabarito existente
@@ -1046,6 +1071,7 @@ export const padroesCobrancaRouter = router({
             descricaoProcedimentoPrincipal: input.descricaoProcedimentoPrincipal,
             itensAssociados: input.itensAssociados,
             convenioId: input.convenioId || null,
+            setor: input.setor || null,
             validadoPor: ctx.user.id,
             dataValidacao: new Date(),
             observacoesValidacao: input.observacoes || null,
@@ -1061,6 +1087,7 @@ export const padroesCobrancaRouter = router({
       const [result] = await db.insert(padroesCobranca).values({
         estabelecimentoId: input.estabelecimentoId,
         convenioId: input.convenioId || null,
+        setor: input.setor || null,
         codigoProcedimentoPrincipal: input.codigoProcedimentoPrincipal,
         descricaoProcedimentoPrincipal: input.descricaoProcedimentoPrincipal,
         tipoProcedimentoPrincipal: "PROCEDIMENTO",
@@ -1085,6 +1112,7 @@ export const padroesCobrancaRouter = router({
     .input(z.object({
       estabelecimentoId: z.number(),
       busca: z.string().optional(),
+      setor: z.string().optional(),
       page: z.number().default(1),
       limit: z.number().default(50),
     }))
@@ -1096,6 +1124,7 @@ export const padroesCobrancaRouter = router({
         eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
         sql`isGabarito = 1`,
       ];
+      if (input.setor) conditions.push(eq(padroesCobranca.setor, input.setor));
       if (input.busca) {
         conditions.push(
           sql`(${padroesCobranca.codigoProcedimentoPrincipal} LIKE ${`%${input.busca}%`} OR ${padroesCobranca.descricaoProcedimentoPrincipal} LIKE ${`%${input.busca}%`})`

@@ -25,7 +25,11 @@ export default function CriarGabarito() {
   // Estado do formulário
   const [procedimentos, setProcedimentos] = useState<Array<{ codigo: string; descricao: string }>>([{ codigo: "", descricao: "" }]);
   const [observacoes, setObservacoes] = useState("");
+  const [selectedSetor, setSelectedSetor] = useState<string>("");
   const [itens, setItens] = useState<any[]>([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }]);
+
+  // Query de setores disponíveis
+  const setores = trpc.padroesCobranca.listarSetores.useQuery({ estabelecimentoId });
 
   // Mutation
   const criarGabarito = trpc.padroesCobranca.criarGabarito.useMutation({
@@ -71,6 +75,7 @@ export default function CriarGabarito() {
     }
     criarGabarito.mutate({
       estabelecimentoId,
+      setor: selectedSetor || undefined,
       codigoProcedimentoPrincipal: codigoCombinado,
       descricaoProcedimentoPrincipal: descricaoCombinada,
       itensAssociados: itens.map(item => ({
@@ -167,6 +172,35 @@ export default function CriarGabarito() {
                 <p className="text-base font-semibold mt-1">{codigoCombinado || "..."}</p>
                 <p className="text-sm text-muted-foreground">{descricaoCombinada || "..."}</p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Setor de Atendimento */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Setor de Atendimento (opcional)</CardTitle>
+            <CardDescription>
+              Selecione o setor para o qual este gabarito se aplica. Um mesmo procedimento pode ter composições diferentes
+              dependendo do setor (ex: Centro Cirúrgico vs Ambulatório). Se não selecionado, o gabarito será genérico.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedSetor} onValueChange={(v) => setSelectedSetor(v === "geral" ? "" : v)}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Geral (todos os setores)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="geral">Geral (todos os setores)</SelectItem>
+                {(setores.data as any[])?.map((s: any) => (
+                  <SelectItem key={s.setor} value={s.setor}>{s.setor}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedSetor && (
+              <p className="text-sm text-blue-500 mt-2">
+                Este gabarito será aplicado apenas para itens do setor <strong>{selectedSetor}</strong>.
+              </p>
             )}
           </CardContent>
         </Card>

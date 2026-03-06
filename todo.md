@@ -2482,3 +2482,7 @@
 - [x] DOC: Criar manual completo de tabelas usadas por módulo (frontend e backend)
 - [x] UI: Mover aba Relatórios para subpasta do grupo Gerenciamento no sidebar
 - [x] UI: Mover aba Repasse para subpasta do grupo Recebimentos no sidebar
+- [x] Feature: Adicionar campo setor nos padrões de composição (padroesCobranca) para diferenciar padrões por setor de atendimento
+- [x] Feature: Atualizar geração de padrões de composição para agrupar por setor
+- [x] Feature: Atualizar comparação conta vs padrão para considerar setor do item
+- [x] Feature: Atualizar frontend (Padrões de Cobrança, Criar Gabarito, Conta Convênio) para exibir/filtrar por setor

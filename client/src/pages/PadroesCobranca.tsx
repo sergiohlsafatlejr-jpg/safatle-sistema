@@ -64,12 +64,12 @@ export default function PadroesCobranca() {
   );
 
   const padroesComposicao = trpc.padroesCobranca.consultarPadroesComposicao.useQuery(
-    { estabelecimentoId, busca: searchTerm || undefined, page: pageComp, status: (selectedStatusComp || undefined) as any },
+    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, page: pageComp, status: (selectedStatusComp || undefined) as any },
     { enabled: activeTab === "composicao" }
   );
 
   const gabaritos = trpc.padroesCobranca.listarGabaritos.useQuery(
-    { estabelecimentoId, busca: searchTerm || undefined, page: pageGab },
+    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, page: pageGab },
     { enabled: activeTab === "gabarito" }
   );
 
@@ -121,7 +121,7 @@ export default function PadroesCobranca() {
       await gerarPreco.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
       await gerarGlosa.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
       await gerarQuantidade.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
-      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
+      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
       toast.success("Todos os padrões foram gerados com sucesso!");
     } catch (err: any) {
       toast.error(`Erro ao gerar padrões: ${err.message}`);
@@ -545,7 +545,16 @@ export default function PadroesCobranca() {
                   <SelectItem value="inativo">Inativo</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={() => gerarComposicao.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined })} disabled={gerarComposicao.isPending} className="gap-2">
+              <Select value={selectedSetor} onValueChange={(v) => { setSelectedSetor(v === "todos" ? "" : v); setPageComp(1); }}>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Todos os setores" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os setores</SelectItem>
+                  {(setores.data as any[])?.map((s: any) => (
+                    <SelectItem key={s.setor} value={s.setor}>{s.setor}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => gerarComposicao.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true })} disabled={gerarComposicao.isPending} className="gap-2">
                 {gerarComposicao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Atualizar Padrões
               </Button>
@@ -569,6 +578,7 @@ export default function PadroesCobranca() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
+                                {item.setor && <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">{item.setor}</Badge>}
                                 {statusBadge(item.status, item.isGabarito)}
                                 {confiancaBadge(item.confianca || 0)}
                               </div>
@@ -638,6 +648,15 @@ export default function PadroesCobranca() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Buscar por código ou descrição do procedimento..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPageGab(1); }} className="pl-9" />
               </div>
+              <Select value={selectedSetor} onValueChange={(v) => { setSelectedSetor(v === "todos" ? "" : v); setPageGab(1); }}>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Todos os setores" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os setores</SelectItem>
+                  {(setores.data as any[])?.map((s: any) => (
+                    <SelectItem key={s.setor} value={s.setor}>{s.setor}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button className="gap-2" onClick={() => setLocation("/criar-gabarito")}>
                 <PlusCircle className="h-4 w-4" /> Criar Gabarito
               </Button>
@@ -679,6 +698,7 @@ export default function PadroesCobranca() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
+                                {item.setor && <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">{item.setor}</Badge>}
                                 <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/30 gap-1"><BookOpen className="h-3 w-3" />Gabarito</Badge>
                                 {confiancaBadge(item.confianca || 100)}
                               </div>

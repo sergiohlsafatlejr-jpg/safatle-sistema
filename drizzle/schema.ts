@@ -1108,6 +1108,7 @@ export const padroesCobranca = mysqlTable("padroesCobranca", {
   // Escopo do padrão
   convenioId: int("convenioId"),
   estabelecimentoId: int("estabelecimentoId"),
+  setor: varchar("setor", { length: 255 }), // Setor de atendimento (ex: CENTRO CIRURGICO, POSTO I)
   
   // Procedimento principal que dispara o padrão
   codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),

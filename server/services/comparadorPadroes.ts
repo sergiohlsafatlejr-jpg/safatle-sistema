@@ -4,13 +4,17 @@ import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
 /**
- * Motor de Comparação de Padrões de Cobrança (com suporte a Gabarito)
+ * Motor de Comparação de Padrões de Cobrança (com suporte a Gabarito e Setor)
  * 
  * Compara os itens de uma conta contra os padrões ATIVOS e GABARITOS:
  * 1. Preço: valor unitário/total vs média ± 2 desvios
  * 2. Quantidade: qtd vs média ± 2 desvios
  * 3. Glosa: risco de glosa baseado no histórico
  * 4. Composição: itens faltantes ou extras vs kit padrão (gabarito tem prioridade)
+ * 
+ * NOVO: Padrões agora consideram o setor de atendimento.
+ * Hierarquia de match: setor específico > setor NULL (genérico)
+ * Um paciente pode ter itens em múltiplos setores na mesma conta.
  */
 
 export interface Divergencia {
@@ -24,6 +28,7 @@ export interface Divergencia {
   codigoItem?: string;
   descricaoItem?: string;
   isGabarito?: boolean;
+  setor?: string;
   detalhes?: Record<string, any>;
 }
 
@@ -38,12 +43,43 @@ export interface ResultadoComparacao {
   statusGeral: "conforme" | "divergente";
   gabaritosUsados: number;
   padroesUsados: number;
+  setoresAnalisados: string[];
+}
+
+/**
+ * Seleciona o melhor padrão de composição considerando setor.
+ * Prioridade: gabarito com setor > gabarito sem setor > padrão com setor > padrão sem setor
+ */
+function selecionarMelhorPadrao(
+  padroes: Array<{ id: number; codigoProcedimentoPrincipal: string; setor: string | null; isGabarito: number; [key: string]: any }>,
+  codigoProc: string,
+  setorItem: string | null
+): typeof padroes[0] | null {
+  const candidatos = padroes.filter(p => p.codigoProcedimentoPrincipal === codigoProc);
+  if (candidatos.length === 0) return null;
+
+  // Ordenar por prioridade: gabarito+setor > gabarito+genérico > padrão+setor > padrão+genérico
+  const scored = candidatos.map(p => {
+    let score = 0;
+    if (p.isGabarito === 1) score += 100;
+    if (p.setor && setorItem && p.setor.trim().toUpperCase() === setorItem.trim().toUpperCase()) score += 50;
+    else if (!p.setor) score += 10; // genérico é melhor que setor errado
+    else score -= 50; // setor diferente = penalidade
+    return { padrao: p, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  
+  // Só retornar se o score é positivo (não retornar padrão de setor errado)
+  if (scored[0].score >= 0) return scored[0].padrao;
+  return null;
 }
 
 /**
  * Compara todos os itens de uma conta contra os padrões de cobrança
  * Prioriza gabaritos (isGabarito=1) sobre padrões aprendidos
  * Filtra apenas padrões com status "ativo"
+ * NOVO: Considera o setor de atendimento dos itens
  */
 export async function compararContaComPadroes(
   numeroConta: string,
@@ -73,11 +109,14 @@ export async function compararContaComPadroes(
       statusGeral: "conforme",
       gabaritosUsados: 0,
       padroesUsados: 0,
+      setoresAnalisados: [],
     };
   }
 
-  // 2. Identificar o convênio da conta
+  // 2. Identificar o convênio e setores da conta
   const convenio = itens[0].convenio;
+  const setoresNaConta = [...new Set(itens.map(i => (i as any).setor).filter(Boolean))];
+  
   if (!convenio) {
     logger.warn({ message: "Conta sem convênio identificado", numeroConta });
     return {
@@ -95,6 +134,7 @@ export async function compararContaComPadroes(
       statusGeral: "conforme",
       gabaritosUsados: 0,
       padroesUsados: 0,
+      setoresAnalisados: setoresNaConta,
     };
   }
 
@@ -111,7 +151,7 @@ export async function compararContaComPadroes(
 
   const mapPreco = new Map(padroesPreco.map(p => [p.codigoItem, p]));
 
-  // 4. Buscar padrões de quantidade
+  // 4. Buscar padrões de quantidade (agora com setor)
   const padroesQtd = await db
     .select()
     .from(padraoQuantidadeItem)
@@ -120,7 +160,14 @@ export async function compararContaComPadroes(
   const padroesQtdFiltrados = padroesQtd.filter(p => 
     p.convenio === convenio || !p.convenio
   );
-  const mapQtd = new Map(padroesQtdFiltrados.map(p => [p.codigoItem, p]));
+  
+  // Indexar padrões de quantidade por código+setor para match mais preciso
+  const mapQtdPorCodigo = new Map<string, typeof padroesQtdFiltrados>();
+  for (const p of padroesQtdFiltrados) {
+    if (!p.codigoItem) continue;
+    if (!mapQtdPorCodigo.has(p.codigoItem)) mapQtdPorCodigo.set(p.codigoItem, []);
+    mapQtdPorCodigo.get(p.codigoItem)!.push(p);
+  }
 
   // 5. Buscar padrões de glosa
   const padroesGlosa = await db
@@ -147,19 +194,6 @@ export async function compararContaComPadroes(
     !p.convenioId || p.convenioId === itens[0].convenioId
   );
 
-  // Priorizar gabaritos: se há gabarito e padrão aprendido para o mesmo procedimento,
-  // usar apenas o gabarito
-  const mapComposicao = new Map<string, typeof padroesCompFiltrados[0]>();
-  for (const padrao of padroesCompFiltrados) {
-    const codigo = padrao.codigoProcedimentoPrincipal;
-    if (!codigo) continue;
-    const existente = mapComposicao.get(codigo);
-    if (!existente || padrao.isGabarito === 1) {
-      // Gabarito sempre sobrescreve, ou adiciona se não existia
-      mapComposicao.set(codigo, padrao);
-    }
-  }
-
   let gabaritosUsados = 0;
   let padroesUsados = 0;
 
@@ -171,6 +205,7 @@ export async function compararContaComPadroes(
     const valorUnitario = parseFloat(item.valorUnitario || "0");
     const valorTotal = parseFloat(item.valorTotal || "0");
     const quantidade = parseFloat(item.quantidade || "0");
+    const setorItem = (item as any).setor || null;
 
     // 7a. Comparação de PREÇO
     const padraoP = mapPreco.get(codigo);
@@ -197,6 +232,7 @@ export async function compararContaComPadroes(
             padraoId: padraoP.id,
             codigoItem: codigo,
             descricaoItem: item.descricaoItem || undefined,
+            setor: setorItem || undefined,
             detalhes: { mediaUnit, desvioUnit, minUnit, maxUnit, limiteInferior, limiteSuperior },
           });
         } else if (valorUnitario < limiteInferior && limiteInferior > 0) {
@@ -211,13 +247,18 @@ export async function compararContaComPadroes(
             padraoId: padraoP.id,
             codigoItem: codigo,
             descricaoItem: item.descricaoItem || undefined,
+            setor: setorItem || undefined,
           });
         }
       }
     }
 
-    // 7b. Comparação de QUANTIDADE
-    const padraoQ = mapQtd.get(codigo);
+    // 7b. Comparação de QUANTIDADE (com suporte a setor)
+    const candidatosQtd = mapQtdPorCodigo.get(codigo) || [];
+    // Selecionar o melhor padrão de quantidade: setor específico > genérico
+    let padraoQ = candidatosQtd.find(p => p.setor && setorItem && p.setor.trim().toUpperCase() === setorItem.trim().toUpperCase());
+    if (!padraoQ) padraoQ = candidatosQtd.find(p => !p.setor); // fallback genérico
+    
     if (padraoQ && quantidade > 0) {
       const mediaQtd = parseFloat(padraoQ.mediaQuantidade || "0");
       const limiteSup = parseFloat(padraoQ.limiteSuperior || "0");
@@ -229,25 +270,27 @@ export async function compararContaComPadroes(
           divergencias.push({
             tipo: "QUANTIDADE",
             severidade: quantidade > limiteSup * 1.5 ? "critico" : "alerta",
-            mensagem: `Quantidade ${percentAcima}% acima da média (${mediaQtd.toFixed(2)}). Limite: ${limiteSup.toFixed(2)}`,
+            mensagem: `Quantidade ${percentAcima}% acima da média (${mediaQtd.toFixed(2)}). Limite: ${limiteSup.toFixed(2)}${padraoQ.setor ? ` [Setor: ${padraoQ.setor}]` : ''}`,
             campo: "quantidade",
             valorEsperado: `${mediaQtd.toFixed(2)} (limite: ${limiteSup.toFixed(2)})`,
             valorEncontrado: `${quantidade.toFixed(2)}`,
             padraoId: padraoQ.id,
             codigoItem: codigo,
             descricaoItem: item.descricaoItem || undefined,
+            setor: setorItem || undefined,
           });
         } else if (limiteInf > 0 && quantidade < limiteInf) {
           divergencias.push({
             tipo: "QUANTIDADE",
             severidade: "info",
-            mensagem: `Quantidade abaixo do limite inferior (${limiteInf.toFixed(2)}). Média: ${mediaQtd.toFixed(2)}`,
+            mensagem: `Quantidade abaixo do limite inferior (${limiteInf.toFixed(2)}). Média: ${mediaQtd.toFixed(2)}${padraoQ.setor ? ` [Setor: ${padraoQ.setor}]` : ''}`,
             campo: "quantidade",
             valorEsperado: `${mediaQtd.toFixed(2)} (limite: ${limiteInf.toFixed(2)})`,
             valorEncontrado: `${quantidade.toFixed(2)}`,
             padraoId: padraoQ.id,
             codigoItem: codigo,
             descricaoItem: item.descricaoItem || undefined,
+            setor: setorItem || undefined,
           });
         }
       }
@@ -268,6 +311,7 @@ export async function compararContaComPadroes(
           codigoItem: codigo,
           descricaoItem: item.descricaoItem || undefined,
           padraoId: padraoG.id,
+          setor: setorItem || undefined,
           detalhes: {
             taxaGlosa,
             nivelRisco,
@@ -280,176 +324,71 @@ export async function compararContaComPadroes(
   }
 
   // 8. Verificar composição (itens faltantes no kit) usando gabaritos prioritários
-  const codigosNaConta = new Set(itens.map(i => i.codigoItem).filter(Boolean));
+  // NOVO: Agrupar itens por setor para comparar com padrão do setor correto
+  const codigosNaConta = new Set(itens.map(i => i.codigoItem).filter(Boolean) as string[]);
   
   // Identificar procedimentos na conta (vários formatos de tipo)
   const tiposProcedimento = new Set(["PROCEDIMENTO", "P", "C", "O", "01", "PROC"]);
-  const procedimentosNaConta = itens
-    .filter(i => {
-      const tipo = (i.tipoItem || "").toUpperCase().trim();
-      return tiposProcedimento.has(tipo) || tipo.includes("PROC");
-    })
-    .map(i => i.codigoItem)
-    .filter(Boolean);
+  
+  // Agrupar itens por setor
+  const itensPorSetor = new Map<string, typeof itens>();
+  for (const item of itens) {
+    const setor = (item as any).setor || 'GERAL';
+    if (!itensPorSetor.has(setor)) itensPorSetor.set(setor, []);
+    itensPorSetor.get(setor)!.push(item);
+  }
 
-  for (const [codigoProc, padrao] of mapComposicao) {
-    // Verificar se o procedimento principal está na conta
-    // Suporte a padrões combinados: "CODIGO_A + CODIGO_B" - todos devem estar presentes
-    const codigosCombinados = codigoProc.includes(" + ") 
-      ? codigoProc.split(" + ").map(c => c.trim()).filter(Boolean)
-      : [codigoProc];
-    const todosPresentes = codigosCombinados.every(c => procedimentosNaConta.includes(c));
-    if (todosPresentes) {
-      const isGab = padrao.isGabarito === 1;
-      if (isGab) gabaritosUsados++;
-      else padroesUsados++;
+  // Para cada setor, verificar composição
+  const procedimentosJaAnalisados = new Set<string>();
+  
+  for (const [setor, itensDoSetor] of Array.from(itensPorSetor.entries())) {
+    const procedimentosNoSetor = itensDoSetor
+      .filter(i => {
+        const tipo = (i.tipoItem || "").toUpperCase().trim();
+        return tiposProcedimento.has(tipo) || tipo.includes("PROC");
+      })
+      .map(i => i.codigoItem)
+      .filter(Boolean);
 
-      const itensAssociados = padrao.itensAssociados as Array<{
-        codigo: string;
-        descricao: string;
-        tipo: string;
-        frequencia: number;
-        quantidadeMedia: number;
-        quantidadeMin?: number;
-        quantidadeMax?: number;
-        valorMedio?: number;
-      }>;
+    const codigosNoSetor = new Set(itensDoSetor.map(i => i.codigoItem).filter(Boolean) as string[]);
 
-      if (Array.isArray(itensAssociados)) {
-        for (const itemEsperado of itensAssociados) {
-          // Frequência está em porcentagem (0-100)
-          // Gabaritos: alertar para todos os itens (frequência geralmente 100%)
-          // Padrões aprendidos: alertar para itens com frequência >= 70%
-          const limiteFrequencia = isGab ? 50 : 70;
-          
-          if (itemEsperado.frequencia >= limiteFrequencia && !codigosNaConta.has(itemEsperado.codigo)) {
-            const severidade = isGab 
-              ? (itemEsperado.frequencia >= 90 ? "critico" : "alerta")
-              : (itemEsperado.frequencia >= 90 ? "alerta" : "aviso");
-            
-            const fonte = isGab ? "gabarito" : "padrão aprendido";
-            divergencias.push({
-              tipo: "ITEM_FALTANTE",
-              severidade,
-              mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${itemEsperado.frequencia.toFixed(0)}%) não encontrado na conta. [Fonte: ${fonte}]`,
-              codigoItem: itemEsperado.codigo,
-              descricaoItem: itemEsperado.descricao,
-              padraoId: padrao.id,
-              isGabarito: isGab,
-              detalhes: {
-                procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-                descricaoProcedimentoPrincipal: padrao.descricaoProcedimentoPrincipal,
-                frequenciaEsperada: itemEsperado.frequencia,
-                quantidadeMedia: itemEsperado.quantidadeMedia,
-                valorMedio: itemEsperado.valorMedio,
-                fonte,
-              },
-            });
-          }
+    for (const codigoProc of procedimentosNoSetor) {
+      if (!codigoProc) continue;
+      
+      // Evitar analisar o mesmo procedimento+setor duas vezes
+      const chaveAnalise = `${codigoProc}|${setor}`;
+      if (procedimentosJaAnalisados.has(chaveAnalise)) continue;
+      procedimentosJaAnalisados.add(chaveAnalise);
 
-          // Verificar quantidade se o item existe na conta
-          if (codigosNaConta.has(itemEsperado.codigo) && (itemEsperado.quantidadeMedia > 0 || (itemEsperado.quantidadeMin ?? 0) > 0 || (itemEsperado.quantidadeMax ?? 0) > 0)) {
-            const itemNaConta = itens.find(i => i.codigoItem === itemEsperado.codigo);
-            if (itemNaConta) {
-              const qtdNaConta = parseFloat(itemNaConta.quantidade || "0");
-              const qtdMin = itemEsperado.quantidadeMin ?? itemEsperado.quantidadeMedia;
-              const qtdMax = itemEsperado.quantidadeMax ?? itemEsperado.quantidadeMedia;
-              const qtdEsperada = itemEsperado.quantidadeMedia;
-              const fonte = isGab ? "gabarito" : "padrão aprendido";
-              
-              // Se tem faixa min/max definida, usar essa faixa
-              if (qtdMin > 0 || qtdMax > 0) {
-                if (qtdNaConta < qtdMin) {
-                  divergencias.push({
-                    tipo: "COMPOSICAO",
-                    severidade: isGab ? "alerta" : "aviso",
-                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ABAIXO do mínimo permitido pelo ${fonte}: mínimo ${qtdMin}, encontrado ${qtdNaConta.toFixed(1)}`,
-                    codigoItem: itemEsperado.codigo,
-                    descricaoItem: itemEsperado.descricao,
-                    valorEsperado: `${qtdMin} - ${qtdMax}`,
-                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
-                    padraoId: padrao.id,
-                    isGabarito: isGab,
-                    detalhes: {
-                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-                      fonte,
-                      quantidadeMin: qtdMin,
-                      quantidadeMax: qtdMax,
-                    },
-                  });
-                } else if (qtdNaConta > qtdMax) {
-                  divergencias.push({
-                    tipo: "COMPOSICAO",
-                    severidade: isGab ? "alerta" : "aviso",
-                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ACIMA do máximo permitido pelo ${fonte}: máximo ${qtdMax}, encontrado ${qtdNaConta.toFixed(1)}`,
-                    codigoItem: itemEsperado.codigo,
-                    descricaoItem: itemEsperado.descricao,
-                    valorEsperado: `${qtdMin} - ${qtdMax}`,
-                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
-                    padraoId: padrao.id,
-                    isGabarito: isGab,
-                    detalhes: {
-                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-                      fonte,
-                      quantidadeMin: qtdMin,
-                      quantidadeMax: qtdMax,
-                    },
-                  });
-                }
-              } else if (qtdNaConta > 0 && qtdEsperada > 0) {
-                // Fallback: usar diferença percentual (>50%) se não tem min/max
-                const diffPercent = Math.abs(qtdNaConta - qtdEsperada) / qtdEsperada * 100;
-                if (diffPercent > 50) {
-                  divergencias.push({
-                    tipo: "COMPOSICAO",
-                    severidade: isGab ? "alerta" : "aviso",
-                    mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" divergente do ${fonte}: esperado ~${qtdEsperada.toFixed(1)}, encontrado ${qtdNaConta.toFixed(1)} (diferença de ${diffPercent.toFixed(0)}%)`,
-                    codigoItem: itemEsperado.codigo,
-                    descricaoItem: itemEsperado.descricao,
-                    valorEsperado: `${qtdEsperada.toFixed(1)}`,
-                    valorEncontrado: `${qtdNaConta.toFixed(1)}`,
-                    padraoId: padrao.id,
-                    isGabarito: isGab,
-                    detalhes: {
-                      procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-                      fonte,
-                    },
-                  });
-                }
+      // Selecionar o melhor padrão para este procedimento+setor
+      const padrao = selecionarMelhorPadrao(padroesCompFiltrados as any, codigoProc, setor !== 'GERAL' ? setor : null);
+      
+      // Também verificar padrões combinados
+      if (!padrao) {
+        // Tentar match com padrões combinados
+        for (const p of padroesCompFiltrados) {
+          if (!p.codigoProcedimentoPrincipal.includes(" + ")) continue;
+          const codigosCombinados = p.codigoProcedimentoPrincipal.split(" + ").map(c => c.trim());
+          if (codigosCombinados.includes(codigoProc)) {
+            const todosPresentes = codigosCombinados.every(c => codigosNaConta.has(c));
+            if (todosPresentes) {
+              const chaveCombo = `${p.codigoProcedimentoPrincipal}|${setor}`;
+              if (!procedimentosJaAnalisados.has(chaveCombo)) {
+                procedimentosJaAnalisados.add(chaveCombo);
+                // Processar este padrão combinado
+                processarPadraoComposicao(p, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
+                if (p.isGabarito === 1) gabaritosUsados++;
+                else padroesUsados++;
               }
             }
           }
         }
-
-        // Verificar itens extras (na conta mas não no kit) - apenas para gabaritos
-        if (isGab) {
-          const codigosEsperados = new Set(itensAssociados.map(i => i.codigo));
-          const itensNaoProc = itens.filter(i => {
-            const tipo = (i.tipoItem || "").toUpperCase().trim();
-            return !tiposProcedimento.has(tipo) && !tipo.includes("PROC");
-          });
-          
-          for (const itemNaConta of itensNaoProc) {
-            if (itemNaConta.codigoItem && !codigosEsperados.has(itemNaConta.codigoItem)) {
-              // Verificar se este item extra pertence ao contexto do procedimento
-              // (simplificação: marcar como info para revisão)
-              divergencias.push({
-                tipo: "ITEM_EXTRA",
-                severidade: "info",
-                mensagem: `Item "${itemNaConta.descricaoItem || itemNaConta.codigoItem}" presente na conta mas não definido no gabarito de "${padrao.descricaoProcedimentoPrincipal}".`,
-                codigoItem: itemNaConta.codigoItem,
-                descricaoItem: itemNaConta.descricaoItem || undefined,
-                padraoId: padrao.id,
-                isGabarito: true,
-                detalhes: {
-                  procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-                  fonte: "gabarito",
-                },
-              });
-            }
-          }
-        }
+        continue;
       }
+
+      processarPadraoComposicao(padrao, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
+      if (padrao.isGabarito === 1) gabaritosUsados++;
+      else padroesUsados++;
     }
   }
 
@@ -479,7 +418,184 @@ export async function compararContaComPadroes(
     statusGeral,
     gabaritosUsados,
     padroesUsados,
+    setoresAnalisados: setoresNaConta,
   };
+}
+
+/**
+ * Processa um padrão de composição contra os itens de um setor
+ */
+function processarPadraoComposicao(
+  padrao: any,
+  codigosNoSetor: Set<string>,
+  codigosNaConta: Set<string>,
+  itensDoSetor: any[],
+  todosItens: any[],
+  setor: string,
+  divergencias: Divergencia[],
+  tiposProcedimento: Set<string>
+) {
+  const isGab = padrao.isGabarito === 1;
+  const setorPadrao = padrao.setor || 'GERAL';
+  const setorLabel = setor !== 'GERAL' ? ` [Setor: ${setor}]` : '';
+  const fonteLabel = isGab ? "gabarito" : "padrão aprendido";
+  const fonteSetorLabel = padrao.setor ? ` (setor: ${padrao.setor})` : ' (geral)';
+
+  const itensAssociados = padrao.itensAssociados as Array<{
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    frequencia: number;
+    quantidadeMedia: number;
+    quantidadeMin?: number;
+    quantidadeMax?: number;
+    valorMedio?: number;
+  }>;
+
+  if (!Array.isArray(itensAssociados)) return;
+
+  for (const itemEsperado of itensAssociados) {
+    const limiteFrequencia = isGab ? 50 : 70;
+    
+    // Verificar se o item está no setor correto (ou na conta inteira)
+    const itemNoSetor = codigosNoSetor.has(itemEsperado.codigo);
+    const itemNaConta = codigosNaConta.has(itemEsperado.codigo);
+    
+    if (itemEsperado.frequencia >= limiteFrequencia && !itemNaConta) {
+      const severidade = isGab 
+        ? (itemEsperado.frequencia >= 90 ? "critico" : "alerta")
+        : (itemEsperado.frequencia >= 90 ? "alerta" : "aviso");
+      
+      divergencias.push({
+        tipo: "ITEM_FALTANTE",
+        severidade,
+        mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${itemEsperado.frequencia.toFixed(0)}%) não encontrado na conta.${setorLabel} [Fonte: ${fonteLabel}${fonteSetorLabel}]`,
+        codigoItem: itemEsperado.codigo,
+        descricaoItem: itemEsperado.descricao,
+        padraoId: padrao.id,
+        isGabarito: isGab,
+        setor: setor !== 'GERAL' ? setor : undefined,
+        detalhes: {
+          procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+          descricaoProcedimentoPrincipal: padrao.descricaoProcedimentoPrincipal,
+          frequenciaEsperada: itemEsperado.frequencia,
+          quantidadeMedia: itemEsperado.quantidadeMedia,
+          valorMedio: itemEsperado.valorMedio,
+          fonte: fonteLabel,
+          setorPadrao: padrao.setor || null,
+          setorConta: setor,
+        },
+      });
+    }
+
+    // Verificar quantidade se o item existe na conta
+    if (itemNaConta && (itemEsperado.quantidadeMedia > 0 || (itemEsperado.quantidadeMin ?? 0) > 0 || (itemEsperado.quantidadeMax ?? 0) > 0)) {
+      // Buscar item no setor específico primeiro, depois na conta inteira
+      const itemNaContaObj = itensDoSetor.find(i => i.codigoItem === itemEsperado.codigo) 
+        || todosItens.find(i => i.codigoItem === itemEsperado.codigo);
+      
+      if (itemNaContaObj) {
+        const qtdNaConta = parseFloat(itemNaContaObj.quantidade || "0");
+        const qtdMin = itemEsperado.quantidadeMin ?? itemEsperado.quantidadeMedia;
+        const qtdMax = itemEsperado.quantidadeMax ?? itemEsperado.quantidadeMedia;
+        const qtdEsperada = itemEsperado.quantidadeMedia;
+        
+        if (qtdMin > 0 || qtdMax > 0) {
+          if (qtdNaConta < qtdMin) {
+            divergencias.push({
+              tipo: "COMPOSICAO",
+              severidade: isGab ? "alerta" : "aviso",
+              mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ABAIXO do mínimo permitido pelo ${fonteLabel}: mínimo ${qtdMin}, encontrado ${qtdNaConta.toFixed(1)}${setorLabel}`,
+              codigoItem: itemEsperado.codigo,
+              descricaoItem: itemEsperado.descricao,
+              valorEsperado: `${qtdMin} - ${qtdMax}`,
+              valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+              padraoId: padrao.id,
+              isGabarito: isGab,
+              setor: setor !== 'GERAL' ? setor : undefined,
+              detalhes: {
+                procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                fonte: fonteLabel,
+                setorPadrao: padrao.setor || null,
+                quantidadeMin: qtdMin,
+                quantidadeMax: qtdMax,
+              },
+            });
+          } else if (qtdNaConta > qtdMax) {
+            divergencias.push({
+              tipo: "COMPOSICAO",
+              severidade: isGab ? "alerta" : "aviso",
+              mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" ACIMA do máximo permitido pelo ${fonteLabel}: máximo ${qtdMax}, encontrado ${qtdNaConta.toFixed(1)}${setorLabel}`,
+              codigoItem: itemEsperado.codigo,
+              descricaoItem: itemEsperado.descricao,
+              valorEsperado: `${qtdMin} - ${qtdMax}`,
+              valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+              padraoId: padrao.id,
+              isGabarito: isGab,
+              setor: setor !== 'GERAL' ? setor : undefined,
+              detalhes: {
+                procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                fonte: fonteLabel,
+                setorPadrao: padrao.setor || null,
+                quantidadeMin: qtdMin,
+                quantidadeMax: qtdMax,
+              },
+            });
+          }
+        } else if (qtdNaConta > 0 && qtdEsperada > 0) {
+          const diffPercent = Math.abs(qtdNaConta - qtdEsperada) / qtdEsperada * 100;
+          if (diffPercent > 50) {
+            divergencias.push({
+              tipo: "COMPOSICAO",
+              severidade: isGab ? "alerta" : "aviso",
+              mensagem: `Quantidade de "${itemEsperado.descricao || itemEsperado.codigo}" divergente do ${fonteLabel}: esperado ~${qtdEsperada.toFixed(1)}, encontrado ${qtdNaConta.toFixed(1)} (diferença de ${diffPercent.toFixed(0)}%)${setorLabel}`,
+              codigoItem: itemEsperado.codigo,
+              descricaoItem: itemEsperado.descricao,
+              valorEsperado: `${qtdEsperada.toFixed(1)}`,
+              valorEncontrado: `${qtdNaConta.toFixed(1)}`,
+              padraoId: padrao.id,
+              isGabarito: isGab,
+              setor: setor !== 'GERAL' ? setor : undefined,
+              detalhes: {
+                procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+                fonte: fonteLabel,
+                setorPadrao: padrao.setor || null,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Verificar itens extras (na conta mas não no kit) - apenas para gabaritos
+  if (isGab) {
+    const codigosEsperados = new Set(itensAssociados.map(i => i.codigo));
+    const itensNaoProc = itensDoSetor.filter(i => {
+      const tipo = (i.tipoItem || "").toUpperCase().trim();
+      return !tiposProcedimento.has(tipo) && !tipo.includes("PROC");
+    });
+    
+    for (const itemNaConta of itensNaoProc) {
+      if (itemNaConta.codigoItem && !codigosEsperados.has(itemNaConta.codigoItem)) {
+        divergencias.push({
+          tipo: "ITEM_EXTRA",
+          severidade: "info",
+          mensagem: `Item "${itemNaConta.descricaoItem || itemNaConta.codigoItem}" presente na conta mas não definido no gabarito de "${padrao.descricaoProcedimentoPrincipal}".${setorLabel}`,
+          codigoItem: itemNaConta.codigoItem,
+          descricaoItem: itemNaConta.descricaoItem || undefined,
+          padraoId: padrao.id,
+          isGabarito: true,
+          setor: setor !== 'GERAL' ? setor : undefined,
+          detalhes: {
+            procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+            fonte: "gabarito",
+            setorPadrao: padrao.setor || null,
+          },
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -546,6 +662,7 @@ export async function executarComparacaoESalvar(
     totalDivergencias: resultado.totalDivergencias,
     gabaritosUsados: resultado.gabaritosUsados,
     padroesUsados: resultado.padroesUsados,
+    setoresAnalisados: resultado.setoresAnalisados,
     statusGeral: resultado.statusGeral,
   });
 
