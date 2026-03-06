@@ -49,7 +49,7 @@ export default function PadroesCobranca() {
   const setores = trpc.padroesCobranca.listarSetores.useQuery({ estabelecimentoId });
 
   const padroesPreco = trpc.padroesCobranca.consultarPadroesPreco.useQuery(
-    { estabelecimentoId, convenio: selectedConvenio || undefined, busca: searchTerm || undefined, tipoItem: selectedTipoItem || undefined, page: pagePreco },
+    { estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, busca: searchTerm || undefined, tipoItem: selectedTipoItem || undefined, page: pagePreco },
     { enabled: activeTab === "preco" }
   );
 
@@ -118,9 +118,9 @@ export default function PadroesCobranca() {
   const gerarTodos = async () => {
     toast.info("Gerando todos os padrões... isso pode levar alguns minutos.");
     try {
-      await gerarPreco.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
+      await gerarPreco.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
       await gerarGlosa.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
-      await gerarQuantidade.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
+      await gerarQuantidade.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined });
       await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
       toast.success("Todos os padrões foram gerados com sucesso!");
     } catch (err: any) {
@@ -345,7 +345,18 @@ export default function PadroesCobranca() {
                   <SelectItem value="taxa">Taxa</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={() => gerarPreco.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined })} disabled={gerarPreco.isPending} className="gap-2">
+              <Select value={selectedSetor} onValueChange={setSelectedSetor}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Setor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os setores</SelectItem>
+                  {setores.data?.map((s: string) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => gerarPreco.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true })} disabled={gerarPreco.isPending} className="gap-2">
                 {gerarPreco.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Atualizar Padrões
               </Button>
@@ -368,6 +379,7 @@ export default function PadroesCobranca() {
                               <Badge variant="outline" className="text-xs">{item.codigoItem}</Badge>
                               <Badge variant="secondary" className="text-xs">{item.tipoItem}</Badge>
                               <span className="text-xs text-muted-foreground">{item.convenio}</span>
+                              {item.setor && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">{item.setor}</Badge>}
                             </div>
                             <p className="text-sm font-medium truncate">{item.descricaoItem || "Sem descrição"}</p>
                           </div>
@@ -502,7 +514,7 @@ export default function PadroesCobranca() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline" className="text-xs">{item.codigoItem}</Badge>
-                              <Badge variant="secondary" className="text-xs">{item.setor}</Badge>
+                              {item.setor && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">{item.setor}</Badge>}
                               <span className="text-xs text-muted-foreground">{item.convenio}</span>
                             </div>
                             <p className="text-sm font-medium truncate">{item.descricaoItem || "Sem descrição"}</p>

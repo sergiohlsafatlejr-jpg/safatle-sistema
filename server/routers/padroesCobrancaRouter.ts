@@ -91,8 +91,10 @@ export const padroesCobrancaRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         convenio: z.string().optional(),
+        setor: z.string().optional(),
         competenciaInicio: z.string().optional(),
         competenciaFim: z.string().optional(),
+        agruparPorSetor: z.boolean().default(true),
       })
     )
     .mutation(async ({ input }) => {
@@ -106,6 +108,9 @@ export const padroesCobrancaRouter = router({
       if (input.convenio) {
         whereClause += ` AND convenio = ${escapeSql(input.convenio)}`;
       }
+      if (input.setor) {
+        whereClause += ` AND setor = ${escapeSql(input.setor)}`;
+      }
       if (input.competenciaInicio) {
         whereClause += ` AND competencia >= ${escapeSql(input.competenciaInicio)}`;
       }
@@ -113,9 +118,13 @@ export const padroesCobrancaRouter = router({
         whereClause += ` AND competencia <= ${escapeSql(input.competenciaFim)}`;
       }
 
+      const setorSelect = input.agruparPorSetor ? `COALESCE(setor, 'TODOS') as setor,` : ``;
+      const setorGroup = input.agruparPorSetor ? `COALESCE(setor, 'TODOS'),` : ``;
+
       const statsResult = await db.execute(sql.raw(`
         SELECT 
           convenio,
+          ${setorSelect}
           codigoItem,
           MAX(descricaoItem) as descricaoItem,
           MAX(tipoItem) as tipoItem,
@@ -133,7 +142,7 @@ export const padroesCobrancaRouter = router({
           MAX(competencia) as competenciaFim
         FROM faturamento_unificado
         ${whereClause}
-        GROUP BY convenio, codigoItem
+        GROUP BY convenio, ${setorGroup} codigoItem
         HAVING COUNT(*) >= 3
       `));
 
@@ -159,6 +168,7 @@ export const padroesCobrancaRouter = router({
           batch.map((s: any) => ({
             estabelecimentoId: input.estabelecimentoId,
             convenio: String(s.convenio),
+            setor: (input.agruparPorSetor && s.setor && s.setor !== 'TODOS') ? String(s.setor) : null,
             codigoItem: String(s.codigoItem),
             descricaoItem: s.descricaoItem ? String(s.descricaoItem).substring(0, 500) : null,
             tipoItem: s.tipoItem ? String(s.tipoItem) : null,
@@ -187,6 +197,7 @@ export const padroesCobrancaRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         convenio: z.string().optional(),
+        setor: z.string().optional(),
         tipoItem: z.string().optional(),
         busca: z.string().optional(),
         page: z.number().default(1),
@@ -201,6 +212,7 @@ export const padroesCobrancaRouter = router({
         eq(padraoPrecoConvenio.estabelecimentoId, input.estabelecimentoId),
       ];
       if (input.convenio) conditions.push(eq(padraoPrecoConvenio.convenio, input.convenio));
+      if (input.setor) conditions.push(eq(padraoPrecoConvenio.setor, input.setor));
       if (input.tipoItem) conditions.push(eq(padraoPrecoConvenio.tipoItem, input.tipoItem));
       if (input.busca) {
         conditions.push(

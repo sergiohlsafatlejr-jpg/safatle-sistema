@@ -2486,3 +2486,9 @@
 - [x] Feature: Atualizar geração de padrões de composição para agrupar por setor
 - [x] Feature: Atualizar comparação conta vs padrão para considerar setor do item
 - [x] Feature: Atualizar frontend (Padrões de Cobrança, Criar Gabarito, Conta Convênio) para exibir/filtrar por setor
+- [x] Feature: Adicionar campo setor nos padrões de preço (padroesCobranca tipo=preco) para comparação por setor
+- [x] Feature: Adicionar campo setor nos padrões de quantidade (padroesCobranca tipo=quantidade) para comparação por setor
+- [x] Feature: Atualizar geração de padrões de preço/quantidade para agrupar por setor
+- [x] Feature: Atualizar comparadorPadroes para usar setor nos padrões de preço e quantidade
+- [x] Feature: Atualizar frontend Padrões de Cobrança para exibir setor nas abas preço/quantidade
+- [x] Feature: Incluir coluna/badge de setor na tela de Conta Convênio

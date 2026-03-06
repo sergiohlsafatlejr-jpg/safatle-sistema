@@ -200,4 +200,79 @@ describe("comparadorPadroes - Suporte a Setor", () => {
     // Deve ter usado o gabarito com setor específico (id=2)
     expect(resultado.gabaritosUsados).toBe(1);
   });
+
+  it("deve detectar divergência de preço com padrão específico por setor", async () => {
+    // Item no CENTRO CIRURGICO com preço acima do padrão
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "10101039", convenio: "UNIMED", convenioId: 1, tipoItem: "PROCEDIMENTO", quantidade: "1", valorUnitario: "1000", valorTotal: "1000", setor: "CENTRO CIRURGICO" },
+      ])
+      // Padrões de preço - com setor específico (campos reais: mediaUnitario, desvioUnitario, minUnitario, maxUnitario)
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          codigoItem: "10101039",
+          tipoItem: "PROCEDIMENTO",
+          convenio: "UNIMED",
+          setor: "CENTRO CIRURGICO",
+          mediaUnitario: "500",
+          desvioUnitario: "50",
+          minUnitario: "400",
+          maxUnitario: "600",
+          totalOcorrencias: 20,
+          confianca: 90,
+        },
+        {
+          id: 2,
+          codigoItem: "10101039",
+          tipoItem: "PROCEDIMENTO",
+          convenio: "UNIMED",
+          setor: null, // genérico
+          mediaUnitario: "700",
+          desvioUnitario: "100",
+          minUnitario: "500",
+          maxUnitario: "900",
+          totalOcorrencias: 50,
+          confianca: 85,
+        },
+      ])
+      // Padrões de quantidade
+      .mockResolvedValueOnce([])
+      // Padrões de glosa
+      .mockResolvedValueOnce([])
+      // Padrões de composição
+      .mockResolvedValueOnce([]);
+
+    const resultado = await compararContaComPadroes("CONTA006", 1);
+
+    // Deve detectar divergência de preço usando o padrão do CENTRO CIRURGICO (tipo PRECO)
+    const divPreco = resultado.divergencias.filter(d => d.tipo === "PRECO");
+    expect(divPreco.length).toBeGreaterThanOrEqual(1);
+    // A mensagem deve mencionar o setor
+    expect(divPreco[0].mensagem).toContain("Setor: CENTRO CIRURGICO");
+    expect(resultado.totalItensAnalisados).toBe(1);
+  });
+
+  it("deve incluir setor na tela de conta convênio - campo setor retornado", async () => {
+    // Simular itens com setor preenchido
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "10101039", convenio: "UNIMED", convenioId: 1, tipoItem: "PROCEDIMENTO", quantidade: "1", valorUnitario: "500", valorTotal: "500", setor: "AMBULATORIO" },
+        { codigoItem: "20201010", convenio: "UNIMED", convenioId: 1, tipoItem: "MAT_MED", quantidade: "3", valorUnitario: "20", valorTotal: "60", setor: "CENTRO CIRURGICO" },
+      ])
+      // Padrões de preço
+      .mockResolvedValueOnce([])
+      // Padrões de quantidade
+      .mockResolvedValueOnce([])
+      // Padrões de glosa
+      .mockResolvedValueOnce([])
+      // Padrões de composição
+      .mockResolvedValueOnce([]);
+
+    const resultado = await compararContaComPadroes("CONTA007", 1);
+
+    expect(resultado.setoresAnalisados).toContain("AMBULATORIO");
+    expect(resultado.setoresAnalisados).toContain("CENTRO CIRURGICO");
+    expect(resultado.setoresAnalisados).toHaveLength(2);
+  });
 });

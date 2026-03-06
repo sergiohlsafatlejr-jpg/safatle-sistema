@@ -3042,6 +3042,7 @@ export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
   
   estabelecimentoId: int("estabelecimentoId").notNull(),
   convenio: varchar("convenio", { length: 255 }).notNull(),
+  setor: varchar("setor", { length: 255 }), // Setor de atendimento (ex: CENTRO CIRURGICO, POSTO I)
   
   codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
   descricaoItem: varchar("descricaoItem", { length: 500 }),
@@ -3075,6 +3076,7 @@ export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
 }, (table) => ({
   estabConvItemIdx: index("idx_ppc_estab_conv_item").on(table.estabelecimentoId, table.convenio, table.codigoItem),
   convenioIdx: index("idx_ppc_convenio").on(table.convenio),
+  setorIdx: index("idx_ppc_setor").on(table.setor),
 }));
 export type PadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferSelect;
 export type InsertPadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferInsert;

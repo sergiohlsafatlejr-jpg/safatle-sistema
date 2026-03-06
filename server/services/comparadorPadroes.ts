@@ -140,7 +140,7 @@ export async function compararContaComPadroes(
 
   const divergencias: Divergencia[] = [];
 
-  // 3. Buscar padrões de preço para este convênio
+  // 3. Buscar padrões de preço para este convênio (com suporte a setor)
   const padroesPreco = await db
     .select()
     .from(padraoPrecoConvenio)
@@ -149,7 +149,13 @@ export async function compararContaComPadroes(
       eq(padraoPrecoConvenio.convenio, convenio),
     ));
 
-  const mapPreco = new Map(padroesPreco.map(p => [p.codigoItem, p]));
+  // Indexar padrões de preço por código para match com setor
+  const mapPrecoPorCodigo = new Map<string, typeof padroesPreco>();
+  for (const p of padroesPreco) {
+    if (!p.codigoItem) continue;
+    if (!mapPrecoPorCodigo.has(p.codigoItem)) mapPrecoPorCodigo.set(p.codigoItem, []);
+    mapPrecoPorCodigo.get(p.codigoItem)!.push(p);
+  }
 
   // 4. Buscar padrões de quantidade (agora com setor)
   const padroesQtd = await db
@@ -207,8 +213,12 @@ export async function compararContaComPadroes(
     const quantidade = parseFloat(item.quantidade || "0");
     const setorItem = (item as any).setor || null;
 
-    // 7a. Comparação de PREÇO
-    const padraoP = mapPreco.get(codigo);
+    // 7a. Comparação de PREÇO (com suporte a setor)
+    const candidatosPreco = mapPrecoPorCodigo.get(codigo) || [];
+    // Selecionar o melhor padrão de preço: setor específico > genérico
+    let padraoP = candidatosPreco.find(p => p.setor && setorItem && p.setor.trim().toUpperCase() === setorItem.trim().toUpperCase());
+    if (!padraoP) padraoP = candidatosPreco.find(p => !p.setor); // fallback genérico
+    if (!padraoP && candidatosPreco.length > 0) padraoP = candidatosPreco[0]; // qualquer um como último recurso
     if (padraoP) {
       const mediaUnit = parseFloat(padraoP.mediaUnitario || "0");
       const desvioUnit = parseFloat(padraoP.desvioUnitario || "0");
@@ -225,7 +235,7 @@ export async function compararContaComPadroes(
           divergencias.push({
             tipo: "PRECO",
             severidade,
-            mensagem: `Valor unitário ${percentAcima}% acima da média (R$ ${mediaUnit.toFixed(2)}). Limite superior: R$ ${limiteSuperior.toFixed(2)}`,
+            mensagem: `Valor unitário ${percentAcima}% acima da média (R$ ${mediaUnit.toFixed(2)}). Limite superior: R$ ${limiteSuperior.toFixed(2)}${padraoP.setor ? ` [Setor: ${padraoP.setor}]` : ''}`,
             campo: "valorUnitario",
             valorEsperado: `R$ ${mediaUnit.toFixed(2)} (±R$ ${desvioUnit.toFixed(2)})`,
             valorEncontrado: `R$ ${valorUnitario.toFixed(2)}`,
@@ -240,7 +250,7 @@ export async function compararContaComPadroes(
           divergencias.push({
             tipo: "PRECO",
             severidade: "info",
-            mensagem: `Valor unitário ${percentAbaixo}% abaixo da média (R$ ${mediaUnit.toFixed(2)}).`,
+            mensagem: `Valor unitário ${percentAbaixo}% abaixo da média (R$ ${mediaUnit.toFixed(2)}).${padraoP.setor ? ` [Setor: ${padraoP.setor}]` : ''}`,
             campo: "valorUnitario",
             valorEsperado: `R$ ${mediaUnit.toFixed(2)} (±R$ ${desvioUnit.toFixed(2)})`,
             valorEncontrado: `R$ ${valorUnitario.toFixed(2)}`,

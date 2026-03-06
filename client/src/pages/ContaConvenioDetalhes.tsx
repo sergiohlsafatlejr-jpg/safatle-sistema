@@ -253,6 +253,7 @@ export default function ContaConvenioDetalhes() {
       "Tipo Item": item.tipoItem || "-",
       "Código": item.codigoItem || "-",
       "Descrição": item.descricaoItem || "-",
+      "Setor": item.setor || "-",
       "Quantidade": parseFloat(item.quantidade || "1"),
       "Valor Unitário": parseFloat(item.valorUnitario || "0"),
       "Valor Total": parseFloat(item.valorTotal || "0"),
@@ -545,6 +546,7 @@ export default function ContaConvenioDetalhes() {
                           <TableHead>Tipo</TableHead>
                           <TableHead>Código</TableHead>
                           <TableHead>Descrição</TableHead>
+                          <TableHead>Setor</TableHead>
                           <TableHead>Data Exec.</TableHead>
                           <TableHead className="text-right">Qtd</TableHead>
                           <TableHead className="text-right">Valor Unit.</TableHead>
@@ -570,6 +572,13 @@ export default function ContaConvenioDetalhes() {
                               <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
                               <TableCell className="max-w-xs truncate" title={item.descricaoItem}>
                                 {item.descricaoItem || "-"}
+                              </TableCell>
+                              <TableCell>
+                                {item.setor ? (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                    {item.setor}
+                                  </Badge>
+                                ) : "-"}
                               </TableCell>
                               <TableCell>{formatDate(item.dataExecucao)}</TableCell>
                               <TableCell className="text-right">{item.quantidade || 1}</TableCell>
