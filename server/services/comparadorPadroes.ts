@@ -32,6 +32,15 @@ export interface Divergencia {
   detalhes?: Record<string, any>;
 }
 
+export interface DetalhesScoreRisco {
+  score: number;
+  composicao: number;
+  preco: number;
+  quantidade: number;
+  glosa: number;
+  detalhes: string[];
+}
+
 export interface ResultadoComparacao {
   numeroConta: string;
   totalItensAnalisados: number;
@@ -44,6 +53,7 @@ export interface ResultadoComparacao {
   gabaritosUsados: number;
   padroesUsados: number;
   setoresAnalisados: string[];
+  scoreRisco: DetalhesScoreRisco;
 }
 
 /**
@@ -110,6 +120,7 @@ export async function compararContaComPadroes(
       gabaritosUsados: 0,
       padroesUsados: 0,
       setoresAnalisados: [],
+      scoreRisco: { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] },
     };
   }
 
@@ -135,6 +146,7 @@ export async function compararContaComPadroes(
       gabaritosUsados: 0,
       padroesUsados: 0,
       setoresAnalisados: setoresNaConta,
+      scoreRisco: { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] },
     };
   }
 
@@ -417,6 +429,9 @@ export async function compararContaComPadroes(
     ? "divergente" as const
     : "conforme" as const;
 
+  // 10. Calcular Score de Risco
+  const scoreRisco = calcularScoreRisco(divergencias, resumoPorTipo, itens.length);
+
   return {
     numeroConta,
     totalItensAnalisados: itens.length,
@@ -429,6 +444,7 @@ export async function compararContaComPadroes(
     gabaritosUsados,
     padroesUsados,
     setoresAnalisados: setoresNaConta,
+    scoreRisco,
   };
 }
 
@@ -654,12 +670,14 @@ export async function executarComparacaoESalvar(
       .where(eq(contasConvenioItens.id, item.id));
   }
 
-  // Atualizar resumo da conta
+  // Atualizar resumo da conta (com score de risco)
   await db.update(contasConvenioResumo)
     .set({
       statusAnalise: resultado.statusGeral,
       totalDivergencias: resultado.totalDivergencias,
       totalAlertas: resultado.totalAlertas + resultado.totalCriticos,
+      scoreRisco: resultado.scoreRisco.score,
+      detalhesRisco: resultado.scoreRisco,
     })
     .where(and(
       eq(contasConvenioResumo.numeroConta, numeroConta),
@@ -677,4 +695,78 @@ export async function executarComparacaoESalvar(
   });
 
   return resultado;
+}
+
+/**
+ * Calcula o Score de Risco Consolidado (0-100) de uma conta
+ * Combina divergências de composição, preço, quantidade e glosa
+ * Pesos: Composição 35%, Preço 25%, Quantidade 20%, Glosa 20%
+ */
+function calcularScoreRisco(
+  divergencias: Divergencia[],
+  resumoPorTipo: Record<string, number>,
+  totalItens: number
+): DetalhesScoreRisco {
+  if (divergencias.length === 0 || totalItens === 0) {
+    return { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] };
+  }
+
+  const detalhes: string[] = [];
+  
+  // Score de Composição (0-100): itens faltantes e extras
+  let scoreComposicao = 0;
+  const divComposicao = divergencias.filter(d => d.tipo === "ITEM_FALTANTE" || d.tipo === "ITEM_EXTRA" || d.tipo === "COMPOSICAO");
+  if (divComposicao.length > 0) {
+    const criticos = divComposicao.filter(d => d.severidade === "critico" || d.severidade === "alerta").length;
+    const avisos = divComposicao.filter(d => d.severidade === "aviso" || d.severidade === "info").length;
+    scoreComposicao = Math.min(100, criticos * 25 + avisos * 10);
+    detalhes.push(`Composição: ${divComposicao.length} divergência(s) (${criticos} críticas)`);
+  }
+
+  // Score de Preço (0-100): valores fora da faixa
+  let scorePreco = 0;
+  const divPreco = divergencias.filter(d => d.tipo === "PRECO");
+  if (divPreco.length > 0) {
+    const criticos = divPreco.filter(d => d.severidade === "critico" || d.severidade === "alerta").length;
+    const avisos = divPreco.filter(d => d.severidade === "aviso" || d.severidade === "info").length;
+    scorePreco = Math.min(100, criticos * 30 + avisos * 8);
+    detalhes.push(`Preço: ${divPreco.length} item(ns) fora da faixa (${criticos} críticos)`);
+  }
+
+  // Score de Quantidade (0-100): quantidades anormais
+  let scoreQuantidade = 0;
+  const divQtd = divergencias.filter(d => d.tipo === "QUANTIDADE");
+  if (divQtd.length > 0) {
+    const criticos = divQtd.filter(d => d.severidade === "critico" || d.severidade === "alerta").length;
+    const avisos = divQtd.filter(d => d.severidade === "aviso" || d.severidade === "info").length;
+    scoreQuantidade = Math.min(100, criticos * 30 + avisos * 10);
+    detalhes.push(`Quantidade: ${divQtd.length} item(ns) com quantidade anormal`);
+  }
+
+  // Score de Glosa (0-100): risco de glosa
+  let scoreGlosa = 0;
+  const divGlosa = divergencias.filter(d => d.tipo === "GLOSA_RISCO");
+  if (divGlosa.length > 0) {
+    const criticos = divGlosa.filter(d => d.severidade === "critico" || d.severidade === "alerta").length;
+    const avisos = divGlosa.filter(d => d.severidade === "aviso" || d.severidade === "info").length;
+    scoreGlosa = Math.min(100, criticos * 35 + avisos * 15);
+    detalhes.push(`Glosa: ${divGlosa.length} item(ns) com risco de glosa`);
+  }
+
+  // Score consolidado com pesos
+  const score = Math.min(100, Math.round(
+    scoreComposicao * 0.35 +
+    scorePreco * 0.25 +
+    scoreQuantidade * 0.20 +
+    scoreGlosa * 0.20
+  ));
+
+  return {
+    score,
+    composicao: scoreComposicao,
+    preco: scorePreco,
+    quantidade: scoreQuantidade,
+    glosa: scoreGlosa,
+    detalhes,
+  };
 }

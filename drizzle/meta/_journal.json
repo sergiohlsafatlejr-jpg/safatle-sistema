@@ -78,6 +78,13 @@
       "when": 1772824374520,
       "tag": "0067_broad_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "5",
+      "when": 1772830347236,
+      "tag": "0068_nifty_stranger",
+      "breakpoints": true
     }
   ]
 }

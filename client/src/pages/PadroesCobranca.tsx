@@ -29,6 +29,7 @@ export default function PadroesCobranca() {
   const [selectedTipoItem, setSelectedTipoItem] = useState<string>("");
   const [selectedNivelRisco, setSelectedNivelRisco] = useState<string>("");
   const [selectedSetor, setSelectedSetor] = useState<string>("");
+  const [selectedProfissional, setSelectedProfissional] = useState<string>("");
   const [expandedItem, setExpandedItem] = useState<number | null>(null);
   const [pagePreco, setPagePreco] = useState(1);
   const [pageGlosa, setPageGlosa] = useState(1);
@@ -47,6 +48,7 @@ export default function PadroesCobranca() {
   const resumo = trpc.padroesCobranca.resumo.useQuery({ estabelecimentoId });
   const convenios = trpc.padroesCobranca.listarConvenios.useQuery({ estabelecimentoId });
   const setores = trpc.padroesCobranca.listarSetores.useQuery({ estabelecimentoId });
+  const profissionais = trpc.padroesCobranca.listarProfissionais.useQuery({ estabelecimentoId });
 
   const padroesPreco = trpc.padroesCobranca.consultarPadroesPreco.useQuery(
     { estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, busca: searchTerm || undefined, tipoItem: selectedTipoItem || undefined, page: pagePreco },
@@ -64,12 +66,12 @@ export default function PadroesCobranca() {
   );
 
   const padroesComposicao = trpc.padroesCobranca.consultarPadroesComposicao.useQuery(
-    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, page: pageComp, status: (selectedStatusComp || undefined) as any },
+    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, profissional: selectedProfissional || undefined, page: pageComp, status: (selectedStatusComp || undefined) as any },
     { enabled: activeTab === "composicao" }
   );
 
   const gabaritos = trpc.padroesCobranca.listarGabaritos.useQuery(
-    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, page: pageGab },
+    { estabelecimentoId, busca: searchTerm || undefined, setor: selectedSetor || undefined, profissional: selectedProfissional || undefined, page: pageGab },
     { enabled: activeTab === "gabarito" }
   );
 
@@ -121,7 +123,7 @@ export default function PadroesCobranca() {
       await gerarPreco.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
       await gerarGlosa.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
       await gerarQuantidade.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined });
-      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
+      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true, agruparPorProfissional: !!selectedProfissional });
       toast.success("Todos os padrões foram gerados com sucesso!");
     } catch (err: any) {
       toast.error(`Erro ao gerar padrões: ${err.message}`);
@@ -591,6 +593,7 @@ export default function PadroesCobranca() {
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
                                 {item.setor && <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">{item.setor}</Badge>}
+                                {item.profissionalExecutante && <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-400 border-purple-500/20">{item.profissionalExecutante}</Badge>}
                                 {statusBadge(item.status, item.isGabarito)}
                                 {confiancaBadge(item.confianca || 0)}
                               </div>
@@ -711,6 +714,7 @@ export default function PadroesCobranca() {
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs">{item.codigoProcedimentoPrincipal}</Badge>
                                 {item.setor && <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">{item.setor}</Badge>}
+                                {item.profissionalExecutante && <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-400 border-purple-500/20">{item.profissionalExecutante}</Badge>}
                                 <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/30 gap-1"><BookOpen className="h-3 w-3" />Gabarito</Badge>
                                 {confiancaBadge(item.confianca || 100)}
                               </div>

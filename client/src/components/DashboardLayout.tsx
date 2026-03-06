@@ -126,6 +126,7 @@ const menuItems: MenuItem[] = [
     { icon: Activity, label: "Motor de Regras", path: "/motor-regras", modulo: "relatoriosBi" },
     { icon: Wrench, label: "Regras de Negócio", path: "/regras-negocio", modulo: "regrasNegocio" },
     { icon: BarChart3, label: "Padrões de Cobrança", path: "/padroes-cobranca", modulo: "comparacoes" },
+    { icon: BookOpen, label: "Tabelas de Porte", path: "/tabelas-porte", modulo: "comparacoes" },
   ]},
 
   // Módulo 3 - Recebimentos

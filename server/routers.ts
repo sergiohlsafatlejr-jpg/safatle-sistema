@@ -22,6 +22,7 @@ import { padroesCobrancaRouter } from "./routers/padroesCobrancaRouter";
 import { integradorDadosRouter } from "./routers/integradorDadosRouter";
 import { faturamentoUnificadoRouter } from "./routers/faturamentoUnificadoRouter";
 import { contasConvenioRouter } from "./routers/contasConvenioRouter";
+import { cbhpmRouter } from "./routers/cbhpmRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 
@@ -7082,6 +7083,9 @@ export const appRouter = router({
 
   // ============ FATURAMENTO UNIFICADO & CONCILIAÇÃO CRUZADA ============
   faturamentoUnificado: faturamentoUnificadoRouter,
+
+  // ============ CBHPM & TABELAS DE PORTE ============
+  cbhpm: cbhpmRouter,
 
   // ============ RECEBIMENTO GERAL ============
   recebimentoGeral: router({

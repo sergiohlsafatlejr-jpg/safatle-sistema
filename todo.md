@@ -2492,3 +2492,10 @@
 - [x] Feature: Atualizar comparadorPadroes para usar setor nos padrões de preço e quantidade
 - [x] Feature: Atualizar frontend Padrões de Cobrança para exibir setor nas abas preço/quantidade
 - [x] Feature: Incluir coluna/badge de setor na tela de Conta Convênio
+- [x] Feature: Score de Risco Consolidado por Conta (0-100) com detalhamento por tipo
+- [x] Feature: Detecção de Outliers de Valor Total por Conta (acima/abaixo da média)
+- [x] Feature: Padrão por Profissional Executante (composição, preço, quantidade)
+- [x] Feature: Estrutura para importação de tabelas CBHPM e tabelas de porte por convênio (Unimed, Ipasgo)
+- [x] Feature: Exibir Score de Risco na tela de Conta Convênio Detalhes
+- [x] Feature: Exibir indicador de Outlier na listagem de Contas Convênio
+- [x] Feature: Filtro por profissional na tela de Padrões de Cobrança

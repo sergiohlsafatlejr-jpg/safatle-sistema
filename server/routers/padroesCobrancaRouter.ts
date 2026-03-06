@@ -83,6 +83,25 @@ export const padroesCobrancaRouter = router({
       return (result as any)[0] || [];
     }),
 
+  listarProfissionais: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const result = await db.execute(sql`
+        SELECT profissionalExecutante as profissional, COUNT(*) as total
+        FROM faturamento_unificado
+        WHERE estabelecimentoId = ${input.estabelecimentoId}
+          AND profissionalExecutante IS NOT NULL AND profissionalExecutante != ''
+          AND tipoItem IN ('P', 'C', 'PROCEDIMENTO', 'O', '01', 'PROC')
+        GROUP BY profissionalExecutante
+        ORDER BY COUNT(*) DESC
+      `);
+
+      return (result as any)[0] || [];
+    }),
+
   // ============================================================
   // PADRÃO 1: Preço por Procedimento/Convênio
   // ============================================================
@@ -285,6 +304,7 @@ export const padroesCobrancaRouter = router({
         competenciaFim: z.string().optional(),
         minOcorrencias: z.number().default(5),
         agruparPorSetor: z.boolean().default(true), // Agrupar padrões por setor de atendimento
+        agruparPorProfissional: z.boolean().default(false), // Agrupar padrões por profissional executante
       })
     )
     .mutation(async ({ input }) => {
@@ -308,12 +328,14 @@ export const padroesCobrancaRouter = router({
         whereClause += ` AND competencia <= ${escapeSql(input.competenciaFim)}`;
       }
 
-      // Buscar todos os itens agrupados por conta E setor (se agruparPorSetor)
+      // Buscar todos os itens agrupados por conta E setor (se agruparPorSetor) E profissional (se agruparPorProfissional)
       const setorSelect = input.agruparPorSetor ? `COALESCE(setor, 'GERAL') as setor,` : `'GERAL' as setor,`;
       const setorGroupBy = input.agruparPorSetor ? `, COALESCE(setor, 'GERAL')` : ``;
+      const profSelect = input.agruparPorProfissional ? `MAX(profissionalExecutante) as profissionalExecutante,` : `NULL as profissionalExecutante,`;
       const itensResult = await db.execute(sql.raw(`
         SELECT contaNumero, codigoItem, 
           ${setorSelect}
+          ${profSelect}
           SUBSTRING(MAX(descricaoItem), 1, 500) as descricaoItem,
           MAX(tipoItem) as tipoItem,
           SUM(CAST(quantidade AS DECIMAL(10,4))) as quantidade,
@@ -337,6 +359,24 @@ export const padroesCobrancaRouter = router({
         contasMap.get(key)!.push(item);
       }
 
+      // Se agruparPorProfissional, buscar profissional por conta
+      const profissionalPorConta = new Map<string, string>();
+      if (input.agruparPorProfissional) {
+        const profResult = await db.execute(sql.raw(`
+          SELECT DISTINCT contaNumero, profissionalExecutante
+          FROM faturamento_unificado
+          ${whereClause}
+            AND profissionalExecutante IS NOT NULL AND profissionalExecutante != ''
+            AND tipoItem IN ('P', 'C', 'PROCEDIMENTO', 'O', '01', 'PROC')
+        `));
+        const profRows = (profResult as any)[0] || [];
+        for (const row of profRows) {
+          if (row.contaNumero && row.profissionalExecutante) {
+            profissionalPorConta.set(String(row.contaNumero), String(row.profissionalExecutante));
+          }
+        }
+      }
+
       // Tipos de procedimentos principais (apenas procedimentos, excluindo materiais, medicamentos, taxas e diárias)
       const tiposPrincipais = new Set(["P", "C", "PROCEDIMENTO", "O", "01", "PROC"]);
       // Tipos que NÃO devem gerar padrão de composição (materiais, medicamentos, taxas, diárias)
@@ -349,6 +389,7 @@ export const padroesCobrancaRouter = router({
         tipo: string;
         convenio: string;
         setor: string;
+        profissional: string | null;
         contas: number;
         valorTotal: number;
         itensAssociados: Map<string, {
@@ -383,8 +424,9 @@ export const padroesCobrancaRouter = router({
         );
 
         for (const proc of procedimentosPrincipais) {
-          // Chave inclui setor para diferenciar padrões do mesmo procedimento em setores diferentes
-          const key = `${proc.codigoItem}|${proc.convenio || "TODOS"}|${setorDaConta}`;
+          // Chave inclui setor e profissional para diferenciar padrões
+          const profissional = input.agruparPorProfissional ? (profissionalPorConta.get(String(proc.contaNumero)) || 'TODOS') : 'TODOS';
+          const key = `${proc.codigoItem}|${proc.convenio || "TODOS"}|${setorDaConta}|${profissional}`;
           if (!padroesMap.has(key)) {
             padroesMap.set(key, {
               codigo: String(proc.codigoItem),
@@ -392,6 +434,7 @@ export const padroesCobrancaRouter = router({
               tipo: String(proc.tipoItem || ""),
               convenio: String(proc.convenio || ""),
               setor: setorDaConta,
+              profissional: profissional !== 'TODOS' ? profissional : null,
               contas: 0,
               valorTotal: 0,
               itensAssociados: new Map(),
@@ -445,6 +488,7 @@ export const padroesCobrancaRouter = router({
           convenioId: null,
           estabelecimentoId: input.estabelecimentoId,
           setor: padrao.setor !== 'GERAL' ? padrao.setor : null,
+          profissionalExecutante: (padrao as any).profissional || null,
           codigoProcedimentoPrincipal: padrao.codigo,
           descricaoProcedimentoPrincipal: padrao.descricao,
           tipoProcedimentoPrincipal: padrao.tipo,
@@ -494,6 +538,7 @@ export const padroesCobrancaRouter = router({
         estabelecimentoId: z.number(),
         busca: z.string().optional(),
         setor: z.string().optional(),
+        profissional: z.string().optional(),
         status: z.enum(["aprendendo", "ativo", "revisao", "inativo"]).optional(),
         page: z.number().default(1),
         limit: z.number().default(50),
@@ -508,6 +553,7 @@ export const padroesCobrancaRouter = router({
       ];
       if (input.status) conditions.push(eq(padroesCobranca.status, input.status));
       if (input.setor) conditions.push(eq(padroesCobranca.setor, input.setor));
+      if (input.profissional) conditions.push(eq(padroesCobranca.profissionalExecutante, input.profissional));
       if (input.busca) {
         conditions.push(
           sql`(${padroesCobranca.codigoProcedimentoPrincipal} LIKE ${`%${input.busca}%`} OR ${padroesCobranca.descricaoProcedimentoPrincipal} LIKE ${`%${input.busca}%`})`
@@ -1125,6 +1171,7 @@ export const padroesCobrancaRouter = router({
       estabelecimentoId: z.number(),
       busca: z.string().optional(),
       setor: z.string().optional(),
+      profissional: z.string().optional(),
       page: z.number().default(1),
       limit: z.number().default(50),
     }))
@@ -1137,6 +1184,7 @@ export const padroesCobrancaRouter = router({
         sql`isGabarito = 1`,
       ];
       if (input.setor) conditions.push(eq(padroesCobranca.setor, input.setor));
+      if (input.profissional) conditions.push(eq(padroesCobranca.profissionalExecutante, input.profissional));
       if (input.busca) {
         conditions.push(
           sql`(${padroesCobranca.codigoProcedimentoPrincipal} LIKE ${`%${input.busca}%`} OR ${padroesCobranca.descricaoProcedimentoPrincipal} LIKE ${`%${input.busca}%`})`

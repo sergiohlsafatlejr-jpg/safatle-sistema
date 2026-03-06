@@ -571,6 +571,20 @@ export default function ContaConvenio() {
                                 Alta Adm. ({(conta as any).totalLotes} lotes)
                               </Badge>
                             )}
+                            {(conta as any).isOutlier && (
+                              <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-300" title="Valor total desta conta está significativamente fora da média">
+                                Outlier
+                              </Badge>
+                            )}
+                            {(conta as any).scoreRisco != null && (conta as any).scoreRisco > 0 && (
+                              <Badge variant="outline" className={`text-xs ${
+                                (conta as any).scoreRisco >= 70 ? 'bg-red-50 text-red-700 border-red-300' :
+                                (conta as any).scoreRisco >= 40 ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                                'bg-green-50 text-green-700 border-green-300'
+                              }`}>
+                                Risco: {(conta as any).scoreRisco}
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <User className="h-4 w-4" />
@@ -597,7 +611,7 @@ export default function ContaConvenio() {
                           <DollarSign className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">Valores</span>
                         </div>
-                        <span className="text-lg font-bold text-green-600">
+                        <span className={`text-lg font-bold ${(conta as any).isOutlier ? 'text-red-600' : 'text-green-600'}`}>
                           {formatCurrency(conta.valorTotal)}
                         </span>
                         <span className="text-xs text-muted-foreground">

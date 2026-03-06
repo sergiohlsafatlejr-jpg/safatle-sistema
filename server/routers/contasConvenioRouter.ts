@@ -558,11 +558,63 @@ export const contasConvenioRouter = router({
       }
 
       // Adicionar flag de alta administrativa a cada conta
-      const contasComFlag = contas.map(conta => ({
-        ...conta,
-        isAltaAdministrativa: contasComAltaAdm.has(conta.numeroConta),
-        totalLotes: contasComAltaAdm.get(conta.numeroConta) || 1,
-      }));
+      // Detectar outliers de valor total por convênio
+      // Calcular média e desvio padrão do valor total por convênio
+      const conveniosNaPagina = [...new Set(contas.map(c => c.convenio).filter(Boolean))];
+      const statsConvenio = new Map<string, { media: number; desvio: number }>();
+      
+      if (conveniosNaPagina.length > 0) {
+        for (const conv of conveniosNaPagina) {
+          if (!conv) continue;
+          const statsResult = await db.execute(
+            sql`SELECT 
+                  AVG(CAST(valorTotal AS DECIMAL(14,2))) as media,
+                  STDDEV(CAST(valorTotal AS DECIMAL(14,2))) as desvio
+                FROM contas_convenio_resumo
+                WHERE convenio = ${conv}
+                  AND valorTotal IS NOT NULL AND CAST(valorTotal AS DECIMAL(14,2)) > 0`
+          );
+          const row = (statsResult as any)[0]?.[0];
+          if (row && row.media) {
+            statsConvenio.set(conv, {
+              media: parseFloat(row.media),
+              desvio: parseFloat(row.desvio || "0"),
+            });
+          }
+        }
+      }
+
+      const contasComFlag = contas.map(conta => {
+        const valorConta = parseFloat(conta.valorTotal || "0");
+        const stats = conta.convenio ? statsConvenio.get(conta.convenio) : undefined;
+        let isOutlier = false;
+        let outlierTipo: "acima" | "abaixo" | null = null;
+        let outlierPercent = 0;
+        
+        if (stats && stats.desvio > 0 && valorConta > 0) {
+          const limSup = stats.media + 2 * stats.desvio;
+          const limInf = Math.max(0, stats.media - 2 * stats.desvio);
+          if (valorConta > limSup) {
+            isOutlier = true;
+            outlierTipo = "acima";
+            outlierPercent = Math.round(((valorConta - stats.media) / stats.media) * 100);
+          } else if (valorConta < limInf && limInf > 0) {
+            isOutlier = true;
+            outlierTipo = "abaixo";
+            outlierPercent = Math.round(((stats.media - valorConta) / stats.media) * 100);
+          }
+        }
+        
+        return {
+          ...conta,
+          isAltaAdministrativa: contasComAltaAdm.has(conta.numeroConta),
+          totalLotes: contasComAltaAdm.get(conta.numeroConta) || 1,
+          isOutlier,
+          outlierTipo,
+          outlierPercent,
+          mediaConvenio: stats?.media || null,
+        };
+      });
 
       return {
         contas: contasComFlag,
@@ -1011,9 +1063,21 @@ export const contasConvenioRouter = router({
         resumo.porSeveridade[div.severidade] = (resumo.porSeveridade[div.severidade] || 0) + 1;
       }
 
+      // Buscar score de risco do resumo da conta
+      const resumoConta = await db
+        .select({ scoreRisco: contasConvenioResumo.scoreRisco, detalhesRisco: contasConvenioResumo.detalhesRisco })
+        .from(contasConvenioResumo)
+        .where(and(
+          eq(contasConvenioResumo.numeroConta, input.numeroConta),
+          eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+        ))
+        .limit(1);
+
       return {
         divergencias: todasDivergencias,
         resumo,
+        scoreRisco: resumoConta[0]?.scoreRisco ?? null,
+        detalhesRisco: resumoConta[0]?.detalhesRisco ?? null,
       };
     }),
 

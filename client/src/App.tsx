@@ -68,6 +68,7 @@ const PadroesCobranca = lazy(() => import("./pages/PadroesCobranca"));
 const CriarGabarito = lazy(() => import("./pages/CriarGabarito"));
 const EditarPadrao = lazy(() => import("./pages/EditarPadrao"));
 const DetalhesPadrao = lazy(() => import("./pages/DetalhesPadrao"));
+const TabelasPorte = lazy(() => import("./pages/TabelasPorte"));
 
 function PageLoader() {
   return (
@@ -158,6 +159,7 @@ function Router() {
         <Route path={"/criar-gabarito"} component={CriarGabarito} />
         <Route path={"/editar-padrao/:id"} component={EditarPadrao} />
         <Route path={"/detalhes-padrao/:id"} component={DetalhesPadrao} />
+        <Route path={"/tabelas-porte"} component={TabelasPorte} />
         <Route path={"/relatorio-faturamento"} component={NotFound} />
         <Route path={"/relatorio-atendimentos"} component={NotFound} />
         <Route path={"/404"} component={NotFound} />

@@ -1109,6 +1109,7 @@ export const padroesCobranca = mysqlTable("padroesCobranca", {
   convenioId: int("convenioId"),
   estabelecimentoId: int("estabelecimentoId"),
   setor: varchar("setor", { length: 255 }), // Setor de atendimento (ex: CENTRO CIRURGICO, POSTO I)
+  profissionalExecutante: varchar("profissionalExecutante", { length: 255 }), // Profissional executante (médico)
   
   // Procedimento principal que dispara o padrão
   codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
@@ -3303,6 +3304,11 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
   totalDivergencias: int("totalDivergencias").default(0),
   totalAlertas: int("totalAlertas").default(0),
   
+  // Score de Risco (0-100)
+  scoreRisco: int("scoreRisco"),
+  detalhesRisco: json("detalhesRisco"), // {score, composicao, preco, quantidade, glosa, detalhes[]}
+  isOutlierValor: int("isOutlierValor").default(0), // 1 = outlier de valor
+  
   // Metadados
   dataBusca: timestamp("dataBusca").defaultNow().notNull(),
   buscadoPor: int("buscadoPor"), // userId
@@ -3361,3 +3367,104 @@ export const feedbackDivergencias = mysqlTable("feedback_divergencias", {
 
 export type FeedbackDivergencia = typeof feedbackDivergencias.$inferSelect;
 export type InsertFeedbackDivergencia = typeof feedbackDivergencias.$inferInsert;
+
+
+/**
+ * Tabela CBHPM - Classificação Brasileira Hierarquizada de Procedimentos Médicos
+ * Base de referência para porte anestésico e compatibilidade de taxas
+ */
+export const tabelaCbhpm = mysqlTable("tabelaCbhpm", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  codigoProcedimento: varchar("codigoProcedimento", { length: 20 }).notNull(),
+  descricaoProcedimento: varchar("descricaoProcedimento", { length: 500 }),
+  
+  // Porte do procedimento (1 a 8, ou especial)
+  porte: varchar("porte", { length: 10 }),
+  
+  // Porte anestésico esperado (1 a 8)
+  porteAnestesico: varchar("porteAnestesico", { length: 10 }),
+  
+  // Custo operacional (CO)
+  custoOperacional: decimal("custoOperacional", { precision: 14, scale: 2 }),
+  
+  // Número de auxiliares
+  numAuxiliares: int("numAuxiliares").default(0),
+  
+  // Incidência (percentual do porte para anestesia)
+  incidencia: decimal("incidencia", { precision: 5, scale: 2 }),
+  
+  // Filme radiológico (quantidade padrão)
+  filmeRadiologico: int("filmeRadiologico").default(0),
+  
+  // Grupo/Subgrupo do procedimento
+  grupo: varchar("grupo", { length: 100 }),
+  subgrupo: varchar("subgrupo", { length: 100 }),
+  
+  // Versão da tabela CBHPM
+  versao: varchar("versao", { length: 20 }).default("6a"),
+  
+  // Observações
+  observacoes: text("observacoes"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  codigoIdx: index("idx_cbhpm_codigo").on(table.codigoProcedimento),
+  porteIdx: index("idx_cbhpm_porte").on(table.porte),
+  porteAnestIdx: index("idx_cbhpm_porte_anest").on(table.porteAnestesico),
+}));
+
+export type TabelaCbhpm = typeof tabelaCbhpm.$inferSelect;
+export type InsertTabelaCbhpm = typeof tabelaCbhpm.$inferInsert;
+
+/**
+ * Tabela de Porte por Convênio
+ * Regras específicas de cada convênio para porte de sala e anestesia
+ * Sobrescreve a CBHPM quando o convênio tem tabela própria (ex: Unimed, Ipasgo)
+ */
+export const tabelaPorteConvenio = mysqlTable("tabelaPorteConvenio", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Convênio que possui tabela própria
+  convenio: varchar("convenio", { length: 255 }).notNull(),
+  
+  // Código do procedimento
+  codigoProcedimento: varchar("codigoProcedimento", { length: 20 }).notNull(),
+  descricaoProcedimento: varchar("descricaoProcedimento", { length: 500 }),
+  
+  // Porte específico do convênio (pode diferir da CBHPM)
+  porte: varchar("porte", { length: 10 }),
+  porteAnestesico: varchar("porteAnestesico", { length: 10 }),
+  
+  // Valor da taxa de sala esperado para este porte
+  valorTaxaSala: decimal("valorTaxaSala", { precision: 14, scale: 2 }),
+  
+  // Valor do honorário anestésico esperado
+  valorHonorarioAnestesico: decimal("valorHonorarioAnestesico", { precision: 14, scale: 2 }),
+  
+  // Custo operacional específico do convênio
+  custoOperacional: decimal("custoOperacional", { precision: 14, scale: 2 }),
+  
+  // Vigência
+  vigenciaInicio: timestamp("vigenciaInicio"),
+  vigenciaFim: timestamp("vigenciaFim"),
+  
+  // Origem da informação (manual, importação, contrato)
+  origem: varchar("origem", { length: 50 }).default("manual"),
+  
+  // Observações
+  observacoes: text("observacoes"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabConvIdx: index("idx_porte_conv_estab").on(table.estabelecimentoId, table.convenio),
+  codigoIdx: index("idx_porte_conv_codigo").on(table.codigoProcedimento),
+  convCodigoIdx: index("idx_porte_conv_conv_codigo").on(table.convenio, table.codigoProcedimento),
+}));
+
+export type TabelaPorteConvenio = typeof tabelaPorteConvenio.$inferSelect;
+export type InsertTabelaPorteConvenio = typeof tabelaPorteConvenio.$inferInsert;

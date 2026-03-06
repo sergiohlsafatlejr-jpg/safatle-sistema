@@ -638,8 +638,57 @@ export default function ContaConvenioDetalhes() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Resumo de Divergências */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Score de Risco + Resumo de Divergências */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Score de Risco */}
+                      {(() => {
+                        const score = divergenciasData.scoreRisco as number | null;
+                        const detalhes = divergenciasData.detalhesRisco as any;
+                        const nivel = detalhes?.nivel || (score != null ? (score >= 70 ? 'CRÍTICO' : score >= 50 ? 'ALTO' : score >= 30 ? 'MÉDIO' : 'BAIXO') : null);
+                        if (score == null) return null;
+                        return (
+                          <Card className={`border-2 ${
+                            score >= 70 ? 'border-red-500 bg-red-50/30' :
+                            score >= 40 ? 'border-orange-500 bg-orange-50/30' :
+                            'border-green-500 bg-green-50/30'
+                          }`}>
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Score de Risco</p>
+                                  <p className={`text-3xl font-bold ${
+                                    score >= 70 ? 'text-red-600' :
+                                    score >= 40 ? 'text-orange-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {score}
+                                    <span className="text-sm font-normal text-muted-foreground">/100</span>
+                                  </p>
+                                  <p className={`text-xs font-medium mt-1 ${
+                                    nivel === 'CRÍTICO' ? 'text-red-600' :
+                                    nivel === 'ALTO' ? 'text-orange-600' :
+                                    nivel === 'MÉDIO' ? 'text-yellow-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {nivel}
+                                  </p>
+                                </div>
+                                <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                                  score >= 70 ? 'bg-red-100' :
+                                  score >= 40 ? 'bg-orange-100' :
+                                  'bg-green-100'
+                                }`}>
+                                  <Shield className={`h-6 w-6 ${
+                                    score >= 70 ? 'text-red-600' :
+                                    score >= 40 ? 'text-orange-600' :
+                                    'text-green-600'
+                                  }`} />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })()}
                       <Card className="border-red-200">
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
