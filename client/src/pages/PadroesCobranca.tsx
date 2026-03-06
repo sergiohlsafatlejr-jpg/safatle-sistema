@@ -48,8 +48,7 @@ export default function PadroesCobranca() {
 
   // Criar gabarito
   const [gabDialogOpen, setGabDialogOpen] = useState(false);
-  const [gabCodigo, setGabCodigo] = useState("");
-  const [gabDescricao, setGabDescricao] = useState("");
+  const [gabProcedimentos, setGabProcedimentos] = useState<Array<{ codigo: string; descricao: string }>>([{ codigo: "", descricao: "" }]);
   const [gabObservacoes, setGabObservacoes] = useState("");
   const [gabItens, setGabItens] = useState<any[]>([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
 
@@ -174,11 +173,23 @@ export default function PadroesCobranca() {
   const isGenerating = gerarPreco.isPending || gerarGlosa.isPending || gerarQuantidade.isPending || gerarComposicao.isPending;
 
   const resetGabForm = () => {
-    setGabCodigo("");
-    setGabDescricao("");
+    setGabProcedimentos([{ codigo: "", descricao: "" }]);
     setGabObservacoes("");
     setGabItens([{ codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }]);
   };
+
+  // Helpers para múltiplos procedimentos
+  const addProcedimento = () => setGabProcedimentos(prev => [...prev, { codigo: "", descricao: "" }]);
+  const removeProcedimento = (idx: number) => {
+    if (gabProcedimentos.length > 1) setGabProcedimentos(prev => prev.filter((_, i) => i !== idx));
+  };
+  const updateProcedimento = (idx: number, field: "codigo" | "descricao", value: string) => {
+    setGabProcedimentos(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+
+  // Gerar código e descrição combinados
+  const gabCodigoCombinado = gabProcedimentos.map(p => p.codigo).filter(Boolean).join(" + ");
+  const gabDescricaoCombinada = gabProcedimentos.map(p => p.descricao).filter(Boolean).join(" + ");
 
   const openReview = (id: number) => {
     setReviewPadraoId(id);
@@ -802,7 +813,7 @@ export default function PadroesCobranca() {
 
       {/* ========== DIALOG: DETALHES DO PADRÃO ========== */}
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes do Padrão</DialogTitle>
             <DialogDescription>Revise o padrão e decida se deve ser aprovado, rejeitado ou mantido em revisão.</DialogDescription>
@@ -882,46 +893,63 @@ export default function PadroesCobranca() {
 
       {/* ========== DIALOG: EDITAR PADRÃO ========== */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Itens do Padrão</DialogTitle>
             <DialogDescription>Ajuste as quantidades, frequências ou remova itens. Ao salvar, o padrão será aprovado automaticamente.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            {editItens.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2 p-2 rounded border border-border">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs shrink-0">{item.codigo}</Badge>
-                    <span className="text-sm truncate">{item.descricao}</span>
+          <div className="rounded-lg border border-border overflow-hidden">
+            {/* Header */}
+            <div className="grid grid-cols-12 gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
+              <div className="col-span-2">Código</div>
+              <div className="col-span-5">Descrição</div>
+              <div className="col-span-1">Tipo</div>
+              <div className="col-span-1">Freq %</div>
+              <div className="col-span-1">Qtd</div>
+              <div className="col-span-1">Valor</div>
+              <div className="col-span-1 text-center">Ação</div>
+            </div>
+            <div className="divide-y divide-border">
+              {editItens.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center p-3 hover:bg-muted/20">
+                  <div className="col-span-2">
+                    <Badge variant="outline" className="text-xs">{item.codigo}</Badge>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="w-20">
-                    <Label className="text-xs">Freq %</Label>
+                  <div className="col-span-5">
+                    <span className="text-sm">{item.descricao}</span>
+                  </div>
+                  <div className="col-span-1">
+                    <span className="text-xs text-muted-foreground">{item.tipo || "-"}</span>
+                  </div>
+                  <div className="col-span-1">
                     <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
                       const newItens = [...editItens];
                       newItens[idx].frequencia = Number(e.target.value);
                       setEditItens(newItens);
                     }} className="h-8 text-xs" />
                   </div>
-                  <div className="w-20">
-                    <Label className="text-xs">Qtd</Label>
+                  <div className="col-span-1">
                     <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
                       const newItens = [...editItens];
                       newItens[idx].quantidadeMedia = Number(e.target.value);
                       setEditItens(newItens);
                     }} className="h-8 text-xs" />
                   </div>
-                  <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
-                    setEditItens(editItens.filter((_, i) => i !== idx));
-                  }}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  <div className="col-span-1">
+                    <span className="text-xs text-green-400">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
+                  </div>
+                  <div className="col-span-1 flex justify-center">
+                    <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
+                      setEditItens(editItens.filter((_, i) => i !== idx));
+                    }}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">{editItens.length} item(ns) no padrão</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
             <Button onClick={() => editarPadrao.mutate({ id: editPadraoId!, itensAssociados: editItens })} disabled={editarPadrao.isPending} className="gap-2">
@@ -934,113 +962,151 @@ export default function PadroesCobranca() {
 
       {/* ========== DIALOG: CRIAR GABARITO ========== */}
       <Dialog open={gabDialogOpen} onOpenChange={setGabDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Gabarito Manual</DialogTitle>
-            <DialogDescription>Defina um padrão de composição manualmente. Este gabarito não será sobrescrito na regeneração automática.</DialogDescription>
+            <DialogDescription>Defina um padrão de composição manualmente. Você pode combinar múltiplos procedimentos (ex: CIRURGIA A + CIRURGIA B). Este gabarito não será sobrescrito na regeneração automática.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Código do Procedimento *</Label>
-                <Input value={gabCodigo} onChange={(e) => setGabCodigo(e.target.value)} placeholder="Ex: 10101039" className="mt-1" />
+          <div className="space-y-5">
+            {/* Procedimentos Principais */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-semibold">Procedimentos Principais *</Label>
+                <Button size="sm" variant="outline" className="gap-1" onClick={addProcedimento}>
+                  <PlusCircle className="h-3 w-3" /> Adicionar Procedimento
+                </Button>
               </div>
-              <div>
-                <Label>Descrição do Procedimento *</Label>
-                <Input value={gabDescricao} onChange={(e) => setGabDescricao(e.target.value)} placeholder="Ex: Consulta em Pronto Socorro" className="mt-1" />
+              <p className="text-xs text-muted-foreground mb-3">Adicione um ou mais procedimentos que juntos formam o padrão. Ex: Cirurgia A + Cirurgia B = um padrão combinado.</p>
+              <div className="space-y-2">
+                {gabProcedimentos.map((proc, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    {idx > 0 && <Badge variant="outline" className="shrink-0 bg-blue-500/10 text-blue-400 border-blue-500/30">+</Badge>}
+                    <div className="grid grid-cols-2 gap-3 flex-1">
+                      <div>
+                        <Label className="text-xs">Código {idx + 1}</Label>
+                        <Input value={proc.codigo} onChange={(e) => updateProcedimento(idx, "codigo", e.target.value)} placeholder="Ex: 10101039" className="mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Descrição {idx + 1}</Label>
+                        <Input value={proc.descricao} onChange={(e) => updateProcedimento(idx, "descricao", e.target.value)} placeholder="Ex: Consulta em Pronto Socorro" className="mt-1" />
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0 shrink-0" onClick={() => removeProcedimento(idx)} disabled={gabProcedimentos.length <= 1}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
+              {gabProcedimentos.length > 1 && (
+                <div className="mt-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                  <p className="text-xs font-medium text-blue-400">Padrão combinado:</p>
+                  <p className="text-sm mt-1">{gabCodigoCombinado || "..."}</p>
+                  <p className="text-xs text-muted-foreground">{gabDescricaoCombinada || "..."}</p>
+                </div>
+              )}
             </div>
 
             <Separator />
 
+            {/* Itens do Kit */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <Label>Itens do Kit / Composição</Label>
+                <Label className="text-base font-semibold">Itens do Kit / Composição</Label>
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => setGabItens([...gabItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, valorMedio: 0 }])}>
                   <PlusCircle className="h-3 w-3" /> Adicionar Item
                 </Button>
               </div>
-              <div className="space-y-2">
-                {gabItens.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-end p-2 rounded border border-border">
-                    <div className="col-span-2">
-                      <Label className="text-xs">Código</Label>
-                      <Input value={item.codigo} onChange={(e) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].codigo = e.target.value;
-                        setGabItens(newItens);
-                      }} placeholder="Código" className="h-8 text-xs" />
+              <div className="rounded-lg border border-border overflow-hidden">
+                {/* Header da tabela */}
+                <div className="grid grid-cols-12 gap-2 p-2 bg-muted/50 text-xs font-medium text-muted-foreground">
+                  <div className="col-span-2">Código</div>
+                  <div className="col-span-3">Descrição</div>
+                  <div className="col-span-2">Tipo</div>
+                  <div className="col-span-1">Freq %</div>
+                  <div className="col-span-1">Qtd</div>
+                  <div className="col-span-2">Valor (R$)</div>
+                  <div className="col-span-1 text-center">Ação</div>
+                </div>
+                {/* Linhas dos itens */}
+                <div className="divide-y divide-border">
+                  {gabItens.map((item, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/20">
+                      <div className="col-span-2">
+                        <Input value={item.codigo} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].codigo = e.target.value;
+                          setGabItens(newItens);
+                        }} placeholder="Código" className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-3">
+                        <Input value={item.descricao} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].descricao = e.target.value;
+                          setGabItens(newItens);
+                        }} placeholder="Descrição do item" className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-2">
+                        <Select value={item.tipo} onValueChange={(v) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].tipo = v;
+                          setGabItens(newItens);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MAT_MED">Mat/Med</SelectItem>
+                            <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
+                            <SelectItem value="TAXA">Taxa</SelectItem>
+                            <SelectItem value="DIARIA">Diária</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-1">
+                        <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].frequencia = Number(e.target.value);
+                          setGabItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-1">
+                        <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].quantidadeMedia = Number(e.target.value);
+                          setGabItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-2">
+                        <Input type="number" min={0} step={0.01} value={item.valorMedio} onChange={(e) => {
+                          const newItens = [...gabItens];
+                          newItens[idx].valorMedio = Number(e.target.value);
+                          setGabItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
+                          if (gabItens.length > 1) setGabItens(gabItens.filter((_, i) => i !== idx));
+                        }} disabled={gabItens.length <= 1}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-4">
-                      <Label className="text-xs">Descrição</Label>
-                      <Input value={item.descricao} onChange={(e) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].descricao = e.target.value;
-                        setGabItens(newItens);
-                      }} placeholder="Descrição do item" className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Tipo</Label>
-                      <Select value={item.tipo} onValueChange={(v) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].tipo = v;
-                        setGabItens(newItens);
-                      }}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MAT_MED">Mat/Med</SelectItem>
-                          <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
-                          <SelectItem value="TAXA">Taxa</SelectItem>
-                          <SelectItem value="DIARIA">Diária</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="col-span-1">
-                      <Label className="text-xs">Freq %</Label>
-                      <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].frequencia = Number(e.target.value);
-                        setGabItens(newItens);
-                      }} className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-1">
-                      <Label className="text-xs">Qtd</Label>
-                      <Input type="number" min={0} step={0.1} value={item.quantidadeMedia} onChange={(e) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].quantidadeMedia = Number(e.target.value);
-                        setGabItens(newItens);
-                      }} className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-1">
-                      <Label className="text-xs">Valor</Label>
-                      <Input type="number" min={0} step={0.01} value={item.valorMedio} onChange={(e) => {
-                        const newItens = [...gabItens];
-                        newItens[idx].valorMedio = Number(e.target.value);
-                        setGabItens(newItens);
-                      }} className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-1 flex justify-center">
-                      <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => {
-                        if (gabItens.length > 1) setGabItens(gabItens.filter((_, i) => i !== idx));
-                      }} disabled={gabItens.length <= 1}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">{gabItens.length} item(ns) no kit</p>
             </div>
 
             <div>
               <Label>Observações (opcional)</Label>
-              <Textarea value={gabObservacoes} onChange={(e) => setGabObservacoes(e.target.value)} placeholder="Notas sobre este gabarito..." className="mt-1" />
+              <Textarea value={gabObservacoes} onChange={(e) => setGabObservacoes(e.target.value)} placeholder="Notas sobre este gabarito..." className="mt-1" rows={3} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGabDialogOpen(false)}>Cancelar</Button>
             <Button onClick={() => {
-              if (!gabCodigo || !gabDescricao) {
-                toast.error("Código e descrição do procedimento são obrigatórios.");
+              const codigoCombinado = gabProcedimentos.map(p => p.codigo.trim()).filter(Boolean).join(" + ");
+              const descricaoCombinada = gabProcedimentos.map(p => p.descricao.trim()).filter(Boolean).join(" + ");
+              if (!codigoCombinado || !descricaoCombinada) {
+                toast.error("Todos os procedimentos devem ter código e descrição.");
                 return;
               }
               if (gabItens.some(i => !i.codigo || !i.descricao)) {
@@ -1049,8 +1115,8 @@ export default function PadroesCobranca() {
               }
               criarGabarito.mutate({
                 estabelecimentoId,
-                codigoProcedimentoPrincipal: gabCodigo,
-                descricaoProcedimentoPrincipal: gabDescricao,
+                codigoProcedimentoPrincipal: codigoCombinado,
+                descricaoProcedimentoPrincipal: descricaoCombinada,
                 itensAssociados: gabItens,
                 observacoes: gabObservacoes || undefined,
               });

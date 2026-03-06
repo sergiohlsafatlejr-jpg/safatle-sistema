@@ -2467,3 +2467,6 @@
 - [x] BUG: Corrigir erro NotFoundError removeChild - Integrador de Contas (Atualizar Easy) - danilo.chaves
 - [x] BUG: Corrigir erro NotFoundError removeChild - Upload de Contas (número de conta) - iury.barbosa
 - [x] BUG: Corrigir erro NotFoundError removeChild - Conta Convênio (Carregar Padrões) - iury.barbosa
+- [x] Feature: Gabarito com múltiplos procedimentos (CIRURGIA A + CIRURGIA B como padrão combinado)
+- [x] UI: Aumentar tamanho da modal de criação de gabarito manual
+- [x] UI: Aumentar tamanho da modal de edição de itens do padrão

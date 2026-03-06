@@ -294,7 +294,12 @@ export async function compararContaComPadroes(
 
   for (const [codigoProc, padrao] of mapComposicao) {
     // Verificar se o procedimento principal está na conta
-    if (procedimentosNaConta.includes(codigoProc)) {
+    // Suporte a padrões combinados: "CODIGO_A + CODIGO_B" - todos devem estar presentes
+    const codigosCombinados = codigoProc.includes(" + ") 
+      ? codigoProc.split(" + ").map(c => c.trim()).filter(Boolean)
+      : [codigoProc];
+    const todosPresentes = codigosCombinados.every(c => procedimentosNaConta.includes(c));
+    if (todosPresentes) {
       const isGab = padrao.isGabarito === 1;
       if (isGab) gabaritosUsados++;
       else padroesUsados++;

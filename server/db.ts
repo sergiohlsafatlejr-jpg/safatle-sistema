@@ -9000,7 +9000,12 @@ export async function gerarInsightsContaIA(params: {
 
   // Verificar cada padrão
   for (const padrao of padroesAtualizados) {
-    const presente = codigosPresentes.get(padrao.codigoProcedimentoPrincipal);
+    // Suporte a padrões combinados: "CODIGO_A + CODIGO_B" - todos devem estar presentes
+    const codigosCombinados = (padrao.codigoProcedimentoPrincipal || "").includes(" + ")
+      ? padrao.codigoProcedimentoPrincipal.split(" + ").map((c: string) => c.trim()).filter(Boolean)
+      : [padrao.codigoProcedimentoPrincipal];
+    const todosPresentes = codigosCombinados.every((c: string) => codigosPresentes.has(c));
+    const presente = todosPresentes ? codigosPresentes.get(codigosCombinados[0]) : undefined;
     const itensAssociados = padrao.itensAssociados as Array<{
       codigo: string;
       descricao: string;
@@ -12040,7 +12045,11 @@ export async function validarDadosTasyComRegras(
       const itensRegra = itensPorRegra.get(regra.id) || [];
       
       // Verifica se o procedimento principal está no atendimento
-      if (!codigosAtendimento.has(regra.codigoProcedimentoPrincipal)) {
+      // Suporte a padrões combinados: "CODIGO_A + CODIGO_B"
+      const codigosRegraCombo = (regra.codigoProcedimentoPrincipal || "").includes(" + ")
+        ? regra.codigoProcedimentoPrincipal.split(" + ").map((c: string) => c.trim()).filter(Boolean)
+        : [regra.codigoProcedimentoPrincipal];
+      if (!codigosRegraCombo.every((c: string) => codigosAtendimento.has(c))) {
         continue;
       }
 
