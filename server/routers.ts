@@ -713,6 +713,163 @@ export const appRouter = router({
                       await db.updateArquivoProgresso(arquivoId, progresso, processados, faturamentoRecords.length);
                     }
                     console.log(`[Upload] faturamento_tiss populado: ${faturamentoRecords.length} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
+                    
+                    // === MIGRAÇÃO AUTOMÁTICA: Popular contas_convenio_itens e contas_convenio_resumo ===
+                    // Isso garante que os dados apareçam na tela de Conta Convênio imediatamente
+                    try {
+                      console.log('[Upload] Migrando dados para contas_convenio...');
+                      const { contasConvenioItens, contasConvenioResumo } = await import('../drizzle/schema');
+                      const { eq, and, sql: sqlDrizzle } = await import('drizzle-orm');
+                      const dbCC = await getDb();
+                      if (!dbCC) throw new Error('DB indisponível para migração contas_convenio');
+                      
+                      // Processar por estabelecimento
+                      const estabelecimentosProcessados = new Set<number>();
+                      for (const grupo of prestadoresComEstabelecimento) {
+                        if (estabelecimentosProcessados.has(grupo.estabelecimentoId)) continue;
+                        estabelecimentosProcessados.add(grupo.estabelecimentoId);
+                        
+                        // Buscar registros recém-inseridos deste arquivo para este estabelecimento
+                        const registrosArquivo = faturamentoRecords.filter(r => r.estabelecimentoId === grupo.estabelecimentoId);
+                        if (registrosArquivo.length === 0) continue;
+                        
+                        // Agrupar por guia para criar contas
+                        const porGuia = new Map<string, typeof registrosArquivo>();
+                        for (const reg of registrosArquivo) {
+                          const guia = reg.numeroGuiaPrestador || reg.numeroGuiaOperadora || 'SEM_GUIA';
+                          if (!porGuia.has(guia)) porGuia.set(guia, []);
+                          porGuia.get(guia)!.push(reg);
+                        }
+                        
+                        // Buscar nome do convênio
+                        let convenioNome: string | null = null;
+                        if (input.convenioId) {
+                          const convResult = await db.getConvenioById(input.convenioId);
+                          convenioNome = convResult?.nome || null;
+                        }
+                        
+                        // Limpar dados XML anteriores DESTE ARQUIVO para este estabelecimento
+                        await dbCC.delete(contasConvenioItens).where(
+                          and(
+                            eq(contasConvenioItens.estabelecimentoId, grupo.estabelecimentoId),
+                            eq(contasConvenioItens.origem, "XML"),
+                            eq(contasConvenioItens.arquivoId, arquivoId),
+                          )
+                        );
+                        
+                        // Inserir itens em batches
+                        const BATCH_CC = 500;
+                        let totalCC = 0;
+                        const allItems = registrosArquivo.map(reg => {
+                          const guia = reg.numeroGuiaPrestador || reg.numeroGuiaOperadora || 'SEM_GUIA';
+                          const vlUnit = reg.valorUnitario ? parseFloat(String(reg.valorUnitario)) : 0;
+                          const vlFat = reg.valorFaturado ? parseFloat(String(reg.valorFaturado)) : 0;
+                          const qtd = reg.quantidade ? parseFloat(String(reg.quantidade)) : 0;
+                          const vlTotal = vlFat || (vlUnit * qtd);
+                          
+                          return {
+                            origem: "XML" as const,
+                            numeroConta: String(guia),
+                            numeroGuia: reg.numeroGuiaPrestador ? String(reg.numeroGuiaPrestador) : null,
+                            numeroGuiaOperadora: reg.numeroGuiaOperadora ? String(reg.numeroGuiaOperadora) : null,
+                            numeroLote: reg.numeroLote ? String(reg.numeroLote) : null,
+                            senha: reg.senha ? String(reg.senha) : null,
+                            pacienteNome: null,
+                            carteiraBeneficiario: reg.carteiraBeneficiario ? String(reg.carteiraBeneficiario) : null,
+                            convenio: convenioNome,
+                            convenioId: input.convenioId,
+                            estabelecimentoId: grupo.estabelecimentoId,
+                            tipoItem: reg.tipoItem ? String(reg.tipoItem) : 'OUTROS',
+                            codigoItem: reg.codigoItem ? String(reg.codigoItem) : null,
+                            codigoItemTuss: null,
+                            descricaoItem: reg.descricaoItem ? String(reg.descricaoItem) : null,
+                            codigoTabela: reg.codigoTabela ? String(reg.codigoTabela) : null,
+                            quantidade: qtd ? String(qtd) : null,
+                            valorUnitario: vlUnit ? String(vlUnit) : null,
+                            valorTotal: vlTotal ? String(vlTotal) : null,
+                            dataExecucao: reg.dataExecucao ? new Date(reg.dataExecucao) : null,
+                            dataReferencia: reg.dataReferencia ? new Date(reg.dataReferencia) : null,
+                            competencia: null,
+                            profissionalExecutante: reg.nomeProf ? String(reg.nomeProf) : null,
+                            setor: null,
+                            arquivoId: arquivoId,
+                            statusAnalise: "pendente" as const,
+                          };
+                        });
+                        
+                        for (let b = 0; b < allItems.length; b += BATCH_CC) {
+                          const batch = allItems.slice(b, b + BATCH_CC);
+                          await dbCC.insert(contasConvenioItens).values(batch);
+                          totalCC += batch.length;
+                        }
+                        
+                        // Criar/atualizar resumos por guia
+                        for (const [guia, regs] of porGuia.entries()) {
+                          // Verificar se já existe resumo para esta guia
+                          const existingResumo = await dbCC.select().from(contasConvenioResumo).where(
+                            and(
+                              eq(contasConvenioResumo.numeroConta, guia),
+                              eq(contasConvenioResumo.estabelecimentoId, grupo.estabelecimentoId),
+                              eq(contasConvenioResumo.origem, "XML"),
+                            )
+                          ).limit(1);
+                          
+                          const totalItensGuia = regs.length;
+                          let valorTotalGuia = 0;
+                          let dataExecGuia: Date | null = null;
+                          
+                          for (const r of regs) {
+                            const vlFat = r.valorFaturado ? parseFloat(String(r.valorFaturado)) : 0;
+                            const vlUnit = r.valorUnitario ? parseFloat(String(r.valorUnitario)) : 0;
+                            const qtd = r.quantidade ? parseFloat(String(r.quantidade)) : 0;
+                            valorTotalGuia += vlFat || (vlUnit * qtd);
+                            if (r.dataExecucao && !dataExecGuia) dataExecGuia = new Date(r.dataExecucao);
+                          }
+                          
+                          // Calcular competência
+                          let competencia: string | null = null;
+                          const dataRef = regs[0]?.dataReferencia;
+                          if (dataRef) {
+                            const d = new Date(dataRef);
+                            competencia = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                          } else if (dataExecGuia) {
+                            competencia = `${dataExecGuia.getFullYear()}/${String(dataExecGuia.getMonth() + 1).padStart(2, '0')}`;
+                          }
+                          
+                          if (existingResumo.length > 0) {
+                            // Atualizar resumo existente (somar itens e valor)
+                            await dbCC.update(contasConvenioResumo)
+                              .set({
+                                totalItens: existingResumo[0].totalItens + totalItensGuia,
+                                valorTotal: String((parseFloat(existingResumo[0].valorTotal || '0') + valorTotalGuia).toFixed(2)),
+                              })
+                              .where(eq(contasConvenioResumo.id, existingResumo[0].id));
+                          } else {
+                            // Criar novo resumo
+                            await dbCC.insert(contasConvenioResumo).values({
+                              numeroConta: guia,
+                              estabelecimentoId: grupo.estabelecimentoId,
+                              origem: "XML" as const,
+                              convenio: convenioNome,
+                              convenioId: input.convenioId,
+                              pacienteNome: null,
+                              carteiraBeneficiario: regs[0]?.carteiraBeneficiario ? String(regs[0].carteiraBeneficiario) : null,
+                              totalItens: totalItensGuia,
+                              valorTotal: String(valorTotalGuia.toFixed(2)),
+                              dataInternacao: dataExecGuia,
+                              statusAnalise: "pendente" as const,
+                              buscadoPor: ctx.user?.id || null,
+                              competencia,
+                            });
+                          }
+                        }
+                        
+                        console.log(`[Upload] contas_convenio populado: ${totalCC} itens, ${porGuia.size} contas para estabelecimento ${grupo.estabelecimentoId}`);
+                      }
+                    } catch (ccError) {
+                      console.error('[Upload] Erro ao migrar para contas_convenio:', ccError);
+                      // Não falhar o upload se a migração falhar
+                    }
                   }
                 } catch (fatError) {
                   console.error('[Upload] Erro ao popular faturamento_tiss:', fatError);
