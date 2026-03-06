@@ -132,7 +132,7 @@ export default function PadroesCobranca() {
 
   // Navegação para telas dedicadas
   const openEdit = (padrao: any) => setLocation(`/editar-padrao/${padrao.id}`);
-  const openReview = (id: number) => setLocation(`/editar-padrao/${id}`);
+  const openReview = (id: number) => setLocation(`/detalhes-padrao/${id}`);
 
   // Helpers
   const nivelRiscoBadge = (nivel: string) => {

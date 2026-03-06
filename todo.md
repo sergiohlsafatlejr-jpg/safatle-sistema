@@ -2477,3 +2477,4 @@
 - [x] BUG: Filtros da tela Conta Convênio são perdidos ao navegar para detalhes e voltar
 - [x] UI: Substituir modal de criação de gabarito por tela dedicada (página completa)
 - [x] UI: Substituir modal de edição de itens do padrão por tela dedicada (página completa)
+- [x] UI: Transformar modal de Detalhes do padrão em tela dedicada (consistência visual)
