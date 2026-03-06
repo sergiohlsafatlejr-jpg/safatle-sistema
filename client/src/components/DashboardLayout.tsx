@@ -110,6 +110,7 @@ const menuItems: MenuItem[] = [
     { icon: Brain, label: "Dashboard IA", path: "/dashboard-ia", modulo: "comparacoes" },
     { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
     { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
+    { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
   ]},
 
   // Módulo 1 - Upload Contas
@@ -132,6 +133,7 @@ const menuItems: MenuItem[] = [
     { icon: FileCode2, label: "Upload XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
     { icon: FileSpreadsheet, label: "Upload Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
     { icon: FileText, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
+    { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
   ]},
 
   // Módulo 4 - Recurso de Glosa
@@ -159,9 +161,7 @@ const menuItems: MenuItem[] = [
     { icon: Link2, label: "Conciliação Cruzada", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas" },
   ]},
 
-  // Relatórios avulsos
-  { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
-  { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
+
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

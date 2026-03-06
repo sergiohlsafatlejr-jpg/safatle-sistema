@@ -2479,3 +2479,6 @@
 - [x] UI: Substituir modal de edição de itens do padrão por tela dedicada (página completa)
 - [x] UI: Transformar modal de Detalhes do padrão em tela dedicada (consistência visual)
 - [x] BUG: Autocomplete de códigos na tela Criar Gabarito não mostra sugestões ao digitar - procedure backend estava faltando
+- [x] DOC: Criar manual completo de tabelas usadas por módulo (frontend e backend)
+- [x] UI: Mover aba Relatórios para subpasta do grupo Gerenciamento no sidebar
+- [x] UI: Mover aba Repasse para subpasta do grupo Recebimentos no sidebar
