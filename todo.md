@@ -2478,3 +2478,4 @@
 - [x] UI: Substituir modal de criação de gabarito por tela dedicada (página completa)
 - [x] UI: Substituir modal de edição de itens do padrão por tela dedicada (página completa)
 - [x] UI: Transformar modal de Detalhes do padrão em tela dedicada (consistência visual)
+- [x] BUG: Autocomplete de códigos na tela Criar Gabarito não mostra sugestões ao digitar - procedure backend estava faltando
