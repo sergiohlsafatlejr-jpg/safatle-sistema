@@ -266,9 +266,13 @@ export default function ContaConvenioDetalhes() {
     XLSX.writeFile(wb, `conta_${numeroConta}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  // Voltar para lista
+  // Voltar para lista (preserva filtros via history)
   const handleVoltar = () => {
-    setLocation("/conta-convenio");
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      setLocation("/conta-convenio");
+    }
   };
 
   return (

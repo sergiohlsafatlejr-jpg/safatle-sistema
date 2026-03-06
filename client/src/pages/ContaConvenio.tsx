@@ -40,7 +40,7 @@ import {
   ShieldAlert,
   ArrowRight
 } from "lucide-react";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -131,6 +131,21 @@ export default function ContaConvenio() {
   const [mesFiltro, setMesFiltro] = useState(urlParams.get("mes") || "");
   const [page, setPage] = useState(parseInt(urlParams.get("page") || "1"));
   const pageSize = 20;
+
+  // Sincronizar filtros com a URL para preservar ao navegar e voltar
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set("search", searchTerm);
+    if (convenioFiltro) params.set("convenio", convenioFiltro);
+    if (origemFiltro) params.set("origem", origemFiltro);
+    if (statusFiltro) params.set("status", statusFiltro);
+    if (anoFiltro) params.set("ano", anoFiltro);
+    if (mesFiltro) params.set("mes", mesFiltro);
+    if (page > 1) params.set("page", String(page));
+    const qs = params.toString();
+    const newUrl = qs ? `/conta-convenio?${qs}` : "/conta-convenio";
+    window.history.replaceState(null, "", newUrl);
+  }, [searchTerm, convenioFiltro, origemFiltro, statusFiltro, anoFiltro, mesFiltro, page]);
 
   // Buscar competências disponíveis
   const { data: competenciasData } = trpc.contasConvenio.listarCompetencias.useQuery(

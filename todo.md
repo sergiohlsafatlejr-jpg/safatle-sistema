@@ -2474,3 +2474,4 @@
 - [x] UI: Aumentar ainda mais o tamanho da modal de edição de itens do padrão (quase fullscreen)
 - [x] Feature: Autocomplete de códigos nos campos de itens do gabarito (busca do faturamento_unificado)
 - [x] BUG: XMLs importados (status Processado) não aparecem na Conta Convênio - corrigido: migração automática adicionada ao fluxo de upload
+- [x] BUG: Filtros da tela Conta Convênio são perdidos ao navegar para detalhes e voltar
