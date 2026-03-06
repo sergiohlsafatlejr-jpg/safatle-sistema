@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
+import { AutocompleteCodigoItem } from "@/components/AutocompleteCodigoItem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -898,6 +899,12 @@ export default function PadroesCobranca() {
             <DialogTitle>Editar Itens do Padrão</DialogTitle>
             <DialogDescription>Ajuste as quantidades, frequências ou remova itens. Ao salvar, o padrão será aprovado automaticamente.</DialogDescription>
           </DialogHeader>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Adicione ou remova itens do padrão</span>
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => setEditItens([...editItens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }])}>
+              <PlusCircle className="h-3 w-3" /> Adicionar Item
+            </Button>
+          </div>
           <div className="rounded-lg border border-border overflow-hidden">
             {/* Header */}
             <div className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground">
@@ -914,13 +921,51 @@ export default function PadroesCobranca() {
               {editItens.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-[2fr_4fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 items-center p-3 hover:bg-muted/20">
                   <div>
-                    <Badge variant="outline" className="text-xs">{item.codigo}</Badge>
+                    <AutocompleteCodigoItem
+                      estabelecimentoId={estabelecimentoId}
+                      value={item.codigo}
+                      onChange={(selected) => {
+                        const newItens = [...editItens];
+                        newItens[idx] = {
+                          ...newItens[idx],
+                          codigo: selected.codigo,
+                          descricao: selected.descricao,
+                          tipo: selected.tipo || newItens[idx].tipo,
+                          quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
+                          quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
+                          valorMedio: selected.valorMedio || newItens[idx].valorMedio,
+                        };
+                        setEditItens(newItens);
+                      }}
+                      onChangeRaw={(val) => {
+                        const newItens = [...editItens];
+                        newItens[idx].codigo = val;
+                        setEditItens(newItens);
+                      }}
+                      placeholder="Buscar código..."
+                    />
                   </div>
                   <div>
-                    <span className="text-sm">{item.descricao}</span>
+                    <Input value={item.descricao} onChange={(e) => {
+                      const newItens = [...editItens];
+                      newItens[idx].descricao = e.target.value;
+                      setEditItens(newItens);
+                    }} placeholder="Descrição" className="h-8 text-xs" />
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">{item.tipo || "-"}</span>
+                    <Select value={item.tipo || "MAT_MED"} onValueChange={(v) => {
+                      const newItens = [...editItens];
+                      newItens[idx].tipo = v;
+                      setEditItens(newItens);
+                    }}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MAT_MED">Mat/Med</SelectItem>
+                        <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
+                        <SelectItem value="TAXA">Taxa</SelectItem>
+                        <SelectItem value="DIARIA">Diária</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
@@ -1046,11 +1091,29 @@ export default function PadroesCobranca() {
                   {gabItens.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-[2fr_3fr_1.5fr_1fr_1fr_1fr_1.5fr_0.5fr] gap-2 items-center p-2 hover:bg-muted/20">
                       <div>
-                        <Input value={item.codigo} onChange={(e) => {
-                          const newItens = [...gabItens];
-                          newItens[idx].codigo = e.target.value;
-                          setGabItens(newItens);
-                        }} placeholder="Código" className="h-8 text-xs" />
+                        <AutocompleteCodigoItem
+                          estabelecimentoId={estabelecimentoId}
+                          value={item.codigo}
+                          onChange={(selected) => {
+                            const newItens = [...gabItens];
+                            newItens[idx] = {
+                              ...newItens[idx],
+                              codigo: selected.codigo,
+                              descricao: selected.descricao,
+                              tipo: selected.tipo || newItens[idx].tipo,
+                              quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
+                              quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
+                              valorMedio: selected.valorMedio || newItens[idx].valorMedio,
+                            };
+                            setGabItens(newItens);
+                          }}
+                          onChangeRaw={(val) => {
+                            const newItens = [...gabItens];
+                            newItens[idx].codigo = val;
+                            setGabItens(newItens);
+                          }}
+                          placeholder="Buscar código..."
+                        />
                       </div>
                       <div>
                         <Input value={item.descricao} onChange={(e) => {

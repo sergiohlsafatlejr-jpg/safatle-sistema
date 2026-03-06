@@ -1260,6 +1260,52 @@ export const padroesCobrancaRouter = router({
     }),
 
   /**
+   * Autocomplete de códigos de itens do faturamento_unificado
+   * Busca códigos e descrições para preencher campos do gabarito
+   */
+  autocompleteCodigos: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      busca: z.string().min(2),
+      limit: z.number().default(20),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const buscaLike = `%${input.busca}%`;
+
+      const result = await db.execute(sql`
+        SELECT 
+          codigoItem as codigo,
+          MAX(descricaoItem) as descricao,
+          MAX(tipoItem) as tipo,
+          COUNT(*) as totalOcorrencias,
+          ROUND(AVG(CAST(COALESCE(NULLIF(quantidade, ''), '1') AS DECIMAL(12,2))), 2) as quantidadeMedia,
+          ROUND(AVG(CAST(COALESCE(NULLIF(valorFaturado, ''), '0') AS DECIMAL(14,2))), 2) as valorMedio
+        FROM faturamento_unificado
+        WHERE estabelecimentoId = ${input.estabelecimentoId}
+          AND codigoItem IS NOT NULL AND codigoItem != ''
+          AND (
+            codigoItem LIKE ${buscaLike}
+            OR descricaoItem LIKE ${buscaLike}
+          )
+        GROUP BY codigoItem
+        ORDER BY COUNT(*) DESC
+        LIMIT ${input.limit}
+      `);
+
+      return ((result as any)[0] || []).map((r: any) => ({
+        codigo: r.codigo,
+        descricao: r.descricao || '',
+        tipo: r.tipo || 'MAT_MED',
+        totalOcorrencias: Number(r.totalOcorrencias || 0),
+        quantidadeMedia: Number(r.quantidadeMedia || 1),
+        valorMedio: Number(r.valorMedio || 0),
+      }));
+    }),
+
+  /**
    * Estatísticas de feedbacks por padrão
    */
   estatisticasFeedback: protectedProcedure
