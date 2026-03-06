@@ -1330,46 +1330,6 @@ export const padroesCobrancaRouter = router({
       return (stats as any)[0] || [];
     }),
 
-  /**
-   * Autocomplete de códigos de itens do faturamento_unificado
-   */
-  autocompleteCodigos: protectedProcedure
-    .input(z.object({
-      estabelecimentoId: z.number(),
-      busca: z.string().min(2),
-    }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
-
-      const busca = `%${input.busca}%`;
-      const results = await db.execute(sql`
-        SELECT 
-          codigo_item as codigo,
-          MAX(descricao_item) as descricao,
-          MAX(tipo_item) as tipo,
-          COUNT(*) as totalOcorrencias,
-          ROUND(AVG(quantidade), 1) as quantidadeMedia,
-          ROUND(AVG(valor_unitario), 2) as valorMedio
-        FROM faturamento_unificado
-        WHERE estabelecimentoId = ${input.estabelecimentoId}
-          AND (codigo_item LIKE ${busca} OR descricao_item LIKE ${busca})
-          AND codigo_item IS NOT NULL
-          AND codigo_item != ''
-        GROUP BY codigo_item
-        ORDER BY COUNT(*) DESC
-        LIMIT 20
-      `);
-
-      return ((results as any)[0] || []).map((r: any) => ({
-        codigo: String(r.codigo || ""),
-        descricao: String(r.descricao || ""),
-        tipo: String(r.tipo || "MAT_MED"),
-        totalOcorrencias: Number(r.totalOcorrencias || 0),
-        quantidadeMedia: Number(r.quantidadeMedia || 1),
-        valorMedio: Number(r.valorMedio || 0),
-      }));
-    }),
 });
 
 // ============================================================
