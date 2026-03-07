@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
 import {
@@ -30,6 +32,7 @@ export default function PadroesCobranca() {
   const [selectedNivelRisco, setSelectedNivelRisco] = useState<string>("");
   const [selectedSetor, setSelectedSetor] = useState<string>("");
   const [selectedProfissional, setSelectedProfissional] = useState<string>("");
+  const [agruparPorProfissional, setAgruparPorProfissional] = useState(false);
   const [expandedItem, setExpandedItem] = useState<number | null>(null);
   const [pagePreco, setPagePreco] = useState(1);
   const [pageGlosa, setPageGlosa] = useState(1);
@@ -123,7 +126,7 @@ export default function PadroesCobranca() {
       await gerarPreco.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true });
       await gerarGlosa.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined });
       await gerarQuantidade.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined });
-      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true, agruparPorProfissional: !!selectedProfissional });
+      await gerarComposicao.mutateAsync({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true, agruparPorProfissional });
       toast.success("Todos os padrões foram gerados com sucesso!");
     } catch (err: any) {
       toast.error(`Erro ao gerar padrões: ${err.message}`);
@@ -568,10 +571,23 @@ export default function PadroesCobranca() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={() => gerarComposicao.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true })} disabled={gerarComposicao.isPending} className="gap-2">
+              <Select value={selectedProfissional} onValueChange={(v) => { setSelectedProfissional(v === "todos" ? "" : v); setPageComp(1); }}>
+                <SelectTrigger className="w-[220px]"><SelectValue placeholder="Todos os profissionais" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os profissionais</SelectItem>
+                  {(profissionais.data as any[])?.map((p: any) => (
+                    <SelectItem key={p.profissional} value={p.profissional}>{p.profissional}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => gerarComposicao.mutate({ estabelecimentoId, convenio: selectedConvenio || undefined, setor: selectedSetor || undefined, agruparPorSetor: true, agruparPorProfissional })} disabled={gerarComposicao.isPending} className="gap-2">
                 {gerarComposicao.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Atualizar Padrões
               </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="agruparProfissional" checked={agruparPorProfissional} onCheckedChange={(checked) => setAgruparPorProfissional(!!checked)} />
+              <Label htmlFor="agruparProfissional" className="text-sm text-muted-foreground cursor-pointer">Agrupar padrões por profissional executante (gera padrões específicos por médico)</Label>
             </div>
 
             {padroesComposicao.isLoading ? (
@@ -669,6 +685,15 @@ export default function PadroesCobranca() {
                   <SelectItem value="todos">Todos os setores</SelectItem>
                   {(setores.data as any[])?.map((s: any) => (
                     <SelectItem key={s.setor} value={s.setor}>{s.setor}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedProfissional} onValueChange={(v) => { setSelectedProfissional(v === "todos" ? "" : v); setPageGab(1); }}>
+                <SelectTrigger className="w-[220px]"><SelectValue placeholder="Todos os profissionais" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os profissionais</SelectItem>
+                  {(profissionais.data as any[])?.map((p: any) => (
+                    <SelectItem key={p.profissional} value={p.profissional}>{p.profissional}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

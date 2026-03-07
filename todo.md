@@ -2499,3 +2499,4 @@
 - [x] Feature: Exibir Score de Risco na tela de Conta Convênio Detalhes
 - [x] Feature: Exibir indicador de Outlier na listagem de Contas Convênio
 - [x] Feature: Filtro por profissional na tela de Padrões de Cobrança
+- [x] UI: Adicionar filtro de profissional e checkbox de agrupar por profissional visível na tela de Padrões de Cobrança (aba Composição)
