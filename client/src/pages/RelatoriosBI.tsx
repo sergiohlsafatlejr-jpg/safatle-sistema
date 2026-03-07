@@ -83,6 +83,7 @@ export default function RelatoriosBI() {
     valorFaturado: number;
     valorRecebido: number;
     valorGlosado: number;
+    valorRecursado?: number;
     quantidade: number;
   }
 
@@ -257,6 +258,7 @@ export default function RelatoriosBI() {
         Faturado: c.valorFaturado,
         Recebido: c.valorRecebido,
         Glosado: c.valorGlosado,
+        Recursado: c.valorRecursado ?? 0,
         Itens: c.quantidade,
       }))
     );
@@ -420,7 +422,7 @@ export default function RelatoriosBI() {
                   delay={0.25}
                   breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
-                    valor: 0,
+                    valor: c.valorRecursado ?? 0,
                   }))}
                   active={activeMetrics.has("recursado")}
                   onClick={() => toggleMetric("recursado")}

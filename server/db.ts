@@ -12969,6 +12969,7 @@ export interface DadosBIAgrupado {
   valorRecebido: number;
   valorGlosado: number;
   valorPendente: number;
+  valorRecursado?: number;
   quantidade: number;
   registros: number;
 }
@@ -13511,6 +13512,16 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     totalRecuperado += valorRecuperadoRecurso;
   }
   
+  // Distribuir valorRecursado por convênio
+  for (const recurso of recursosGlosaData) {
+    const convId = recurso.convenioId;
+    const chaveConvenio = convenioMap.get(convId) || "Sem Convênio";
+    const entry = porConvenioMap.get(chaveConvenio);
+    if (entry) {
+      entry.valorRecursado = (entry.valorRecursado || 0) + parseFloat(String(recurso.valorGlosado || "0"));
+    }
+  }
+
   // Calcular taxa de recuperação
   const taxaRecuperacao = totalRecursado > 0 ? (totalRecuperado / totalRecursado) * 100 : 0;
 

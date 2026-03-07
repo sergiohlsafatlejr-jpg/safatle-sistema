@@ -2526,3 +2526,5 @@
 - [x] Feature: Mostrar quem importou, quando, quantas contas via integrador
 - [x] Feature: Renomear "Relatórios BI" para "Faturado x Recebido x Glosado" no título e sidebar
 - [x] Feature: Adicionar KPI de Recursos (contestações) nos cards do relatório BI
+- [x] Fix: Sidebar - aba principal deve ser "Relatórios BI", subpasta "Dashboard BI" renomear para "Faturado x Recebido x Glosado"
+- [x] Feature: Adicionar coluna "Recursado" na tabela de Dados por Convênio no relatório BI

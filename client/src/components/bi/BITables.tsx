@@ -9,6 +9,7 @@ interface ConvenioTableProps {
     valorFaturado: number;
     valorRecebido: number;
     valorGlosado: number;
+    valorRecursado?: number;
     quantidade: number;
   }>;
 }
@@ -33,6 +34,7 @@ export function ConvenioTable({ data }: ConvenioTableProps) {
                   <TableHead className="font-semibold text-right">Faturado</TableHead>
                   <TableHead className="font-semibold text-right">Recebido</TableHead>
                   <TableHead className="font-semibold text-right">Glosado</TableHead>
+                  <TableHead className="font-semibold text-right">Recursado</TableHead>
                   <TableHead className="font-semibold text-center">Itens</TableHead>
                 </TableRow>
               </TableHeader>
@@ -48,6 +50,9 @@ export function ConvenioTable({ data }: ConvenioTableProps) {
                     </TableCell>
                     <TableCell className="text-right text-red-600">
                       R$ {item.valorGlosado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right text-cyan-600">
+                      R$ {(item.valorRecursado ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">{item.quantidade}</Badge>

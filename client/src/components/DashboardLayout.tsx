@@ -147,9 +147,9 @@ const menuItems: MenuItem[] = [
     { icon: History, label: "Acompanhamento Recursos", path: "/acompanhamento-recursos", modulo: "recursosGlosa" },
   ]},
 
-// Módulo 5 - Faturado x Recebido x Glosado
-   { icon: PieChart, label: "Faturado x Recebido x Glosado", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
-     { icon: BarChart3, label: "Dashboard BI", path: "/relatorios-bi", modulo: "relatoriosBi" },
+// Módulo 5 - Relatórios BI
+   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
+     { icon: BarChart3, label: "Faturado x Recebido x Glosado", path: "/relatorios-bi", modulo: "relatoriosBi" },
     { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relatoriosBi" },
     { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relatoriosBi" },
     { icon: Users, label: "Rel. Atendimentos", path: "/relatorio-atendimentos", modulo: "relatoriosBi" },
