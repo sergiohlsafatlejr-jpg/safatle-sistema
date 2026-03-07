@@ -78,6 +78,7 @@ import {
   Eye,
   Gauge,
   Package,
+  ClipboardCheck,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -111,6 +112,7 @@ const menuItems: MenuItem[] = [
     { icon: Activity, label: "Produtividade", path: "/produtividade", modulo: "produtividade" },
     { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
     { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
+    { icon: ClipboardCheck, label: "Dashboard Auditoria", path: "/dashboard-auditoria", modulo: "dashboard" },
   ]},
 
   // Módulo 1 - Upload Contas

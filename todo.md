@@ -2506,3 +2506,19 @@
 - [x] Feature: Sistema de feedback de auditores - procedures tRPC (criar, listar, atualizar feedback) - já existia
 - [x] Feature: Sistema de feedback de auditores - UI nos botões de ação da tabela de divergências (aprovar/rejeitar/comentar) - melhorado com indicadores visuais, histórico, aba de auditoria
 - [x] Feature: Sistema de feedback de auditores - testes vitest
+- [x] Feature: Aba de Falhas de Prontuário na tela de detalhes da conta - checklist de falhas comuns com checkbox
+- [x] Feature: Aba de Falhas de Prontuário - campo de observações/motivos para cada marcação
+- [x] Feature: Schema de banco para falhas de prontuário (tabela falhasProntuario)
+- [x] Feature: Procedures tRPC para CRUD de falhas de prontuário
+- [x] Feature: Edição de itens pela auditora - alterar quantidade de itens existentes
+- [x] Feature: Edição de itens pela auditora - alterar valor de itens existentes
+- [x] Feature: Edição de itens pela auditora - adicionar novos itens faltantes à conta
+- [x] Feature: Schema/procedures para ajustes de auditoria em itens
+- [x] Feature: Dashboard consolidado de auditoria na tela de Gerenciamento - métricas gerais
+- [x] Feature: Dashboard de auditoria - filtro por período
+- [x] Feature: Dashboard de auditoria - KPIs de contas auditadas, divergências, feedbacks
+- [x] Feature: Sistema de aprendizado automático - tabela de padrões aprendidos (aprendizadoAuditoria)
+- [x] Feature: Sistema de aprendizado automático - registrar cada ação da auditora como dado de treinamento
+- [x] Feature: Sistema de aprendizado automático - sugestões de falhas de prontuário baseadas em histórico
+- [x] Feature: Sistema de aprendizado automático - sugestões de ajustes de itens baseadas em padrões recorrentes
+- [x] Feature: Sistema de aprendizado automático - sugestões de decisão de feedback baseadas em histórico

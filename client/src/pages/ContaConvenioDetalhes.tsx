@@ -56,7 +56,17 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Trash2,
+  FileWarning,
+  Wrench,
+  Brain,
+  Lightbulb,
+  Undo2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -81,7 +91,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -210,6 +220,26 @@ export default function ContaConvenioDetalhes() {
   const [historicoDialog, setHistoricoDialog] = useState<{ open: boolean; div: any }>({ open: false, div: null });
   const [filtroFeedback, setFiltroFeedback] = useState<string>("todos");
 
+  // Estado para aba de Falhas de Prontuário
+  const [falhaDialog, setFalhaDialog] = useState(false);
+  const [falhaCategoria, setFalhaCategoria] = useState("");
+  const [falhaTipo, setFalhaTipo] = useState("");
+  const [falhaDescricao, setFalhaDescricao] = useState("");
+  const [falhaSeveridade, setFalhaSeveridade] = useState<"leve" | "moderada" | "grave" | "critica">("moderada");
+
+  // Estado para aba de Ajustes de Itens
+  const [ajusteDialog, setAjusteDialog] = useState<{
+    open: boolean;
+    tipo: "ALTERAR_QUANTIDADE" | "ALTERAR_VALOR" | "ADICIONAR_ITEM" | "REMOVER_ITEM";
+    item?: any;
+  }>({ open: false, tipo: "ALTERAR_QUANTIDADE" });
+  const [ajusteQtd, setAjusteQtd] = useState("");
+  const [ajusteValor, setAjusteValor] = useState("");
+  const [ajusteCodigo, setAjusteCodigo] = useState("");
+  const [ajusteDescricao, setAjusteDescricao] = useState("");
+  const [ajusteTipoItem, setAjusteTipoItem] = useState("PROCEDIMENTO");
+  const [ajusteJustificativa, setAjusteJustificativa] = useState("");
+
   // Buscar itens da conta na nova tabela
   const { data: itensData, isLoading, refetch } = trpc.contasConvenio.listarItens.useQuery(
     {
@@ -228,6 +258,79 @@ export default function ContaConvenioDetalhes() {
     },
     { enabled: !!numeroConta && !!estabelecimentoId }
   );
+
+  // Buscar falhas de prontuário
+  const { data: falhasData, refetch: refetchFalhas } = trpc.auditoria.listarFalhas.useQuery(
+    { numeroConta, estabelecimentoId },
+    { enabled: !!numeroConta && !!estabelecimentoId }
+  );
+
+  // Buscar ajustes de auditoria
+  const { data: ajustesData, refetch: refetchAjustes } = trpc.auditoria.listarAjustes.useQuery(
+    { numeroConta, estabelecimentoId },
+    { enabled: !!numeroConta && !!estabelecimentoId }
+  );
+
+  // Buscar categorias de falhas
+  const { data: categoriasFalhas } = trpc.auditoria.categoriasFalhas.useQuery();
+
+  // Buscar sugestões inteligentes de falhas
+  const { data: sugestoesFalhas } = trpc.auditoria.sugestoesFalhas.useQuery(
+    { estabelecimentoId, convenio: itensData?.items?.[0]?.convenio || undefined },
+    { enabled: !!estabelecimentoId }
+  );
+
+  // Buscar sugestões de ajustes
+  const { data: sugestoesAjustes } = trpc.auditoria.sugestoesAjustes.useQuery(
+    { estabelecimentoId, convenio: itensData?.items?.[0]?.convenio || undefined },
+    { enabled: !!estabelecimentoId }
+  );
+
+  // Mutations para falhas
+  const registrarFalhaMutation = trpc.auditoria.registrarFalha.useMutation({
+    onSuccess: () => {
+      toast.success("Falha de prontuário registrada!");
+      setFalhaDialog(false);
+      setFalhaCategoria("");
+      setFalhaTipo("");
+      setFalhaDescricao("");
+      setFalhaSeveridade("moderada");
+      refetchFalhas();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const atualizarStatusFalhaMutation = trpc.auditoria.atualizarStatusFalha.useMutation({
+    onSuccess: () => { toast.success("Status atualizado!"); refetchFalhas(); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const removerFalhaMutation = trpc.auditoria.removerFalha.useMutation({
+    onSuccess: () => { toast.success("Falha removida!"); refetchFalhas(); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Mutations para ajustes
+  const registrarAjusteMutation = trpc.auditoria.registrarAjuste.useMutation({
+    onSuccess: () => {
+      toast.success("Ajuste registrado com sucesso!");
+      setAjusteDialog({ open: false, tipo: "ALTERAR_QUANTIDADE" });
+      setAjusteQtd(""); setAjusteValor(""); setAjusteCodigo("");
+      setAjusteDescricao(""); setAjusteJustificativa("");
+      refetchAjustes();
+      refetch(); // Recarregar itens
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const reverterAjusteMutation = trpc.auditoria.reverterAjuste.useMutation({
+    onSuccess: () => {
+      toast.success("Ajuste revertido!");
+      refetchAjustes();
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   // Buscar feedbacks existentes para esta conta
   const { data: feedbacksData, refetch: refetchFeedbacks } = trpc.contasConvenio.listarFeedbacks.useQuery(
@@ -608,7 +711,7 @@ export default function ContaConvenioDetalhes() {
 
         {/* Tabs: Itens, Divergências e Auditoria */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
             <TabsTrigger value="itens" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Itens ({itensData?.items?.length || 0})
@@ -616,6 +719,14 @@ export default function ContaConvenioDetalhes() {
             <TabsTrigger value="divergencias" className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Divergências ({divergenciasData?.divergencias?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="falhas" className="flex items-center gap-2">
+              <FileWarning className="h-4 w-4" />
+              Prontuário ({falhasData?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="ajustes" className="flex items-center gap-2">
+              <Wrench className="h-4 w-4" />
+              Ajustes ({ajustesData?.length || 0})
             </TabsTrigger>
             <TabsTrigger value="auditoria" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
@@ -1092,6 +1203,357 @@ export default function ContaConvenioDetalhes() {
             </Card>
           </TabsContent>
 
+          {/* Tab: Falhas de Prontuário */}
+          <TabsContent value="falhas">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileWarning className="h-5 w-5 text-amber-500" />
+                      Falhas de Prontuário
+                    </CardTitle>
+                    <CardDescription>
+                      Registre falhas encontradas no prontuário do paciente durante a auditoria
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => setFalhaDialog(true)} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Registrar Falha
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Sugestões Inteligentes */}
+                {sugestoesFalhas && sugestoesFalhas.length > 0 && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Brain className="h-4 w-4 text-amber-600" />
+                      <span className="text-sm font-medium text-amber-800">Sugestões baseadas no aprendizado</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {sugestoesFalhas.map((s: any, i: number) => (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs border-amber-300 hover:bg-amber-100"
+                          onClick={() => {
+                            setFalhaCategoria(s.dadosAprendizado?.categoriaFalha || "");
+                            setFalhaTipo(s.dadosAprendizado?.tipoFalha || "");
+                            setFalhaSeveridade(s.dadosAprendizado?.severidade || "moderada");
+                            setFalhaDialog(true);
+                          }}
+                        >
+                          <Lightbulb className="h-3 w-3 mr-1 text-amber-500" />
+                          {s.dadosAprendizado?.tipoFalha || "Falha"}
+                          <Badge variant="outline" className="ml-1 text-[10px]">
+                            {s.totalOcorrencias}x
+                          </Badge>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de falhas registradas */}
+                {!falhasData?.length ? (
+                  <div className="text-center py-8">
+                    <FileWarning className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium">Nenhuma falha registrada</h3>
+                    <p className="text-muted-foreground">Clique em "Registrar Falha" para documentar problemas encontrados no prontuário.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {falhasData.map((falha: any) => (
+                      <div key={falha.id} className={`p-4 rounded-lg border ${
+                        falha.status === "corrigida" ? "border-green-200 bg-green-50/50" :
+                        falha.status === "justificada" ? "border-blue-200 bg-blue-50/50" :
+                        falha.severidade === "critica" ? "border-red-300 bg-red-50/50" :
+                        falha.severidade === "grave" ? "border-orange-200 bg-orange-50/50" :
+                        "border-yellow-200 bg-yellow-50/50"
+                      }`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">{falha.categoriaFalha}</Badge>
+                              <Badge className={`text-xs ${
+                                falha.severidade === "critica" ? "bg-red-100 text-red-800" :
+                                falha.severidade === "grave" ? "bg-orange-100 text-orange-800" :
+                                falha.severidade === "moderada" ? "bg-yellow-100 text-yellow-800" :
+                                "bg-gray-100 text-gray-800"
+                              }`}>{falha.severidade}</Badge>
+                              <Badge className={`text-xs ${
+                                falha.status === "corrigida" ? "bg-green-100 text-green-800" :
+                                falha.status === "justificada" ? "bg-blue-100 text-blue-800" :
+                                "bg-yellow-100 text-yellow-800"
+                              }`}>{falha.status}</Badge>
+                            </div>
+                            <p className="font-medium text-sm">{falha.tipoFalha}</p>
+                            {falha.descricao && (
+                              <p className="text-sm text-muted-foreground mt-1">{falha.descricao}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Registrado por {falha.usuarioNome} em {formatDateTime(falha.createdAt)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 ml-4">
+                            {falha.status === "aberta" && (
+                              <>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                        onClick={() => atualizarStatusFalhaMutation.mutate({ id: falha.id, status: "corrigida" })}
+                                      >
+                                        <CheckCircle2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Marcar como corrigida</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                        onClick={() => atualizarStatusFalhaMutation.mutate({ id: falha.id, status: "justificada" })}
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Marcar como justificada</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </>
+                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-100"
+                                    onClick={() => removerFalhaMutation.mutate({ id: falha.id })}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Remover falha</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Ajustes de Itens */}
+          <TabsContent value="ajustes">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wrench className="h-5 w-5 text-blue-500" />
+                      Ajustes de Auditoria
+                    </CardTitle>
+                    <CardDescription>
+                      Altere quantidades, valores ou adicione itens faltantes na conta
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => setAjusteDialog({ open: true, tipo: "ADICIONAR_ITEM" })} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Item
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Sugestões de Ajustes */}
+                {sugestoesAjustes && sugestoesAjustes.length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Brain className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">Ajustes frequentes aprendidos</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {sugestoesAjustes.map((s: any, i: number) => (
+                        <Badge key={i} variant="outline" className="text-xs border-blue-300 bg-blue-50">
+                          <Lightbulb className="h-3 w-3 mr-1 text-blue-500" />
+                          {s.descricaoItem || s.codigoItem || "Item"}: {s.dadosAprendizado?.direcao || s.tipoAprendizado}
+                          <span className="ml-1 text-muted-foreground">({s.totalOcorrencias}x)</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabela de itens editáveis */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Itens da Conta (clique para ajustar)
+                  </h4>
+                  {isLoading ? (
+                    <div className="space-y-2">
+                      {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                  ) : !itensData?.items?.length ? (
+                    <p className="text-muted-foreground text-center py-4">Nenhum item na conta</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Código</TableHead>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead className="text-right">Qtd</TableHead>
+                            <TableHead className="text-right">Valor Unit.</TableHead>
+                            <TableHead className="text-right">Valor Total</TableHead>
+                            <TableHead>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {itensData.items.map((item: any, index: number) => (
+                            <TableRow key={item.id || index}>
+                              <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
+                              <TableCell className="max-w-xs truncate">{item.descricaoItem || "-"}</TableCell>
+                              <TableCell className="text-right">{item.quantidade || 1}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(item.valorUnitario)}</TableCell>
+                              <TableCell className="text-right font-semibold">{formatCurrency(item.valorTotal)}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={() => {
+                                            setAjusteDialog({ open: true, tipo: "ALTERAR_QUANTIDADE", item });
+                                            setAjusteQtd(item.quantidade?.toString() || "1");
+                                            setAjusteValor(item.valorUnitario?.toString() || "0");
+                                          }}
+                                        >
+                                          <Hash className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Alterar quantidade</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={() => {
+                                            setAjusteDialog({ open: true, tipo: "ALTERAR_VALOR", item });
+                                            setAjusteValor(item.valorUnitario?.toString() || "0");
+                                            setAjusteQtd(item.quantidade?.toString() || "1");
+                                          }}
+                                        >
+                                          <DollarSign className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Alterar valor</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Histórico de Ajustes */}
+                {ajustesData && ajustesData.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <History className="h-4 w-4" />
+                      Histórico de Ajustes ({ajustesData.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {ajustesData.map((ajuste: any) => (
+                        <div key={ajuste.id} className={`p-3 rounded-lg border ${
+                          ajuste.status === "aplicado" ? "border-green-200 bg-green-50/50" :
+                          ajuste.status === "revertido" ? "border-gray-200 bg-gray-50/50 opacity-60" :
+                          "border-yellow-200 bg-yellow-50/50"
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {ajuste.tipoAjuste === "ALTERAR_QUANTIDADE" ? "Qtd" :
+                                   ajuste.tipoAjuste === "ALTERAR_VALOR" ? "Valor" :
+                                   ajuste.tipoAjuste === "ADICIONAR_ITEM" ? "+ Item" : "- Item"}
+                                </Badge>
+                                <Badge className={`text-xs ${
+                                  ajuste.status === "aplicado" ? "bg-green-100 text-green-800" :
+                                  ajuste.status === "revertido" ? "bg-gray-100 text-gray-800" :
+                                  "bg-yellow-100 text-yellow-800"
+                                }`}>{ajuste.status}</Badge>
+                                <span className="font-mono text-xs">{ajuste.codigoItem || "-"}</span>
+                              </div>
+                              <p className="text-sm">{ajuste.descricaoItem || "Item sem descrição"}</p>
+                              {ajuste.tipoAjuste === "ALTERAR_QUANTIDADE" && (
+                                <p className="text-xs text-muted-foreground">
+                                  Quantidade: {ajuste.quantidadeOriginal} → {ajuste.quantidadeAjustada}
+                                </p>
+                              )}
+                              {ajuste.tipoAjuste === "ALTERAR_VALOR" && (
+                                <p className="text-xs text-muted-foreground">
+                                  Valor: {formatCurrency(ajuste.valorOriginal)} → {formatCurrency(ajuste.valorAjustado)}
+                                </p>
+                              )}
+                              {ajuste.justificativa && (
+                                <p className="text-xs text-muted-foreground italic mt-1">"{ajuste.justificativa}"</p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Por {ajuste.usuarioNome} em {formatDateTime(ajuste.createdAt)}
+                              </p>
+                            </div>
+                            {ajuste.status === "aplicado" && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-orange-500 hover:text-orange-600 hover:bg-orange-100"
+                                      onClick={() => reverterAjusteMutation.mutate({ id: ajuste.id })}
+                                    >
+                                      <Undo2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Reverter ajuste</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Tab: Auditoria (Histórico de Feedbacks) */}
           <TabsContent value="auditoria">
             <Card>
@@ -1296,6 +1758,190 @@ export default function ContaConvenioDetalhes() {
                   <Pencil className="mr-2 h-4 w-4" />
                 )}
                 {feedbackDialog.acao === "rejeitar" ? "Rejeitar" : "Salvar Ajuste"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Registrar Falha de Prontuário */}
+        <Dialog open={falhaDialog} onOpenChange={setFalhaDialog}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileWarning className="h-5 w-5 text-amber-500" />
+                Registrar Falha de Prontuário
+              </DialogTitle>
+              <DialogDescription>
+                Selecione a categoria e o tipo de falha encontrada no prontuário.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Categoria da Falha</Label>
+                <Select value={falhaCategoria} onValueChange={(v) => { setFalhaCategoria(v); setFalhaTipo(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+                  <SelectContent>
+                    {categoriasFalhas && Object.entries(categoriasFalhas).map(([key, cat]: [string, any]) => (
+                      <SelectItem key={key} value={key}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {falhaCategoria && categoriasFalhas && (
+                <div className="space-y-2">
+                  <Label>Tipo de Falha</Label>
+                  <Select value={falhaTipo} onValueChange={setFalhaTipo}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                    <SelectContent>
+                      {(categoriasFalhas as any)[falhaCategoria]?.falhas?.map((f: string) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Severidade</Label>
+                <Select value={falhaSeveridade} onValueChange={(v: any) => setFalhaSeveridade(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leve">Leve</SelectItem>
+                    <SelectItem value="moderada">Moderada</SelectItem>
+                    <SelectItem value="grave">Grave</SelectItem>
+                    <SelectItem value="critica">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Observações / Motivo</Label>
+                <Textarea
+                  value={falhaDescricao}
+                  onChange={(e) => setFalhaDescricao(e.target.value)}
+                  placeholder="Descreva os motivos que levaram à marcação desta falha..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFalhaDialog(false)}>Cancelar</Button>
+              <Button
+                onClick={() => {
+                  if (!falhaCategoria || !falhaTipo) {
+                    toast.error("Selecione a categoria e o tipo da falha");
+                    return;
+                  }
+                  registrarFalhaMutation.mutate({
+                    numeroConta,
+                    estabelecimentoId,
+                    tipoFalha: falhaTipo,
+                    categoriaFalha: falhaCategoria,
+                    descricao: falhaDescricao || undefined,
+                    severidade: falhaSeveridade,
+                  });
+                }}
+                disabled={registrarFalhaMutation.isPending}
+              >
+                {registrarFalhaMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Registrar Falha
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Ajuste de Item */}
+        <Dialog open={ajusteDialog.open} onOpenChange={(open) => setAjusteDialog(prev => ({ ...prev, open }))}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-blue-500" />
+                {ajusteDialog.tipo === "ADICIONAR_ITEM" ? "Adicionar Item Faltante" :
+                 ajusteDialog.tipo === "ALTERAR_QUANTIDADE" ? "Alterar Quantidade" :
+                 "Alterar Valor"}
+              </DialogTitle>
+              <DialogDescription>
+                {ajusteDialog.tipo === "ADICIONAR_ITEM"
+                  ? "Adicione um item que está faltando na conta."
+                  : `Ajuste ${ajusteDialog.tipo === "ALTERAR_QUANTIDADE" ? "a quantidade" : "o valor"} do item.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {ajusteDialog.item && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-sm"><strong>Item:</strong> {ajusteDialog.item.codigoItem} - {ajusteDialog.item.descricaoItem}</p>
+                  <p className="text-sm"><strong>Qtd atual:</strong> {ajusteDialog.item.quantidade} | <strong>Valor atual:</strong> {formatCurrency(ajusteDialog.item.valorUnitario)}</p>
+                </div>
+              )}
+              {ajusteDialog.tipo === "ADICIONAR_ITEM" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Tipo do Item</Label>
+                    <Select value={ajusteTipoItem} onValueChange={setAjusteTipoItem}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
+                        <SelectItem value="MEDICAMENTO">Medicamento</SelectItem>
+                        <SelectItem value="MATERIAL">Material</SelectItem>
+                        <SelectItem value="TAXA">Taxa</SelectItem>
+                        <SelectItem value="DIARIA">Diária</SelectItem>
+                        <SelectItem value="SADT">SADT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Código do Item</Label>
+                    <Input value={ajusteCodigo} onChange={(e) => setAjusteCodigo(e.target.value)} placeholder="Ex: 10101012" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descrição</Label>
+                    <Input value={ajusteDescricao} onChange={(e) => setAjusteDescricao(e.target.value)} placeholder="Descrição do item" />
+                  </div>
+                </>
+              )}
+              {(ajusteDialog.tipo === "ALTERAR_QUANTIDADE" || ajusteDialog.tipo === "ADICIONAR_ITEM") && (
+                <div className="space-y-2">
+                  <Label>{ajusteDialog.tipo === "ADICIONAR_ITEM" ? "Quantidade" : "Nova Quantidade"}</Label>
+                  <Input type="number" value={ajusteQtd} onChange={(e) => setAjusteQtd(e.target.value)} placeholder="Ex: 2" />
+                </div>
+              )}
+              {(ajusteDialog.tipo === "ALTERAR_VALOR" || ajusteDialog.tipo === "ADICIONAR_ITEM") && (
+                <div className="space-y-2">
+                  <Label>{ajusteDialog.tipo === "ADICIONAR_ITEM" ? "Valor Unitário" : "Novo Valor Unitário"}</Label>
+                  <Input type="number" step="0.01" value={ajusteValor} onChange={(e) => setAjusteValor(e.target.value)} placeholder="Ex: 150.00" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Justificativa</Label>
+                <Textarea
+                  value={ajusteJustificativa}
+                  onChange={(e) => setAjusteJustificativa(e.target.value)}
+                  placeholder="Motivo do ajuste..."
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAjusteDialog({ open: false, tipo: "ALTERAR_QUANTIDADE" })}>Cancelar</Button>
+              <Button
+                onClick={() => {
+                  registrarAjusteMutation.mutate({
+                    numeroConta,
+                    estabelecimentoId,
+                    tipoAjuste: ajusteDialog.tipo,
+                    itemId: ajusteDialog.item?.id,
+                    codigoItem: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteCodigo : ajusteDialog.item?.codigoItem,
+                    descricaoItem: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteDescricao : ajusteDialog.item?.descricaoItem,
+                    quantidadeOriginal: ajusteDialog.item?.quantidade?.toString(),
+                    valorOriginal: ajusteDialog.item?.valorUnitario?.toString(),
+                    quantidadeAjustada: ajusteQtd || undefined,
+                    valorAjustado: ajusteValor || undefined,
+                    tipoItemAdicionado: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteTipoItem : undefined,
+                    justificativa: ajusteJustificativa || undefined,
+                  });
+                }}
+                disabled={registrarAjusteMutation.isPending}
+              >
+                {registrarAjusteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {ajusteDialog.tipo === "ADICIONAR_ITEM" ? "Adicionar Item" : "Salvar Ajuste"}
               </Button>
             </DialogFooter>
           </DialogContent>

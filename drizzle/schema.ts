@@ -3468,3 +3468,157 @@ export const tabelaPorteConvenio = mysqlTable("tabelaPorteConvenio", {
 
 export type TabelaPorteConvenio = typeof tabelaPorteConvenio.$inferSelect;
 export type InsertTabelaPorteConvenio = typeof tabelaPorteConvenio.$inferInsert;
+
+
+/**
+ * Falhas de Prontuário - Registra falhas encontradas pela auditora no prontuário do paciente
+ * Cada registro é um checkbox marcado + observação
+ */
+export const falhasProntuario = mysqlTable("falhas_prontuario", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência à conta
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Tipo da falha (checkbox marcado)
+  tipoFalha: varchar("tipoFalha", { length: 100 }).notNull(),
+  // Categorias: EVOLUCAO, PRESCRICAO, CHECAGEM, AUTORIZACAO, DOCUMENTACAO, IDENTIFICACAO, CONSENTIMENTO, ALERGIA, ALTA, OUTRO
+  categoriaFalha: varchar("categoriaFalha", { length: 50 }).notNull(),
+  
+  // Descrição/observação da auditora
+  descricao: text("descricao"),
+  
+  // Severidade
+  severidade: mysqlEnum("severidade", ["leve", "moderada", "grave", "critica"]).default("moderada").notNull(),
+  
+  // Status
+  status: mysqlEnum("statusFalha", ["aberta", "corrigida", "justificada"]).default("aberta").notNull(),
+  
+  // Quem registrou
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  contaIdx: index("idx_fp_conta").on(table.numeroConta, table.estabelecimentoId),
+  categoriaIdx: index("idx_fp_categoria").on(table.categoriaFalha),
+  statusIdx: index("idx_fp_status").on(table.status),
+}));
+
+export type FalhaProntuario = typeof falhasProntuario.$inferSelect;
+export type InsertFalhaProntuario = typeof falhasProntuario.$inferInsert;
+
+/**
+ * Ajustes de Auditoria - Registra alterações feitas pela auditora nos itens da conta
+ * (alterar quantidade, valor, ou adicionar itens faltantes)
+ */
+export const ajustesAuditoria = mysqlTable("ajustes_auditoria", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência à conta
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Tipo do ajuste
+  tipoAjuste: mysqlEnum("tipoAjuste", [
+    "ALTERAR_QUANTIDADE",
+    "ALTERAR_VALOR",
+    "ADICIONAR_ITEM",
+    "REMOVER_ITEM",
+  ]).notNull(),
+  
+  // Item afetado (null se for adição de novo item)
+  itemId: int("itemId"),
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  descricaoItem: text("descricaoItem"),
+  
+  // Valores originais (antes do ajuste)
+  quantidadeOriginal: decimal("quantidadeOriginal", { precision: 12, scale: 4 }),
+  valorOriginal: decimal("valorOriginal", { precision: 14, scale: 2 }),
+  
+  // Valores ajustados (depois do ajuste)
+  quantidadeAjustada: decimal("quantidadeAjustada", { precision: 12, scale: 4 }),
+  valorAjustado: decimal("valorAjustado", { precision: 14, scale: 2 }),
+  
+  // Para itens adicionados
+  tipoItemAdicionado: varchar("tipoItemAdicionado", { length: 50 }),
+  
+  // Justificativa do ajuste
+  justificativa: text("justificativa"),
+  
+  // Status do ajuste
+  status: mysqlEnum("statusAjuste", ["pendente", "aplicado", "revertido"]).default("pendente").notNull(),
+  
+  // Quem fez o ajuste
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  contaIdx: index("idx_aa_conta").on(table.numeroConta, table.estabelecimentoId),
+  tipoIdx: index("idx_aa_tipo").on(table.tipoAjuste),
+  itemIdx: index("idx_aa_item").on(table.codigoItem),
+  statusIdx: index("idx_aa_status").on(table.status),
+}));
+
+export type AjusteAuditoria = typeof ajustesAuditoria.$inferSelect;
+export type InsertAjusteAuditoria = typeof ajustesAuditoria.$inferInsert;
+
+/**
+ * Aprendizado de Auditoria - Base de conhecimento construída a partir das ações das auditoras
+ * Cada registro é um padrão aprendido que pode gerar sugestões automáticas
+ */
+export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Tipo de aprendizado
+  tipoAprendizado: mysqlEnum("tipoAprendizado", [
+    "FALHA_PRONTUARIO",       // Falhas recorrentes por tipo de procedimento
+    "AJUSTE_QUANTIDADE",      // Ajustes de quantidade recorrentes
+    "AJUSTE_VALOR",           // Ajustes de valor recorrentes
+    "ITEM_FALTANTE",          // Itens frequentemente adicionados
+    "DECISAO_DIVERGENCIA",    // Padrão de decisão em divergências
+  ]).notNull(),
+  
+  // Contexto do aprendizado (chave de agrupamento)
+  convenio: varchar("convenio", { length: 255 }),
+  tipoProcedimento: varchar("tipoProcedimento", { length: 100 }),
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  descricaoItem: varchar("descricaoItem", { length: 500 }),
+  setor: varchar("setor", { length: 255 }),
+  
+  // O que foi aprendido (JSON flexível)
+  // Para FALHA_PRONTUARIO: {tipoFalha, categoriaFalha, frequencia, percentual}
+  // Para AJUSTE_QUANTIDADE: {quantidadeMedia, quantidadeModa, direcao: "aumentar"|"diminuir"}
+  // Para AJUSTE_VALOR: {valorMedio, valorModa, direcao}
+  // Para ITEM_FALTANTE: {codigoItem, descricao, quantidadeMedia, frequencia}
+  // Para DECISAO_DIVERGENCIA: {tipoDivergencia, decisaoMaisComum, percentualAceitar, percentualRejeitar}
+  dadosAprendizado: json("dadosAprendizado").notNull(),
+  
+  // Métricas de confiança
+  totalOcorrencias: int("totalOcorrencias").default(1).notNull(),
+  confianca: decimal("confianca", { precision: 5, scale: 2 }).default("0.50"), // 0.00 a 1.00
+  
+  // Controle de ativação
+  ativo: int("ativo").default(1).notNull(), // 1 = ativo, 0 = desativado
+  minimoOcorrencias: int("minimoOcorrencias").default(3), // Mínimo para sugerir
+  
+  // Última atualização do aprendizado
+  ultimaAtualizacao: timestamp("ultimaAtualizacao").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabTipoIdx: index("idx_aprd_estab_tipo").on(table.estabelecimentoId, table.tipoAprendizado),
+  convenioIdx: index("idx_aprd_convenio").on(table.convenio),
+  codigoIdx: index("idx_aprd_codigo").on(table.codigoItem),
+  confiancaIdx: index("idx_aprd_confianca").on(table.confianca),
+  ativoIdx: index("idx_aprd_ativo").on(table.ativo),
+}));
+
+export type AprendizadoAuditoria = typeof aprendizadoAuditoria.$inferSelect;
+export type InsertAprendizadoAuditoria = typeof aprendizadoAuditoria.$inferInsert;
