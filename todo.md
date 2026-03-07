@@ -2528,3 +2528,5 @@
 - [x] Feature: Adicionar KPI de Recursos (contestações) nos cards do relatório BI
 - [x] Fix: Sidebar - aba principal deve ser "Relatórios BI", subpasta "Dashboard BI" renomear para "Faturado x Recebido x Glosado"
 - [x] Feature: Adicionar coluna "Recursado" na tabela de Dados por Convênio no relatório BI
+- [x] Bug: Valor Recursado mostra R$ 0,00 na tabela por convênio - corrigido: agora cria entrada no porConvenioMap se não existir
+- [x] Fix: Arredondar números de Itens na tabela por convênio e card Ticket Médio com Math.round()

@@ -13516,10 +13516,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   for (const recurso of recursosGlosaData) {
     const convId = recurso.convenioId;
     const chaveConvenio = convenioMap.get(convId) || "Sem Convênio";
-    const entry = porConvenioMap.get(chaveConvenio);
-    if (entry) {
-      entry.valorRecursado = (entry.valorRecursado || 0) + parseFloat(String(recurso.valorGlosado || "0"));
+    if (!porConvenioMap.has(chaveConvenio)) {
+      porConvenioMap.set(chaveConvenio, { chave: chaveConvenio, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, valorRecursado: 0, quantidade: 0, registros: 0 });
     }
+    const entry = porConvenioMap.get(chaveConvenio)!;
+    entry.valorRecursado = (entry.valorRecursado || 0) + parseFloat(String(recurso.valorGlosado || "0"));
   }
 
   // Calcular taxa de recuperação

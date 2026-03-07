@@ -259,7 +259,7 @@ export default function RelatoriosBI() {
         Recebido: c.valorRecebido,
         Glosado: c.valorGlosado,
         Recursado: c.valorRecursado ?? 0,
-        Itens: c.quantidade,
+        Itens: Math.round(c.quantidade),
       }))
     );
     XLSX.utils.book_append_sheet(wb, wsConvenio, "Por Convenio");
@@ -430,7 +430,7 @@ export default function RelatoriosBI() {
                 <MetricCard
                   title="Ticket Médio"
                   value={fmtCurrency(metricas.ticketMedio)}
-                  subtitle={`${metricas.itens.toLocaleString("pt-BR")} itens`}
+                  subtitle={`${Math.round(metricas.itens).toLocaleString("pt-BR")} itens`}
                   icon={PackageIcon}
                   variant="primary"
                   delay={0.3}

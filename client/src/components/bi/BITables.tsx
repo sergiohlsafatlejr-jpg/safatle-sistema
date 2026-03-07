@@ -55,7 +55,7 @@ export function ConvenioTable({ data }: ConvenioTableProps) {
                       R$ {(item.valorRecursado ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline">{item.quantidade}</Badge>
+                      <Badge variant="outline">{Math.round(item.quantidade).toLocaleString("pt-BR")}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -108,7 +108,7 @@ export function GlosaTable({ data }: GlosaTableProps) {
                   <TableRow key={idx} className="hover:bg-muted/50">
                     <TableCell className="font-medium">{item.chave}</TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="secondary">{item.quantidade}</Badge>
+                      <Badge variant="secondary">{Math.round(item.quantidade).toLocaleString("pt-BR")}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       R$ {item.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -165,7 +165,7 @@ export function DescricaoTable({ data }: DescricaoTableProps) {
                   <TableRow key={idx} className="hover:bg-muted/50">
                     <TableCell className="font-medium truncate max-w-xs">{item.chave}</TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="outline">{item.quantidade}</Badge>
+                      <Badge variant="outline">{Math.round(item.quantidade).toLocaleString("pt-BR")}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       R$ {item.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
