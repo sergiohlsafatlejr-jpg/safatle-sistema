@@ -2524,3 +2524,5 @@
 - [x] Feature: Sistema de aprendizado automático - sugestões de decisão de feedback baseadas em histórico
 - [x] Feature: Nova aba no Dashboard de Produtividade - métricas de importação de contas via banco (integrador de dados)
 - [x] Feature: Mostrar quem importou, quando, quantas contas via integrador
+- [x] Feature: Renomear "Relatórios BI" para "Faturado x Recebido x Glosado" no título e sidebar
+- [x] Feature: Adicionar KPI de Recursos (contestações) nos cards do relatório BI

@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   TrendingDown,
   Package as PackageIcon,
+  Gavel,
 } from "lucide-react";
 import { MetricCard } from "@/components/bi/MetricCard";
 import { BIFilters } from "@/components/bi/BIFilters";
@@ -47,9 +48,9 @@ export default function RelatoriosBI() {
   const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
 
 
-  type MetricKey = "faturado" | "recebido" | "glosado" | "taxaGlosa" | "ticketMedio";
+  type MetricKey = "faturado" | "recebido" | "glosado" | "recursado" | "taxaGlosa" | "ticketMedio";
   const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(
-    new Set(["faturado", "recebido", "glosado", "taxaGlosa", "ticketMedio"])
+    new Set(["faturado", "recebido", "glosado", "recursado", "taxaGlosa", "ticketMedio"])
   );
 
   const toggleMetric = useCallback((key: MetricKey) => {
@@ -190,10 +191,14 @@ export default function RelatoriosBI() {
     const percentualGlosa =
       totalFaturado > 0 ? ((totalGlosado / totalFaturado) * 100).toFixed(1) : "0";
     const ticketMedio = totalItens > 0 ? totalFaturado / totalItens : 0;
+    const totalRecursado = biData.resumo.totalRecursado || 0;
+    const totalRecuperado = biData.resumo.totalRecuperado || 0;
     return {
       faturado: totalFaturado,
       recebido: totalRecebido,
       glosado: totalGlosado,
+      recursado: totalRecursado,
+      recuperado: totalRecuperado,
       itens: totalItens,
       percentualGlosa,
       ticketMedio,
@@ -239,6 +244,8 @@ export default function RelatoriosBI() {
       { Metrica: "Valor Glosado", Valor: metricas.glosado },
       { Metrica: "Taxa de Glosa (%)", Valor: metricas.percentualGlosa },
       { Metrica: "Ticket Médio", Valor: metricas.ticketMedio },
+      { Metrica: "Valor Recursado", Valor: metricas.recursado ?? 0 },
+      { Metrica: "Valor Recuperado", Valor: metricas.recuperado ?? 0 },
     ];
     const wsResumo = XLSX.utils.json_to_sheet(resumoSheet);
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
@@ -292,10 +299,10 @@ export default function RelatoriosBI() {
         >
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Relatórios BI
+              Faturado x Recebido x Glosado
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Análise de Faturamento, Recebimento e Glosas
+              Análise de Faturamento, Recebimento, Glosas e Recursos
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -340,7 +347,7 @@ export default function RelatoriosBI() {
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
                 Clique nos cards para filtrar os dados exibidos
               </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
                 <MetricCard
                   title="Faturado"
                   value={fmtCurrency(metricas.faturado)}
@@ -405,12 +412,26 @@ export default function RelatoriosBI() {
                   onClick={() => toggleMetric("taxaGlosa")}
                 />
                 <MetricCard
+                  title="Recursado"
+                  value={fmtCurrency(metricas.recursado ?? 0)}
+                  subtitle={`Recuperado: ${fmtCurrency(metricas.recuperado ?? 0)}`}
+                  icon={Gavel}
+                  variant="info"
+                  delay={0.25}
+                  breakdown={conveniosData.map((c) => ({
+                    nome: c.chave,
+                    valor: 0,
+                  }))}
+                  active={activeMetrics.has("recursado")}
+                  onClick={() => toggleMetric("recursado")}
+                />
+                <MetricCard
                   title="Ticket Médio"
                   value={fmtCurrency(metricas.ticketMedio)}
                   subtitle={`${metricas.itens.toLocaleString("pt-BR")} itens`}
                   icon={PackageIcon}
                   variant="primary"
-                  delay={0.25}
+                  delay={0.3}
                   breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
                     valor: c.quantidade > 0 ? c.valorFaturado / c.quantidade : 0,

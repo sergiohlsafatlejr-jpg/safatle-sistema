@@ -8,7 +8,7 @@ interface MetricCardProps {
   value: string | number;
   subtitle?: string;
   icon: LucideIcon;
-  variant?: "primary" | "success" | "danger" | "warning";
+  variant?: "primary" | "success" | "danger" | "warning" | "info";
   delay?: number;
   trend?: { value: number; label: string };
   breakdown?: Array<{ nome: string; valor: number }>;
@@ -21,6 +21,7 @@ const variantBorder = {
   success: "border-green-500",
   danger: "border-red-500",
   warning: "border-amber-500",
+  info: "border-cyan-500",
 };
 
 const variantBg = {
@@ -28,6 +29,7 @@ const variantBg = {
   success: "hover:bg-green-50 dark:hover:bg-green-950/30",
   danger: "hover:bg-red-50 dark:hover:bg-red-950/30",
   warning: "hover:bg-amber-50 dark:hover:bg-amber-950/30",
+  info: "hover:bg-cyan-50 dark:hover:bg-cyan-950/30",
 };
 
 const variantActiveBg = {
@@ -35,6 +37,7 @@ const variantActiveBg = {
   success: "bg-green-50/50 dark:bg-green-950/20",
   danger: "bg-red-50/50 dark:bg-red-950/20",
   warning: "bg-amber-50/50 dark:bg-amber-950/20",
+  info: "bg-cyan-50/50 dark:bg-cyan-950/20",
 };
 
 const iconBg = {
@@ -42,6 +45,7 @@ const iconBg = {
   success: "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400",
   danger: "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400",
   warning: "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400",
+  info: "bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-400",
 };
 
 export function MetricCard({
