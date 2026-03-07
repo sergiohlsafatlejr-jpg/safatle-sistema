@@ -2530,3 +2530,8 @@
 - [x] Feature: Adicionar coluna "Recursado" na tabela de Dados por Convênio no relatório BI
 - [x] Bug: Valor Recursado mostra R$ 0,00 na tabela por convênio - corrigido: agora cria entrada no porConvenioMap se não existir
 - [x] Fix: Arredondar números de Itens na tabela por convênio e card Ticket Médio com Math.round()
+- [x] Bug: Valor Recursado continua R$ 0,00 na tabela por convênio - causa: frontend descartava campo valorRecursado no useMemo
+- [x] Feature: Adicionar coluna Recuperado na tabela Dados por Convênio
+- [x] Feature: Adicionar coluna Taxa de Recuperação na tabela Dados por Convênio
+- [x] Feature: Distribuir valorRecuperado por convênio no backend
+- [x] Feature: Incluir Recuperado e Taxa Recuperação no export Excel

@@ -10,6 +10,7 @@ interface ConvenioTableProps {
     valorRecebido: number;
     valorGlosado: number;
     valorRecursado?: number;
+    valorRecuperado?: number;
     quantidade: number;
   }>;
 }
@@ -35,6 +36,8 @@ export function ConvenioTable({ data }: ConvenioTableProps) {
                   <TableHead className="font-semibold text-right">Recebido</TableHead>
                   <TableHead className="font-semibold text-right">Glosado</TableHead>
                   <TableHead className="font-semibold text-right">Recursado</TableHead>
+                  <TableHead className="font-semibold text-right">Recuperado</TableHead>
+                  <TableHead className="font-semibold text-center">Taxa Recup.</TableHead>
                   <TableHead className="font-semibold text-center">Itens</TableHead>
                 </TableRow>
               </TableHeader>
@@ -53,6 +56,14 @@ export function ConvenioTable({ data }: ConvenioTableProps) {
                     </TableCell>
                     <TableCell className="text-right text-cyan-600">
                       R$ {(item.valorRecursado ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right text-emerald-600">
+                      R$ {(item.valorRecuperado ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(item.valorRecursado ?? 0) > 0
+                        ? ((((item.valorRecuperado ?? 0) / (item.valorRecursado ?? 1)) * 100).toFixed(1) + "%")
+                        : "-"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">{Math.round(item.quantidade).toLocaleString("pt-BR")}</Badge>

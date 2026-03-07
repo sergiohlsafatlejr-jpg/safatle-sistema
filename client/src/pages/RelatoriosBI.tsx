@@ -84,17 +84,20 @@ export default function RelatoriosBI() {
     valorRecebido: number;
     valorGlosado: number;
     valorRecursado?: number;
+    valorRecuperado?: number;
     quantidade: number;
   }
 
   // Dados por convênio (vindos do backend)
   const conveniosData = useMemo((): BIItem[] => {
     if (!biData?.porConvenio) return [];
-    return biData.porConvenio.map((item: BIItem) => ({
+    return biData.porConvenio.map((item: any) => ({
       chave: item.chave,
       valorFaturado: item.valorFaturado || 0,
       valorRecebido: item.valorRecebido || 0,
       valorGlosado: item.valorGlosado || 0,
+      valorRecursado: item.valorRecursado || 0,
+      valorRecuperado: item.valorRecuperado || 0,
       quantidade: item.quantidade || 0,
     }));
   }, [biData]);
@@ -253,14 +256,21 @@ export default function RelatoriosBI() {
 
     // Aba 2: Por Convênio
     const wsConvenio = XLSX.utils.json_to_sheet(
-      conveniosData.map((c) => ({
-        Convenio: c.chave,
-        Faturado: c.valorFaturado,
-        Recebido: c.valorRecebido,
-        Glosado: c.valorGlosado,
-        Recursado: c.valorRecursado ?? 0,
-        Itens: Math.round(c.quantidade),
-      }))
+      conveniosData.map((c) => {
+        const recursado = c.valorRecursado ?? 0;
+        const recuperado = c.valorRecuperado ?? 0;
+        const taxaRecup = recursado > 0 ? ((recuperado / recursado) * 100).toFixed(1) + "%" : "-";
+        return {
+          Convenio: c.chave,
+          Faturado: c.valorFaturado,
+          Recebido: c.valorRecebido,
+          Glosado: c.valorGlosado,
+          Recursado: recursado,
+          Recuperado: recuperado,
+          "Taxa Recuperação": taxaRecup,
+          Itens: Math.round(c.quantidade),
+        };
+      })
     );
     XLSX.utils.book_append_sheet(wb, wsConvenio, "Por Convenio");
 

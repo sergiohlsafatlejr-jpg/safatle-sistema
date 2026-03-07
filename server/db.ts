@@ -12970,6 +12970,7 @@ export interface DadosBIAgrupado {
   valorGlosado: number;
   valorPendente: number;
   valorRecursado?: number;
+  valorRecuperado?: number;
   quantidade: number;
   registros: number;
 }
@@ -13517,10 +13518,13 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     const convId = recurso.convenioId;
     const chaveConvenio = convenioMap.get(convId) || "Sem Convênio";
     if (!porConvenioMap.has(chaveConvenio)) {
-      porConvenioMap.set(chaveConvenio, { chave: chaveConvenio, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, valorRecursado: 0, quantidade: 0, registros: 0 });
+      porConvenioMap.set(chaveConvenio, { chave: chaveConvenio, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, valorRecursado: 0, valorRecuperado: 0, quantidade: 0, registros: 0 });
     }
     const entry = porConvenioMap.get(chaveConvenio)!;
-    entry.valorRecursado = (entry.valorRecursado || 0) + parseFloat(String(recurso.valorGlosado || "0"));
+    const valorRecursoAdd = parseFloat(String(recurso.valorGlosado || "0"));
+    const valorRecuperadoAdd = parseFloat(String(recurso.valorRecuperado || "0"));
+    entry.valorRecursado = (entry.valorRecursado || 0) + valorRecursoAdd;
+    entry.valorRecuperado = (entry.valorRecuperado || 0) + valorRecuperadoAdd;
   }
 
   // Calcular taxa de recuperação
