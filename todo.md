@@ -2500,3 +2500,9 @@
 - [x] Feature: Exibir indicador de Outlier na listagem de Contas Convênio
 - [x] Feature: Filtro por profissional na tela de Padrões de Cobrança
 - [x] UI: Adicionar filtro de profissional e checkbox de agrupar por profissional visível na tela de Padrões de Cobrança (aba Composição)
+- [x] Bug: Checkbox de agrupar por profissional não aparece visível na tela de Padrões de Cobrança (confirmado pelo usuário que está funcionando)
+- [ ] UI: Melhorar visibilidade do Score de Risco e Outliers na listagem de contas
+- [x] Feature: Sistema de feedback de auditores - schema de banco de dados (tabela feedbackAuditor) - já existia
+- [x] Feature: Sistema de feedback de auditores - procedures tRPC (criar, listar, atualizar feedback) - já existia
+- [x] Feature: Sistema de feedback de auditores - UI nos botões de ação da tabela de divergências (aprovar/rejeitar/comentar) - melhorado com indicadores visuais, histórico, aba de auditoria
+- [x] Feature: Sistema de feedback de auditores - testes vitest

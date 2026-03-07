@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -50,7 +50,12 @@ import {
   ThumbsUp,
   ThumbsDown,
   Pencil,
-  MessageSquare
+  MessageSquare,
+  UserCheck,
+  History,
+  ClipboardCheck,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Tooltip,
@@ -69,6 +74,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import React, { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
@@ -89,6 +101,13 @@ const formatDate = (date: Date | string | null | undefined) => {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString("pt-BR");
+};
+
+// Formatar data e hora
+const formatDateTime = (date: Date | string | null | undefined) => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 };
 
 // Ícones por tipo de item
@@ -143,6 +162,32 @@ const SeveridadeBadge = ({ severidade }: { severidade: string }) => {
   }
 };
 
+// Badge de decisão do auditor
+const DecisaoBadge = ({ decisao }: { decisao: string }) => {
+  switch (decisao) {
+    case "aceitar":
+      return (
+        <Badge className="bg-green-100 text-green-700 border-green-200">
+          <ThumbsUp className="h-3 w-3 mr-1" />Aceita
+        </Badge>
+      );
+    case "rejeitar":
+      return (
+        <Badge className="bg-red-100 text-red-700 border-red-200">
+          <ThumbsDown className="h-3 w-3 mr-1" />Rejeitada
+        </Badge>
+      );
+    case "ignorar":
+      return (
+        <Badge className="bg-gray-100 text-gray-700 border-gray-200">
+          <XCircle className="h-3 w-3 mr-1" />Ignorada
+        </Badge>
+      );
+    default:
+      return <Badge variant="outline">{decisao}</Badge>;
+  }
+};
+
 export default function ContaConvenioDetalhes() {
   const { user } = useAuth();
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -162,6 +207,8 @@ export default function ContaConvenioDetalhes() {
   }>({ open: false, div: null, acao: "aceitar" });
   const [feedbackObs, setFeedbackObs] = useState("");
   const [feedbackValor, setFeedbackValor] = useState("");
+  const [historicoDialog, setHistoricoDialog] = useState<{ open: boolean; div: any }>({ open: false, div: null });
+  const [filtroFeedback, setFiltroFeedback] = useState<string>("todos");
 
   // Buscar itens da conta na nova tabela
   const { data: itensData, isLoading, refetch } = trpc.contasConvenio.listarItens.useQuery(
@@ -182,13 +229,69 @@ export default function ContaConvenioDetalhes() {
     { enabled: !!numeroConta && !!estabelecimentoId }
   );
 
+  // Buscar feedbacks existentes para esta conta
+  const { data: feedbacksData, refetch: refetchFeedbacks } = trpc.contasConvenio.listarFeedbacks.useQuery(
+    {
+      numeroConta,
+      estabelecimentoId,
+    },
+    { enabled: !!numeroConta && !!estabelecimentoId }
+  );
+
+  // Criar um mapa de feedbacks por chave (codigoItem + tipoDivergencia)
+  const feedbackMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    if (!feedbacksData) return map;
+    for (const fb of feedbacksData) {
+      const key = `${fb.codigoItem || ""}_${fb.tipoDivergencia}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(fb);
+    }
+    return map;
+  }, [feedbacksData]);
+
+  // Resumo de feedbacks
+  const feedbackResumo = useMemo(() => {
+    if (!feedbacksData) return { total: 0, aceitas: 0, rejeitadas: 0, ignoradas: 0 };
+    return {
+      total: feedbacksData.length,
+      aceitas: feedbacksData.filter((f: any) => f.decisao === "aceitar").length,
+      rejeitadas: feedbacksData.filter((f: any) => f.decisao === "rejeitar").length,
+      ignoradas: feedbacksData.filter((f: any) => f.decisao === "ignorar").length,
+    };
+  }, [feedbacksData]);
+
+  // Função para obter feedback mais recente de uma divergência
+  const getFeedbackForDiv = (div: any) => {
+    const key = `${div.codigoItem || ""}_${div.tipo}`;
+    const feedbacks = feedbackMap.get(key);
+    if (!feedbacks || feedbacks.length === 0) return null;
+    // Retorna o mais recente
+    return feedbacks[0];
+  };
+
+  // Filtrar divergências por status de feedback
+  const divergenciasFiltradas = useMemo(() => {
+    if (!divergenciasData?.divergencias) return [];
+    if (filtroFeedback === "todos") return divergenciasData.divergencias;
+    
+    return divergenciasData.divergencias.filter((div: any) => {
+      const fb = getFeedbackForDiv(div);
+      if (filtroFeedback === "pendente") return !fb;
+      if (filtroFeedback === "aceitar") return fb?.decisao === "aceitar";
+      if (filtroFeedback === "rejeitar") return fb?.decisao === "rejeitar";
+      return true;
+    });
+  }, [divergenciasData?.divergencias, filtroFeedback, feedbackMap]);
+
   // Mutation para registrar feedback
   const feedbackMutation = trpc.contasConvenio.registrarFeedback.useMutation({
     onSuccess: () => {
-      toast.success("Feedback registrado com sucesso!");
+      toast.success("Feedback do auditor registrado com sucesso!");
       setFeedbackDialog({ open: false, div: null, acao: "aceitar" });
       setFeedbackObs("");
       setFeedbackValor("");
+      refetchFeedbacks();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -220,7 +323,7 @@ export default function ContaConvenioDetalhes() {
       padraoId: feedbackDialog.div.padraoId,
       codigoItem: feedbackDialog.div.codigoItem,
       tipoDivergencia: feedbackDialog.div.tipo,
-      acao: feedbackDialog.div.acao === "ajustar" ? "ajustar" : "rejeitar",
+      acao: feedbackDialog.acao === "ajustar" ? "ajustar" : "rejeitar",
       observacao: feedbackObs || undefined,
       valorSugerido: feedbackDialog.acao === "ajustar" ? feedbackValor : undefined,
     });
@@ -503,9 +606,9 @@ export default function ContaConvenioDetalhes() {
           </Card>
         </div>
 
-        {/* Tabs: Itens e Divergências */}
+        {/* Tabs: Itens, Divergências e Auditoria */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="itens" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Itens ({itensData?.items?.length || 0})
@@ -513,6 +616,10 @@ export default function ContaConvenioDetalhes() {
             <TabsTrigger value="divergencias" className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Divergências ({divergenciasData?.divergencias?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="auditoria" className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Auditoria ({feedbackResumo.total})
             </TabsTrigger>
           </TabsList>
 
@@ -604,10 +711,35 @@ export default function ContaConvenioDetalhes() {
           <TabsContent value="divergencias">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                  Divergências Encontradas
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    Divergências Encontradas
+                  </CardTitle>
+                  {/* Filtro por status de feedback */}
+                  {divergenciasData?.divergencias?.length ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Filtrar:</span>
+                      <Select value={filtroFeedback} onValueChange={setFiltroFeedback}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas ({divergenciasData.divergencias.length})</SelectItem>
+                          <SelectItem value="pendente">
+                            Pendentes ({divergenciasData.divergencias.filter((d: any) => !getFeedbackForDiv(d)).length})
+                          </SelectItem>
+                          <SelectItem value="aceitar">
+                            Aceitas ({divergenciasData.divergencias.filter((d: any) => getFeedbackForDiv(d)?.decisao === "aceitar").length})
+                          </SelectItem>
+                          <SelectItem value="rejeitar">
+                            Rejeitadas ({divergenciasData.divergencias.filter((d: any) => getFeedbackForDiv(d)?.decisao === "rejeitar").length})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingDiv ? (
@@ -639,7 +771,7 @@ export default function ContaConvenioDetalhes() {
                 ) : (
                   <div className="space-y-6">
                     {/* Score de Risco + Resumo de Divergências */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                       {/* Score de Risco */}
                       {(() => {
                         const score = divergenciasData.scoreRisco as number | null;
@@ -729,6 +861,44 @@ export default function ContaConvenioDetalhes() {
                           </div>
                         </CardContent>
                       </Card>
+                      {/* Card de Feedback do Auditor */}
+                      <Card className="border-indigo-200 bg-indigo-50/30">
+                        <CardContent className="p-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
+                              <UserCheck className="h-3.5 w-3.5" />
+                              Feedback Auditoria
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                                <ThumbsUp className="h-3 w-3 mr-1" />{feedbackResumo.aceitas}
+                              </Badge>
+                              <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                                <ThumbsDown className="h-3 w-3 mr-1" />{feedbackResumo.rejeitadas}
+                              </Badge>
+                              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {(divergenciasData?.divergencias?.length || 0) - feedbackResumo.aceitas - feedbackResumo.rejeitadas}
+                              </Badge>
+                            </div>
+                            {feedbackResumo.total > 0 && (
+                              <div className="mt-2">
+                                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                  <div 
+                                    className="bg-indigo-600 h-1.5 rounded-full transition-all" 
+                                    style={{ 
+                                      width: `${Math.round((feedbackResumo.total / (divergenciasData?.divergencias?.length || 1)) * 100)}%` 
+                                    }}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {Math.round((feedbackResumo.total / (divergenciasData?.divergencias?.length || 1)) * 100)}% auditado
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
 
                     {/* Tabela de Divergências */}
@@ -743,95 +913,303 @@ export default function ContaConvenioDetalhes() {
                             <TableHead className="text-right">Valor Cobrado</TableHead>
                             <TableHead className="text-right">Valor Esperado</TableHead>
                             <TableHead className="text-right">Diferença</TableHead>
+                            <TableHead className="text-center">Status Auditoria</TableHead>
                             <TableHead className="text-center">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {divergenciasData.divergencias.map((div: any, index: number) => (
-                            <TableRow key={index} className={div.severidade === "critico" ? "bg-red-50/50" : ""}>
-                              <TableCell>
-                                <SeveridadeBadge severidade={div.severidade} />
+                          {divergenciasFiltradas.map((div: any, index: number) => {
+                            const fb = getFeedbackForDiv(div);
+                            const rowBg = fb 
+                              ? fb.decisao === "aceitar" 
+                                ? "bg-green-50/50" 
+                                : fb.decisao === "rejeitar" 
+                                  ? "bg-red-50/30 opacity-60" 
+                                  : ""
+                              : div.severidade === "critico" 
+                                ? "bg-red-50/50" 
+                                : "";
+                            
+                            return (
+                              <TableRow key={index} className={rowBg}>
+                                <TableCell>
+                                  <SeveridadeBadge severidade={div.severidade} />
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    {div.tipo}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-mono text-sm">{div.codigoItem || "-"}</p>
+                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={div.descricaoItem}>
+                                      {div.descricaoItem || "-"}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="max-w-xs">
+                                  <p className="text-sm">{div.mensagem || div.descricao || "-"}</p>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {div.valorCobrado != null ? formatCurrency(div.valorCobrado) : "-"}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {div.valorEsperado != null ? formatCurrency(div.valorEsperado) : "-"}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {div.diferenca != null ? (
+                                    <span className={parseFloat(div.diferenca) > 0 ? "text-red-600" : "text-green-600"}>
+                                      {formatCurrency(div.diferenca)}
+                                    </span>
+                                  ) : "-"}
+                                </TableCell>
+                                {/* Status de Auditoria */}
+                                <TableCell className="text-center">
+                                  {fb ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <DecisaoBadge decisao={fb.decisao} />
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button 
+                                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 cursor-pointer"
+                                              onClick={() => setHistoricoDialog({ open: true, div })}
+                                            >
+                                              <UserCheck className="h-3 w-3" />
+                                              {fb.usuarioNome?.split(" ")[0] || "Auditor"}
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{fb.usuarioNome} em {formatDateTime(fb.createdAt)}</p>
+                                            {fb.justificativa && <p className="text-xs mt-1 max-w-xs">{fb.justificativa}</p>}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    </div>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300 bg-yellow-50">
+                                      <Clock className="h-3 w-3 mr-1" />Pendente
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                {/* Ações */}
+                                <TableCell>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant={fb?.decisao === "aceitar" ? "default" : "ghost"}
+                                            size="icon"
+                                            className={`h-7 w-7 ${
+                                              fb?.decisao === "aceitar" 
+                                                ? "bg-green-600 text-white hover:bg-green-700" 
+                                                : "text-green-600 hover:text-green-700 hover:bg-green-50"
+                                            }`}
+                                            onClick={() => handleFeedback(div, "aceitar")}
+                                            disabled={feedbackMutation.isPending}
+                                          >
+                                            <ThumbsUp className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {fb?.decisao === "aceitar" 
+                                            ? "Divergência aceita - clique para reconfirmar" 
+                                            : "Aceitar divergência (padrão correto)"}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant={fb?.decisao === "rejeitar" ? "default" : "ghost"}
+                                            size="icon"
+                                            className={`h-7 w-7 ${
+                                              fb?.decisao === "rejeitar" 
+                                                ? "bg-red-600 text-white hover:bg-red-700" 
+                                                : "text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            }`}
+                                            onClick={() => handleFeedback(div, "rejeitar")}
+                                            disabled={feedbackMutation.isPending}
+                                          >
+                                            <ThumbsDown className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {fb?.decisao === "rejeitar" 
+                                            ? "Divergência rejeitada - clique para alterar" 
+                                            : "Rejeitar divergência (falso positivo)"}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                            onClick={() => handleFeedback(div, "ajustar")}
+                                            disabled={feedbackMutation.isPending}
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ajustar valor esperado</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    {/* Botão de histórico */}
+                                    {fb && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                              onClick={() => setHistoricoDialog({ open: true, div })}
+                                            >
+                                              <History className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Ver histórico de feedbacks</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Auditoria (Histórico de Feedbacks) */}
+          <TabsContent value="auditoria">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-indigo-600" />
+                  Histórico de Auditoria
+                </CardTitle>
+                <CardDescription>
+                  Registro de todos os feedbacks dos auditores sobre as divergências desta conta
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!feedbacksData?.length ? (
+                  <div className="text-center py-8">
+                    <ClipboardCheck className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium">Nenhum feedback registrado</h3>
+                    <p className="text-muted-foreground">
+                      Use os botões de ação na aba "Divergências" para registrar feedbacks de auditoria.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Resumo de Auditoria */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Card className="border-indigo-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Total Feedbacks</p>
+                              <p className="text-2xl font-bold text-indigo-600">{feedbackResumo.total}</p>
+                            </div>
+                            <ClipboardCheck className="h-8 w-8 text-indigo-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-green-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Aceitas</p>
+                              <p className="text-2xl font-bold text-green-600">{feedbackResumo.aceitas}</p>
+                            </div>
+                            <ThumbsUp className="h-8 w-8 text-green-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-red-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Rejeitadas</p>
+                              <p className="text-2xl font-bold text-red-600">{feedbackResumo.rejeitadas}</p>
+                            </div>
+                            <ThumbsDown className="h-8 w-8 text-red-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-yellow-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Pendentes</p>
+                              <p className="text-2xl font-bold text-yellow-600">
+                                {(divergenciasData?.divergencias?.length || 0) - feedbackResumo.aceitas - feedbackResumo.rejeitadas}
+                              </p>
+                            </div>
+                            <Clock className="h-8 w-8 text-yellow-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Tabela de Feedbacks */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data/Hora</TableHead>
+                            <TableHead>Auditor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Tipo Divergência</TableHead>
+                            <TableHead>Decisão</TableHead>
+                            <TableHead>Justificativa</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {feedbacksData.map((fb: any) => (
+                            <TableRow key={fb.id}>
+                              <TableCell className="text-sm whitespace-nowrap">
+                                {formatDateTime(fb.createdAt)}
                               </TableCell>
                               <TableCell>
-                                <Badge variant="outline" className="text-xs">
-                                  {div.tipo}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div>
-                                  <p className="font-mono text-sm">{div.codigoItem || "-"}</p>
-                                  <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={div.descricaoItem}>
-                                    {div.descricaoItem || "-"}
-                                  </p>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-6 w-6 rounded-full bg-indigo-100 flex items-center justify-center">
+                                    <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
+                                  </div>
+                                  <span className="text-sm font-medium">{fb.usuarioNome || "Auditor"}</span>
                                 </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-mono text-sm">{fb.codigoItem || "-"}</span>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">{fb.tipoDivergencia}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <DecisaoBadge decisao={fb.decisao} />
                               </TableCell>
                               <TableCell className="max-w-xs">
-                                <p className="text-sm">{div.mensagem || div.descricao || "-"}</p>
-                              </TableCell>
-                              <TableCell className="text-right font-mono">
-                                {div.valorCobrado != null ? formatCurrency(div.valorCobrado) : "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">
-                                {div.valorEsperado != null ? formatCurrency(div.valorEsperado) : "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">
-                                {div.diferenca != null ? (
-                                  <span className={parseFloat(div.diferenca) > 0 ? "text-red-600" : "text-green-600"}>
-                                    {formatCurrency(div.diferenca)}
-                                  </span>
-                                ) : "-"}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-center gap-1">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                          onClick={() => handleFeedback(div, "aceitar")}
-                                          disabled={feedbackMutation.isPending}
-                                        >
-                                          <ThumbsUp className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Aceitar divergência (padrão correto)</TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                          onClick={() => handleFeedback(div, "rejeitar")}
-                                          disabled={feedbackMutation.isPending}
-                                        >
-                                          <ThumbsDown className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Rejeitar divergência (falso positivo)</TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                          onClick={() => handleFeedback(div, "ajustar")}
-                                          disabled={feedbackMutation.isPending}
-                                        >
-                                          <Pencil className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Ajustar valor esperado</TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                </div>
+                                <p className="text-sm text-muted-foreground truncate" title={fb.justificativa}>
+                                  {fb.justificativa || "-"}
+                                </p>
+                                {fb.dadosDivergencia?.valorSugerido && (
+                                  <p className="text-xs text-blue-600 mt-0.5">
+                                    Valor sugerido: {formatCurrency(fb.dadosDivergencia.valorSugerido)}
+                                  </p>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -850,8 +1228,11 @@ export default function ContaConvenioDetalhes() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                {feedbackDialog.acao === "rejeitar" ? "Rejeitar Divergência" : "Ajustar Valor"}
+                {feedbackDialog.acao === "rejeitar" ? (
+                  <><ThumbsDown className="h-5 w-5 text-red-500" /> Rejeitar Divergência</>
+                ) : (
+                  <><Pencil className="h-5 w-5 text-blue-500" /> Ajustar Valor</>
+                )}
               </DialogTitle>
               <DialogDescription>
                 {feedbackDialog.acao === "rejeitar"
@@ -917,6 +1298,71 @@ export default function ContaConvenioDetalhes() {
                 {feedbackDialog.acao === "rejeitar" ? "Rejeitar" : "Salvar Ajuste"}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Histórico de Feedbacks */}
+        <Dialog open={historicoDialog.open} onOpenChange={(open) => setHistoricoDialog(prev => ({ ...prev, open }))}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5 text-indigo-500" />
+                Histórico de Feedbacks
+              </DialogTitle>
+              <DialogDescription>
+                {historicoDialog.div && (
+                  <>Feedbacks para: {historicoDialog.div.codigoItem} - {historicoDialog.div.tipo}</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            {historicoDialog.div && (() => {
+              const key = `${historicoDialog.div.codigoItem || ""}_${historicoDialog.div.tipo}`;
+              const feedbacks = feedbackMap.get(key) || [];
+              
+              if (feedbacks.length === 0) {
+                return (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">Nenhum feedback registrado para esta divergência.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {feedbacks.map((fb: any, i: number) => (
+                    <div key={fb.id} className={`p-3 rounded-lg border ${
+                      fb.decisao === "aceitar" ? "border-green-200 bg-green-50/50" :
+                      fb.decisao === "rejeitar" ? "border-red-200 bg-red-50/50" :
+                      "border-gray-200 bg-gray-50/50"
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-indigo-100 flex items-center justify-center">
+                            <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
+                          </div>
+                          <span className="text-sm font-medium">{fb.usuarioNome || "Auditor"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DecisaoBadge decisao={fb.decisao} />
+                          <span className="text-xs text-muted-foreground">{formatDateTime(fb.createdAt)}</span>
+                        </div>
+                      </div>
+                      {fb.justificativa && (
+                        <p className="text-sm text-muted-foreground mt-1 pl-8">
+                          "{fb.justificativa}"
+                        </p>
+                      )}
+                      {fb.dadosDivergencia?.valorSugerido && (
+                        <p className="text-xs text-blue-600 mt-1 pl-8">
+                          Valor sugerido: {formatCurrency(fb.dadosDivergencia.valorSugerido)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
