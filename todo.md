@@ -2560,3 +2560,10 @@
 - [x] Bug: Botão Duplicar adicionado na seção de Composições (antes só tinha em Gabaritos)
 - [x] Feature: Duplicação em lote com checkboxes, barra de ações e modal para selecionar convênio/setor destino
 - [x] Feature: Duplicação individual agora permite duplicar composições (não apenas gabaritos)
+- [x] Templates de Mapeamento: seletor de sistema (Warleine/Tasy/MV/EasyVision/Personalizado) na criação de mapeamento
+- [x] Template Warleine: query SQL e mapeamento de campos pré-configurados
+- [x] Template Tasy: query SQL e mapeamento de campos pré-configurados
+- [x] Template MV: query SQL e mapeamento de campos pré-configurados
+- [x] Template EasyVision: query SQL e mapeamento de campos pré-configurados
+- [x] Frontend: modal/wizard de criação de mapeamento com seletor de template e preview dos campos
+- [x] Testes vitest para templates de mapeamento (32 testes passando)

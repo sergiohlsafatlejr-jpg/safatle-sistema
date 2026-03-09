@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, Plus, Trash2, Play, ArrowRight, GitBranch, RotateCcw, Zap, RefreshCw, Info, Pencil } from "lucide-react";
+import { Loader2, Plus, Trash2, Play, ArrowRight, GitBranch, RotateCcw, Zap, RefreshCw, Info, Pencil, FileCode, ChevronRight, AlertCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { TEMPLATES_MAPEAMENTO, SISTEMAS_DISPONIVEIS, type TemplateMapeamento } from "@/lib/templates-mapeamento";
 
 interface MapeamentosTabProps {
   estabelecimentoId: number;
@@ -50,6 +51,9 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
   const [modoImportacao, setModoImportacao] = useState<"completa" | "incremental">("completa");
   const [colunaControle, setColunaControle] = useState("");
   const [campos, setCampos] = useState<CampoMapeamento[]>([]);
+  const [sistemaSelec, setSistemaSelec] = useState<string>("");
+  const [templateSelec, setTemplateSelec] = useState<TemplateMapeamento | null>(null);
+  const [showTemplateStep, setShowTemplateStep] = useState(true);
 
   const mapeamentos = trpc.integradorDados.mapeamentos.listar.useQuery({ estabelecimentoId });
   const conexoes = trpc.integradorDados.conexoes.listar.useQuery({ estabelecimentoId });
@@ -152,6 +156,28 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
     setModoImportacao("completa");
     setColunaControle("");
     setCampos([]);
+    setSistemaSelec("");
+    setTemplateSelec(null);
+    setShowTemplateStep(true);
+  };
+
+  const handleSelecionarTemplate = (template: TemplateMapeamento) => {
+    setTemplateSelec(template);
+    setNome(template.nome);
+    setDescricao(template.descricao);
+    setQueryOrigem(template.querySQL);
+    setCampoChave(template.campoChaveSugerido);
+    setShowTemplateStep(false);
+  };
+
+  const handlePularTemplate = () => {
+    setSistemaSelec("personalizado");
+    setTemplateSelec(null);
+    setNome("");
+    setDescricao("");
+    setQueryOrigem("");
+    setCampoChave("");
+    setShowTemplateStep(false);
   };
 
   const handleEditClick = (mapId: number) => {
@@ -486,8 +512,93 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-muted-foreground">Carregando dados do mapeamento...</span>
               </div>
+            ) : !editingId && showTemplateStep ? (
+              /* === STEP 1: Seleção de Template === */
+              <div className="space-y-6">
+                <div className="text-center pb-2">
+                  <FileCode className="w-10 h-10 mx-auto text-primary mb-3" />
+                  <h3 className="text-lg font-semibold">Selecione o Sistema Hospitalar</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Escolha o sistema do hospital para carregar um template com query SQL e mapeamento de campos pré-configurados
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {SISTEMAS_DISPONIVEIS.filter(s => s.id !== "personalizado").map((sistema) => {
+                    const templates = TEMPLATES_MAPEAMENTO.filter(t => t.sistema.toLowerCase() === sistema.id);
+                    const isSelected = sistemaSelec === sistema.id;
+                    return (
+                      <button
+                        key={sistema.id}
+                        type="button"
+                        onClick={() => {
+                          setSistemaSelec(sistema.id);
+                          if (templates.length === 1) {
+                            handleSelecionarTemplate(templates[0]);
+                          }
+                        }}
+                        className={`p-4 rounded-lg border-2 text-left transition-all hover:shadow-md ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <div className="font-semibold text-sm flex items-center justify-between">
+                          {sistema.nome}
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Banco: {sistema.banco}
+                        </div>
+                        <div className="text-xs text-primary mt-2">
+                          {templates.length} template{templates.length !== 1 ? "s" : ""} disponível{templates.length !== 1 ? "is" : ""}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t pt-4">
+                  <button
+                    type="button"
+                    onClick={handlePularTemplate}
+                    className="w-full p-3 rounded-lg border-2 border-dashed border-border hover:border-muted-foreground/30 text-left transition-all"
+                  >
+                    <div className="font-medium text-sm">Personalizado (sem template)</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Configure manualmente a query SQL e o mapeamento de campos para qualquer sistema
+                    </div>
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="space-y-6">
+                {/* Banner do template selecionado */}
+                {templateSelec && !editingId && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCode className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">Template: {templateSelec.sistema}</span>
+                        <Badge variant="outline" className="text-xs">{templateSelec.bancoTipo}</Badge>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => { setShowTemplateStep(true); setTemplateSelec(null); setSistemaSelec(""); setNome(""); setDescricao(""); setQueryOrigem(""); setCampoChave(""); }}>
+                        Trocar template
+                      </Button>
+                    </div>
+                    {templateSelec.observacoes.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {templateSelec.observacoes.map((obs, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                            <AlertCircle className="w-3 h-3 mt-0.5 shrink-0 text-amber-500" />
+                            <span>{obs}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Info Básica */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -716,6 +827,39 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     </div>
                   )}
                 </div>
+
+                {/* Preview dos campos do template */}
+                {templateSelec && !editingId && (
+                  <div className="border rounded-lg p-4 bg-muted/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info className="w-4 h-4 text-blue-500" />
+                      <Label className="text-base font-semibold">Campos do Template ({templateSelec.sistema})</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Estes são os campos que a query SQL retorna. Se você não configurar mapeamento manual acima, eles serão inseridos automaticamente com os mesmos nomes.
+                    </p>
+                    <div className="rounded-md border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Campo SQL</TableHead>
+                            <TableHead className="text-xs">Destino</TableHead>
+                            <TableHead className="text-xs">Descrição</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {templateSelec.campos.map((campo, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="text-xs font-mono py-1.5">{campo.colunaOrigemNome}</TableCell>
+                              <TableCell className="text-xs py-1.5">{campo.colunaDestinoNome}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground py-1.5">{campo.descricao}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3 justify-end">
                   <Button variant="outline" onClick={resetForm}>Cancelar</Button>
