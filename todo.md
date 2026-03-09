@@ -2545,3 +2545,6 @@
 - [x] Exibir badge de convênio na listagem de gabaritos e composições
 - [x] Backend: editarPadrao aceita convenioId para alterar convênio vinculado
 - [x] Botão de ajuste/edição das regras já existia (Editar), agora com campo de convênio
+- [x] Backend: endpoint duplicarGabarito que copia um gabarito existente para outro convênio/setor
+- [x] Frontend: botão Duplicar na listagem de gabaritos com modal para selecionar convênio/setor destino
+- [x] Testes vitest para duplicação de gabarito (16 testes passando)

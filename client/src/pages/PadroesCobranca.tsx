@@ -13,13 +13,15 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 import { toast } from "sonner";
 import {
   DollarSign, BarChart3, AlertTriangle, Package, Search, RefreshCw, Loader2,
   TrendingUp, TrendingDown, ArrowUpDown, ChevronDown, ChevronUp, Info, Zap,
   ShieldAlert, CheckCircle2, XCircle, Activity, FileCheck, PlusCircle, Edit3,
-  ThumbsUp, ThumbsDown, Eye, Trash2, BookOpen, ClipboardCheck
+  ThumbsUp, ThumbsDown, Eye, Trash2, BookOpen, ClipboardCheck, Copy, Building2
 } from "lucide-react";
 
 export default function PadroesCobranca() {
@@ -40,7 +42,12 @@ export default function PadroesCobranca() {
   const [pageComp, setPageComp] = useState(1);
   const [pageGab, setPageGab] = useState(1);
 
-  // Estados de modais removidos - agora usamos telas dedicadas
+  // Estado do modal de duplicação de gabarito
+  const [duplicarModalOpen, setDuplicarModalOpen] = useState(false);
+  const [duplicarGabaritoId, setDuplicarGabaritoId] = useState<number | null>(null);
+  const [duplicarConvenioId, setDuplicarConvenioId] = useState<string>("");
+  const [duplicarSetor, setDuplicarSetor] = useState<string>("");
+  const [duplicarObservacoes, setDuplicarObservacoes] = useState<string>("");
 
   // Filtro de status na composição
   const [selectedStatusComp, setSelectedStatusComp] = useState<string>("");
@@ -131,6 +138,38 @@ export default function PadroesCobranca() {
     },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
+
+  const duplicarGabarito = trpc.padroesCobranca.duplicarGabarito.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Gabarito duplicado com sucesso! Novo ID: #${data.id}`);
+      gabaritos.refetch();
+      resumo.refetch();
+      setDuplicarModalOpen(false);
+      setDuplicarGabaritoId(null);
+      setDuplicarConvenioId("");
+      setDuplicarSetor("");
+      setDuplicarObservacoes("");
+    },
+    onError: (err) => toast.error(`Erro ao duplicar: ${err.message}`),
+  });
+
+  const handleAbrirDuplicar = (item: any) => {
+    setDuplicarGabaritoId(item.id);
+    setDuplicarConvenioId("");
+    setDuplicarSetor(item.setor || "");
+    setDuplicarObservacoes("");
+    setDuplicarModalOpen(true);
+  };
+
+  const handleConfirmarDuplicar = () => {
+    if (!duplicarGabaritoId) return;
+    duplicarGabarito.mutate({
+      id: duplicarGabaritoId,
+      novoConvenioId: duplicarConvenioId ? Number(duplicarConvenioId) : null,
+      novoSetor: duplicarSetor || null,
+      observacoes: duplicarObservacoes || undefined,
+    });
+  };
 
   const gerarTodos = async () => {
     toast.info("Gerando todos os padrões... isso pode levar alguns minutos.");
@@ -785,6 +824,12 @@ export default function PadroesCobranca() {
                               <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); setLocation(`/editar-padrao/${item.id}`); }}>
                                 <Edit3 className="h-3 w-3" /> Editar
                               </Button>
+                              <Button size="sm" variant="outline" className="gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10" onClick={(e) => {
+                                e.stopPropagation();
+                                handleAbrirDuplicar(item);
+                              }}>
+                                <Copy className="h-3 w-3" /> Duplicar
+                              </Button>
                               <Button size="sm" variant="outline" className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10" onClick={(e) => {
                                 e.stopPropagation();
                                 if (confirm("Tem certeza que deseja excluir este gabarito?")) {
@@ -823,6 +868,58 @@ export default function PadroesCobranca() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal de Duplicação de Gabarito */}
+      <Dialog open={duplicarModalOpen} onOpenChange={setDuplicarModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Copy className="h-5 w-5 text-blue-400" /> Duplicar Gabarito</DialogTitle>
+            <DialogDescription>
+              Crie uma cópia deste gabarito para outro convênio ou setor. Todos os itens e quantidades serão copiados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-sm font-medium flex items-center gap-1 mb-2"><Building2 className="h-3.5 w-3.5" /> Convênio Destino</Label>
+              <Select value={duplicarConvenioId || "todos"} onValueChange={(v) => setDuplicarConvenioId(v === "todos" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os convênios" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os convênios (geral)</SelectItem>
+                  {(conveniosSafatle.data as any[])?.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.nome}{c.codigo ? ` (${c.codigo})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2">Setor (opcional)</Label>
+              <Input
+                value={duplicarSetor}
+                onChange={(e) => setDuplicarSetor(e.target.value)}
+                placeholder="Ex: CENTRO CIRURGICO, UTI..."
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2">Observações (opcional)</Label>
+              <Textarea
+                value={duplicarObservacoes}
+                onChange={(e) => setDuplicarObservacoes(e.target.value)}
+                placeholder="Notas sobre esta duplicação..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicarModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmarDuplicar} disabled={duplicarGabarito.isPending} className="gap-1">
+              {duplicarGabarito.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              Duplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </DashboardLayout>
   );

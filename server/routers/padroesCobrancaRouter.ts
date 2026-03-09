@@ -1235,6 +1235,80 @@ export const padroesCobrancaRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Duplicar gabarito manual - copia um gabarito existente para outro convênio/setor
+   */
+  duplicarGabarito: protectedProcedure
+    .input(z.object({
+      id: z.number(), // ID do gabarito original
+      novoConvenioId: z.number().nullable().optional(), // Convênio destino (null = todos)
+      novoSetor: z.string().nullable().optional(), // Setor destino (null = geral)
+      observacoes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      // Buscar gabarito original
+      const [original] = await db.select().from(padroesCobranca).where(eq(padroesCobranca.id, input.id));
+      if (!original) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Gabarito original não encontrado" });
+      }
+      if (original.isGabarito !== 1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Apenas gabaritos manuais podem ser duplicados" });
+      }
+
+      const novoConvenioId = input.novoConvenioId !== undefined ? (input.novoConvenioId || null) : original.convenioId;
+      const novoSetor = input.novoSetor !== undefined ? (input.novoSetor || null) : original.setor;
+
+      // Verificar se já existe gabarito para este procedimento+convênio+setor
+      const existenteConditions: any[] = [
+        sql`estabelecimentoId = ${original.estabelecimentoId}`,
+        sql`codigoProcedimentoPrincipal = ${original.codigoProcedimentoPrincipal}`,
+        sql`isGabarito = 1`,
+      ];
+      if (novoConvenioId) {
+        existenteConditions.push(eq(padroesCobranca.convenioId, novoConvenioId));
+      } else {
+        existenteConditions.push(sql`convenioId IS NULL`);
+      }
+      if (novoSetor) {
+        existenteConditions.push(eq(padroesCobranca.setor, novoSetor));
+      } else {
+        existenteConditions.push(sql`setor IS NULL`);
+      }
+      const existente = await db
+        .select({ id: padroesCobranca.id })
+        .from(padroesCobranca)
+        .where(and(...existenteConditions));
+
+      if (existente.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Já existe um gabarito para este procedimento com o convênio/setor selecionado" });
+      }
+
+      // Criar cópia
+      const [result] = await db.insert(padroesCobranca).values({
+        estabelecimentoId: original.estabelecimentoId,
+        convenioId: novoConvenioId,
+        setor: novoSetor,
+        profissionalExecutante: original.profissionalExecutante,
+        codigoProcedimentoPrincipal: original.codigoProcedimentoPrincipal,
+        descricaoProcedimentoPrincipal: original.descricaoProcedimentoPrincipal,
+        tipoProcedimentoPrincipal: original.tipoProcedimentoPrincipal,
+        itensAssociados: original.itensAssociados,
+        totalOcorrencias: 0,
+        confianca: 100,
+        status: "ativo",
+        isGabarito: 1,
+        validadoPor: ctx.user.id,
+        dataValidacao: new Date(),
+        observacoesValidacao: input.observacoes || `Duplicado do gabarito #${original.id}`,
+      });
+
+      logger.info({ message: `Gabarito #${original.id} duplicado para novo gabarito #${result.insertId}`, userId: ctx.user.id });
+      return { success: true, id: result.insertId, originalId: original.id };
+    }),
+
   // ============================================================
   // PASSO 4: FEEDBACK LOOP (aceitar/rejeitar divergências)
   // ============================================================
