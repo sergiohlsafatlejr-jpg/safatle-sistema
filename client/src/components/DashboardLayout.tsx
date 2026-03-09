@@ -153,10 +153,14 @@ const menuItems: MenuItem[] = [
     { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relatoriosBi" },
     { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relatoriosBi" },
     { icon: Users, label: "Rel. Atendimentos", path: "/relatorio-atendimentos", modulo: "relatoriosBi" },
-    { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
-    { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
     { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "faturamento" },
     { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
+  ]},
+
+  // Módulo 5b - Atendimentos
+  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", children: [
+    { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
+    { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
   ]},
 
   // Módulo 6 - Conciliações

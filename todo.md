@@ -2535,3 +2535,5 @@
 - [x] Feature: Adicionar coluna Taxa de Recuperação na tabela Dados por Convênio
 - [x] Feature: Distribuir valorRecuperado por convênio no backend
 - [x] Feature: Incluir Recuperado e Taxa Recuperação no export Excel
+- [x] Reorganizar menu: remover Atendimentos e Atendimentos a Faturar de dentro de Relatórios BI
+- [x] Criar nova aba Atendimentos no menu principal com subpastas: Atendimentos e Atendimentos a Faturar
