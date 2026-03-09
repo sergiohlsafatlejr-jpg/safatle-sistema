@@ -24,6 +24,7 @@ import { faturamentoUnificadoRouter } from "./routers/faturamentoUnificadoRouter
 import { contasConvenioRouter } from "./routers/contasConvenioRouter";
 import { cbhpmRouter } from "./routers/cbhpmRouter";
 import { auditoriaRouter } from "./routers/auditoriaRouter";
+import { conferenciaRouter } from "./routers/conferenciaRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 
@@ -7105,6 +7106,9 @@ export const appRouter = router({
 
   // ============ AUDITORIA (Falhas de Prontuário, Ajustes, Aprendizado) ============
   auditoria: auditoriaRouter,
+
+  // ============ CONFERÊNCIA PÓS-CORREÇÃO ============
+  conferencia: conferenciaRouter,
 
   // ============ RECEBIMENTO GERAL ============
   recebimentoGeral: router({

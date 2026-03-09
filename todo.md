@@ -2548,3 +2548,10 @@
 - [x] Backend: endpoint duplicarGabarito que copia um gabarito existente para outro convênio/setor
 - [x] Frontend: botão Duplicar na listagem de gabaritos com modal para selecionar convênio/setor destino
 - [x] Testes vitest para duplicação de gabarito (16 testes passando)
+- [x] Fluxo Conferência Pós-Correção: tabela snapshot_auditoria para salvar estado dos itens auditados
+- [x] Backend: salvar snapshot via botão Gerar Snapshot na tela Conta Convênio Detalhes
+- [x] Backend: lógica de comparação automática na reimportação (antes vs depois)
+- [x] Backend: endpoints para listar conferências, detalhes de comparação, dashboard
+- [x] Frontend: tela Conferência Pós-Correção com cards resumo, filtro por status e lista de contas
+- [x] Frontend: dashboard de acompanhamento (Aguardando/Reimportadas/Aprovadas/Reprovadas/Taxa Correção)
+- [x] Testes vitest para lógica de comparação de snapshots (19 testes passando)

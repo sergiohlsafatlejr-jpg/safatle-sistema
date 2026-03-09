@@ -67,6 +67,7 @@ import {
   Square,
   Printer,
   ClipboardList,
+  FileCheck,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -435,6 +436,13 @@ export default function ContaConvenioDetalhes() {
   };
 
   // Mutation para comparar com padrões
+  const gerarSnapshotMutation = trpc.conferencia.gerarSnapshot.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Snapshot gerado! ${result.resumo.totalItens} itens, ${result.resumo.divergenciasAceitas} divergências, ${result.resumo.falhasAbertas} falhas, ${result.resumo.ajustes} ajustes salvos.`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const compararMutation = trpc.contasConvenio.compararComPadroes.useMutation({
     onSuccess: (result) => {
       if (result.statusGeral === "conforme") {
@@ -683,6 +691,20 @@ export default function ContaConvenioDetalhes() {
             >
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Exportar Excel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              onClick={() => gerarSnapshotMutation.mutate({ numeroConta, estabelecimentoId })}
+              disabled={gerarSnapshotMutation.isPending}
+            >
+              {gerarSnapshotMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileCheck className="mr-2 h-4 w-4" />
+              )}
+              Gerar Snapshot
             </Button>
           </div>
         </div>

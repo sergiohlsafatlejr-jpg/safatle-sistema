@@ -3622,3 +3622,129 @@ export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
 
 export type AprendizadoAuditoria = typeof aprendizadoAuditoria.$inferSelect;
 export type InsertAprendizadoAuditoria = typeof aprendizadoAuditoria.$inferInsert;
+
+
+/**
+ * Snapshot de Auditoria - Salva o estado dos itens da conta no momento em que a auditoria é finalizada
+ * Permite comparar com a reimportação para verificar se o faturista corrigiu os problemas
+ */
+export const snapshotAuditoria = mysqlTable("snapshot_auditoria", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência à conta
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Convênio
+  convenio: varchar("convenio", { length: 255 }),
+  convenioId: int("convenioId"),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  
+  // Snapshot dos itens da conta (JSON array com todos os itens no momento da auditoria)
+  // [{codigoItem, descricaoItem, tipoItem, quantidade, valorUnitario, valorTotal, statusAnalise, divergencias}]
+  itensSnapshot: json("itensSnapshot").notNull(),
+  
+  // Snapshot das divergências aceitas pela auditoria (itens que o faturista PRECISA corrigir)
+  // [{codigoItem, tipoDivergencia, decisao, justificativa, dadosDivergencia}]
+  divergenciasAceitas: json("divergenciasAceitas"),
+  
+  // Snapshot das falhas de prontuário abertas
+  // [{tipoFalha, categoriaFalha, descricao, severidade}]
+  falhasAbertas: json("falhasAbertas"),
+  
+  // Snapshot dos ajustes aplicados pela auditoria
+  // [{tipoAjuste, codigoItem, descricaoItem, quantidadeOriginal, valorOriginal, quantidadeAjustada, valorAjustado}]
+  ajustesAplicados: json("ajustesAplicados"),
+  
+  // Totais no momento do snapshot
+  totalItens: int("totalItens").default(0),
+  valorTotal: decimal("valorTotal", { precision: 14, scale: 2 }),
+  totalDivergenciasAceitas: int("totalDivergenciasAceitas").default(0),
+  totalFalhasAbertas: int("totalFalhasAbertas").default(0),
+  totalAjustes: int("totalAjustes").default(0),
+  
+  // Quem finalizou a auditoria (gerou o snapshot)
+  auditorId: int("auditorId").notNull(),
+  auditorNome: varchar("auditorNome", { length: 255 }),
+  
+  // Status do snapshot
+  status: mysqlEnum("statusSnapshot", [
+    "aguardando_correcao",   // Faturista ainda não reimportou
+    "reimportado",           // Conta foi reimportada, comparação disponível
+    "conferido",             // Conferência foi revisada manualmente
+    "aprovado",              // Todas as correções foram feitas
+    "reprovado",             // Correções insuficientes, precisa refazer
+  ]).default("aguardando_correcao").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  contaEstabIdx: index("idx_sa_conta_estab").on(table.numeroConta, table.estabelecimentoId),
+  statusIdx: index("idx_sa_status").on(table.status),
+  auditorIdx: index("idx_sa_auditor").on(table.auditorId),
+}));
+
+export type SnapshotAuditoria = typeof snapshotAuditoria.$inferSelect;
+export type InsertSnapshotAuditoria = typeof snapshotAuditoria.$inferInsert;
+
+/**
+ * Conferência Pós-Correção - Resultado da comparação entre snapshot e reimportação
+ * Cada registro é um item comparado com seu status de correção
+ */
+export const conferenciaCorrecao = mysqlTable("conferencia_correcao", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Referência ao snapshot
+  snapshotId: int("snapshotId").notNull(),
+  
+  // Referência à conta
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Item comparado
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  descricaoItem: text("descricaoItem"),
+  tipoItem: varchar("tipoItem", { length: 50 }),
+  
+  // Tipo do apontamento original
+  tipoApontamento: mysqlEnum("tipoApontamento", [
+    "divergencia_aceita",   // Divergência aceita pela auditoria
+    "falha_prontuario",     // Falha de prontuário aberta
+    "ajuste_auditoria",     // Ajuste feito pela auditoria
+  ]).notNull(),
+  
+  // Dados ANTES (do snapshot)
+  valorAntes: decimal("valorAntes", { precision: 14, scale: 2 }),
+  quantidadeAntes: decimal("quantidadeAntes", { precision: 12, scale: 4 }),
+  detalhesAntes: json("detalhesAntes"), // dados completos do apontamento original
+  
+  // Dados DEPOIS (da reimportação)
+  valorDepois: decimal("valorDepois", { precision: 14, scale: 2 }),
+  quantidadeDepois: decimal("quantidadeDepois", { precision: 12, scale: 4 }),
+  detalhesDepois: json("detalhesDepois"), // dados do item reimportado
+  
+  // Resultado da comparação
+  statusCorrecao: mysqlEnum("statusCorrecao", [
+    "corrigido",              // Item foi alterado conforme apontado
+    "parcialmente_corrigido", // Mudou mas não exatamente como esperado
+    "nao_corrigido",          // Permanece igual ao anterior
+    "novo_problema",          // Item que não tinha divergência agora tem
+    "item_removido",          // Item foi removido na reimportação
+    "item_adicionado",        // Novo item adicionado na reimportação
+  ]).notNull(),
+  
+  // Descrição da mudança detectada
+  descricaoMudanca: text("descricaoMudanca"),
+  
+  // Impacto financeiro da correção (diferença de valor)
+  impactoFinanceiro: decimal("impactoFinanceiro", { precision: 14, scale: 2 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  snapshotIdx: index("idx_cc_snapshot").on(table.snapshotId),
+  contaEstabIdx: index("idx_cc_conta_estab").on(table.numeroConta, table.estabelecimentoId),
+  statusIdx: index("idx_cc_status").on(table.statusCorrecao),
+}));
+
+export type ConferenciaCorrecao = typeof conferenciaCorrecao.$inferSelect;
+export type InsertConferenciaCorrecao = typeof conferenciaCorrecao.$inferInsert;

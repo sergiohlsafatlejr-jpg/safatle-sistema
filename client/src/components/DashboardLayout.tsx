@@ -79,6 +79,7 @@ import {
   Gauge,
   Package,
   ClipboardCheck,
+  FileCheck,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -113,6 +114,7 @@ const menuItems: MenuItem[] = [
     { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
     { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
     { icon: ClipboardCheck, label: "Dashboard Auditoria", path: "/dashboard-auditoria", modulo: "dashboard" },
+    { icon: FileCheck, label: "Conferência Pós-Correção", path: "/conferencia-correcao", modulo: "dashboard" },
   ]},
 
   // Módulo 1 - Upload Contas
