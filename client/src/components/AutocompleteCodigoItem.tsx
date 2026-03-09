@@ -81,6 +81,21 @@ export function AutocompleteCodigoItem({
     onChange(item);
   };
 
+  // Auto-selecionar quando o usuário digita um código exato e sai do campo
+  const handleBlur = useCallback(() => {
+    // Delay para permitir click no dropdown
+    setTimeout(() => {
+      if (sugestoes && sugestoes.length > 0 && inputValue.trim()) {
+        // Se há um resultado com código exato, seleciona automaticamente
+        const exactMatch = sugestoes.find((s: ItemSugestao) => s.codigo === inputValue.trim());
+        if (exactMatch) {
+          onChange(exactMatch);
+        }
+      }
+      setShowDropdown(false);
+    }, 200);
+  }, [sugestoes, inputValue, onChange]);
+
   const tipoLabel = (tipo: string) => {
     const map: Record<string, { label: string; color: string }> = {
       "PROCEDIMENTO": { label: "Proc", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
@@ -108,6 +123,7 @@ export function AutocompleteCodigoItem({
           onFocus={() => {
             if (debouncedSearch.length >= 2) setShowDropdown(true);
           }}
+          onBlur={handleBlur}
           placeholder={placeholder}
           className="h-8 text-xs pr-7"
         />

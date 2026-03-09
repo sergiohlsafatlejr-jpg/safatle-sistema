@@ -52,6 +52,13 @@ export default function PadroesCobranca() {
   // Filtro de status na composição
   const [selectedStatusComp, setSelectedStatusComp] = useState<string>("");
 
+  // Estado de seleção em lote para duplicação
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [duplicarLoteModalOpen, setDuplicarLoteModalOpen] = useState(false);
+  const [duplicarLoteConvenioId, setDuplicarLoteConvenioId] = useState<string>("");
+  const [duplicarLoteSetor, setDuplicarLoteSetor] = useState<string>("");
+  const [duplicarLoteObservacoes, setDuplicarLoteObservacoes] = useState<string>("");
+
   const estabelecimentoId = estabelecimentoAtual?.id || 1;
 
   // Queries
@@ -152,6 +159,63 @@ export default function PadroesCobranca() {
     },
     onError: (err) => toast.error(`Erro ao duplicar: ${err.message}`),
   });
+
+  // Duplicação em lote
+  const duplicarEmLote = trpc.padroesCobranca.duplicarEmLote.useMutation({
+    onSuccess: (data) => {
+      if (data.erros > 0) {
+        toast.warning(`${data.sucesso} duplicado(s), ${data.erros} erro(s): ${data.detalhesErros.map((e: any) => `${e.codigo}: ${e.motivo}`).join("; ")}`);
+      } else {
+        toast.success(data.message);
+      }
+      gabaritos.refetch();
+      padroesComposicao.refetch();
+      resumo.refetch();
+      setSelectedIds(new Set());
+      setDuplicarLoteModalOpen(false);
+      setDuplicarLoteConvenioId("");
+      setDuplicarLoteSetor("");
+      setDuplicarLoteObservacoes("");
+    },
+    onError: (err) => toast.error(`Erro ao duplicar em lote: ${err.message}`),
+  });
+
+  const toggleSelectId = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (items: any[]) => {
+    const allIds = items.map((i: any) => i.id);
+    const allSelected = allIds.every((id: number) => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allIds.forEach((id: number) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allIds.forEach((id: number) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmarDuplicarLote = () => {
+    if (selectedIds.size === 0) return;
+    duplicarEmLote.mutate({
+      ids: Array.from(selectedIds),
+      novoConvenioId: duplicarLoteConvenioId ? Number(duplicarLoteConvenioId) : null,
+      novoSetor: duplicarLoteSetor || null,
+      observacoes: duplicarLoteObservacoes || undefined,
+    });
+  };
 
   const handleAbrirDuplicar = (item: any) => {
     setDuplicarGabaritoId(item.id);
@@ -647,14 +711,44 @@ export default function PadroesCobranca() {
               <Card className="py-12 text-center"><p className="text-muted-foreground">Nenhum padrão de composição encontrado.</p></Card>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">{padroesComposicao.data?.total} padrões encontrados</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={(padroesComposicao.data?.items?.length ?? 0) > 0 && (padroesComposicao.data?.items ?? []).every((i: any) => selectedIds.has(i.id))}
+                      onCheckedChange={() => toggleSelectAll(padroesComposicao.data?.items || [])}
+                    />
+                    <p className="text-sm text-muted-foreground">{padroesComposicao.data?.total} padrões encontrados</p>
+                  </div>
+                  {selectedIds.size > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{selectedIds.size} selecionado(s)</Badge>
+                      <Button size="sm" variant="outline" className="gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10" onClick={() => {
+                        setDuplicarLoteConvenioId("");
+                        setDuplicarLoteSetor("");
+                        setDuplicarLoteObservacoes("");
+                        setDuplicarLoteModalOpen(true);
+                      }}>
+                        <Copy className="h-3 w-3" /> Duplicar em Lote
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+                        Limpar seleção
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {padroesComposicao.data?.items?.map((item: any) => {
                     const isExpanded = expandedItem === item.id;
                     const itensAssoc = Array.isArray(item.itensAssociados) ? item.itensAssociados : (typeof item.itensAssociados === "string" ? JSON.parse(item.itensAssociados) : []);
                     return (
-                      <Card key={item.id} className={`overflow-hidden ${item.isGabarito === 1 ? "border-blue-500/30" : ""}`}>
-                        <div className="p-4 cursor-pointer" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
+                      <Card key={item.id} className={`overflow-hidden ${item.isGabarito === 1 ? "border-blue-500/30" : ""} ${selectedIds.has(item.id) ? "ring-1 ring-blue-500/50 bg-blue-500/5" : ""}`}>
+                        <div className="p-4 cursor-pointer flex items-start gap-3" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={() => toggleSelectId(item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1 shrink-0"
+                          />
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
@@ -698,6 +792,12 @@ export default function PadroesCobranca() {
                               </Button>
                               <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); openReview(item.id); }}>
                                 <Eye className="h-3 w-3" /> Detalhes
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10" onClick={(e) => {
+                                e.stopPropagation();
+                                handleAbrirDuplicar(item);
+                              }}>
+                                <Copy className="h-3 w-3" /> Duplicar
                               </Button>
                             </div>
                             {itensAssoc.length > 0 && (
@@ -782,14 +882,44 @@ export default function PadroesCobranca() {
               </Card>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">{gabaritos.data?.total} gabaritos encontrados</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={(gabaritos.data?.items?.length ?? 0) > 0 && (gabaritos.data?.items ?? []).every((i: any) => selectedIds.has(i.id))}
+                      onCheckedChange={() => toggleSelectAll(gabaritos.data?.items || [])}
+                    />
+                    <p className="text-sm text-muted-foreground">{gabaritos.data?.total} gabaritos encontrados</p>
+                  </div>
+                  {selectedIds.size > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{selectedIds.size} selecionado(s)</Badge>
+                      <Button size="sm" variant="outline" className="gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10" onClick={() => {
+                        setDuplicarLoteConvenioId("");
+                        setDuplicarLoteSetor("");
+                        setDuplicarLoteObservacoes("");
+                        setDuplicarLoteModalOpen(true);
+                      }}>
+                        <Copy className="h-3 w-3" /> Duplicar em Lote
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+                        Limpar seleção
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {gabaritos.data?.items?.map((item: any) => {
                     const isExpanded = expandedItem === item.id;
                     const itensAssoc = Array.isArray(item.itensAssociados) ? item.itensAssociados : (typeof item.itensAssociados === "string" ? JSON.parse(item.itensAssociados) : []);
                     return (
-                      <Card key={item.id} className="overflow-hidden border-blue-500/20">
-                        <div className="p-4 cursor-pointer" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
+                      <Card key={item.id} className={`overflow-hidden border-blue-500/20 ${selectedIds.has(item.id) ? "ring-1 ring-blue-500/50 bg-blue-500/5" : ""}`}>
+                        <div className="p-4 cursor-pointer flex items-start gap-3" onClick={() => setExpandedItem(isExpanded ? null : item.id)}>
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={(e) => { e; toggleSelectId(item.id); }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1 shrink-0"
+                          />
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
@@ -916,6 +1046,63 @@ export default function PadroesCobranca() {
             <Button onClick={handleConfirmarDuplicar} disabled={duplicarGabarito.isPending} className="gap-1">
               {duplicarGabarito.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
               Duplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Duplicação em Lote */}
+      <Dialog open={duplicarLoteModalOpen} onOpenChange={setDuplicarLoteModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Copy className="h-5 w-5 text-blue-400" /> Duplicar em Lote</DialogTitle>
+            <DialogDescription>
+              Copie {selectedIds.size} gabarito(s) selecionado(s) para outro convênio ou setor. Todos os itens e quantidades serão copiados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-sm font-medium flex items-center gap-1 mb-2"><Building2 className="h-3.5 w-3.5" /> Convênio Destino</Label>
+              <Select value={duplicarLoteConvenioId || "todos"} onValueChange={(v) => setDuplicarLoteConvenioId(v === "todos" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os convênios" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os convênios (geral)</SelectItem>
+                  {(conveniosSafatle.data as any[])?.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.nome}{c.codigo ? ` (${c.codigo})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2">Setor (opcional)</Label>
+              <Input
+                value={duplicarLoteSetor}
+                onChange={(e) => setDuplicarLoteSetor(e.target.value)}
+                placeholder="Ex: CENTRO CIRURGICO, UTI..."
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2">Observações (opcional)</Label>
+              <Textarea
+                value={duplicarLoteObservacoes}
+                onChange={(e) => setDuplicarLoteObservacoes(e.target.value)}
+                placeholder="Notas sobre esta duplicação em lote..."
+                rows={2}
+              />
+            </div>
+            <Card className="p-3 bg-muted/50">
+              <p className="text-xs text-muted-foreground">
+                <strong>{selectedIds.size}</strong> gabarito(s) serão duplicados. Gabaritos que já existem para o procedimento+convênio+setor destino serão ignorados automaticamente.
+              </p>
+            </Card>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicarLoteModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmarDuplicarLote} disabled={duplicarEmLote.isPending} className="gap-1">
+              {duplicarEmLote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              Duplicar {selectedIds.size} Gabarito(s)
             </Button>
           </DialogFooter>
         </DialogContent>

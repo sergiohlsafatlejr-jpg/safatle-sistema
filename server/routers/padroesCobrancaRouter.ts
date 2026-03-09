@@ -1254,9 +1254,8 @@ export const padroesCobrancaRouter = router({
       if (!original) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Gabarito original não encontrado" });
       }
-      if (original.isGabarito !== 1) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Apenas gabaritos manuais podem ser duplicados" });
-      }
+      // Permitir duplicar tanto gabaritos quanto composições
+      // A cópia sempre será criada como gabarito (isGabarito = 1)
 
       const novoConvenioId = input.novoConvenioId !== undefined ? (input.novoConvenioId || null) : original.convenioId;
       const novoSetor = input.novoSetor !== undefined ? (input.novoSetor || null) : original.setor;
@@ -1305,8 +1304,96 @@ export const padroesCobrancaRouter = router({
         observacoesValidacao: input.observacoes || `Duplicado do gabarito #${original.id}`,
       });
 
-      logger.info({ message: `Gabarito #${original.id} duplicado para novo gabarito #${result.insertId}`, userId: ctx.user.id });
+      logger.info({ message: `Padrão #${original.id} duplicado para novo gabarito #${result.insertId}`, userId: ctx.user.id });
       return { success: true, id: result.insertId, originalId: original.id };
+    }),
+
+  /**
+   * Duplicar múltiplos gabaritos/composições em lote para outro convênio
+   */
+  duplicarEmLote: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()).min(1, "Selecione pelo menos um padrão"),
+      novoConvenioId: z.number().nullable().optional(),
+      novoSetor: z.string().nullable().optional(),
+      observacoes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const resultados: { originalId: number; novoId: number; codigo: string }[] = [];
+      const erros: { originalId: number; codigo: string; motivo: string }[] = [];
+
+      for (const id of input.ids) {
+        try {
+          const [original] = await db.select().from(padroesCobranca).where(eq(padroesCobranca.id, id));
+          if (!original) {
+            erros.push({ originalId: id, codigo: "?", motivo: "Padrão não encontrado" });
+            continue;
+          }
+
+          const novoConvenioId = input.novoConvenioId !== undefined ? (input.novoConvenioId || null) : original.convenioId;
+          const novoSetor = input.novoSetor !== undefined ? (input.novoSetor || null) : original.setor;
+
+          // Verificar duplicata
+          const existenteConditions: any[] = [
+            sql`estabelecimentoId = ${original.estabelecimentoId}`,
+            sql`codigoProcedimentoPrincipal = ${original.codigoProcedimentoPrincipal}`,
+            sql`isGabarito = 1`,
+          ];
+          if (novoConvenioId) {
+            existenteConditions.push(eq(padroesCobranca.convenioId, novoConvenioId));
+          } else {
+            existenteConditions.push(sql`convenioId IS NULL`);
+          }
+          if (novoSetor) {
+            existenteConditions.push(eq(padroesCobranca.setor, novoSetor));
+          } else {
+            existenteConditions.push(sql`setor IS NULL`);
+          }
+          const existente = await db
+            .select({ id: padroesCobranca.id })
+            .from(padroesCobranca)
+            .where(and(...existenteConditions));
+
+          if (existente.length > 0) {
+            erros.push({ originalId: id, codigo: original.codigoProcedimentoPrincipal || "?", motivo: "Já existe gabarito para este procedimento+convênio+setor" });
+            continue;
+          }
+
+          const [result] = await db.insert(padroesCobranca).values({
+            estabelecimentoId: original.estabelecimentoId,
+            convenioId: novoConvenioId,
+            setor: novoSetor,
+            profissionalExecutante: original.profissionalExecutante,
+            codigoProcedimentoPrincipal: original.codigoProcedimentoPrincipal,
+            descricaoProcedimentoPrincipal: original.descricaoProcedimentoPrincipal,
+            tipoProcedimentoPrincipal: original.tipoProcedimentoPrincipal,
+            itensAssociados: original.itensAssociados,
+            totalOcorrencias: 0,
+            confianca: 100,
+            status: "ativo",
+            isGabarito: 1,
+            validadoPor: ctx.user.id,
+            dataValidacao: new Date(),
+            observacoesValidacao: input.observacoes || `Duplicado em lote do padrão #${original.id}`,
+          });
+
+          resultados.push({ originalId: id, novoId: result.insertId as number, codigo: original.codigoProcedimentoPrincipal || "?" });
+        } catch (err: any) {
+          erros.push({ originalId: id, codigo: "?", motivo: err.message || "Erro desconhecido" });
+        }
+      }
+
+      logger.info({ message: `Duplicação em lote: ${resultados.length} sucesso, ${erros.length} erros`, userId: ctx.user.id });
+      return {
+        sucesso: resultados.length,
+        erros: erros.length,
+        resultados,
+        detalhesErros: erros,
+        message: `${resultados.length} gabarito(s) duplicado(s) com sucesso${erros.length > 0 ? `, ${erros.length} erro(s)` : ""}`,
+      };
     }),
 
   // ============================================================

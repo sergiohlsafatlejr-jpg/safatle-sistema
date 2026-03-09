@@ -2555,3 +2555,8 @@
 - [x] Frontend: tela Conferência Pós-Correção com cards resumo, filtro por status e lista de contas
 - [x] Frontend: dashboard de acompanhamento (Aguardando/Reimportadas/Aprovadas/Reprovadas/Taxa Correção)
 - [x] Testes vitest para lógica de comparação de snapshots (19 testes passando)
+- [x] Bug: Descrição do item não preenche automaticamente - adicionado auto-seleção no blur quando código exato é digitado
+- [x] Bug: Seletor de setor - setores vem do faturamento_unificado, aparecem conforme dados são importados (comportamento correto)
+- [x] Bug: Botão Duplicar adicionado na seção de Composições (antes só tinha em Gabaritos)
+- [x] Feature: Duplicação em lote com checkboxes, barra de ações e modal para selecionar convênio/setor destino
+- [x] Feature: Duplicação individual agora permite duplicar composições (não apenas gabaritos)
