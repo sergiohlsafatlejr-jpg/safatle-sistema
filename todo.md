@@ -2639,3 +2639,23 @@
 - [x] Filtros devem atualizar os gráficos e KPIs em tempo real
 - [x] Botão para limpar todos os filtros
 - [x] Atualizar testes vitest para cobrir filtros no endpoint de métricas (14 testes passando)
+
+## Bug: Relatório Atendimentos retorna HTML ao invés de JSON
+- [x] Corrigir erro "Unexpected token '<'" na página /relatorio-atendimentos (API retorna HTML ao invés de JSON) - servidor tinha caído, reiniciado com sucesso
+
+## Dashboard de Custos (Relatórios BI)
+- [x] Criar tabela `custos_produtos_cache` no schema para armazenar dados de TABPROD/TABMPROP
+- [x] Migrar schema (pnpm db:push)
+- [x] Implementar sincronização backend: extrair dados do Warleine (tabelas 50, 04, 07, 06) e popular cache local
+- [x] Criar endpoint de busca com filtros (tipoProd, codtbmm, busca por descrição)
+- [x] Criar endpoint de métricas agregadas para dashboard (por tipo produto, por tabela preço, custo médio, etc.)
+- [x] Criar página RelatorioCustos.tsx com abas Dashboard + Tabela Detalhada
+- [x] Dashboard KPIs: Total Produtos, Custo Médio Estoque, Custo Médio Fatura, Total por Tipo
+- [x] Gráfico de barras: Custo Estoque vs Custo Fatura por Tipo de Produto
+- [x] Gráfico de barras: Top 20 produtos mais caros (custo estoque)
+- [x] Gráfico de pizza: Distribuição por Tipo de Produto (M/T/O)
+- [x] Gráfico de barras: Distribuição por Tabela de Preço (50, 04, 07, 06)
+- [x] Tabela detalhada com todos os campos (codprod, descrição, tipo, custos, unidades, etc.)
+- [x] Filtros interativos no dashboard e tabela
+- [x] Registrar rota no App.tsx e sidebar
+- [x] Escrever testes vitest para os endpoints (11 testes passando)

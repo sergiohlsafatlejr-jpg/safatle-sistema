@@ -1,0 +1,843 @@
+import pg from "pg";
+import { ENV } from "./_core/env";
+import { getDb } from "./db";
+import { custosProtudosCache, custosProdutosSyncMeta } from "../drizzle/schema-integracao";
+import { eq, and, like, sql, count, desc, asc } from "drizzle-orm";
+
+const { Pool } = pg;
+
+let warleinePool: pg.Pool | null = null;
+
+function getWarleinePool(): pg.Pool {
+  if (!warleinePool) {
+    warleinePool = new Pool({
+      host: ENV.warleineDbHost,
+      port: parseInt(ENV.warleineDbPort, 10),
+      database: ENV.warleineDbName,
+      user: ENV.warleineDbUser,
+      password: ENV.warleineDbPassword,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      ssl: false,
+    });
+  }
+  return warleinePool;
+}
+
+// ============================================================
+// MAPEAMENTOS
+// ============================================================
+
+const TIPO_PROD_MAP: Record<string, string> = {
+  M: "Medicamento",
+  T: "Taxa",
+  O: "Outros",
+};
+
+const TABELA_PRECO_MAP: Record<string, string> = {
+  "50": "Tabela 50",
+  "04": "Tabela 04 (Brasindice)",
+  "07": "Tabela 07 (Simpro)",
+  "06": "Tabela 06",
+};
+
+// ============================================================
+// INTERFACES
+// ============================================================
+
+export interface FiltroCustos {
+  tipoprod?: string;
+  codtbmm?: string;
+  busca?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MetricasCustosDashboard {
+  totalProdutos: number;
+  totalMedicamentos: number;
+  totalTaxas: number;
+  totalOutros: number;
+  custoMedioEstoque: number;
+  custoMedioFatura: number;
+  valorMedioMM: number;
+  porTipoProduto: { nome: string; codigo: string; total: number }[];
+  porTabelaPreco: { nome: string; codigo: string; total: number }[];
+  topCustoEstoque: { codprod: string; descricao: string; custoEstoque: number; tipoprod: string }[];
+  topCustoFatura: { codprod: string; descricao: string; custoMultFat: number; tipoprod: string }[];
+  comparativoCustos: { tipo: string; custoEstoque: number; custoFatura: number; valorMM: number }[];
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+// ============================================================
+// BUSCAR PRODUTOS - Cache local ou PostgreSQL
+// ============================================================
+
+export async function buscarCustosProdutos(
+  estabelecimentoId: number,
+  filtros: FiltroCustos
+): Promise<{
+  dados: any[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  fonte: "cache_local" | "postgresql_direto";
+}> {
+  const limit = filtros.limit || 50;
+  const offset = filtros.offset || 0;
+
+  // Tentar cache local primeiro
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(custosProtudosCache)
+        .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarDoCache(db, estabelecimentoId, filtros, limit, offset);
+      }
+    }
+  } catch (e) {
+    console.warn("[RelatorioCustos] Cache local indisponível:", (e as Error).message);
+  }
+
+  // Fallback: PostgreSQL direto
+  return buscarDoPostgresql(filtros, limit, offset);
+}
+
+async function buscarDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  estabelecimentoId: number,
+  filtros: FiltroCustos,
+  limit: number,
+  offset: number
+): Promise<{
+  dados: any[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  fonte: "cache_local" | "postgresql_direto";
+}> {
+  const conditions: any[] = [eq(custosProtudosCache.estabelecimentoId, estabelecimentoId)];
+
+  if (filtros.tipoprod) {
+    conditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
+  }
+  if (filtros.codtbmm) {
+    conditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
+  }
+  if (filtros.busca) {
+    conditions.push(
+      sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
+    );
+  }
+
+  const whereClause = and(...conditions);
+
+  const [totalResult, dados] = await Promise.all([
+    db.select({ total: count() }).from(custosProtudosCache).where(whereClause),
+    db
+      .select()
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .orderBy(asc(custosProtudosCache.descricao))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const total = totalResult[0]?.total || 0;
+
+  return {
+    dados: dados.map((d) => ({
+      codprod: d.codprod,
+      codtbmm: d.codtbmm,
+      descricao: d.descricao,
+      tipoprod: d.tipoprod,
+      tipoprodDesc: TIPO_PROD_MAP[d.tipoprod || ""] || d.tipoprod,
+      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      capacidadeEstoque: d.capacidadeEstoque ? parseFloat(d.capacidadeEstoque) : null,
+      multEstoque: d.multEstoque ? parseFloat(d.multEstoque) : null,
+      multFaturas: d.multFaturas ? parseFloat(d.multFaturas) : null,
+      unidadeEstoque: d.unidadeEstoque,
+      unidadeFaturas: d.unidadeFaturas,
+      custoEstoque: d.custoEstoque ? parseFloat(d.custoEstoque) : null,
+      custoMultFat: d.custoMultFat ? parseFloat(d.custoMultFat) : null,
+      valormm: d.valormm ? parseFloat(d.valormm) : null,
+      prevenbras: d.prevenbras ? parseFloat(d.prevenbras) : null,
+      prefabsimp: d.prefabsimp ? parseFloat(d.prefabsimp) : null,
+    })),
+    total,
+    pagina: Math.floor(offset / limit) + 1,
+    totalPaginas: Math.ceil(total / limit),
+    fonte: "cache_local",
+  };
+}
+
+async function buscarDoPostgresql(
+  filtros: FiltroCustos,
+  limit: number,
+  offset: number
+): Promise<{
+  dados: any[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  fonte: "cache_local" | "postgresql_direto";
+}> {
+  const client = await getWarleinePool().connect();
+  try {
+    const tabelasCodtbmm = filtros.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    const extraConditions: string[] = [];
+    if (filtros.tipoprod) {
+      extraConditions.push(`A.tipoprod = $${paramIdx}`);
+      params.push(filtros.tipoprod);
+      paramIdx++;
+    }
+    if (filtros.busca) {
+      extraConditions.push(`(A.descricao ILIKE $${paramIdx} OR A.codprod ILIKE $${paramIdx})`);
+      params.push(`%${filtros.busca}%`);
+      paramIdx++;
+    }
+
+    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+
+    // Build UNION query
+    const unionParts = tabelasCodtbmm.map((tbmm) => {
+      return `
+        SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
+          A.capacidade AS capacidade_estoque,
+          A.multcobr AS mult_estoque,
+          B.multcobr AS mult_faturas,
+          A.unidade AS unidade_estoque,
+          B.unidade AS unidade_faturas,
+          A.custoatual AS custo_estoque,
+          CASE 
+            WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0)
+            ELSE A.custoatual
+          END AS custo_mult_fat,
+          B.valormm,
+          A.prevenbras,
+          A.prefabsimp
+        FROM "PACIENTE".tabprod A
+        JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+        WHERE B.codtbmm = '${tbmm}'
+          AND A.tipoprod IN ('M','T','O')
+          AND A.inativo IS NULL
+          ${extraWhere}
+      `;
+    });
+
+    const fullQuery = unionParts.join(" UNION ALL ");
+
+    // Count total
+    const countQuery = `SELECT COUNT(*) as total FROM (${fullQuery}) sub`;
+    const countResult = await client.query(countQuery, params);
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+
+    // Fetch data with pagination
+    const dataQuery = `SELECT * FROM (${fullQuery}) sub ORDER BY descricao ASC LIMIT ${limit} OFFSET ${offset}`;
+    const dataResult = await client.query(dataQuery, params);
+
+    return {
+      dados: dataResult.rows.map((r: any) => ({
+        codprod: r.codprod,
+        codtbmm: r.codtbmm,
+        descricao: r.descricao,
+        tipoprod: r.tipoprod,
+        tipoprodDesc: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
+        tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        capacidadeEstoque: r.capacidade_estoque ? parseFloat(r.capacidade_estoque) : null,
+        multEstoque: r.mult_estoque ? parseFloat(r.mult_estoque) : null,
+        multFaturas: r.mult_faturas ? parseFloat(r.mult_faturas) : null,
+        unidadeEstoque: r.unidade_estoque,
+        unidadeFaturas: r.unidade_faturas,
+        custoEstoque: r.custo_estoque ? parseFloat(r.custo_estoque) : null,
+        custoMultFat: r.custo_mult_fat ? parseFloat(r.custo_mult_fat) : null,
+        valormm: r.valormm ? parseFloat(r.valormm) : null,
+        prevenbras: r.prevenbras ? parseFloat(r.prevenbras) : null,
+        prefabsimp: r.prefabsimp ? parseFloat(r.prefabsimp) : null,
+      })),
+      total,
+      pagina: Math.floor(offset / limit) + 1,
+      totalPaginas: Math.ceil(total / limit),
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// BUSCAR OPÇÕES DE FILTRO
+// ============================================================
+
+export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Promise<{
+  tiposProduto: { codigo: string; nome: string }[];
+  tabelasPreco: { codigo: string; nome: string }[];
+  fonte: "cache_local" | "postgresql_direto";
+}> {
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(custosProtudosCache)
+        .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+      if (cacheCount[0]?.total > 0) {
+        const [tipos, tabelas] = await Promise.all([
+          db
+            .selectDistinct({ codigo: custosProtudosCache.tipoprod })
+            .from(custosProtudosCache)
+            .where(
+              and(
+                eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
+                sql`${custosProtudosCache.tipoprod} IS NOT NULL`
+              )
+            )
+            .orderBy(custosProtudosCache.tipoprod),
+          db
+            .selectDistinct({ codigo: custosProtudosCache.codtbmm })
+            .from(custosProtudosCache)
+            .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId))
+            .orderBy(custosProtudosCache.codtbmm),
+        ]);
+
+        return {
+          tiposProduto: tipos
+            .filter((t) => t.codigo)
+            .map((t) => ({
+              codigo: t.codigo!,
+              nome: TIPO_PROD_MAP[t.codigo!] || t.codigo!,
+            })),
+          tabelasPreco: tabelas.map((t) => ({
+            codigo: t.codigo,
+            nome: TABELA_PRECO_MAP[t.codigo] || `Tabela ${t.codigo}`,
+          })),
+          fonte: "cache_local",
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[RelatorioCustos] Cache indisponível para filtros:", (e as Error).message);
+  }
+
+  // Fallback estático
+  return {
+    tiposProduto: [
+      { codigo: "M", nome: "Medicamento" },
+      { codigo: "T", nome: "Taxa" },
+      { codigo: "O", nome: "Outros" },
+    ],
+    tabelasPreco: [
+      { codigo: "50", nome: "Tabela 50" },
+      { codigo: "04", nome: "Tabela 04 (Brasindice)" },
+      { codigo: "07", nome: "Tabela 07 (Simpro)" },
+      { codigo: "06", nome: "Tabela 06" },
+    ],
+    fonte: "postgresql_direto",
+  };
+}
+
+// ============================================================
+// MÉTRICAS AGREGADAS PARA DASHBOARD
+// ============================================================
+
+export async function buscarMetricasCustosDashboard(
+  estabelecimentoId: number,
+  filtros?: { tipoprod?: string; codtbmm?: string }
+): Promise<MetricasCustosDashboard> {
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(custosProtudosCache)
+        .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarMetricasDoCache(db, estabelecimentoId, filtros);
+      }
+    }
+  } catch (e) {
+    console.warn("[DashboardCustos] Cache indisponível:", (e as Error).message);
+  }
+
+  return buscarMetricasDoPostgresql(filtros);
+}
+
+async function buscarMetricasDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  estabelecimentoId: number,
+  filtros?: { tipoprod?: string; codtbmm?: string }
+): Promise<MetricasCustosDashboard> {
+  const baseConditions: any[] = [eq(custosProtudosCache.estabelecimentoId, estabelecimentoId)];
+  if (filtros?.tipoprod) {
+    baseConditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
+  }
+  if (filtros?.codtbmm) {
+    baseConditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
+  }
+  const whereClause = and(...baseConditions);
+
+  const [
+    totalResult,
+    porTipo,
+    porTabela,
+    topCustoEstoque,
+    topCustoFatura,
+    avgResult,
+    comparativo,
+  ] = await Promise.all([
+    // Totais por tipo
+    db
+      .select({
+        tipoprod: custosProtudosCache.tipoprod,
+        total: count(),
+      })
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .groupBy(custosProtudosCache.tipoprod),
+
+    // Por tipo (para gráfico)
+    db
+      .select({
+        codigo: custosProtudosCache.tipoprod,
+        total: count(),
+      })
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .groupBy(custosProtudosCache.tipoprod)
+      .orderBy(desc(count())),
+
+    // Por tabela de preço
+    db
+      .select({
+        codigo: custosProtudosCache.codtbmm,
+        total: count(),
+      })
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .groupBy(custosProtudosCache.codtbmm)
+      .orderBy(desc(count())),
+
+    // Top 20 custo estoque
+    db
+      .select({
+        codprod: custosProtudosCache.codprod,
+        descricao: custosProtudosCache.descricao,
+        custoEstoque: custosProtudosCache.custoEstoque,
+        tipoprod: custosProtudosCache.tipoprod,
+      })
+      .from(custosProtudosCache)
+      .where(and(whereClause, sql`${custosProtudosCache.custoEstoque} IS NOT NULL AND ${custosProtudosCache.custoEstoque} > 0`))
+      .orderBy(desc(custosProtudosCache.custoEstoque))
+      .limit(20),
+
+    // Top 20 custo fatura
+    db
+      .select({
+        codprod: custosProtudosCache.codprod,
+        descricao: custosProtudosCache.descricao,
+        custoMultFat: custosProtudosCache.custoMultFat,
+        tipoprod: custosProtudosCache.tipoprod,
+      })
+      .from(custosProtudosCache)
+      .where(and(whereClause, sql`${custosProtudosCache.custoMultFat} IS NOT NULL AND ${custosProtudosCache.custoMultFat} > 0`))
+      .orderBy(desc(custosProtudosCache.custoMultFat))
+      .limit(20),
+
+    // Médias
+    db
+      .select({
+        avgCustoEstoque: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+        avgCustoFatura: sql<string>`AVG(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
+        avgValorMM: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+      })
+      .from(custosProtudosCache)
+      .where(whereClause),
+
+    // Comparativo por tipo
+    db
+      .select({
+        tipoprod: custosProtudosCache.tipoprod,
+        avgCustoEstoque: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+        avgCustoFatura: sql<string>`AVG(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
+        avgValorMM: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+      })
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .groupBy(custosProtudosCache.tipoprod),
+  ]);
+
+  // Calcular totais
+  let totalProdutos = 0;
+  let totalMedicamentos = 0;
+  let totalTaxas = 0;
+  let totalOutros = 0;
+  for (const t of totalResult) {
+    const n = t.total;
+    totalProdutos += n;
+    if (t.tipoprod === "M") totalMedicamentos = n;
+    if (t.tipoprod === "T") totalTaxas = n;
+    if (t.tipoprod === "O") totalOutros = n;
+  }
+
+  return {
+    totalProdutos,
+    totalMedicamentos,
+    totalTaxas,
+    totalOutros,
+    custoMedioEstoque: parseFloat(avgResult[0]?.avgCustoEstoque || "0"),
+    custoMedioFatura: parseFloat(avgResult[0]?.avgCustoFatura || "0"),
+    valorMedioMM: parseFloat(avgResult[0]?.avgValorMM || "0"),
+    porTipoProduto: porTipo.map((t) => ({
+      nome: TIPO_PROD_MAP[t.codigo || ""] || t.codigo || "?",
+      codigo: t.codigo || "",
+      total: t.total,
+    })),
+    porTabelaPreco: porTabela.map((t) => ({
+      nome: TABELA_PRECO_MAP[t.codigo] || `Tabela ${t.codigo}`,
+      codigo: t.codigo,
+      total: t.total,
+    })),
+    topCustoEstoque: topCustoEstoque.map((d) => ({
+      codprod: d.codprod,
+      descricao: d.descricao || "",
+      custoEstoque: parseFloat(d.custoEstoque || "0"),
+      tipoprod: d.tipoprod || "",
+    })),
+    topCustoFatura: topCustoFatura.map((d) => ({
+      codprod: d.codprod,
+      descricao: d.descricao || "",
+      custoMultFat: parseFloat(d.custoMultFat || "0"),
+      tipoprod: d.tipoprod || "",
+    })),
+    comparativoCustos: comparativo.map((c) => ({
+      tipo: TIPO_PROD_MAP[c.tipoprod || ""] || c.tipoprod || "?",
+      custoEstoque: parseFloat(c.avgCustoEstoque || "0"),
+      custoFatura: parseFloat(c.avgCustoFatura || "0"),
+      valorMM: parseFloat(c.avgValorMM || "0"),
+    })),
+    fonte: "cache_local",
+  };
+}
+
+async function buscarMetricasDoPostgresql(
+  filtros?: { tipoprod?: string; codtbmm?: string }
+): Promise<MetricasCustosDashboard> {
+  const client = await getWarleinePool().connect();
+  try {
+    const tabelasCodtbmm = filtros?.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    const extraConditions: string[] = [];
+    if (filtros?.tipoprod) {
+      extraConditions.push(`A.tipoprod = $${paramIdx}`);
+      params.push(filtros.tipoprod);
+      paramIdx++;
+    }
+    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+
+    const unionParts = tabelasCodtbmm.map((tbmm) => `
+      SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
+        A.custoatual AS custo_estoque,
+        CASE WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0) ELSE A.custoatual END AS custo_mult_fat,
+        B.valormm
+      FROM "PACIENTE".tabprod A
+      JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+      WHERE B.codtbmm = '${tbmm}'
+        AND A.tipoprod IN ('M','T','O')
+        AND A.inativo IS NULL
+        ${extraWhere}
+    `);
+
+    const fullQuery = unionParts.join(" UNION ALL ");
+
+    const [
+      porTipoResult,
+      porTabelaResult,
+      topEstoqueResult,
+      topFaturaResult,
+      avgResult,
+      comparativoResult,
+    ] = await Promise.all([
+      client.query(`SELECT tipoprod, COUNT(*) as total FROM (${fullQuery}) sub GROUP BY tipoprod ORDER BY total DESC`, params),
+      client.query(`SELECT codtbmm, COUNT(*) as total FROM (${fullQuery}) sub GROUP BY codtbmm ORDER BY total DESC`, params),
+      client.query(`SELECT codprod, descricao, custo_estoque, tipoprod FROM (${fullQuery}) sub WHERE custo_estoque > 0 ORDER BY custo_estoque DESC LIMIT 20`, params),
+      client.query(`SELECT codprod, descricao, custo_mult_fat, tipoprod FROM (${fullQuery}) sub WHERE custo_mult_fat > 0 ORDER BY custo_mult_fat DESC LIMIT 20`, params),
+      client.query(`SELECT AVG(custo_estoque) as avg_estoque, AVG(custo_mult_fat) as avg_fatura, AVG(valormm) as avg_mm FROM (${fullQuery}) sub`, params),
+      client.query(`SELECT tipoprod, AVG(custo_estoque) as avg_estoque, AVG(custo_mult_fat) as avg_fatura, AVG(valormm) as avg_mm FROM (${fullQuery}) sub GROUP BY tipoprod`, params),
+    ]);
+
+    let totalProdutos = 0;
+    let totalMedicamentos = 0;
+    let totalTaxas = 0;
+    let totalOutros = 0;
+    for (const r of porTipoResult.rows) {
+      const n = parseInt(r.total, 10);
+      totalProdutos += n;
+      if (r.tipoprod === "M") totalMedicamentos = n;
+      if (r.tipoprod === "T") totalTaxas = n;
+      if (r.tipoprod === "O") totalOutros = n;
+    }
+
+    return {
+      totalProdutos,
+      totalMedicamentos,
+      totalTaxas,
+      totalOutros,
+      custoMedioEstoque: parseFloat(avgResult.rows[0]?.avg_estoque || "0"),
+      custoMedioFatura: parseFloat(avgResult.rows[0]?.avg_fatura || "0"),
+      valorMedioMM: parseFloat(avgResult.rows[0]?.avg_mm || "0"),
+      porTipoProduto: porTipoResult.rows.map((r: any) => ({
+        nome: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
+        codigo: r.tipoprod,
+        total: parseInt(r.total, 10),
+      })),
+      porTabelaPreco: porTabelaResult.rows.map((r: any) => ({
+        nome: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        codigo: r.codtbmm,
+        total: parseInt(r.total, 10),
+      })),
+      topCustoEstoque: topEstoqueResult.rows.map((r: any) => ({
+        codprod: r.codprod,
+        descricao: r.descricao || "",
+        custoEstoque: parseFloat(r.custo_estoque || "0"),
+        tipoprod: r.tipoprod,
+      })),
+      topCustoFatura: topFaturaResult.rows.map((r: any) => ({
+        codprod: r.codprod,
+        descricao: r.descricao || "",
+        custoMultFat: parseFloat(r.custo_mult_fat || "0"),
+        tipoprod: r.tipoprod,
+      })),
+      comparativoCustos: comparativoResult.rows.map((r: any) => ({
+        tipo: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
+        custoEstoque: parseFloat(r.avg_estoque || "0"),
+        custoFatura: parseFloat(r.avg_fatura || "0"),
+        valorMM: parseFloat(r.avg_mm || "0"),
+      })),
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// SINCRONIZAÇÃO: Warleine → Cache Local
+// ============================================================
+
+export async function sincronizarCustosProdutos(
+  estabelecimentoId: number,
+  executadoPor?: number,
+  executadoPorNome?: string
+): Promise<{
+  sucesso: boolean;
+  mensagem: string;
+  totalRegistros: number;
+  duracaoSegundos: number;
+}> {
+  const db = await getDb();
+  if (!db) {
+    return { sucesso: false, mensagem: "Banco de dados local não disponível", totalRegistros: 0, duracaoSegundos: 0 };
+  }
+
+  const inicio = Date.now();
+
+  // Atualizar status para em_andamento
+  await upsertSyncMeta(db, estabelecimentoId, {
+    status: "em_andamento",
+    executadoPor: executadoPor || null,
+    executadoPorNome: executadoPorNome || null,
+  });
+
+  try {
+    const client = await getWarleinePool().connect();
+    let totalRegistros = 0;
+
+    try {
+      // Buscar todos os dados das 4 tabelas de preço
+      const query = `
+        SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
+          A.capacidade AS capacidade_estoque,
+          A.multcobr AS mult_estoque,
+          B.multcobr AS mult_faturas,
+          A.unidade AS unidade_estoque,
+          B.unidade AS unidade_faturas,
+          A.custoatual AS custo_estoque,
+          CASE 
+            WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0)
+            ELSE A.custoatual
+          END AS custo_mult_fat,
+          B.valormm,
+          A.prevenbras,
+          A.prefabsimp
+        FROM "PACIENTE".tabprod A
+        JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+        WHERE B.codtbmm IN ('50', '04', '07', '06')
+          AND A.tipoprod IN ('M','T','O')
+          AND A.inativo IS NULL
+      `;
+
+      const result = await client.query(query);
+      const rows = result.rows;
+      totalRegistros = rows.length;
+
+      // Limpar cache anterior deste estabelecimento
+      await db.delete(custosProtudosCache).where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+      // Inserir em lotes de 500
+      const batchSize = 500;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        await db.insert(custosProtudosCache).values(
+          batch.map((r: any) => ({
+            estabelecimentoId,
+            codprod: r.codprod?.trim() || "",
+            descricao: r.descricao?.trim() || null,
+            tipoprod: r.tipoprod?.trim() || null,
+            capacidadeEstoque: r.capacidade_estoque != null ? String(r.capacidade_estoque) : null,
+            multEstoque: r.mult_estoque != null ? String(r.mult_estoque) : null,
+            multFaturas: r.mult_faturas != null ? String(r.mult_faturas) : null,
+            unidadeEstoque: r.unidade_estoque?.trim() || null,
+            unidadeFaturas: r.unidade_faturas?.trim() || null,
+            custoEstoque: r.custo_estoque != null ? String(r.custo_estoque) : null,
+            custoMultFat: r.custo_mult_fat != null ? String(r.custo_mult_fat) : null,
+            valormm: r.valormm != null ? String(r.valormm) : null,
+            prevenbras: r.prevenbras != null ? String(r.prevenbras) : null,
+            prefabsimp: r.prefabsimp != null ? String(r.prefabsimp) : null,
+            codtbmm: r.codtbmm?.trim() || "",
+          }))
+        );
+      }
+    } finally {
+      client.release();
+    }
+
+    const duracao = Math.round((Date.now() - inicio) / 1000);
+
+    await upsertSyncMeta(db, estabelecimentoId, {
+      status: "sucesso",
+      ultimaSincronizacao: new Date(),
+      totalRegistros,
+      duracaoSegundos: duracao,
+      mensagemErro: null,
+    });
+
+    return {
+      sucesso: true,
+      mensagem: `Sincronização concluída: ${totalRegistros.toLocaleString("pt-BR")} produtos importados em ${duracao}s`,
+      totalRegistros,
+      duracaoSegundos: duracao,
+    };
+  } catch (e) {
+    const duracao = Math.round((Date.now() - inicio) / 1000);
+    const errorMsg = (e as Error).message;
+
+    await upsertSyncMeta(db, estabelecimentoId, {
+      status: "erro",
+      duracaoSegundos: duracao,
+      mensagemErro: errorMsg,
+    });
+
+    return {
+      sucesso: false,
+      mensagem: `Erro na sincronização: ${errorMsg}`,
+      totalRegistros: 0,
+      duracaoSegundos: duracao,
+    };
+  }
+}
+
+// ============================================================
+// STATUS DE SINCRONIZAÇÃO
+// ============================================================
+
+export async function obterStatusSincronizacaoCustos(estabelecimentoId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const meta = await db
+      .select()
+      .from(custosProdutosSyncMeta)
+      .where(eq(custosProdutosSyncMeta.estabelecimentoId, estabelecimentoId))
+      .limit(1);
+
+    const cacheCount = await db
+      .select({ total: count() })
+      .from(custosProtudosCache)
+      .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+    const totalRegistrosCache = cacheCount[0]?.total || 0;
+
+    if (meta.length === 0) {
+      return {
+        status: "nunca",
+        ultimaSincronizacao: null,
+        totalRegistrosCache,
+        duracaoSegundos: 0,
+        mensagemErro: null,
+      };
+    }
+
+    const m = meta[0];
+    return {
+      status: m.status,
+      ultimaSincronizacao: m.ultimaSincronizacao,
+      totalRegistrosCache,
+      duracaoSegundos: m.duracaoSegundos || 0,
+      mensagemErro: m.mensagemErro,
+    };
+  } catch (e) {
+    console.warn("[RelatorioCustos] Erro ao obter status:", (e as Error).message);
+    return null;
+  }
+}
+
+// ============================================================
+// HELPER: Upsert sync metadata
+// ============================================================
+
+async function upsertSyncMeta(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  estabelecimentoId: number,
+  data: Partial<{
+    status: string;
+    ultimaSincronizacao: Date | null;
+    totalRegistros: number;
+    duracaoSegundos: number;
+    mensagemErro: string | null;
+    executadoPor: number | null;
+    executadoPorNome: string | null;
+  }>
+) {
+  const existing = await db
+    .select()
+    .from(custosProdutosSyncMeta)
+    .where(eq(custosProdutosSyncMeta.estabelecimentoId, estabelecimentoId))
+    .limit(1);
+
+  const updateData: any = { ...data, atualizadoEm: new Date() };
+
+  if (existing.length === 0) {
+    await db.insert(custosProdutosSyncMeta).values({
+      estabelecimentoId,
+      ...updateData,
+    });
+  } else {
+    await db
+      .update(custosProdutosSyncMeta)
+      .set(updateData)
+      .where(eq(custosProdutosSyncMeta.estabelecimentoId, estabelecimentoId));
+  }
+}

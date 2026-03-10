@@ -155,6 +155,7 @@ const menuItems: MenuItem[] = [
     { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relatoriosBi" },
     { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relatoriosBi" },
     { icon: Users, label: "Rel. Atendimentos", path: "/relatorio-atendimentos", modulo: "relatoriosBi" },
+    { icon: DollarSign, label: "Rel. Custos", path: "/relatorio-custos", modulo: "relatoriosBi" },
     { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "faturamento" },
     { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relatoriosBi" },
   ]},

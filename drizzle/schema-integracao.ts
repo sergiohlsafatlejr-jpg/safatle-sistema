@@ -724,3 +724,67 @@ export const relatorioAtendimentosSyncMeta = mysqlTable(
     estabelecimentoIdx: uniqueIndex("idx_rel_sync_meta_estab").on(table.estabelecimentoId),
   })
 );
+
+
+/**
+ * CACHE LOCAL: Custos de Produtos (TABPROD + TABMPROP do Warleine)
+ * Armazena dados de custo de produtos/materiais/taxas por tabela de preço
+ */
+export const custosProtudosCache = mysqlTable(
+  "custos_produtos_cache",
+  {
+    id: int().primaryKey().autoincrement(),
+    estabelecimentoId: int("estabelecimento_id").notNull(),
+    
+    // Dados do produto (TABPROD)
+    codprod: varchar({ length: 50 }).notNull(),
+    descricao: varchar({ length: 500 }),
+    tipoprod: varchar({ length: 10 }), // M=Medicamento, T=Taxa, O=Outros
+    capacidadeEstoque: decimal("capacidade_estoque", { precision: 18, scale: 6 }),
+    multEstoque: decimal("mult_estoque", { precision: 18, scale: 6 }),
+    unidadeEstoque: varchar("unidade_estoque", { length: 50 }),
+    custoEstoque: decimal("custo_estoque", { precision: 18, scale: 6 }),
+    
+    // Dados da tabela de preço (TABMPROP)
+    codtbmm: varchar({ length: 20 }).notNull(), // 50, 04, 07, 06
+    multFaturas: decimal("mult_faturas", { precision: 18, scale: 6 }),
+    unidadeFaturas: varchar("unidade_faturas", { length: 50 }),
+    custoMultFat: decimal("custo_mult_fat", { precision: 18, scale: 6 }),
+    valormm: decimal({ precision: 18, scale: 6 }),
+    prevenbras: decimal({ precision: 18, scale: 6 }),
+    prefabsimp: decimal({ precision: 18, scale: 6 }),
+    
+    // Rastreamento
+    sincronizadoEm: timestamp("sincronizado_em").defaultNow(),
+  },
+  (table) => ({
+    estabelecimentoIdx: index("idx_custos_cache_estab").on(table.estabelecimentoId),
+    codprodIdx: index("idx_custos_cache_codprod").on(table.codprod),
+    tipoprodIdx: index("idx_custos_cache_tipoprod").on(table.tipoprod),
+    codtbmmIdx: index("idx_custos_cache_codtbmm").on(table.codtbmm),
+    codprodTbmmIdx: uniqueIndex("idx_custos_cache_codprod_tbmm").on(table.estabelecimentoId, table.codprod, table.codtbmm),
+  })
+);
+
+/**
+ * Metadados de sincronização dos custos de produtos
+ */
+export const custosProdutosSyncMeta = mysqlTable(
+  "custos_produtos_sync_meta",
+  {
+    id: int().primaryKey().autoincrement(),
+    estabelecimentoId: int("estabelecimento_id").notNull(),
+    status: varchar({ length: 50 }).notNull().default("pendente"),
+    ultimaSincronizacao: timestamp("ultima_sincronizacao"),
+    totalRegistros: int("total_registros").default(0),
+    duracaoSegundos: int("duracao_segundos").default(0),
+    mensagemErro: text("mensagem_erro"),
+    executadoPor: int("executado_por"),
+    executadoPorNome: varchar("executado_por_nome", { length: 255 }),
+    criadoEm: timestamp("criado_em").defaultNow(),
+    atualizadoEm: timestamp("atualizado_em").defaultNow(),
+  },
+  (table) => ({
+    estabelecimentoIdx: uniqueIndex("idx_custos_sync_meta_estab").on(table.estabelecimentoId),
+  })
+);

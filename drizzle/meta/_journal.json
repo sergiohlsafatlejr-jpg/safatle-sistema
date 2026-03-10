@@ -127,6 +127,13 @@
       "when": 1773161804184,
       "tag": "0074_melted_meggan",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "5",
+      "when": 1773173560304,
+      "tag": "0075_chubby_meltdown",
+      "breakpoints": true
     }
   ]
 }
