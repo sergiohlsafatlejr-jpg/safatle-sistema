@@ -208,9 +208,22 @@ export async function compararContaComPadroes(
     ));
 
   // Filtrar por convênio
-  const padroesCompFiltrados = padroesComposicao.filter(p => 
-    !p.convenioId || p.convenioId === itens[0].convenioId
-  );
+  // Quando a conta não tem convenioId (null), incluir todos os padrões:
+  // - Gabaritos sempre são incluídos (isGabarito=1) pois são criados manualmente
+  // - Padrões sem convenioId (genéricos) são incluídos
+  // - Padrões com convenioId são incluídos apenas se bate com o da conta
+  const convenioIdConta = itens[0].convenioId;
+  const padroesCompFiltrados = padroesComposicao.filter(p => {
+    // Gabaritos manuais sempre são incluídos (foram criados especificamente para este cenário)
+    if (p.isGabarito === 1) return true;
+    // Padrões sem convenioId (genéricos) sempre passam
+    if (!p.convenioId) return true;
+    // Padrões com convenioId: só incluir se bate com o da conta
+    if (convenioIdConta && p.convenioId === convenioIdConta) return true;
+    // Se a conta não tem convenioId, incluir todos (melhor ter mais padrões que menos)
+    if (!convenioIdConta) return true;
+    return false;
+  });
 
   let gabaritosUsados = 0;
   let padroesUsados = 0;
@@ -425,7 +438,7 @@ export async function compararContaComPadroes(
     if (div.severidade === "critico") totalCriticos++;
   }
 
-  const statusGeral = divergencias.some(d => d.severidade === "critico" || d.severidade === "alerta")
+  const statusGeral = divergencias.some(d => d.severidade === "critico" || d.severidade === "alerta" || d.severidade === "aviso")
     ? "divergente" as const
     : "conforme" as const;
 
@@ -656,7 +669,9 @@ export async function executarComparacaoESalvar(
 
   for (const item of itens) {
     const divs = item.codigoItem ? divPorItem.get(item.codigoItem) : undefined;
-    const status = divs && divs.some(d => d.severidade === "critico" || d.severidade === "alerta")
+    // Classificar status: qualquer divergência (incluindo aviso) marca como divergente
+    // Apenas "info" puro é considerado conforme
+    const status = divs && divs.some(d => d.severidade === "critico" || d.severidade === "alerta" || d.severidade === "aviso")
       ? "divergente" as const
       : divs && divs.length > 0
         ? "conforme" as const

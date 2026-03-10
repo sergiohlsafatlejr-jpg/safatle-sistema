@@ -2576,3 +2576,7 @@
 - [x] Testes vitest para ALTERAR_SETOR e validação de schema (8 testes passando)
 - [x] Ajustes de Auditoria: Filtro por tipo de item (diária, taxa, medicamento, procedimento) para segmentar auditoria
 - [x] Testes vitest para filtro por tipo de item (19 testes passando)
+- [x] Investigar fluxo de divergências na conta 143800: 0 divergentes no card mas 157 na aba Divergências
+- [x] Bug fix: Itens com divergências de severidade "aviso" agora são classificados como "divergente" (antes eram "conforme")
+- [x] Bug fix: statusGeral da conta agora considera divergências "aviso" como divergente
+- [x] Bug fix: Filtro de convênio excluía TODOS os gabaritos manuais quando conta tinha convenioId=null - gabaritos agora sempre são incluídos
