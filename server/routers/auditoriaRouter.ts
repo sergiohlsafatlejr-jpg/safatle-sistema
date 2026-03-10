@@ -283,6 +283,8 @@ export const auditoriaRouter = router({
       quantidadeAjustada: z.string().optional(),
       valorAjustado: z.string().optional(),
       tipoItemAdicionado: z.string().optional(),
+      setorNovoItem: z.string().optional(),
+      dataNovoItem: z.string().optional(),
       setorOriginal: z.string().optional(),
       setorAjustado: z.string().optional(),
       justificativa: z.string().optional(),
@@ -377,6 +379,8 @@ export const auditoriaRouter = router({
           valorTotal: input.quantidadeAjustada && input.valorAjustado
             ? (parseFloat(input.quantidadeAjustada) * parseFloat(input.valorAjustado)).toFixed(2)
             : "0",
+          setor: input.setorNovoItem || null,
+          dataExecucao: input.dataNovoItem ? new Date(input.dataNovoItem) : null,
           statusAnalise: "revisado",
         });
 

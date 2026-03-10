@@ -68,6 +68,7 @@ import {
   Printer,
   ClipboardList,
   FileCheck,
+  FileSearch,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -170,8 +171,12 @@ const SeveridadeBadge = ({ severidade }: { severidade: string }) => {
       return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Crítico</Badge>;
     case "alerta":
       return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><AlertTriangle className="h-3 w-3 mr-1" />Alerta</Badge>;
+    case "aviso":
+      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertTriangle className="h-3 w-3 mr-1" />Aviso</Badge>;
+    case "info":
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Info className="h-3 w-3 mr-1" />Info</Badge>;
     default:
-      return <Badge variant="outline"><Info className="h-3 w-3 mr-1" />Info</Badge>;
+      return <Badge variant="outline"><Info className="h-3 w-3 mr-1" />{severidade || "Info"}</Badge>;
   }
 };
 
@@ -243,6 +248,8 @@ export default function ContaConvenioDetalhes() {
   const [ajusteTipoItem, setAjusteTipoItem] = useState("PROCEDIMENTO");
   const [ajusteJustificativa, setAjusteJustificativa] = useState("");
   const [ajusteSetor, setAjusteSetor] = useState("");
+  const [ajusteSetorNovoItem, setAjusteSetorNovoItem] = useState("");
+  const [ajusteDataNovoItem, setAjusteDataNovoItem] = useState("");
 
   // Filtros para a tabela de itens na aba Ajustes
   const [filtroSetorAjuste, setFiltroSetorAjuste] = useState<string>("todos");
@@ -326,6 +333,7 @@ export default function ContaConvenioDetalhes() {
       setAjusteDialog({ open: false, tipo: "ALTERAR_QUANTIDADE" });
       setAjusteQtd(""); setAjusteValor(""); setAjusteCodigo("");
       setAjusteDescricao(""); setAjusteJustificativa(""); setAjusteSetor("");
+      setAjusteSetorNovoItem(""); setAjusteDataNovoItem("");
       refetchAjustes();
       refetch(); // Recarregar itens
     },
@@ -881,6 +889,25 @@ export default function ContaConvenioDetalhes() {
                 </div>
                 <AlertTriangle className="h-10 w-10 text-red-500" />
               </div>
+              {divergenciasData?.resumo?.porSeveridade && Number(resumoGeral?.totalDivergentes || 0) > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-red-200/50">
+                  {divergenciasData.resumo.porSeveridade.critico > 0 && (
+                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-red-200/60 text-red-800">
+                      <XCircle className="h-3 w-3" />{divergenciasData.resumo.porSeveridade.critico} crítico{divergenciasData.resumo.porSeveridade.critico > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {divergenciasData.resumo.porSeveridade.alerta > 0 && (
+                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-orange-200/60 text-orange-800">
+                      <AlertTriangle className="h-3 w-3" />{divergenciasData.resumo.porSeveridade.alerta} alerta{divergenciasData.resumo.porSeveridade.alerta > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {divergenciasData.resumo.porSeveridade.aviso > 0 && (
+                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-yellow-200/60 text-yellow-800">
+                      <AlertTriangle className="h-3 w-3" />{divergenciasData.resumo.porSeveridade.aviso} aviso{divergenciasData.resumo.porSeveridade.aviso > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
@@ -1202,6 +1229,79 @@ export default function ContaConvenioDetalhes() {
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* Log de Análise - Padrões/Gabaritos Usados */}
+                    {(() => {
+                      const logsQuery = trpc.contasConvenio.getLogsAnalise.useQuery(
+                        { numeroConta, estabelecimentoId: Number(estabelecimentoId) },
+                        { enabled: !!numeroConta && !!estabelecimentoId }
+                      );
+                      if (!logsQuery.data?.logs?.length) return null;
+                      const logs = logsQuery.data.logs;
+                      // Agrupar por data (mostrar última análise)
+                      const ultimaAnalise = logs[0];
+                      const logsUltimaAnalise = logs.filter(l => 
+                        l.criadoEm && ultimaAnalise.criadoEm && 
+                        Math.abs(new Date(l.criadoEm).getTime() - new Date(ultimaAnalise.criadoEm).getTime()) < 5000
+                      );
+                      return (
+                        <Card className="border-indigo-200 bg-indigo-50/30 dark:bg-indigo-950/20">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <FileSearch className="h-4 w-4 text-indigo-600" />
+                                <h4 className="font-semibold text-sm">Log de Análise - Padrões Utilizados</h4>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                Última análise: {ultimaAnalise.criadoEm ? new Date(ultimaAnalise.criadoEm).toLocaleString('pt-BR') : '-'}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {logsUltimaAnalise.map((log, idx) => (
+                                <div key={idx} className="flex items-center gap-3 p-2 rounded-lg bg-white/60 dark:bg-gray-800/40 border border-indigo-100 dark:border-indigo-800">
+                                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                    log.isGabarito === 1 
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                      : log.padraoTipo === 'nenhum'
+                                        ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  }`}>
+                                    {log.isGabarito === 1 ? 'Gabarito' : log.padraoTipo === 'nenhum' ? 'Nenhum' : 'Padrão'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{log.padraoNome || '-'}</p>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {log.setorPadrao && <span>Setor: {log.setorPadrao}</span>}
+                                      {log.convenioNome && <span>Convênio: {log.convenioNome}</span>}
+                                      {log.motivoSelecao && <span className="italic">{log.motivoSelecao}</span>}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    {(log.divergenciasCritico || 0) > 0 && (
+                                      <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700">{log.divergenciasCritico} crít.</span>
+                                    )}
+                                    {(log.divergenciasAlerta || 0) > 0 && (
+                                      <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">{log.divergenciasAlerta} alerta</span>
+                                    )}
+                                    {(log.divergenciasAviso || 0) > 0 && (
+                                      <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700">{log.divergenciasAviso} aviso</span>
+                                    )}
+                                    {log.scoreMatch ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">Score: {log.scoreMatch}</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {logs.length > logsUltimaAnalise.length && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {logs.length - logsUltimaAnalise.length} análise(s) anterior(es) registrada(s)
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
 
                     {/* Tabela de Divergências */}
                     <div className="overflow-x-auto">
@@ -2464,6 +2564,16 @@ export default function ContaConvenioDetalhes() {
                     <Label>Descrição</Label>
                     <Input value={ajusteDescricao} onChange={(e) => setAjusteDescricao(e.target.value)} placeholder="Descrição do item" />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Setor</Label>
+                      <Input value={ajusteSetorNovoItem} onChange={(e) => setAjusteSetorNovoItem(e.target.value)} placeholder="Ex: Centro Cirúrgico, UTI..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data do Item</Label>
+                      <Input type="date" value={ajusteDataNovoItem} onChange={(e) => setAjusteDataNovoItem(e.target.value)} />
+                    </div>
+                  </div>
                 </>
               )}
               {(ajusteDialog.tipo === "ALTERAR_QUANTIDADE" || ajusteDialog.tipo === "ADICIONAR_ITEM") && (
@@ -2510,6 +2620,8 @@ export default function ContaConvenioDetalhes() {
                     quantidadeAjustada: ajusteQtd || undefined,
                     valorAjustado: ajusteValor || undefined,
                     tipoItemAdicionado: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteTipoItem : undefined,
+                    setorNovoItem: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteSetorNovoItem || undefined : undefined,
+                    dataNovoItem: ajusteDialog.tipo === "ADICIONAR_ITEM" ? ajusteDataNovoItem || undefined : undefined,
                     setorOriginal: ajusteDialog.tipo === "ALTERAR_SETOR" ? (ajusteDialog.item?.setor || "") : undefined,
                     setorAjustado: ajusteDialog.tipo === "ALTERAR_SETOR" ? ajusteSetor : undefined,
                     justificativa: ajusteJustificativa || undefined,

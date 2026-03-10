@@ -2,7 +2,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca, logAnaliseComparacao } from "../../drizzle/schema";
 import { queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq, and, sql, desc, like, or, inArray } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -1425,5 +1425,28 @@ export const contasConvenioRouter = router({
         totalItens: totalInseridos,
         totalContas: totalResumos,
       };
+    }),
+
+  // Log de análise - rastreabilidade de gabaritos/padrões usados
+  getLogsAnalise: protectedProcedure
+    .input(z.object({
+      numeroConta: z.string(),
+      estabelecimentoId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database não disponível" });
+
+      const logs = await db
+        .select()
+        .from(logAnaliseComparacao)
+        .where(and(
+          eq(logAnaliseComparacao.numeroConta, input.numeroConta),
+          eq(logAnaliseComparacao.estabelecimentoId, input.estabelecimentoId),
+        ))
+        .orderBy(desc(logAnaliseComparacao.criadoEm))
+        .limit(50);
+
+      return { logs };
     }),
 });

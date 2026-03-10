@@ -3753,3 +3753,52 @@ export const conferenciaCorrecao = mysqlTable("conferencia_correcao", {
 
 export type ConferenciaCorrecao = typeof conferenciaCorrecao.$inferSelect;
 export type InsertConferenciaCorrecao = typeof conferenciaCorrecao.$inferInsert;
+
+/**
+ * Log de Análise de Comparação
+ * Registra qual gabarito/padrão foi usado em cada análise de conta,
+ * para rastreabilidade e auditoria
+ */
+export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
+  id: int("id").autoincrement().primaryKey(),
+  numeroConta: varchar("numeroConta", { length: 50 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Info do padrão/gabarito usado
+  padraoId: int("padraoId"),
+  padraoNome: varchar("padraoNome", { length: 500 }),
+  padraoTipo: varchar("padraoTipo", { length: 50 }), // 'gabarito_manual', 'padrao_aprendido'
+  isGabarito: int("isGabarito").default(0),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  setorPadrao: varchar("setorPadrao", { length: 255 }),
+  
+  // Procedimentos da conta
+  procedimentosConta: text("procedimentosConta"),
+  
+  // Resultados da análise
+  totalItensAnalisados: int("totalItensAnalisados").default(0),
+  totalDivergencias: int("totalDivergencias").default(0),
+  divergenciasCritico: int("divergenciasCritico").default(0),
+  divergenciasAlerta: int("divergenciasAlerta").default(0),
+  divergenciasAviso: int("divergenciasAviso").default(0),
+  divergenciasInfo: int("divergenciasInfo").default(0),
+  
+  // Score de confiança do match
+  scoreMatch: int("scoreMatch").default(0),
+  motivoSelecao: text("motivoSelecao"), // Explicação de por que este padrão foi selecionado
+  
+  // Metadados
+  statusGeral: varchar("statusGeral", { length: 30 }),
+  duracaoMs: int("duracaoMs"), // Tempo de execução em ms
+  usuarioId: int("usuarioId"),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  contaIdx: index("idx_lac_conta").on(table.numeroConta, table.estabelecimentoId),
+  padraoIdx: index("idx_lac_padrao").on(table.padraoId),
+  criadoEmIdx: index("idx_lac_criado").on(table.criadoEm),
+}));
+
+export type LogAnaliseComparacao = typeof logAnaliseComparacao.$inferSelect;
+export type InsertLogAnaliseComparacao = typeof logAnaliseComparacao.$inferInsert;

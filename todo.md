@@ -2580,3 +2580,7 @@
 - [x] Bug fix: Itens com divergências de severidade "aviso" agora são classificados como "divergente" (antes eram "conforme")
 - [x] Bug fix: statusGeral da conta agora considera divergências "aviso" como divergente
 - [x] Bug fix: Filtro de convênio excluía TODOS os gabaritos manuais quando conta tinha convenioId=null - gabaritos agora sempre são incluídos
+- [x] Ajustes de Auditoria: Adicionar campos Setor e Data no modal "Adicionar Item Faltante"
+- [x] Divergências: Indicador visual de severidade nos cards (crítico=vermelho, alerta=laranja, aviso=amarelo)
+- [x] Log de auditoria: Registrar qual gabarito/padrão foi usado em cada análise para rastreabilidade
+- [x] Testes vitest para melhorias de auditoria (11 testes passando)

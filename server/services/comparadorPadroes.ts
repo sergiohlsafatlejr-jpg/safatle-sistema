@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao } from "../../drizzle/schema";
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
@@ -41,6 +41,16 @@ export interface DetalhesScoreRisco {
   detalhes: string[];
 }
 
+export interface PadraoUsadoDetalhe {
+  padraoId: number;
+  padraoNome: string;
+  isGabarito: boolean;
+  convenioNome?: string;
+  setor?: string;
+  scoreMatch: number;
+  motivoSelecao: string;
+}
+
 export interface ResultadoComparacao {
   numeroConta: string;
   totalItensAnalisados: number;
@@ -54,6 +64,7 @@ export interface ResultadoComparacao {
   padroesUsados: number;
   setoresAnalisados: string[];
   scoreRisco: DetalhesScoreRisco;
+  padroesDetalhados: PadraoUsadoDetalhe[];
 }
 
 /**
@@ -121,6 +132,7 @@ export async function compararContaComPadroes(
       padroesUsados: 0,
       setoresAnalisados: [],
       scoreRisco: { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] },
+      padroesDetalhados: [],
     };
   }
 
@@ -147,6 +159,7 @@ export async function compararContaComPadroes(
       padroesUsados: 0,
       setoresAnalisados: setoresNaConta,
       scoreRisco: { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] },
+      padroesDetalhados: [],
     };
   }
 
@@ -227,6 +240,7 @@ export async function compararContaComPadroes(
 
   let gabaritosUsados = 0;
   let padroesUsados = 0;
+  const padroesDetalhados: PadraoUsadoDetalhe[] = [];
 
   // 7. Analisar cada item
   for (const item of itens) {
@@ -414,6 +428,15 @@ export async function compararContaComPadroes(
                 processarPadraoComposicao(p, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
                 if (p.isGabarito === 1) gabaritosUsados++;
                 else padroesUsados++;
+                padroesDetalhados.push({
+                  padraoId: p.id,
+                  padraoNome: `${p.codigoProcedimentoPrincipal} - ${p.descricaoProcedimentoPrincipal || 'Sem nome'}`,
+                  isGabarito: p.isGabarito === 1,
+                  convenioNome: (p as any).convenioNome || undefined,
+                  setor: (p as any).setor || setor,
+                  scoreMatch: 0,
+                  motivoSelecao: `Match combinado no setor ${setor}`,
+                });
               }
             }
           }
@@ -424,6 +447,15 @@ export async function compararContaComPadroes(
       processarPadraoComposicao(padrao, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
       if (padrao.isGabarito === 1) gabaritosUsados++;
       else padroesUsados++;
+      padroesDetalhados.push({
+        padraoId: padrao.id,
+        padraoNome: `${padrao.codigoProcedimentoPrincipal} - ${padrao.descricaoProcedimentoPrincipal || 'Sem nome'}`,
+        isGabarito: padrao.isGabarito === 1,
+        convenioNome: (padrao as any).convenioNome || undefined,
+        setor: (padrao as any).setor || setor,
+        scoreMatch: padrao.isGabarito === 1 ? 150 : 50,
+        motivoSelecao: padrao.isGabarito === 1 ? `Gabarito manual selecionado para setor ${setor}` : `Padrão aprendido selecionado para setor ${setor}`,
+      });
     }
   }
 
@@ -458,6 +490,7 @@ export async function compararContaComPadroes(
     padroesUsados,
     setoresAnalisados: setoresNaConta,
     scoreRisco,
+    padroesDetalhados,
   };
 }
 
@@ -699,12 +732,69 @@ export async function executarComparacaoESalvar(
       eq(contasConvenioResumo.estabelecimentoId, estabelecimentoId),
     ));
 
+  // Salvar log de análise para rastreabilidade
+  const divCritico = resultado.divergencias.filter(d => d.severidade === "critico").length;
+  const divAlerta = resultado.divergencias.filter(d => d.severidade === "alerta").length;
+  const divAviso = resultado.divergencias.filter(d => d.severidade === "aviso").length;
+  const divInfo = resultado.divergencias.filter(d => d.severidade === "info").length;
+
+  // Registrar um log para cada padrão/gabarito usado
+  if (resultado.padroesDetalhados.length > 0) {
+    for (const pd of resultado.padroesDetalhados) {
+      try {
+        await db.insert(logAnaliseComparacao).values({
+          numeroConta,
+          estabelecimentoId,
+          padraoId: pd.padraoId,
+          padraoNome: pd.padraoNome,
+          padraoTipo: pd.isGabarito ? 'gabarito_manual' : 'padrao_aprendido',
+          isGabarito: pd.isGabarito ? 1 : 0,
+          convenioNome: pd.convenioNome || null,
+          setorPadrao: pd.setor || null,
+          procedimentosConta: resultado.setoresAnalisados.join(', '),
+          totalItensAnalisados: resultado.totalItensAnalisados,
+          totalDivergencias: resultado.totalDivergencias,
+          divergenciasCritico: divCritico,
+          divergenciasAlerta: divAlerta,
+          divergenciasAviso: divAviso,
+          divergenciasInfo: divInfo,
+          scoreMatch: pd.scoreMatch,
+          motivoSelecao: pd.motivoSelecao,
+          statusGeral: resultado.statusGeral,
+        });
+      } catch (e) {
+        logger.warn({ message: "Erro ao salvar log de análise", error: e });
+      }
+    }
+  } else {
+    // Nenhum padrão usado - registrar mesmo assim para rastreabilidade
+    try {
+      await db.insert(logAnaliseComparacao).values({
+        numeroConta,
+        estabelecimentoId,
+        padraoNome: 'Nenhum padrão encontrado',
+        padraoTipo: 'nenhum',
+        isGabarito: 0,
+        totalItensAnalisados: resultado.totalItensAnalisados,
+        totalDivergencias: resultado.totalDivergencias,
+        divergenciasCritico: divCritico,
+        divergenciasAlerta: divAlerta,
+        divergenciasAviso: divAviso,
+        divergenciasInfo: divInfo,
+        statusGeral: resultado.statusGeral,
+      });
+    } catch (e) {
+      logger.warn({ message: "Erro ao salvar log de análise (sem padrão)", error: e });
+    }
+  }
+
   logger.info({
     message: "Comparação com padrões concluída",
     numeroConta,
     totalDivergencias: resultado.totalDivergencias,
     gabaritosUsados: resultado.gabaritosUsados,
     padroesUsados: resultado.padroesUsados,
+    padroesDetalhados: resultado.padroesDetalhados.map(p => `${p.padraoNome} (${p.isGabarito ? 'gabarito' : 'padrão'})`),
     setoresAnalisados: resultado.setoresAnalisados,
     statusGeral: resultado.statusGeral,
   });
