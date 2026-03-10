@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao, convenios } from "../../drizzle/schema";
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
@@ -220,6 +220,23 @@ export async function compararContaComPadroes(
       eq(padroesCobranca.status, "ativo"),
     ));
 
+  // Buscar mapa de convênios (id -> nome) para match por nome quando convenioId da conta é null
+  const convenioIdsUnicos = [...new Set(padroesComposicao.map(p => p.convenioId).filter(Boolean))] as number[];
+  const mapaConvenioNomes = new Map<number, string>();
+  if (convenioIdsUnicos.length > 0) {
+    try {
+      const convRows = await db
+        .select({ id: convenios.id, nome: convenios.nome })
+        .from(convenios)
+        .where(inArray(convenios.id, convenioIdsUnicos));
+      for (const c of convRows) {
+        mapaConvenioNomes.set(c.id, c.nome.trim().toUpperCase());
+      }
+    } catch(e) {
+      logger.warn({ message: "Erro ao buscar nomes de convênios", error: (e as Error).message });
+    }
+  }
+
   // Filtrar por convênio
   // Quando a conta não tem convenioId (null), incluir todos os padrões:
   // - Gabaritos sempre são incluídos (isGabarito=1) pois são criados manualmente
@@ -409,43 +426,86 @@ export async function compararContaComPadroes(
       p.isGabarito === 1 && p.codigoProcedimentoPrincipal.includes(" + ")
     );
     
+    // Agrupar gabaritos compostos por chave (proc+setor) para selecionar o melhor por convênio
+    const gabaritosCompostosPorChave = new Map<string, typeof gabaritosCompostos>();
     for (const gabCombo of gabaritosCompostos) {
       const codigosCombinados = gabCombo.codigoProcedimentoPrincipal.split(" + ").map(c => c.trim());
-      // Verificar se TODOS os procedimentos do gabarito estão na conta
       const todosPresentes = codigosCombinados.every(c => codigosNaConta.has(c));
-      // Verificar se pelo menos um procedimento está neste setor
       const algumNoSetor = codigosCombinados.some(c => codigosNoSetor.has(c));
+      if (!todosPresentes || !algumNoSetor) continue;
       
-      if (todosPresentes && algumNoSetor) {
-        // Verificar match de setor
-        const setorMatch = !gabCombo.setor || (setor !== 'GERAL' && gabCombo.setor.trim().toUpperCase() === setor.trim().toUpperCase());
-        if (!setorMatch) continue;
-        
-        const chaveCombo = `${gabCombo.codigoProcedimentoPrincipal}|${setor}`;
-        if (procedimentosJaAnalisados.has(chaveCombo)) continue;
-        procedimentosJaAnalisados.add(chaveCombo);
-        
-        // Marcar todos os procedimentos do gabarito como cobertos
-        for (const c of codigosCombinados) {
-          procedimentosCobertosGabarito.add(`${c}|${setor}`);
+      const setorMatch = !gabCombo.setor || (setor !== 'GERAL' && gabCombo.setor.trim().toUpperCase() === setor.trim().toUpperCase());
+      if (!setorMatch) continue;
+      
+      const chaveCombo = `${gabCombo.codigoProcedimentoPrincipal}|${setor}`;
+      if (!gabaritosCompostosPorChave.has(chaveCombo)) gabaritosCompostosPorChave.set(chaveCombo, []);
+      gabaritosCompostosPorChave.get(chaveCombo)!.push(gabCombo);
+    }
+    
+    // Para cada chave, selecionar o melhor gabarito baseado no match de convênio
+    for (const [chaveCombo, candidatos] of Array.from(gabaritosCompostosPorChave.entries())) {
+      if (procedimentosJaAnalisados.has(chaveCombo)) continue;
+      procedimentosJaAnalisados.add(chaveCombo);
+      
+      // Pontuar cada candidato por match de convênio
+      const convenioNomeConta = (convenio || '').trim().toUpperCase();
+      const pontuados = candidatos.map(g => {
+        let score = 0;
+        // Match exato de convenioId
+        if (convenioIdConta && g.convenioId === convenioIdConta) score += 100;
+        // Match por nome de convênio (quando convenioId é null na conta)
+        else if (!convenioIdConta && g.convenioId) {
+          // Buscar o nome do convênio pelo ID usando o mapa carregado
+          const nomeConvGabarito = mapaConvenioNomes.get(g.convenioId as number) || '';
+          if (nomeConvGabarito && convenioNomeConta) {
+            if (nomeConvGabarito.includes(convenioNomeConta) || convenioNomeConta.includes(nomeConvGabarito)) {
+              score += 80; // Match por nome de convênio
+            }
+          }
         }
-        
-        processarPadraoComposicao(gabCombo, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
-        gabaritosUsados++;
-        
-        const scoreCombo = 200; // Gabarito composto = máxima prioridade
-        padroesDetalhados.push({
-          padraoId: gabCombo.id,
-          padraoNome: `${gabCombo.codigoProcedimentoPrincipal} - ${gabCombo.descricaoProcedimentoPrincipal || 'Sem nome'}`,
-          isGabarito: true,
-          convenioNome: (gabCombo as any).convenioNome || undefined,
-          setor: (gabCombo as any).setor || setor,
-          scoreMatch: scoreCombo,
-          motivoSelecao: `Gabarito composto selecionado para setor ${setor}`,
-        });
-        
-        logger.info({ message: "Gabarito composto selecionado", padraoId: gabCombo.id, proc: gabCombo.codigoProcedimentoPrincipal, setor, numeroConta });
+        // Gabarito sem convênio (genérico) é melhor que convênio errado
+        if (!g.convenioId) score += 10;
+        // Mais itens = mais completo = melhor
+        try {
+          const itensGab = typeof g.itensAssociados === 'string' ? JSON.parse(g.itensAssociados) : g.itensAssociados || [];
+          score += Math.min(itensGab.length, 50); // bonus por completude (max 50)
+        } catch(e) {}
+        return { gabarito: g, score };
+      });
+      
+      pontuados.sort((a, b) => b.score - a.score);
+      const melhorGabarito = pontuados[0].gabarito;
+      
+      const codigosCombinados = melhorGabarito.codigoProcedimentoPrincipal.split(" + ").map(c => c.trim());
+      
+      // Marcar todos os procedimentos do gabarito como cobertos
+      for (const c of codigosCombinados) {
+        procedimentosCobertosGabarito.add(`${c}|${setor}`);
       }
+      
+      processarPadraoComposicao(melhorGabarito, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
+      gabaritosUsados++;
+      
+      const scoreCombo = 200; // Gabarito composto = máxima prioridade
+      padroesDetalhados.push({
+        padraoId: melhorGabarito.id,
+        padraoNome: `${melhorGabarito.codigoProcedimentoPrincipal} - ${melhorGabarito.descricaoProcedimentoPrincipal || 'Sem nome'}`,
+        isGabarito: true,
+        convenioNome: (melhorGabarito as any).convenioNome || undefined,
+        setor: (melhorGabarito as any).setor || setor,
+        scoreMatch: scoreCombo,
+        motivoSelecao: `Gabarito composto selecionado para setor ${setor} (melhor match convênio entre ${candidatos.length} candidatos)`,
+      });
+      
+      logger.info({ 
+        message: "Gabarito composto selecionado (melhor match convênio)", 
+        padraoId: melhorGabarito.id, 
+        proc: melhorGabarito.codigoProcedimentoPrincipal, 
+        setor, 
+        numeroConta,
+        totalCandidatos: candidatos.length,
+        scoreVencedor: pontuados[0].score,
+      });
     }
 
     // FASE 2: Para procedimentos NÃO cobertos por gabaritos compostos, buscar padrão individual ou combinado
@@ -562,7 +622,7 @@ function processarPadraoComposicao(
   const fonteLabel = isGab ? "gabarito" : "padrão aprendido";
   const fonteSetorLabel = padrao.setor ? ` (setor: ${padrao.setor})` : ' (geral)';
 
-  const itensAssociados = padrao.itensAssociados as Array<{
+  let itensAssociados: Array<{
     codigo: string;
     descricao: string;
     tipo: string;
@@ -572,6 +632,21 @@ function processarPadraoComposicao(
     quantidadeMax?: number;
     valorMedio?: number;
   }>;
+
+  // Parse itensAssociados - pode vir como string JSON do banco ou como array
+  const rawItens = padrao.itensAssociados;
+  if (typeof rawItens === 'string') {
+    try {
+      itensAssociados = JSON.parse(rawItens);
+    } catch(e) {
+      logger.warn({ message: "Erro ao parsear itensAssociados", padraoId: padrao.id, error: (e as Error).message });
+      return;
+    }
+  } else if (Array.isArray(rawItens)) {
+    itensAssociados = rawItens;
+  } else {
+    return;
+  }
 
   if (!Array.isArray(itensAssociados)) return;
 
@@ -731,12 +806,30 @@ export async function executarComparacaoESalvar(
 
   const resultado = await compararContaComPadroes(numeroConta, estabelecimentoId);
 
-  // Mapear divergências por código de item
+  // Separar divergências: as que têm item correspondente na conta vs as órfãs (ITEM_FALTANTE)
   const divPorItem = new Map<string, Divergencia[]>();
+  const divergenciasGerais: Divergencia[] = []; // Divergências sem item na conta (ITEM_FALTANTE, etc.)
+  
+  // Buscar todos os códigos de itens que existem na conta
+  const itensExistentes = await db
+    .select({ codigoItem: contasConvenioItens.codigoItem })
+    .from(contasConvenioItens)
+    .where(and(
+      eq(contasConvenioItens.numeroConta, numeroConta),
+      eq(contasConvenioItens.estabelecimentoId, estabelecimentoId),
+    ));
+  const codigosExistentes = new Set(itensExistentes.map(i => i.codigoItem).filter(Boolean));
+  
   for (const div of resultado.divergencias) {
-    if (div.codigoItem) {
+    if (div.tipo === "ITEM_FALTANTE" || (div.codigoItem && !codigosExistentes.has(div.codigoItem))) {
+      // Item faltante: não existe na conta, salvar como divergência geral
+      divergenciasGerais.push(div);
+    } else if (div.codigoItem) {
       if (!divPorItem.has(div.codigoItem)) divPorItem.set(div.codigoItem, []);
       divPorItem.get(div.codigoItem)!.push(div);
+    } else {
+      // Divergência sem código de item - também salvar como geral
+      divergenciasGerais.push(div);
     }
   }
 
@@ -767,7 +860,7 @@ export async function executarComparacaoESalvar(
       .where(eq(contasConvenioItens.id, item.id));
   }
 
-  // Atualizar resumo da conta (com score de risco)
+  // Atualizar resumo da conta (com score de risco e divergências gerais)
   await db.update(contasConvenioResumo)
     .set({
       statusAnalise: resultado.statusGeral,
@@ -775,6 +868,7 @@ export async function executarComparacaoESalvar(
       totalAlertas: resultado.totalAlertas + resultado.totalCriticos,
       scoreRisco: resultado.scoreRisco.score,
       detalhesRisco: resultado.scoreRisco,
+      divergenciasGerais: divergenciasGerais.length > 0 ? divergenciasGerais : null,
     })
     .where(and(
       eq(contasConvenioResumo.numeroConta, numeroConta),

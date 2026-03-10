@@ -1106,6 +1106,46 @@ export default function ContaConvenioDetalhes() {
                   </div>
                 ) : (
                   <div className="space-y-6">
+                    {/* Banner de Alerta para Itens Faltantes */}
+                    {(() => {
+                      const itensFaltantes = divergenciasData.divergencias.filter((d: any) => d.tipo === 'ITEM_FALTANTE');
+                      if (itensFaltantes.length === 0) return null;
+                      return (
+                        <div className="rounded-lg border-2 border-red-500 bg-red-50 p-4 shadow-md">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 rounded-full bg-red-600 p-2">
+                              <AlertTriangle className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-base font-bold text-red-800 flex items-center gap-2">
+                                ATENÇÃO: {itensFaltantes.length} Item(ns) Faltante(s) na Conta
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white">
+                                  AÇÃO NECESSÁRIA
+                                </span>
+                              </h4>
+                              <p className="text-sm text-red-700 mt-1">
+                                Os seguintes itens estão definidos no gabarito/regra mas NÃO foram encontrados na conta:
+                              </p>
+                              <div className="mt-2 space-y-1">
+                                {itensFaltantes.map((item: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-2 bg-white/70 rounded px-3 py-1.5 border border-red-200">
+                                    <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                    <span className="font-mono text-sm font-bold text-red-800">{item.codigoItem}</span>
+                                    <span className="text-sm text-red-700">{item.descricaoItem || item.descricao}</span>
+                                    {item.valorEsperado != null && (
+                                      <span className="ml-auto text-sm font-medium text-red-600">
+                                        Valor esperado: R$ {Number(item.valorEsperado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Score de Risco + Resumo de Divergências */}
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                       {/* Score de Risco */}
@@ -1321,38 +1361,64 @@ export default function ContaConvenioDetalhes() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {divergenciasFiltradas.map((div: any, index: number) => {
+                          {/* Ordenar: ITEM_FALTANTE e críticos primeiro */}
+                          {[...divergenciasFiltradas].sort((a: any, b: any) => {
+                            const sevOrder: Record<string, number> = { critico: 0, alerta: 1, aviso: 2, info: 3 };
+                            const tipoOrder = (t: string) => t === 'ITEM_FALTANTE' ? -1 : 0;
+                            const diff = tipoOrder(a.tipo) - tipoOrder(b.tipo);
+                            if (diff !== 0) return diff;
+                            return (sevOrder[a.severidade] ?? 4) - (sevOrder[b.severidade] ?? 4);
+                          }).map((div: any, index: number) => {
                             const fb = getFeedbackForDiv(div);
+                            const isItemFaltante = div.tipo === 'ITEM_FALTANTE';
                             const rowBg = fb 
                               ? fb.decisao === "aceitar" 
                                 ? "bg-green-50/50" 
                                 : fb.decisao === "rejeitar" 
                                   ? "bg-red-50/30 opacity-60" 
                                   : ""
-                              : div.severidade === "critico" 
-                                ? "bg-red-50/50" 
-                                : "";
+                              : isItemFaltante
+                                ? "bg-red-100 border-l-4 border-l-red-600 animate-pulse-subtle"
+                                : div.severidade === "critico" 
+                                  ? "bg-red-50/50" 
+                                  : "";
                             
                             return (
                               <TableRow key={index} className={rowBg}>
                                 <TableCell>
-                                  <SeveridadeBadge severidade={div.severidade} />
+                                  {isItemFaltante ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-red-600 text-white shadow-sm">
+                                        <XCircle className="h-3.5 w-3.5" />
+                                        CRÍTICO
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <SeveridadeBadge severidade={div.severidade} />
+                                  )}
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {div.tipo}
-                                  </Badge>
+                                  {isItemFaltante ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-red-100 text-red-800 border border-red-300">
+                                      <AlertTriangle className="h-3.5 w-3.5" />
+                                      ITEM FALTANTE
+                                    </span>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs">
+                                      {div.tipo}
+                                    </Badge>
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <div>
-                                    <p className="font-mono text-sm">{div.codigoItem || "-"}</p>
-                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]" title={div.descricaoItem}>
+                                    <p className={`font-mono text-sm ${isItemFaltante ? 'font-bold text-red-700' : ''}`}>{div.codigoItem || "-"}</p>
+                                    <p className={`text-xs truncate max-w-[200px] ${isItemFaltante ? 'text-red-600 font-medium' : 'text-muted-foreground'}`} title={div.descricaoItem}>
                                       {div.descricaoItem || "-"}
                                     </p>
                                   </div>
                                 </TableCell>
                                 <TableCell className="max-w-xs">
-                                  <p className="text-sm">{div.mensagem || div.descricao || "-"}</p>
+                                  <p className={`text-sm ${isItemFaltante ? 'font-semibold text-red-700' : ''}`}>{div.mensagem || div.descricao || "-"}</p>
                                 </TableCell>
                                 <TableCell className="text-right font-mono">
                                   {div.valorCobrado != null ? formatCurrency(div.valorCobrado) : "-"}

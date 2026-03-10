@@ -3309,6 +3309,9 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
   detalhesRisco: json("detalhesRisco"), // {score, composicao, preco, quantidade, glosa, detalhes[]}
   isOutlierValor: int("isOutlierValor").default(0), // 1 = outlier de valor
   
+  // Divergências que não pertencem a nenhum item específico (ITEM_FALTANTE, etc.)
+  divergenciasGerais: json("divergenciasGerais"), // Array de divergências órfãs (sem item correspondente na conta)
+  
   // Metadados
   dataBusca: timestamp("dataBusca").defaultNow().notNull(),
   buscadoPor: int("buscadoPor"), // userId

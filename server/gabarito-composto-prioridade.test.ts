@@ -257,6 +257,93 @@ describe("Gabarito Composto - Prioridade sobre Padrões Individuais", () => {
     expect(faltantes.find(d => d.codigoItem === "ITEM_X")).toBeDefined();
   });
 
+  it("deve selecionar gabarito com melhor match de convênio quando há múltiplos candidatos", async () => {
+    // Conta UNIMED com convenioId null, 2 gabaritos compostos: um Ipasgo (20 itens) e um Unimed (32 itens)
+    // O 6º mock (convênios lookup) retorna os nomes
+    const mockSelect = vi.fn().mockReturnValue(mockDb);
+    mockDb.select = mockSelect;
+    
+    let callCount = 0;
+    mockDb.where.mockImplementation(() => {
+      callCount++;
+      switch(callCount) {
+        case 1: // itens da conta
+          return Promise.resolve([
+            { codigoItem: "31102360", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "500", valorTotal: "500", setor: "CENTRO CIRURGICO" },
+            { codigoItem: "31102050", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "300", valorTotal: "300", setor: "CENTRO CIRURGICO" },
+            { codigoItem: "60023155", convenio: "UNIMED", convenioId: null, tipoItem: "T", quantidade: "1", valorUnitario: "50", valorTotal: "50", setor: "CENTRO CIRURGICO" },
+          ]);
+        case 2: // padrões de preço
+          return Promise.resolve([]);
+        case 3: // padrões de quantidade
+          return Promise.resolve([]);
+        case 4: // padrões de glosa
+          return Promise.resolve([]);
+        case 5: // padrões de composição
+          return Promise.resolve([
+            // Gabarito Ipasgo (20 itens, sem taxa auditoria)
+            {
+              id: 840001,
+              estabelecimentoId: 1260036,
+              convenioId: 30001,
+              setor: "CENTRO CIRURGICO",
+              codigoProcedimentoPrincipal: "31102360 + 31102050",
+              descricaoProcedimentoPrincipal: "Ureterorrenolitotripsia + Duplo J",
+              isGabarito: 1,
+              status: "ativo",
+              confianca: 100,
+              itensAssociados: JSON.stringify([
+                { codigo: "60023155", descricao: "TAXA DE SALA", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1 },
+                { codigo: "60024755", descricao: "TAXA DE LASER POR USO", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1 },
+              ]),
+              totalOcorrencias: 5,
+            },
+            // Gabarito Unimed (32 itens, com taxa auditoria)
+            {
+              id: 840175,
+              estabelecimentoId: 1260036,
+              convenioId: 1,
+              setor: "CENTRO CIRURGICO",
+              codigoProcedimentoPrincipal: "31102360 + 31102050",
+              descricaoProcedimentoPrincipal: "Ureterorrenolitotripsia + Duplo J",
+              isGabarito: 1,
+              status: "ativo",
+              confianca: 100,
+              itensAssociados: JSON.stringify([
+                { codigo: "60023155", descricao: "TAXA DE SALA", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1 },
+                { codigo: "60024755", descricao: "TAXA DE LASER POR USO", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1 },
+                { codigo: "43990305", descricao: "TAXA DE AUDITORIA INTRA HOSPITALAR", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1 },
+              ]),
+              totalOcorrencias: 10,
+            },
+          ]);
+        case 6: // lookup de convênios (nomes)
+          return Promise.resolve([
+            { id: 1, nome: "Unimed" },
+            { id: 30001, nome: "Ipasgo" },
+          ]);
+        default:
+          return Promise.resolve([]);
+      }
+    });
+
+    const resultado = await compararContaComPadroes("CONTA_CONV", 1260036);
+
+    // Deve ter usado 1 gabarito (o da Unimed, que tem melhor match)
+    expect(resultado.gabaritosUsados).toBe(1);
+
+    // O gabarito selecionado deve ser o 840175 (Unimed)
+    const gabDetalhe = resultado.padroesDetalhados.find(p => p.padraoId === 840175);
+    expect(gabDetalhe).toBeDefined();
+    expect(gabDetalhe!.isGabarito).toBe(true);
+
+    // Deve detectar TAXA DE AUDITORIA como faltante (só existe no gabarito Unimed)
+    const faltantes = resultado.divergencias.filter(d => d.tipo === "ITEM_FALTANTE");
+    const auditoria = faltantes.find(d => d.codigoItem === "43990305");
+    expect(auditoria).toBeDefined();
+    expect(auditoria!.severidade).toBe("critico");
+  });
+
   it("não deve duplicar análise quando gabarito composto já cobriu os procedimentos", async () => {
     // Conta com 2 procedimentos cobertos pelo gabarito composto
     // Também existem padrões individuais para cada procedimento

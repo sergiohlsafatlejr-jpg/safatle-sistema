@@ -2592,3 +2592,5 @@
 - [x] Liberar edição do campo "Código do Procedimento Principal" na tela de Editar Padrão (hoje está bloqueado e não permite alterar)
 - [x] Campos de Descrição e Setor também liberáveis na edição do padrão
 - [x] Testes vitest para editarPadrao com campos de código principal (6 testes passando)
+- [x] Bug: Gabarito composto corrigido (31102360 + 31102050) não está sendo selecionado na análise - corrigido: seleção por match de convênio + parse de itensAssociados JSON
+- [x] Itens faltantes (ITEM_FALTANTE) devem aparecer com máximo destaque visual na aba de divergências + salvos em divergenciasGerais do resumo

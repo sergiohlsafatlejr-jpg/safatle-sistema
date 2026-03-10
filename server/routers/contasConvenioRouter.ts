@@ -1063,9 +1063,13 @@ export const contasConvenioRouter = router({
         resumo.porSeveridade[div.severidade] = (resumo.porSeveridade[div.severidade] || 0) + 1;
       }
 
-      // Buscar score de risco do resumo da conta
+      // Buscar score de risco e divergências gerais (ITEM_FALTANTE) do resumo da conta
       const resumoConta = await db
-        .select({ scoreRisco: contasConvenioResumo.scoreRisco, detalhesRisco: contasConvenioResumo.detalhesRisco })
+        .select({ 
+          scoreRisco: contasConvenioResumo.scoreRisco, 
+          detalhesRisco: contasConvenioResumo.detalhesRisco,
+          divergenciasGerais: contasConvenioResumo.divergenciasGerais,
+        })
         .from(contasConvenioResumo)
         .where(and(
           eq(contasConvenioResumo.numeroConta, input.numeroConta),
@@ -1073,9 +1077,32 @@ export const contasConvenioRouter = router({
         ))
         .limit(1);
 
+      // Incluir divergências gerais (ITEM_FALTANTE, etc.) que não estão vinculadas a itens
+      const divergenciasGerais = resumoConta[0]?.divergenciasGerais as any[] | null;
+      if (Array.isArray(divergenciasGerais)) {
+        for (const div of divergenciasGerais) {
+          todasDivergencias.push({
+            ...div,
+            itemId: null,
+            // codigoItem e descricaoItem já vem do próprio objeto div
+          });
+        }
+      }
+
+      // Recalcular resumo com divergências gerais incluídas
+      const resumoFinal = {
+        total: todasDivergencias.length,
+        porTipo: {} as Record<string, number>,
+        porSeveridade: {} as Record<string, number>,
+      };
+      for (const div of todasDivergencias) {
+        resumoFinal.porTipo[div.tipo] = (resumoFinal.porTipo[div.tipo] || 0) + 1;
+        resumoFinal.porSeveridade[div.severidade] = (resumoFinal.porSeveridade[div.severidade] || 0) + 1;
+      }
+
       return {
         divergencias: todasDivergencias,
-        resumo,
+        resumo: resumoFinal,
         scoreRisco: resumoConta[0]?.scoreRisco ?? null,
         detalhesRisco: resumoConta[0]?.detalhesRisco ?? null,
       };
