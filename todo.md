@@ -2594,3 +2594,10 @@
 - [x] Testes vitest para editarPadrao com campos de código principal (6 testes passando)
 - [x] Bug: Gabarito composto corrigido (31102360 + 31102050) não está sendo selecionado na análise - corrigido: seleção por match de convênio + parse de itensAssociados JSON
 - [x] Itens faltantes (ITEM_FALTANTE) devem aparecer com máximo destaque visual na aba de divergências + salvos em divergenciasGerais do resumo
+- [x] Opção 2: Adicionar campo "categoria" (Obrigatório/Condicional/Opcional) em cada item do gabarito
+- [x] Opção 2: Atualizar tela de edição do gabarito para permitir selecionar categoria de cada item
+- [x] Opção 2: Motor de comparação respeitar categorias - só ITEM_FALTANTE crítico para Obrigatórios
+- [x] Opção 3: Adicionar campo "grupo" nos itens do gabarito para agrupar itens condicionais
+- [x] Opção 3: Atualizar tela de edição do gabarito para permitir definir grupos de itens
+- [x] Opção 3: Motor de comparação com lógica de grupo - se tem algum item do grupo na conta, cobra todos do grupo
+- [x] Testes vitest para categorias e grupos de itens no gabarito (10 testes passando)

@@ -404,3 +404,193 @@ describe("Gabarito Composto - Prioridade sobre Padrões Individuais", () => {
     expect(faltantes.find(d => d.codigoItem === "ITEM_IND")).toBeUndefined();
   });
 });
+
+describe("Categorias e Grupos Condicionais nos Itens do Gabarito", () => {
+  let mockDb: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockDb = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      offset: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+    };
+
+    (getDb as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockDb);
+  });
+
+  it("deve gerar alerta CRITICO para itens obrigatórios faltantes", async () => {
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "PROC_A", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "100", valorTotal: "100", setor: "CENTRO CIRURGICO" },
+        { codigoItem: "60023155", convenio: "UNIMED", convenioId: null, tipoItem: "T", quantidade: "1", valorUnitario: "50", valorTotal: "50", setor: "CENTRO CIRURGICO" },
+      ])
+      .mockResolvedValueOnce([]) // preço
+      .mockResolvedValueOnce([]) // quantidade
+      .mockResolvedValueOnce([]) // glosa
+      .mockResolvedValueOnce([
+        {
+          id: 900,
+          estabelecimentoId: 1260036,
+          convenioId: null,
+          setor: "CENTRO CIRURGICO",
+          codigoProcedimentoPrincipal: "PROC_A",
+          descricaoProcedimentoPrincipal: "Procedimento A",
+          isGabarito: 1,
+          status: "ativo",
+          confianca: 100,
+          itensAssociados: [
+            { codigo: "60023155", descricao: "TAXA DE SALA", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, categoria: "obrigatorio" },
+            { codigo: "OBRIG_FALTANTE", descricao: "ITEM OBRIGATORIO FALTANTE", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, categoria: "obrigatorio" },
+            { codigo: "OPC_FALTANTE", descricao: "ITEM OPCIONAL FALTANTE", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, categoria: "opcional" },
+          ],
+          totalOcorrencias: 10,
+        },
+      ]);
+
+    const resultado = await compararContaComPadroes("CONTA_CAT", 1260036);
+
+    const faltantes = resultado.divergencias.filter(d => d.tipo === "ITEM_FALTANTE");
+    
+    // Item obrigatório deve gerar alerta
+    const obrigFaltante = faltantes.find(d => d.codigoItem === "OBRIG_FALTANTE");
+    expect(obrigFaltante).toBeDefined();
+    expect(obrigFaltante!.severidade).toBe("critico");
+
+    // Item opcional NÃO deve gerar alerta
+    const opcFaltante = faltantes.find(d => d.codigoItem === "OPC_FALTANTE");
+    expect(opcFaltante).toBeUndefined();
+  });
+
+  it("deve gerar alerta para itens condicionais quando o grupo está ativo", async () => {
+    // Conta tem DIARIA_UTI (do grupo UTI), então MEDICAMENTO_UTI (mesmo grupo) deve ser cobrado
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "PROC_A", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "100", valorTotal: "100", setor: "CENTRO CIRURGICO" },
+        { codigoItem: "DIARIA_UTI", convenio: "UNIMED", convenioId: null, tipoItem: "D", quantidade: "3", valorUnitario: "200", valorTotal: "600", setor: "UTI" },
+      ])
+      .mockResolvedValueOnce([]) // preço
+      .mockResolvedValueOnce([]) // quantidade
+      .mockResolvedValueOnce([]) // glosa
+      .mockResolvedValueOnce([
+        {
+          id: 901,
+          estabelecimentoId: 1260036,
+          convenioId: null,
+          setor: null,
+          codigoProcedimentoPrincipal: "PROC_A",
+          descricaoProcedimentoPrincipal: "Procedimento A",
+          isGabarito: 1,
+          status: "ativo",
+          confianca: 100,
+          itensAssociados: [
+            { codigo: "DIARIA_UTI", descricao: "DIARIA DE UTI", tipo: "DIARIA", frequencia: 100, quantidadeMedia: 3, categoria: "condicional", grupo: "UTI" },
+            { codigo: "MED_UTI", descricao: "MEDICAMENTO UTI", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, categoria: "condicional", grupo: "UTI" },
+            { codigo: "DIARIA_ENF", descricao: "DIARIA ENFERMARIA", tipo: "DIARIA", frequencia: 100, quantidadeMedia: 5, categoria: "condicional", grupo: "Enfermaria" },
+            { codigo: "MED_ENF", descricao: "MEDICAMENTO ENFERMARIA", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, categoria: "condicional", grupo: "Enfermaria" },
+          ],
+          totalOcorrencias: 10,
+        },
+      ]);
+
+    const resultado = await compararContaComPadroes("CONTA_GRUPO", 1260036);
+
+    const faltantes = resultado.divergencias.filter(d => d.tipo === "ITEM_FALTANTE");
+    
+    // MED_UTI deve ser cobrado (grupo UTI está ativo porque DIARIA_UTI está na conta)
+    const medUti = faltantes.find(d => d.codigoItem === "MED_UTI");
+    expect(medUti).toBeDefined();
+    expect(medUti!.mensagem).toContain("CONDICIONAL");
+    expect(medUti!.mensagem).toContain("grupo: UTI");
+
+    // DIARIA_ENF e MED_ENF NÃO devem ser cobrados (grupo Enfermaria não está ativo)
+    const diariaEnf = faltantes.find(d => d.codigoItem === "DIARIA_ENF");
+    expect(diariaEnf).toBeUndefined();
+    const medEnf = faltantes.find(d => d.codigoItem === "MED_ENF");
+    expect(medEnf).toBeUndefined();
+  });
+
+  it("não deve gerar alerta para itens condicionais quando o grupo está inativo", async () => {
+    // Conta NÃO tem nenhum item do grupo UTI
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "PROC_A", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "100", valorTotal: "100", setor: "CENTRO CIRURGICO" },
+        { codigoItem: "TAXA_SALA", convenio: "UNIMED", convenioId: null, tipoItem: "T", quantidade: "1", valorUnitario: "50", valorTotal: "50", setor: "CENTRO CIRURGICO" },
+      ])
+      .mockResolvedValueOnce([]) // preço
+      .mockResolvedValueOnce([]) // quantidade
+      .mockResolvedValueOnce([]) // glosa
+      .mockResolvedValueOnce([
+        {
+          id: 902,
+          estabelecimentoId: 1260036,
+          convenioId: null,
+          setor: null,
+          codigoProcedimentoPrincipal: "PROC_A",
+          descricaoProcedimentoPrincipal: "Procedimento A",
+          isGabarito: 1,
+          status: "ativo",
+          confianca: 100,
+          itensAssociados: [
+            { codigo: "TAXA_SALA", descricao: "TAXA DE SALA", tipo: "TAXA", frequencia: 100, quantidadeMedia: 1, categoria: "obrigatorio" },
+            { codigo: "DIARIA_UTI", descricao: "DIARIA DE UTI", tipo: "DIARIA", frequencia: 100, quantidadeMedia: 3, categoria: "condicional", grupo: "UTI" },
+            { codigo: "MED_UTI", descricao: "MEDICAMENTO UTI", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, categoria: "condicional", grupo: "UTI" },
+          ],
+          totalOcorrencias: 10,
+        },
+      ]);
+
+    const resultado = await compararContaComPadroes("CONTA_SEM_UTI", 1260036);
+
+    const faltantes = resultado.divergencias.filter(d => d.tipo === "ITEM_FALTANTE");
+    
+    // Nenhum item do grupo UTI deve gerar alerta (grupo inativo)
+    expect(faltantes.find(d => d.codigoItem === "DIARIA_UTI")).toBeUndefined();
+    expect(faltantes.find(d => d.codigoItem === "MED_UTI")).toBeUndefined();
+  });
+
+  it("itens sem categoria definida devem ser tratados como obrigatórios (retrocompatibilidade)", async () => {
+    mockDb.where
+      .mockResolvedValueOnce([
+        { codigoItem: "PROC_A", convenio: "UNIMED", convenioId: null, tipoItem: "P", quantidade: "1", valorUnitario: "100", valorTotal: "100", setor: "CENTRO CIRURGICO" },
+      ])
+      .mockResolvedValueOnce([]) // preço
+      .mockResolvedValueOnce([]) // quantidade
+      .mockResolvedValueOnce([]) // glosa
+      .mockResolvedValueOnce([
+        {
+          id: 903,
+          estabelecimentoId: 1260036,
+          convenioId: null,
+          setor: null,
+          codigoProcedimentoPrincipal: "PROC_A",
+          descricaoProcedimentoPrincipal: "Procedimento A",
+          isGabarito: 1,
+          status: "ativo",
+          confianca: 100,
+          itensAssociados: [
+            // Item SEM campo categoria (gabaritos antigos)
+            { codigo: "ITEM_ANTIGO", descricao: "ITEM SEM CATEGORIA", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1 },
+          ],
+          totalOcorrencias: 10,
+        },
+      ]);
+
+    const resultado = await compararContaComPadroes("CONTA_RETRO", 1260036);
+
+    const faltantes = resultado.divergencias.filter(d => d.tipo === "ITEM_FALTANTE");
+    
+    // Item sem categoria deve ser tratado como obrigatório
+    const itemAntigo = faltantes.find(d => d.codigoItem === "ITEM_ANTIGO");
+    expect(itemAntigo).toBeDefined();
+    expect(itemAntigo!.severidade).toBe("critico");
+  });
+});

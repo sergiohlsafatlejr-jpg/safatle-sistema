@@ -15,8 +15,15 @@ import { useState, useEffect, useMemo } from "react";
 import { useLocation, useRoute } from "wouter";
 import {
   ChevronLeft, PlusCircle, Trash2, CheckCircle2, Loader2, Save, Package, Eye,
-  ThumbsUp, ThumbsDown, AlertTriangle, Info, XCircle, BookOpen, Building2
+  ThumbsUp, ThumbsDown, AlertTriangle, Info, XCircle, BookOpen, Building2,
+  ShieldCheck, ShieldQuestion, ShieldOff, Layers
 } from "lucide-react";
+
+const CATEGORIA_CONFIG = {
+  obrigatorio: { label: "Obrigatório", icon: ShieldCheck, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800", badgeClass: "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30" },
+  condicional: { label: "Condicional", icon: ShieldQuestion, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800", badgeClass: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30" },
+  opcional: { label: "Opcional", icon: ShieldOff, color: "text-gray-500 dark:text-gray-400", bg: "bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800", badgeClass: "bg-gray-500/20 text-gray-500 dark:text-gray-400 border-gray-500/30" },
+};
 
 export default function EditarPadrao() {
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -50,7 +57,11 @@ export default function EditarPadrao() {
       const itensRaw = Array.isArray(padrao.itensAssociados)
         ? padrao.itensAssociados
         : (typeof padrao.itensAssociados === "string" ? JSON.parse(padrao.itensAssociados) : []);
-      setItens(itensRaw.map((i: any) => ({ ...i })));
+      setItens(itensRaw.map((i: any) => ({
+        ...i,
+        categoria: i.categoria || "obrigatorio",
+        grupo: i.grupo || "",
+      })));
       setObservacoes((padrao as any).observacoes || padrao.observacoesValidacao || "");
       setSelectedConvenioId(padrao.convenioId ? String(padrao.convenioId) : "");
       setCodigoPrincipal(padrao.codigoProcedimentoPrincipal || "");
@@ -77,9 +88,18 @@ export default function EditarPadrao() {
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });
 
+  // Grupos existentes (extraídos dos itens)
+  const gruposExistentes = useMemo(() => {
+    const grupos = new Set<string>();
+    itens.forEach(item => {
+      if (item.grupo) grupos.add(item.grupo);
+    });
+    return Array.from(grupos).sort();
+  }, [itens]);
+
   // Helpers
   const addItem = () => {
-    setItens([...itens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0 }]);
+    setItens([...itens, { codigo: "", descricao: "", tipo: "MAT_MED", frequencia: 100, quantidadeMedia: 1, quantidadeMin: 1, quantidadeMax: 1, valorMedio: 0, categoria: "obrigatorio", grupo: "" }]);
   };
 
   const removeItem = (idx: number) => {
@@ -99,6 +119,8 @@ export default function EditarPadrao() {
         quantidadeMedia: ((item.quantidadeMin ?? item.quantidadeMedia ?? 1) + (item.quantidadeMax ?? item.quantidadeMedia ?? 1)) / 2,
         quantidadeMin: item.quantidadeMin ?? item.quantidadeMedia ?? 1,
         quantidadeMax: item.quantidadeMax ?? item.quantidadeMedia ?? 1,
+        categoria: item.categoria || "obrigatorio",
+        grupo: item.grupo || undefined,
       })),
     });
   };
@@ -109,6 +131,11 @@ export default function EditarPadrao() {
     } else {
       setLocation("/padroes-cobranca");
     }
+  };
+
+  // Aplicar categoria em lote a itens selecionados por grupo
+  const aplicarCategoriaGrupo = (grupo: string, categoria: string) => {
+    setItens(itens.map(item => item.grupo === grupo ? { ...item, categoria } : item));
   };
 
   const formatCurrency = (val: string | number | null) => {
@@ -135,6 +162,16 @@ export default function EditarPadrao() {
     if (valor >= 55) return <Badge variant="outline" className="bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30">{valor}%</Badge>;
     return <Badge variant="outline" className="bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30">{valor}%</Badge>;
   };
+
+  // Resumo de categorias
+  const resumoCategorias = useMemo(() => {
+    const r = { obrigatorio: 0, condicional: 0, opcional: 0 };
+    itens.forEach(item => {
+      const cat = item.categoria || "obrigatorio";
+      if (cat in r) r[cat as keyof typeof r]++;
+    });
+    return r;
+  }, [itens]);
 
   if (padraoDetalhes.isLoading) {
     return (
@@ -241,13 +278,65 @@ export default function EditarPadrao() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os convênios</SelectItem>
-                    {(conveniosSafatle.data as any[])?.map((c: any) => (
+                    {(conveniosSafatle.data || []).map((c: any) => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.nome}{c.codigo ? ` (${c.codigo})` : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Legenda de Categorias e Grupos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              Categorias e Grupos de Itens
+            </CardTitle>
+            <CardDescription>
+              Defina a obrigatoriedade de cada item e agrupe itens condicionais para controlar alertas de itens faltantes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {Object.entries(CATEGORIA_CONFIG).map(([key, cfg]) => {
+                const Icon = cfg.icon;
+                return (
+                  <div key={key} className={`rounded-lg border p-3 ${cfg.bg}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className={`h-4 w-4 ${cfg.color}`} />
+                      <span className={`font-semibold text-sm ${cfg.color}`}>{cfg.label}</span>
+                      <Badge variant="outline" className={cfg.badgeClass}>{resumoCategorias[key as keyof typeof resumoCategorias]}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {key === "obrigatorio" && "Sempre deve estar presente. Gera alerta CRÍTICO se faltar."}
+                      {key === "condicional" && "Depende do caso. Se algum item do GRUPO estiver na conta, todos do grupo são cobrados."}
+                      {key === "opcional" && "Pode ou não aparecer. NÃO gera alerta se faltar."}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Grupos existentes */}
+            {gruposExistentes.length > 0 && (
+              <div className="mt-3">
+                <Label className="text-xs text-muted-foreground mb-2 block">Grupos definidos:</Label>
+                <div className="flex flex-wrap gap-2">
+                  {gruposExistentes.map(grupo => {
+                    const count = itens.filter(i => i.grupo === grupo).length;
+                    return (
+                      <Badge key={grupo} variant="outline" className="gap-1 bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300">
+                        <Layers className="h-3 w-3" />
+                        {grupo} ({count} itens)
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -258,9 +347,9 @@ export default function EditarPadrao() {
               <div>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Itens do Padrão ({itens.length})
+                  Itens definidos no gabarito ({itens.length})
                 </CardTitle>
-                <CardDescription>Adicione, edite ou remova itens do padrão. Use o autocomplete para buscar códigos.</CardDescription>
+                <CardDescription>Adicione, edite ou remova itens do padrão. Defina a categoria e grupo de cada item.</CardDescription>
               </div>
               <Button size="sm" variant="outline" className="gap-1" onClick={addItem}>
                 <PlusCircle className="h-4 w-4" /> Adicionar Item
@@ -270,100 +359,232 @@ export default function EditarPadrao() {
           <CardContent>
             <div className="rounded-lg border border-border overflow-hidden">
               {/* Header da tabela */}
-              <div className="grid grid-cols-[minmax(180px,2fr)_minmax(250px,4fr)_minmax(120px,1.5fr)_minmax(80px,1fr)_minmax(80px,1fr)_minmax(80px,1fr)_minmax(100px,1.5fr)_50px] gap-3 p-3 bg-muted/50 text-sm font-medium text-muted-foreground border-b">
+              <div className="grid grid-cols-[minmax(120px,1fr)_minmax(80px,0.8fr)_minmax(180px,2fr)_minmax(200px,3fr)_minmax(100px,1fr)_minmax(60px,0.6fr)_minmax(60px,0.6fr)_minmax(60px,0.6fr)_minmax(80px,1fr)_minmax(120px,1.2fr)_40px] gap-2 p-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+                <div>Categoria</div>
+                <div>Grupo</div>
                 <div>Código</div>
                 <div>Descrição</div>
                 <div>Tipo</div>
-                <div>Freq %</div>
-                <div>Qtd Mín</div>
-                <div>Qtd Máx</div>
+                <div>Freq%</div>
+                <div>Mín</div>
+                <div>Máx</div>
                 <div>Valor</div>
-                <div className="text-center">Ação</div>
+                <div>Ações</div>
+                <div></div>
               </div>
               {/* Linhas dos itens */}
               <div className="divide-y divide-border">
-                {itens.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-[minmax(180px,2fr)_minmax(250px,4fr)_minmax(120px,1.5fr)_minmax(80px,1fr)_minmax(80px,1fr)_minmax(80px,1fr)_minmax(100px,1.5fr)_50px] gap-3 items-center p-3 hover:bg-muted/20 transition-colors">
-                    <div>
-                      <AutocompleteCodigoItem
-                        estabelecimentoId={estabelecimentoId}
-                        value={item.codigo}
-                        onChange={(selected) => {
+                {itens.map((item, idx) => {
+                  const catConfig = CATEGORIA_CONFIG[item.categoria as keyof typeof CATEGORIA_CONFIG] || CATEGORIA_CONFIG.obrigatorio;
+                  const CatIcon = catConfig.icon;
+                  return (
+                    <div key={idx} className={`grid grid-cols-[minmax(120px,1fr)_minmax(80px,0.8fr)_minmax(180px,2fr)_minmax(200px,3fr)_minmax(100px,1fr)_minmax(60px,0.6fr)_minmax(60px,0.6fr)_minmax(60px,0.6fr)_minmax(80px,1fr)_minmax(120px,1.2fr)_40px] gap-2 items-center p-2 hover:bg-muted/20 transition-colors ${item.categoria === 'opcional' ? 'opacity-60' : ''}`}>
+                      {/* Categoria */}
+                      <div>
+                        <Select value={item.categoria || "obrigatorio"} onValueChange={(v) => {
                           const newItens = [...itens];
-                          newItens[idx] = {
-                            ...newItens[idx],
-                            codigo: selected.codigo,
-                            descricao: selected.descricao,
-                            tipo: selected.tipo || newItens[idx].tipo,
-                            quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
-                            quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
-                            valorMedio: selected.valorMedio || newItens[idx].valorMedio,
-                          };
+                          newItens[idx].categoria = v;
+                          // Se mudar para condicional e não tem grupo, sugerir
+                          if (v === "condicional" && !newItens[idx].grupo) {
+                            // Sugerir grupo baseado no tipo
+                            const tipoGrupo = item.tipo === "DIARIA" ? "Internação" : item.tipo === "TAXA" ? "Taxas" : "";
+                            newItens[idx].grupo = tipoGrupo;
+                          }
+                          if (v !== "condicional") {
+                            newItens[idx].grupo = "";
+                          }
                           setItens(newItens);
-                        }}
-                        onChangeRaw={(val) => {
+                        }}>
+                          <SelectTrigger className={`h-8 text-xs ${catConfig.color}`}>
+                            <div className="flex items-center gap-1">
+                              <CatIcon className="h-3 w-3" />
+                              <SelectValue />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="obrigatorio">
+                              <div className="flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3 text-red-500" /> Obrigatório
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="condicional">
+                              <div className="flex items-center gap-1">
+                                <ShieldQuestion className="h-3 w-3 text-amber-500" /> Condicional
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="opcional">
+                              <div className="flex items-center gap-1">
+                                <ShieldOff className="h-3 w-3 text-gray-400" /> Opcional
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* Grupo */}
+                      <div>
+                        {item.categoria === "condicional" ? (
+                          <Input
+                            value={item.grupo || ""}
+                            onChange={(e) => {
+                              const newItens = [...itens];
+                              newItens[idx].grupo = e.target.value;
+                              setItens(newItens);
+                            }}
+                            placeholder="Grupo"
+                            className="h-8 text-xs"
+                            list="grupos-list"
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
+                      {/* Código */}
+                      <div>
+                        <AutocompleteCodigoItem
+                          estabelecimentoId={estabelecimentoId}
+                          value={item.codigo}
+                          onChange={(selected) => {
+                            const newItens = [...itens];
+                            newItens[idx] = {
+                              ...newItens[idx],
+                              codigo: selected.codigo,
+                              descricao: selected.descricao,
+                              tipo: selected.tipo || newItens[idx].tipo,
+                              quantidadeMin: Math.max(1, Math.floor(selected.quantidadeMedia * 0.5)),
+                              quantidadeMax: Math.max(1, Math.ceil(selected.quantidadeMedia * 1.5)),
+                              valorMedio: selected.valorMedio || newItens[idx].valorMedio,
+                            };
+                            setItens(newItens);
+                          }}
+                          onChangeRaw={(val) => {
+                            const newItens = [...itens];
+                            newItens[idx].codigo = val;
+                            setItens(newItens);
+                          }}
+                          placeholder="Buscar código..."
+                        />
+                      </div>
+                      {/* Descrição */}
+                      <div>
+                        <Input value={item.descricao} onChange={(e) => {
                           const newItens = [...itens];
-                          newItens[idx].codigo = val;
+                          newItens[idx].descricao = e.target.value;
                           setItens(newItens);
-                        }}
-                        placeholder="Buscar código..."
-                      />
+                        }} placeholder="Descrição" className="h-8 text-xs" />
+                      </div>
+                      {/* Tipo */}
+                      <div>
+                        <Select value={item.tipo || "MAT_MED"} onValueChange={(v) => {
+                          const newItens = [...itens];
+                          newItens[idx].tipo = v;
+                          setItens(newItens);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MAT_MED">Mat/Med</SelectItem>
+                            <SelectItem value="PROCEDIMENTO">Proced.</SelectItem>
+                            <SelectItem value="TAXA">Taxa</SelectItem>
+                            <SelectItem value="DIARIA">Diária</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* Frequência */}
+                      <div>
+                        <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
+                          const newItens = [...itens];
+                          newItens[idx].frequencia = Number(e.target.value);
+                          setItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      {/* Qtd Mín */}
+                      <div>
+                        <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? item.quantidadeMedia ?? 1} onChange={(e) => {
+                          const newItens = [...itens];
+                          newItens[idx].quantidadeMin = Number(e.target.value);
+                          setItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      {/* Qtd Máx */}
+                      <div>
+                        <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? item.quantidadeMedia ?? 1} onChange={(e) => {
+                          const newItens = [...itens];
+                          newItens[idx].quantidadeMax = Number(e.target.value);
+                          setItens(newItens);
+                        }} className="h-8 text-xs" />
+                      </div>
+                      {/* Valor */}
+                      <div>
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
+                      </div>
+                      {/* Ações rápidas de categoria */}
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={item.categoria === "obrigatorio" ? "default" : "ghost"}
+                          className={`h-7 w-7 p-0 ${item.categoria === "obrigatorio" ? "bg-red-500 hover:bg-red-600" : "text-red-400 hover:text-red-500"}`}
+                          onClick={() => {
+                            const newItens = [...itens];
+                            newItens[idx].categoria = "obrigatorio";
+                            newItens[idx].grupo = "";
+                            setItens(newItens);
+                          }}
+                          title="Obrigatório"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={item.categoria === "condicional" ? "default" : "ghost"}
+                          className={`h-7 w-7 p-0 ${item.categoria === "condicional" ? "bg-amber-500 hover:bg-amber-600" : "text-amber-400 hover:text-amber-500"}`}
+                          onClick={() => {
+                            const newItens = [...itens];
+                            newItens[idx].categoria = "condicional";
+                            if (!newItens[idx].grupo) {
+                              newItens[idx].grupo = item.tipo === "DIARIA" ? "Internação" : "";
+                            }
+                            setItens(newItens);
+                          }}
+                          title="Condicional"
+                        >
+                          <ShieldQuestion className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={item.categoria === "opcional" ? "default" : "ghost"}
+                          className={`h-7 w-7 p-0 ${item.categoria === "opcional" ? "bg-gray-500 hover:bg-gray-600" : "text-gray-400 hover:text-gray-500"}`}
+                          onClick={() => {
+                            const newItens = [...itens];
+                            newItens[idx].categoria = "opcional";
+                            newItens[idx].grupo = "";
+                            setItens(newItens);
+                          }}
+                          title="Opcional"
+                        >
+                          <ShieldOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {/* Remover */}
+                      <div className="flex justify-center">
+                        <Button size="sm" variant="ghost" className="text-red-500 h-7 w-7 p-0" onClick={() => removeItem(idx)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <Input value={item.descricao} onChange={(e) => {
-                        const newItens = [...itens];
-                        newItens[idx].descricao = e.target.value;
-                        setItens(newItens);
-                      }} placeholder="Descrição" className="h-9 text-sm" />
-                    </div>
-                    <div>
-                      <Select value={item.tipo || "MAT_MED"} onValueChange={(v) => {
-                        const newItens = [...itens];
-                        newItens[idx].tipo = v;
-                        setItens(newItens);
-                      }}>
-                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MAT_MED">Mat/Med</SelectItem>
-                          <SelectItem value="PROCEDIMENTO">Procedimento</SelectItem>
-                          <SelectItem value="TAXA">Taxa</SelectItem>
-                          <SelectItem value="DIARIA">Diária</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Input type="number" min={0} max={100} value={item.frequencia} onChange={(e) => {
-                        const newItens = [...itens];
-                        newItens[idx].frequencia = Number(e.target.value);
-                        setItens(newItens);
-                      }} className="h-9 text-sm" />
-                    </div>
-                    <div>
-                      <Input type="number" min={0} step={0.1} value={item.quantidadeMin ?? item.quantidadeMedia ?? 1} onChange={(e) => {
-                        const newItens = [...itens];
-                        newItens[idx].quantidadeMin = Number(e.target.value);
-                        setItens(newItens);
-                      }} placeholder="Mín" className="h-9 text-sm" />
-                    </div>
-                    <div>
-                      <Input type="number" min={0} step={0.1} value={item.quantidadeMax ?? item.quantidadeMedia ?? 1} onChange={(e) => {
-                        const newItens = [...itens];
-                        newItens[idx].quantidadeMax = Number(e.target.value);
-                        setItens(newItens);
-                      }} placeholder="Máx" className="h-9 text-sm" />
-                    </div>
-                    <div>
-                      <span className="text-sm text-green-600 dark:text-green-400 font-medium">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
-                    </div>
-                    <div className="flex justify-center">
-                      <Button size="sm" variant="ghost" className="text-red-500 h-9 w-9 p-0" onClick={() => removeItem(idx)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
+
+            {/* Datalist para sugestão de grupos */}
+            <datalist id="grupos-list">
+              {gruposExistentes.map(g => <option key={g} value={g} />)}
+              <option value="UTI" />
+              <option value="Enfermaria" />
+              <option value="Internação" />
+              <option value="Centro Cirúrgico" />
+              <option value="Medicamentos" />
+              <option value="Materiais" />
+            </datalist>
           </CardContent>
         </Card>
 

@@ -631,6 +631,8 @@ function processarPadraoComposicao(
     quantidadeMin?: number;
     quantidadeMax?: number;
     valorMedio?: number;
+    categoria?: 'obrigatorio' | 'condicional' | 'opcional';
+    grupo?: string;
   }>;
 
   // Parse itensAssociados - pode vir como string JSON do banco ou como array
@@ -650,38 +652,83 @@ function processarPadraoComposicao(
 
   if (!Array.isArray(itensAssociados)) return;
 
+  // ========== LÓGICA DE GRUPOS CONDICIONAIS (Opção 3) ==========
+  // Montar mapa de grupos e verificar quais estão "ativos" na conta
+  // Um grupo está ativo se QUALQUER item do grupo estiver presente na conta
+  const gruposMap = new Map<string, typeof itensAssociados>();
+  const gruposAtivos = new Set<string>();
+  
+  for (const item of itensAssociados) {
+    if (item.categoria === 'condicional' && item.grupo) {
+      if (!gruposMap.has(item.grupo)) gruposMap.set(item.grupo, []);
+      gruposMap.get(item.grupo)!.push(item);
+      // Se algum item do grupo está na conta, o grupo está ativo
+      if (codigosNaConta.has(item.codigo)) {
+        gruposAtivos.add(item.grupo);
+      }
+    }
+  }
+
   for (const itemEsperado of itensAssociados) {
+    const categoria = itemEsperado.categoria || 'obrigatorio';
     const limiteFrequencia = isGab ? 50 : 70;
     
     // Verificar se o item está no setor correto (ou na conta inteira)
     const itemNoSetor = codigosNoSetor.has(itemEsperado.codigo);
     const itemNaConta = codigosNaConta.has(itemEsperado.codigo);
     
+    // ========== REGRAS DE CATEGORIA (Opção 2) ==========
+    // - obrigatorio: sempre gera alerta crítico se faltar
+    // - condicional: só gera alerta se o GRUPO estiver ativo (algum item do grupo presente)
+    // - opcional: NUNCA gera alerta de ITEM_FALTANTE
+    
     if (itemEsperado.frequencia >= limiteFrequencia && !itemNaConta) {
-      const severidade = isGab 
-        ? (itemEsperado.frequencia >= 90 ? "critico" : "alerta")
-        : (itemEsperado.frequencia >= 90 ? "alerta" : "aviso");
+      // Determinar se deve gerar alerta baseado na categoria
+      let deveGerarAlerta = false;
+      let categoriaLabel = '';
       
-      divergencias.push({
-        tipo: "ITEM_FALTANTE",
-        severidade,
-        mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${itemEsperado.frequencia.toFixed(0)}%) não encontrado na conta.${setorLabel} [Fonte: ${fonteLabel}${fonteSetorLabel}]`,
-        codigoItem: itemEsperado.codigo,
-        descricaoItem: itemEsperado.descricao,
-        padraoId: padrao.id,
-        isGabarito: isGab,
-        setor: setor !== 'GERAL' ? setor : undefined,
-        detalhes: {
-          procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
-          descricaoProcedimentoPrincipal: padrao.descricaoProcedimentoPrincipal,
-          frequenciaEsperada: itemEsperado.frequencia,
-          quantidadeMedia: itemEsperado.quantidadeMedia,
-          valorMedio: itemEsperado.valorMedio,
-          fonte: fonteLabel,
-          setorPadrao: padrao.setor || null,
-          setorConta: setor,
-        },
-      });
+      if (categoria === 'obrigatorio') {
+        deveGerarAlerta = true;
+        categoriaLabel = 'OBRIGATÓRIO';
+      } else if (categoria === 'condicional') {
+        // Só gera alerta se o grupo está ativo (algum item do grupo está na conta)
+        if (itemEsperado.grupo && gruposAtivos.has(itemEsperado.grupo)) {
+          deveGerarAlerta = true;
+          categoriaLabel = `CONDICIONAL (grupo: ${itemEsperado.grupo})`;
+        }
+        // Se o grupo não está ativo, não gera alerta
+      } else if (categoria === 'opcional') {
+        deveGerarAlerta = false; // Nunca gera alerta
+      }
+      
+      if (deveGerarAlerta) {
+        const severidade = categoria === 'obrigatorio'
+          ? (isGab ? "critico" : "alerta")
+          : (isGab ? "alerta" : "aviso"); // condicional tem severidade menor
+        
+        divergencias.push({
+          tipo: "ITEM_FALTANTE",
+          severidade,
+          mensagem: `Item "${itemEsperado.descricao || itemEsperado.codigo}" [${categoriaLabel}] esperado no kit de "${padrao.descricaoProcedimentoPrincipal}" (frequência: ${itemEsperado.frequencia.toFixed(0)}%) não encontrado na conta.${setorLabel} [Fonte: ${fonteLabel}${fonteSetorLabel}]`,
+          codigoItem: itemEsperado.codigo,
+          descricaoItem: itemEsperado.descricao,
+          padraoId: padrao.id,
+          isGabarito: isGab,
+          setor: setor !== 'GERAL' ? setor : undefined,
+          detalhes: {
+            procedimentoPrincipal: padrao.codigoProcedimentoPrincipal,
+            descricaoProcedimentoPrincipal: padrao.descricaoProcedimentoPrincipal,
+            frequenciaEsperada: itemEsperado.frequencia,
+            quantidadeMedia: itemEsperado.quantidadeMedia,
+            valorMedio: itemEsperado.valorMedio,
+            fonte: fonteLabel,
+            setorPadrao: padrao.setor || null,
+            setorConta: setor,
+            categoria: categoria,
+            grupo: itemEsperado.grupo || null,
+          },
+        });
+      }
     }
 
     // Verificar quantidade se o item existe na conta
