@@ -2574,3 +2574,5 @@
 - [x] Ajustes de Auditoria: Implementar filtro por setor
 - [x] Ajustes de Auditoria: Ação de alterar setor do item pela auditoria (ALTERAR_SETOR)
 - [x] Testes vitest para ALTERAR_SETOR e validação de schema (8 testes passando)
+- [x] Ajustes de Auditoria: Filtro por tipo de item (diária, taxa, medicamento, procedimento) para segmentar auditoria
+- [x] Testes vitest para filtro por tipo de item (19 testes passando)

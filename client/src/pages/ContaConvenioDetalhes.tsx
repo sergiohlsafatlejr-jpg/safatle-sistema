@@ -247,6 +247,7 @@ export default function ContaConvenioDetalhes() {
   // Filtros para a tabela de itens na aba Ajustes
   const [filtroSetorAjuste, setFiltroSetorAjuste] = useState<string>("todos");
   const [filtroDataAjuste, setFiltroDataAjuste] = useState<string>("");
+  const [filtroTipoItemAjuste, setFiltroTipoItemAjuste] = useState<string>("todos");
 
   // Buscar itens da conta na nova tabela
   const { data: itensData, isLoading, refetch } = trpc.contasConvenio.listarItens.useQuery(
@@ -1620,8 +1621,42 @@ export default function ContaConvenioDetalhes() {
                         onChange={(e) => setFiltroDataAjuste(e.target.value)}
                       />
                     </div>
-                    {(filtroSetorAjuste !== "todos" || filtroDataAjuste) && (
-                      <Button variant="ghost" size="sm" className="h-9" onClick={() => { setFiltroSetorAjuste("todos"); setFiltroDataAjuste(""); }}>
+                    <div className="flex-1 min-w-[180px]">
+                      <Label className="text-xs text-muted-foreground mb-1 block">Filtrar por Tipo de Item</Label>
+                      <Select value={filtroTipoItemAjuste} onValueChange={setFiltroTipoItemAjuste}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Todos os tipos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos os tipos</SelectItem>
+                          <SelectItem value="sem_tipo">Sem tipo definido</SelectItem>
+                          {(() => {
+                            const tipos = new Set<string>();
+                            itensData?.items?.forEach((item: any) => {
+                              if (item.tipoItem) tipos.add(item.tipoItem);
+                            });
+                            const labelMap: Record<string, string> = {
+                              "PROCEDIMENTO": "Procedimento",
+                              "DIARIA": "Di\u00e1ria",
+                              "MAT_MED": "Mat/Med",
+                              "TAXA": "Taxa",
+                              "GASES": "G\u00e1s Medicinal",
+                              "procedimento": "Procedimento",
+                              "diaria": "Di\u00e1ria",
+                              "taxa": "Taxa",
+                              "medicamento": "Medicamento",
+                              "material": "Material",
+                              "gas": "G\u00e1s Medicinal",
+                            };
+                            return Array.from(tipos).sort().map(t => (
+                              <SelectItem key={t} value={t}>{labelMap[t] || t}</SelectItem>
+                            ));
+                          })()}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {(filtroSetorAjuste !== "todos" || filtroDataAjuste || filtroTipoItemAjuste !== "todos") && (
+                      <Button variant="ghost" size="sm" className="h-9" onClick={() => { setFiltroSetorAjuste("todos"); setFiltroDataAjuste(""); setFiltroTipoItemAjuste("todos"); }}>
                         <XCircle className="h-4 w-4 mr-1" /> Limpar filtros
                       </Button>
                     )}
@@ -1645,11 +1680,15 @@ export default function ContaConvenioDetalhes() {
                         } else if (filtroDataAjuste && !item.dataExecucao) {
                           return false;
                         }
+                        if (filtroTipoItemAjuste !== "todos") {
+                          if (filtroTipoItemAjuste === "sem_tipo") { if (item.tipoItem) return false; }
+                          else { if (item.tipoItem !== filtroTipoItemAjuste) return false; }
+                        }
                         return true;
                       });
                       const total = itensData?.items?.length || 0;
                       const shown = filtered?.length || 0;
-                      if (filtroSetorAjuste !== "todos" || filtroDataAjuste) {
+                      if (filtroSetorAjuste !== "todos" || filtroDataAjuste || filtroTipoItemAjuste !== "todos") {
                         return <Badge variant="secondary" className="text-xs ml-2">{shown} de {total}</Badge>;
                       }
                       return null;
@@ -1668,6 +1707,7 @@ export default function ContaConvenioDetalhes() {
                           <TableRow>
                             <TableHead>Código</TableHead>
                             <TableHead>Descrição</TableHead>
+                            <TableHead>Tipo</TableHead>
                             <TableHead>Setor</TableHead>
                             <TableHead>Data</TableHead>
                             <TableHead className="text-right">Qtd</TableHead>
@@ -1689,12 +1729,43 @@ export default function ContaConvenioDetalhes() {
                               } else if (filtroDataAjuste && !item.dataExecucao) {
                                 return false;
                               }
+                              if (filtroTipoItemAjuste !== "todos") {
+                                if (filtroTipoItemAjuste === "sem_tipo") { if (item.tipoItem) return false; }
+                                else { if (item.tipoItem !== filtroTipoItemAjuste) return false; }
+                              }
                               return true;
                             })
                             .map((item: any, index: number) => (
                             <TableRow key={item.id || index}>
                               <TableCell className="font-mono text-sm">{item.codigoItem || "-"}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{item.descricaoItem || "-"}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const labelMap: Record<string, string> = {
+                                    "PROCEDIMENTO": "Proc", "DIARIA": "Di\u00e1ria", "MAT_MED": "Mat/Med",
+                                    "TAXA": "Taxa", "GASES": "G\u00e1s", "procedimento": "Proc",
+                                    "diaria": "Di\u00e1ria", "taxa": "Taxa", "medicamento": "Med",
+                                    "material": "Mat", "gas": "G\u00e1s",
+                                  };
+                                  const colorMap: Record<string, string> = {
+                                    "PROCEDIMENTO": "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                                    "procedimento": "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                                    "DIARIA": "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+                                    "diaria": "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+                                    "MAT_MED": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                                    "medicamento": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                                    "material": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+                                    "TAXA": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                                    "taxa": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                                    "GASES": "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+                                    "gas": "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+                                  };
+                                  const tipo = item.tipoItem || "";
+                                  const label = labelMap[tipo] || tipo || "N/D";
+                                  const color = colorMap[tipo] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+                                  return <Badge className={`text-xs font-normal whitespace-nowrap ${color}`}>{label}</Badge>;
+                                })()}
+                              </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
                                   {item.setor || "N/D"}
