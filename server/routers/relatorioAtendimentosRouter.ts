@@ -6,6 +6,7 @@ import {
   sincronizarRelatorioAtendimentos,
   obterStatusSincronizacao,
   buscarMetricasDashboard,
+  buscarComparacaoPeriodos,
 } from "../relatorioAtendimentos";
 
 export const relatorioAtendimentosRouter = router({
@@ -65,6 +66,18 @@ export const relatorioAtendimentosRouter = router({
     )
     .query(async ({ input }) => {
       return buscarMetricasDashboard(input);
+    }),
+
+  // Comparação de períodos (atual vs anterior)
+  comparacaoPeriodos: protectedProcedure
+    .input(
+      z.object({
+        dataInicio: z.string(),
+        dataFim: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarComparacaoPeriodos(input.dataInicio, input.dataFim);
     }),
 
   // Obter status da última sincronização

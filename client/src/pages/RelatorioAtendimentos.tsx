@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardAtendimentos from "@/components/DashboardAtendimentos";
+import DashboardFilters, { type DashboardFiltersState } from "@/components/dashboard/DashboardFilters";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,9 +48,27 @@ export default function RelatorioAtendimentos() {
   // Tab ativa
   const [abaAtiva, setAbaAtiva] = useState("dashboard");
 
-  // Filtros
-  const hoje = new Date();
-  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  // ===== DASHBOARD FILTERS (new DashboardFilters component) =====
+  const hoje = useMemo(() => new Date(), []);
+  const umAnoAtras = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    return d;
+  }, []);
+
+  const [dashFilters, setDashFilters] = useState<DashboardFiltersState>({
+    dataInicio: umAnoAtras,
+    dataFim: hoje,
+    tipoAtendimento: "",
+    convenio: "",
+    medico: "",
+    servico: "",
+    cid: "",
+  });
+  const [dashboardAtivo, setDashboardAtivo] = useState(false);
+
+  // ===== TABLE FILTERS =====
+  const inicioMes = useMemo(() => new Date(hoje.getFullYear(), hoje.getMonth(), 1), [hoje]);
   const [dataInicio, setDataInicio] = useState(inicioMes.toISOString().split("T")[0]);
   const [dataFim, setDataFim] = useState(hoje.toISOString().split("T")[0]);
   const [tipoAtendimento, setTipoAtendimento] = useState<string>("");
@@ -60,22 +79,9 @@ export default function RelatorioAtendimentos() {
   const [carater, setCarater] = useState<string>("");
   const [pagina, setPagina] = useState(1);
   const [buscaAtiva, setBuscaAtiva] = useState(false);
-  const [dashboardAtivo, setDashboardAtivo] = useState(false);
   const itensPorPagina = 50;
 
-  // Dashboard period + filtros
-  const [dashDataInicio, setDashDataInicio] = useState(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 1);
-    return d.toISOString().split("T")[0];
-  });
-  const [dashDataFim, setDashDataFim] = useState(hoje.toISOString().split("T")[0]);
-  const [dashTipoAtendimento, setDashTipoAtendimento] = useState<string>("");
-  const [dashCodPlaco, setDashCodPlaco] = useState<string>("");
-  const [dashCodPrest, setDashCodPrest] = useState<string>("");
-  const [dashCodServ, setDashCodServ] = useState<string>("");
-
-  // Sync period inputs
+  // ===== SYNC =====
   const [syncDataInicio, setSyncDataInicio] = useState(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
@@ -116,6 +122,42 @@ export default function RelatorioAtendimentos() {
   // Buscar opções de filtro
   const { data: opcoesFiltro } = trpc.relatorioAtendimentos.opcoesFiltro.useQuery();
 
+  // Prepare filter options for DashboardFilters
+  const tiposOptions = useMemo(() => [
+    { value: "I", label: "Internacao" },
+    { value: "A", label: "Ambulatorial" },
+    { value: "E", label: "Emergencia" },
+    { value: "U", label: "Urgencia" },
+  ], []);
+
+  const conveniosOptions = useMemo(() =>
+    opcoesFiltro?.planos?.map((p) => ({
+      value: p.codplaco,
+      label: p.nomeplaco?.trim() || p.codplaco,
+    })) || [],
+    [opcoesFiltro?.planos]
+  );
+
+  const medicosOptions = useMemo(() =>
+    opcoesFiltro?.prestadores?.map((p) => ({
+      value: p.codprest,
+      label: p.nomeprest?.trim() || p.codprest,
+    })) || [],
+    [opcoesFiltro?.prestadores]
+  );
+
+  const servicosOptions = useMemo(() =>
+    opcoesFiltro?.servicos?.map((s) => ({
+      value: s.codserv,
+      label: s.nomeserv?.trim() || s.codserv,
+    })) || [],
+    [opcoesFiltro?.servicos]
+  );
+
+  const cidsOptions = useMemo(() => [], []);
+
+  // ===== QUERIES =====
+
   // Buscar atendimentos (tabela)
   const filtrosQuery = useMemo(() => ({
     dataInicio,
@@ -137,18 +179,31 @@ export default function RelatorioAtendimentos() {
 
   // Buscar métricas do dashboard
   const metricasInput = useMemo(() => ({
-    dataInicio: dashDataInicio,
-    dataFim: dashDataFim + "T23:59:59",
-    tipoAtendimento: dashTipoAtendimento || undefined,
-    codPlaco: dashCodPlaco || undefined,
-    codPrest: dashCodPrest || undefined,
-    codServ: dashCodServ || undefined,
-  }), [dashDataInicio, dashDataFim, dashTipoAtendimento, dashCodPlaco, dashCodPrest, dashCodServ]);
+    dataInicio: dashFilters.dataInicio.toISOString().split("T")[0],
+    dataFim: dashFilters.dataFim.toISOString().split("T")[0] + "T23:59:59",
+    tipoAtendimento: dashFilters.tipoAtendimento || undefined,
+    codPlaco: dashFilters.convenio || undefined,
+    codPrest: dashFilters.medico || undefined,
+    codServ: dashFilters.servico || undefined,
+  }), [dashFilters]);
 
   const { data: metricas, isLoading: loadingMetricas } = trpc.relatorioAtendimentos.metricasDashboard.useQuery(
     metricasInput,
     { enabled: dashboardAtivo }
   );
+
+  // Buscar comparação de períodos
+  const comparacaoInput = useMemo(() => ({
+    dataInicio: dashFilters.dataInicio.toISOString().split("T")[0],
+    dataFim: dashFilters.dataFim.toISOString().split("T")[0] + "T23:59:59",
+  }), [dashFilters.dataInicio, dashFilters.dataFim]);
+
+  const { data: comparacao } = trpc.relatorioAtendimentos.comparacaoPeriodos.useQuery(
+    comparacaoInput,
+    { enabled: dashboardAtivo }
+  );
+
+  // ===== HANDLERS =====
 
   const handleBuscar = () => {
     setPagina(1);
@@ -158,16 +213,6 @@ export default function RelatorioAtendimentos() {
   const handleCarregarDashboard = () => {
     setDashboardAtivo(true);
   };
-
-  const handleLimparFiltrosDashboard = () => {
-    setDashTipoAtendimento("");
-    setDashCodPlaco("");
-    setDashCodPrest("");
-    setDashCodServ("");
-    setDashboardAtivo(false);
-  };
-
-  const totalFiltrosDashAtivos = [dashTipoAtendimento, dashCodPlaco, dashCodPrest, dashCodServ].filter(Boolean).length;
 
   const handleLimparFiltros = () => {
     setTipoAtendimento("");
@@ -188,6 +233,18 @@ export default function RelatorioAtendimentos() {
       estabelecimentoId,
       dataInicio: syncDataInicio,
       dataFim: syncDataFim + "T23:59:59",
+    });
+  };
+
+  const handleSyncFromDashboard = () => {
+    if (estabelecimentoId <= 0) {
+      toast.error("Selecione um estabelecimento para sincronizar");
+      return;
+    }
+    syncMutation.mutate({
+      estabelecimentoId,
+      dataInicio: dashFilters.dataInicio.toISOString().split("T")[0],
+      dataFim: dashFilters.dataFim.toISOString().split("T")[0] + "T23:59:59",
     });
   };
 
@@ -237,6 +294,23 @@ export default function RelatorioAtendimentos() {
   };
 
   const totalFiltrosAtivos = [tipoAtendimento, codServ, codPlaco, codPrest, codCc, carater].filter(Boolean).length;
+
+  // Build sync status text
+  const syncStatusText = useMemo(() => {
+    if (!statusSync) return "";
+    const parts: string[] = [];
+    if (statusSync.status === "sucesso") parts.push("Sincronizado");
+    else if (statusSync.status === "erro") parts.push("Erro na sincronizacao");
+    else if (statusSync.status === "em_andamento") parts.push("Sincronizando...");
+    else parts.push("Nunca sincronizado");
+    if (statusSync.totalRegistrosCache > 0) {
+      parts.push(`${statusSync.totalRegistrosCache.toLocaleString("pt-BR")} registros em cache`);
+    }
+    if (statusSync.ultimaSincronizacao) {
+      parts.push(`Atualizado em ${formatDate(new Date(statusSync.ultimaSincronizacao).toISOString())}`);
+    }
+    return parts.join(" | ");
+  }, [statusSync]);
 
   // Render sync status badge
   const renderSyncStatus = () => {
@@ -309,59 +383,6 @@ export default function RelatorioAtendimentos() {
           </div>
         </div>
 
-        {/* Sincronização */}
-        <Card className="border-dashed">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Sincronizacao de Dados
-              </div>
-              {renderSyncStatus()}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row items-end gap-3">
-              <div className="space-y-1.5 flex-1">
-                <Label className="text-xs font-medium">Periodo Inicio</Label>
-                <Input
-                  type="date"
-                  value={syncDataInicio}
-                  onChange={(e) => setSyncDataInicio(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5 flex-1">
-                <Label className="text-xs font-medium">Periodo Fim</Label>
-                <Input
-                  type="date"
-                  value={syncDataFim}
-                  onChange={(e) => setSyncDataFim(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <Button
-                onClick={handleSincronizar}
-                disabled={syncMutation.isPending || estabelecimentoId <= 0}
-                className="h-9"
-              >
-                {syncMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                {syncMutation.isPending ? "Sincronizando..." : "Sincronizar Agora"}
-              </Button>
-            </div>
-            {statusSync?.status === "erro" && statusSync.mensagemErro && (
-              <div className="mt-3 p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs">
-                <AlertCircle className="h-3.5 w-3.5 inline mr-1" />
-                Ultimo erro: {statusSync.mensagemErro}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Tabs: Dashboard / Tabela */}
         <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -377,112 +398,87 @@ export default function RelatorioAtendimentos() {
 
           {/* ========== ABA DASHBOARD ========== */}
           <TabsContent value="dashboard" className="space-y-6 mt-4">
-            {/* Filtros do Dashboard */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filtros do Dashboard
-                  {totalFiltrosDashAtivos > 0 && (
-                    <Badge variant="secondary" className="ml-2">{totalFiltrosDashAtivos} filtro(s)</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Periodo Inicio</Label>
-                    <Input
-                      type="date"
-                      value={dashDataInicio}
-                      onChange={(e) => { setDashDataInicio(e.target.value); setDashboardAtivo(false); }}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Periodo Fim</Label>
-                    <Input
-                      type="date"
-                      value={dashDataFim}
-                      onChange={(e) => { setDashDataFim(e.target.value); setDashboardAtivo(false); }}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Tipo Atendimento</Label>
-                    <Select value={dashTipoAtendimento} onValueChange={(v) => { setDashTipoAtendimento(v === "all" ? "" : v); setDashboardAtivo(false); }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="I">Internacao</SelectItem>
-                        <SelectItem value="A">Ambulatorial</SelectItem>
-                        <SelectItem value="E">Emergencia</SelectItem>
-                        <SelectItem value="U">Urgencia</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Plano/Convenio</Label>
-                    <Select value={dashCodPlaco} onValueChange={(v) => { setDashCodPlaco(v === "all" ? "" : v); setDashboardAtivo(false); }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {opcoesFiltro?.planos?.map((p) => (
-                          <SelectItem key={p.codplaco} value={p.codplaco}>{p.nomeplaco?.trim() || p.codplaco}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Prestador/Medico</Label>
-                    <Select value={dashCodPrest} onValueChange={(v) => { setDashCodPrest(v === "all" ? "" : v); setDashboardAtivo(false); }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {opcoesFiltro?.prestadores?.map((p) => (
-                          <SelectItem key={p.codprest} value={p.codprest}>{p.nomeprest?.trim() || p.codprest}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Servico</Label>
-                    <Select value={dashCodServ} onValueChange={(v) => { setDashCodServ(v === "all" ? "" : v); setDashboardAtivo(false); }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {opcoesFiltro?.servicos?.map((s) => (
-                          <SelectItem key={s.codserv} value={s.codserv}>{s.nomeserv?.trim() || s.codserv}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+            {/* New DashboardFilters component */}
+            <DashboardFilters
+              filters={dashFilters}
+              onFiltersChange={(f) => {
+                setDashFilters(f);
+                setDashboardAtivo(false);
+              }}
+              tiposOptions={tiposOptions}
+              conveniosOptions={conveniosOptions}
+              medicosOptions={medicosOptions}
+              servicosOptions={servicosOptions}
+              cidsOptions={cidsOptions}
+              onApply={handleCarregarDashboard}
+              isLoading={loadingMetricas}
+              onSync={handleSyncFromDashboard}
+              isSyncing={syncMutation.isPending}
+              syncStatus={syncStatusText}
+            />
 
-                <div className="flex items-center gap-2 mt-4">
-                  <Button onClick={handleCarregarDashboard} disabled={loadingMetricas}>
-                    {loadingMetricas ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <BarChart3 className="h-4 w-4 mr-1" />
-                    )}
-                    {loadingMetricas ? "Carregando..." : "Carregar Dashboard"}
-                  </Button>
-                  {totalFiltrosDashAtivos > 0 && (
-                    <Button variant="ghost" size="sm" onClick={handleLimparFiltrosDashboard}>
-                      <X className="h-4 w-4 mr-1" />
-                      Limpar filtros
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <DashboardAtendimentos metricas={metricas} isLoading={loadingMetricas && dashboardAtivo} />
+            <DashboardAtendimentos
+              metricas={metricas}
+              comparacao={comparacao}
+              isLoading={loadingMetricas && dashboardAtivo}
+            />
           </TabsContent>
 
           {/* ========== ABA TABELA ========== */}
           <TabsContent value="tabela" className="space-y-6 mt-4">
+            {/* Sincronização */}
+            <Card className="border-dashed">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Sincronizacao de Dados
+                  </div>
+                  {renderSyncStatus()}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs font-medium">Periodo Inicio</Label>
+                    <Input
+                      type="date"
+                      value={syncDataInicio}
+                      onChange={(e) => setSyncDataInicio(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs font-medium">Periodo Fim</Label>
+                    <Input
+                      type="date"
+                      value={syncDataFim}
+                      onChange={(e) => setSyncDataFim(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSincronizar}
+                    disabled={syncMutation.isPending || estabelecimentoId <= 0}
+                    className="h-9"
+                  >
+                    {syncMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                    )}
+                    {syncMutation.isPending ? "Sincronizando..." : "Sincronizar Agora"}
+                  </Button>
+                </div>
+                {statusSync?.status === "erro" && statusSync.mensagemErro && (
+                  <div className="mt-3 p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs">
+                    <AlertCircle className="h-3.5 w-3.5 inline mr-1" />
+                    Ultimo erro: {statusSync.mensagemErro}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Filtros */}
             <Card>
               <CardHeader className="pb-4">

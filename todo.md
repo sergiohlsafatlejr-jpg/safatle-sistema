@@ -2685,3 +2685,24 @@
 - [x] Filtros por tipo de produto, tabela de preço, busca por código/descrição
 - [x] Destacar visualmente itens com prejuízo (vermelho) e lucro (verde)
 - [x] Escrever testes vitest (18 testes passando)
+
+## Melhorar Dashboard Rel. Atendimentos (dashboard-focus)
+- [x] Instalar framer-motion para animações
+- [x] Adicionar CSS classes do dashboard-focus (kpi-card, chart-card, gradientes, shadows)
+- [x] Criar componente KpiCard com gradientes e trends
+- [x] Criar componente ChartCard com motion animations
+- [x] Criar componente CustomTooltip estilizado
+- [x] Criar componente ComparacaoCards (período atual vs anterior)
+- [x] Criar componente FunilStatusAtendimentos (funil visual)
+- [ ] Criar componente GraficosOperacionais (turno + conversão) - futuro
+- [ ] Criar componente RelatorioEspecialidade (tabs por especialidade) - futuro
+- [x] Criar componente DashboardFilters avançado (calendar picker, chips, filtros avançados)
+- [x] Atualizar DashboardAtendimentos para usar novos componentes
+- [x] Adicionar endpoint backend para comparação de períodos
+- [ ] Adicionar endpoint backend para dados por turno - futuro
+- [ ] Adicionar endpoint backend para taxa de conversão - futuro
+- [ ] Adicionar endpoint backend para dados por especialidade - futuro
+- [x] Substituir LineChart por AreaChart na evolução mensal
+- [x] Adicionar RadarChart para distribuição por serviço
+- [ ] Implementar click-to-filter nos gráficos - futuro
+- [x] Atualizar RelatorioAtendimentos.tsx para usar DashboardFilters

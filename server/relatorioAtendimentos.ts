@@ -1085,3 +1085,72 @@ async function buscarMetricasDoPostgresql(
     client.release();
   }
 }
+
+
+// ============================================================
+// COMPARAÇÃO DE PERÍODOS (período atual vs anterior)
+// ============================================================
+
+export interface ComparacaoPeriodos {
+  periodoAtual: {
+    label: string;
+    totalAtendimentos: number;
+    totalMedicos: number;
+    totalConvenios: number;
+    totalProcedimentos: number;
+  };
+  periodoAnterior: {
+    label: string;
+    totalAtendimentos: number;
+    totalMedicos: number;
+    totalConvenios: number;
+    totalProcedimentos: number;
+  };
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export async function buscarComparacaoPeriodos(
+  dataInicio: string,
+  dataFim: string
+): Promise<ComparacaoPeriodos> {
+  // Calcular período anterior com mesma duração
+  const inicio = new Date(dataInicio);
+  const fim = new Date(dataFim);
+  const duracaoMs = fim.getTime() - inicio.getTime();
+  const inicioAnterior = new Date(inicio.getTime() - duracaoMs);
+  const fimAnterior = new Date(inicio.getTime() - 1); // 1ms antes do início atual
+
+  const formatDate = (d: Date) => d.toISOString().split("T")[0];
+  const formatLabel = (d1: Date, d2: Date) => {
+    const m1 = d1.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+    const m2 = d2.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+    return m1 === m2 ? m1 : `${m1} - ${m2}`;
+  };
+
+  // Buscar métricas de ambos os períodos
+  const [metricasAtual, metricasAnterior] = await Promise.all([
+    buscarMetricasDashboard({ dataInicio, dataFim }),
+    buscarMetricasDashboard({
+      dataInicio: formatDate(inicioAnterior),
+      dataFim: formatDate(fimAnterior),
+    }),
+  ]);
+
+  return {
+    periodoAtual: {
+      label: formatLabel(inicio, fim),
+      totalAtendimentos: metricasAtual.totalAtendimentos,
+      totalMedicos: metricasAtual.totalMedicos,
+      totalConvenios: metricasAtual.totalConvenios,
+      totalProcedimentos: metricasAtual.totalProcedimentos,
+    },
+    periodoAnterior: {
+      label: formatLabel(inicioAnterior, fimAnterior),
+      totalAtendimentos: metricasAnterior.totalAtendimentos,
+      totalMedicos: metricasAnterior.totalMedicos,
+      totalConvenios: metricasAnterior.totalConvenios,
+      totalProcedimentos: metricasAnterior.totalProcedimentos,
+    },
+    fonte: metricasAtual.fonte,
+  };
+}

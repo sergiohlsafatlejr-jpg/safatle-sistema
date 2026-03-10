@@ -1,129 +1,102 @@
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Activity, Users, Building2, Stethoscope, TrendingUp,
-  Database, Cloud, FileText,
-} from "lucide-react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, RadarChart, Radar,
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Activity, Users, Building2, Stethoscope, FileText, TrendingUp,
+  Heart, Layers,
+} from "lucide-react";
+import KpiCard from "@/components/dashboard/KpiCard";
+import ChartCard from "@/components/dashboard/ChartCard";
+import CustomTooltip, { SimpleTooltip } from "@/components/dashboard/CustomTooltip";
+import FunilStatusAtendimentos from "@/components/dashboard/FunilStatusAtendimentos";
+import ComparacaoCards from "@/components/dashboard/ComparacaoCards";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Cores para gráficos - paleta profissional
 const CHART_COLORS = [
-  "#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
-  "#82CA9D", "#FFC658", "#8DD1E1", "#A4DE6C", "#D0ED57",
-  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
-  "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#6366f1",
+  "#84cc16", "#e11d48", "#0ea5e9", "#a855f7", "#22c55e",
 ];
 
-interface MetricaAgrupada {
-  nome: string;
-  codigo: string | null;
-  total: number;
-}
+const TIPO_COLORS: Record<string, string> = {
+  "Internação": "#3b82f6",
+  "Ambulatorial": "#10b981",
+  "Emergência": "#ef4444",
+  "Urgência": "#f59e0b",
+};
 
-interface MetricaMesAno {
-  mesAno: string;
-  total: number;
-}
+const FUNIL_COLORS = ["#3b82f6", "#10b981", "#ef4444", "#f59e0b", "#8b5cf6", "#06b6d4", "#ec4899"];
 
-interface MetricasDashboard {
+interface MetricasData {
   totalAtendimentos: number;
   totalMedicos: number;
   totalConvenios: number;
   totalProcedimentos: number;
-  porMedico: MetricaAgrupada[];
-  porTipo: MetricaAgrupada[];
-  porPlano: MetricaAgrupada[];
-  porServico: MetricaAgrupada[];
-  porMesAno: MetricaMesAno[];
-  porCid: MetricaAgrupada[];
-  porProcedimento: MetricaAgrupada[];
-  fonte: "cache_local" | "postgresql_direto";
+  porMesAno: Array<{ mesAno: string; total: number }>;
+  porTipo: Array<{ nome: string; codigo: string | null; total: number }>;
+  porMedico: Array<{ nome: string; codigo: string | null; total: number }>;
+  porPlano: Array<{ nome: string; codigo: string | null; total: number }>;
+  porServico: Array<{ nome: string; codigo: string | null; total: number }>;
+  porCid: Array<{ nome: string; codigo: string | null; total: number }>;
+  porProcedimento: Array<{ nome: string; codigo: string | null; total: number }>;
+  fonte: string;
+}
+
+interface ComparacaoData {
+  periodoAtual: {
+    label: string;
+    totalAtendimentos: number;
+    totalMedicos: number;
+    totalConvenios: number;
+    totalProcedimentos: number;
+  };
+  periodoAnterior: {
+    label: string;
+    totalAtendimentos: number;
+    totalMedicos: number;
+    totalConvenios: number;
+    totalProcedimentos: number;
+  };
+  fonte: string;
 }
 
 interface DashboardAtendimentosProps {
-  metricas: MetricasDashboard | undefined;
+  metricas: MetricasData | null | undefined;
+  comparacao?: ComparacaoData | null;
   isLoading: boolean;
 }
 
-function formatMesAno(mesAno: string): string {
-  const [ano, mes] = mesAno.split("-");
-  const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  return `${meses[parseInt(mes, 10) - 1]}/${ano?.slice(2)}`;
-}
-
-function truncateLabel(label: string, maxLen: number = 25): string {
-  if (!label) return "";
-  return label.length > maxLen ? label.slice(0, maxLen) + "..." : label;
-}
-
-// Tooltip customizado
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm">
-      <p className="font-medium mb-1">{label}</p>
-      {payload.map((entry: any, idx: number) => (
-        <p key={idx} className="text-muted-foreground">
-          {entry.name}: <span className="font-semibold text-foreground">{entry.value?.toLocaleString("pt-BR")}</span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-// Card de KPI
-function KpiCard({ title, value, icon: Icon, color, subtitle }: {
-  title: string;
-  value: number | string;
-  icon: React.ElementType;
-  color: string;
-  subtitle?: string;
-}) {
-  return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-            <p className="text-3xl font-bold mt-1">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p>
-            {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
-          </div>
-          <div className={`p-2.5 rounded-xl ${color}`}>
-            <Icon className="h-5 w-5 text-white" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export default function DashboardAtendimentos({ metricas, isLoading }: DashboardAtendimentosProps) {
-  // Preparar dados para gráficos
+export default function DashboardAtendimentos({
+  metricas,
+  comparacao,
+  isLoading,
+}: DashboardAtendimentosProps) {
+  // Prepare chart data
   const dadosMesAno = useMemo(() => {
     if (!metricas?.porMesAno) return [];
-    return metricas.porMesAno.map(m => ({
+    return metricas.porMesAno.map((m) => ({
       ...m,
-      label: formatMesAno(m.mesAno),
+      label: m.mesAno,
     }));
   }, [metricas?.porMesAno]);
 
   const dadosTipo = useMemo(() => {
     if (!metricas?.porTipo) return [];
-    return metricas.porTipo.map(t => ({
-      name: t.nome,
+    return metricas.porTipo.map((t) => ({
+      name: t.nome || "Outros",
       value: t.total,
+      fill: TIPO_COLORS[t.nome] || "#94a3b8",
     }));
   }, [metricas?.porTipo]);
 
   const dadosMedico = useMemo(() => {
     if (!metricas?.porMedico) return [];
-    return metricas.porMedico.slice(0, 15).map(m => ({
-      nome: truncateLabel(m.nome, 20),
+    return metricas.porMedico.slice(0, 15).map((m) => ({
+      nome: m.nome?.length > 22 ? m.nome.substring(0, 22) + "..." : m.nome,
       nomeCompleto: m.nome,
       total: m.total,
     }));
@@ -131,8 +104,8 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
 
   const dadosPlano = useMemo(() => {
     if (!metricas?.porPlano) return [];
-    return metricas.porPlano.slice(0, 15).map(p => ({
-      nome: truncateLabel(p.nome, 22),
+    return metricas.porPlano.slice(0, 15).map((p) => ({
+      nome: p.nome?.length > 25 ? p.nome.substring(0, 25) + "..." : p.nome,
       nomeCompleto: p.nome,
       total: p.total,
     }));
@@ -140,8 +113,8 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
 
   const dadosServico = useMemo(() => {
     if (!metricas?.porServico) return [];
-    return metricas.porServico.map(s => ({
-      nome: truncateLabel(s.nome, 20),
+    return metricas.porServico.map((s) => ({
+      nome: s.nome?.length > 22 ? s.nome.substring(0, 22) + "..." : s.nome,
       nomeCompleto: s.nome,
       total: s.total,
     }));
@@ -149,34 +122,58 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
 
   const dadosCid = useMemo(() => {
     if (!metricas?.porCid) return [];
-    return metricas.porCid.slice(0, 15).map(c => ({
-      nome: c.codigo ? `${c.codigo}` : truncateLabel(c.nome, 15),
-      nomeCompleto: c.codigo ? `${c.codigo} - ${c.nome}` : c.nome,
+    return metricas.porCid.slice(0, 15).map((c) => ({
+      nome: c.nome?.length > 12 ? c.nome.substring(0, 12) + "..." : c.nome,
+      nomeCompleto: c.nome,
       total: c.total,
     }));
   }, [metricas?.porCid]);
 
   const dadosProcedimento = useMemo(() => {
     if (!metricas?.porProcedimento) return [];
-    return metricas.porProcedimento.slice(0, 15).map(p => ({
-      nome: truncateLabel(p.nome, 20),
-      nomeCompleto: p.codigo ? `${p.codigo} - ${p.nome}` : p.nome,
+    return metricas.porProcedimento.slice(0, 15).map((p) => ({
+      nome: p.nome?.length > 25 ? p.nome.substring(0, 25) + "..." : p.nome,
+      nomeCompleto: p.nome,
       total: p.total,
     }));
   }, [metricas?.porProcedimento]);
 
+  // Radar data for services
+  const dadosRadarServico = useMemo(() => {
+    if (!metricas?.porServico) return [];
+    const maxItems = 8;
+    return metricas.porServico.slice(0, maxItems).map((s) => ({
+      subject: s.nome?.length > 15 ? s.nome.substring(0, 15) + "..." : s.nome,
+      total: s.total,
+      fullMark: Math.max(...metricas.porServico.slice(0, maxItems).map((x) => x.total)),
+    }));
+  }, [metricas?.porServico]);
+
+  // Funil data
+  const dadosFunil = useMemo(() => {
+    if (!dadosTipo.length) return [];
+    return dadosTipo
+      .sort((a, b) => b.value - a.value)
+      .map((t, idx) => ({
+        nome: t.name,
+        total: t.value,
+        cor: FUNIL_COLORS[idx % FUNIL_COLORS.length],
+      }));
+  }, [dadosTipo]);
+
+  // Loading skeleton
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}><CardContent className="pt-5 pb-4"><Skeleton className="h-20 w-full" /></CardContent></Card>
+            <Skeleton key={i} className="h-[140px] rounded-xl" />
           ))}
         </div>
+        <Skeleton className="h-[120px] rounded-xl" />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}><CardContent className="pt-5 pb-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
-          ))}
+          <Skeleton className="h-[350px] rounded-xl" />
+          <Skeleton className="h-[350px] rounded-xl" />
         </div>
       </div>
     );
@@ -184,115 +181,208 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
 
   if (!metricas) {
     return (
-      <Card>
-        <CardContent className="py-16 text-center">
-          <Activity className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground">Selecione o periodo e clique em Carregar Dashboard</h3>
-          <p className="text-sm text-muted-foreground/70 mt-1">
-            As metricas serao calculadas com base nos atendimentos do periodo selecionado
-          </p>
-        </CardContent>
-      </Card>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="chart-card p-12 text-center"
+      >
+        <Activity className="h-14 w-14 mx-auto text-muted-foreground/30 mb-4" />
+        <h3 className="text-lg font-semibold text-muted-foreground">
+          Configure os filtros e clique em "Carregar"
+        </h3>
+        <p className="text-sm text-muted-foreground/70 mt-1">
+          Os dados do dashboard serao carregados conforme o periodo selecionado
+        </p>
+      </motion.div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Fonte dos dados */}
-      <div className="flex items-center gap-2">
-        <Badge
-          variant="secondary"
-          className={`text-xs py-1 px-2 ${
-            metricas.fonte === "cache_local"
-              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-              : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-          }`}
-        >
-          {metricas.fonte === "cache_local" ? (
-            <><Database className="h-3 w-3 mr-1" /> Cache Local</>
-          ) : (
-            <><Cloud className="h-3 w-3 mr-1" /> PostgreSQL Direto</>
-          )}
-        </Badge>
-      </div>
+    <AnimatePresence>
+      <div className="space-y-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Atendimentos"
+            value={metricas.totalAtendimentos}
+            subtitle="No periodo selecionado"
+            icon={Activity}
+            gradient="blue"
+            trend={
+              comparacao
+                ? {
+                    value:
+                      comparacao.periodoAnterior.totalAtendimentos > 0
+                        ? ((comparacao.periodoAtual.totalAtendimentos -
+                            comparacao.periodoAnterior.totalAtendimentos) /
+                            comparacao.periodoAnterior.totalAtendimentos) *
+                          100
+                        : 0,
+                    label: "vs periodo anterior",
+                  }
+                : undefined
+            }
+            delay={0}
+          />
+          <KpiCard
+            title="Medicos Ativos"
+            value={metricas.totalMedicos}
+            subtitle="Prestadores distintos"
+            icon={Users}
+            gradient="emerald"
+            trend={
+              comparacao
+                ? {
+                    value:
+                      comparacao.periodoAnterior.totalMedicos > 0
+                        ? ((comparacao.periodoAtual.totalMedicos -
+                            comparacao.periodoAnterior.totalMedicos) /
+                            comparacao.periodoAnterior.totalMedicos) *
+                          100
+                        : 0,
+                    label: "vs periodo anterior",
+                  }
+                : undefined
+            }
+            delay={0.05}
+          />
+          <KpiCard
+            title="Convenios"
+            value={metricas.totalConvenios}
+            subtitle="Planos distintos"
+            icon={Building2}
+            gradient="violet"
+            trend={
+              comparacao
+                ? {
+                    value:
+                      comparacao.periodoAnterior.totalConvenios > 0
+                        ? ((comparacao.periodoAtual.totalConvenios -
+                            comparacao.periodoAnterior.totalConvenios) /
+                            comparacao.periodoAnterior.totalConvenios) *
+                          100
+                        : 0,
+                    label: "vs periodo anterior",
+                  }
+                : undefined
+            }
+            delay={0.1}
+          />
+          <KpiCard
+            title="Procedimentos"
+            value={metricas.totalProcedimentos}
+            subtitle="Procedimentos distintos"
+            icon={Heart}
+            gradient="amber"
+            trend={
+              comparacao
+                ? {
+                    value:
+                      comparacao.periodoAnterior.totalProcedimentos > 0
+                        ? ((comparacao.periodoAtual.totalProcedimentos -
+                            comparacao.periodoAnterior.totalProcedimentos) /
+                            comparacao.periodoAnterior.totalProcedimentos) *
+                          100
+                        : 0,
+                    label: "vs periodo anterior",
+                  }
+                : undefined
+            }
+            delay={0.15}
+          />
+        </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          title="Total Atendimentos"
-          value={metricas.totalAtendimentos}
-          icon={Activity}
-          color="bg-blue-600"
-        />
-        <KpiCard
-          title="Medicos"
-          value={metricas.totalMedicos}
-          icon={Users}
-          color="bg-emerald-600"
-          subtitle="profissionais distintos"
-        />
-        <KpiCard
-          title="Convenios"
-          value={metricas.totalConvenios}
-          icon={Building2}
-          color="bg-purple-600"
-          subtitle="planos distintos"
-        />
-        <KpiCard
-          title="Procedimentos"
-          value={metricas.totalProcedimentos}
-          icon={Stethoscope}
-          color="bg-orange-600"
-          subtitle="tipos distintos"
-        />
-      </div>
+        {/* Comparação de Períodos */}
+        {comparacao && (
+          <ComparacaoCards
+            periodoAtual={comparacao.periodoAtual.label}
+            periodoAnterior={comparacao.periodoAnterior.label}
+            items={[
+              {
+                label: "Atendimentos",
+                valorAtual: comparacao.periodoAtual.totalAtendimentos,
+                valorAnterior: comparacao.periodoAnterior.totalAtendimentos,
+                icon: Activity,
+              },
+              {
+                label: "Medicos",
+                valorAtual: comparacao.periodoAtual.totalMedicos,
+                valorAnterior: comparacao.periodoAnterior.totalMedicos,
+                icon: Users,
+              },
+              {
+                label: "Convenios",
+                valorAtual: comparacao.periodoAtual.totalConvenios,
+                valorAnterior: comparacao.periodoAnterior.totalConvenios,
+                icon: Building2,
+              },
+              {
+                label: "Procedimentos",
+                valorAtual: comparacao.periodoAtual.totalProcedimentos,
+                valorAnterior: comparacao.periodoAnterior.totalProcedimentos,
+                icon: Heart,
+              },
+            ]}
+            delay={0.2}
+          />
+        )}
 
-      {/* Linha 1: Evolução Temporal + Tipo */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Evolução por Mês/Ano */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Evolucao Mensal de Atendimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Evolução Mensal (AreaChart) + Funil de Tipos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <ChartCard
+            title="Evolucao Mensal de Atendimentos"
+            icon={TrendingUp}
+            delay={0.25}
+            className="lg:col-span-2"
+          >
             {dadosMesAno.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={dadosMesAno}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={dadosMesAno} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradientArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => v.toLocaleString("pt-BR")}
+                  />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="total"
                     name="Atendimentos"
-                    stroke="#0088FE"
+                    stroke="#3b82f6"
                     strokeWidth={2.5}
-                    dot={{ r: 4, fill: "#0088FE" }}
-                    activeDot={{ r: 6 }}
+                    fill="url(#gradientArea)"
+                    dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: "#3b82f6", stroke: "#fff", strokeWidth: 2 }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                 Sem dados para o periodo
               </div>
             )}
-          </CardContent>
-        </Card>
+          </ChartCard>
 
-        {/* Por Tipo de Atendimento */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" />
-              Por Tipo de Atendimento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <FunilStatusAtendimentos dados={dadosFunil} delay={0.3} />
+        </div>
+
+        {/* Distribuição por Tipo (Donut) + Radar de Serviços */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Distribuicao por Tipo de Atendimento" icon={Layers} delay={0.35}>
             {dadosTipo.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -300,19 +390,41 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
                     data={dadosTipo}
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={95}
-                    paddingAngle={3}
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={4}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={{ strokeWidth: 1 }}
+                    strokeWidth={2}
+                    stroke="hsl(var(--card))"
                   >
-                    {dadosTipo.map((_, idx) => (
-                      <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                    {dadosTipo.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.fill} />
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => [value.toLocaleString("pt-BR"), "Atendimentos"]}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="rounded-lg border border-border bg-card px-4 py-3 shadow-xl">
+                          <p className="text-xs font-semibold text-card-foreground mb-1">{d.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Atendimentos:{" "}
+                            <span className="font-bold text-card-foreground">
+                              {d.value.toLocaleString("pt-BR")}
+                            </span>
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span className="text-xs text-muted-foreground">{value}</span>
+                    )}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -321,47 +433,59 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
                 Sem dados
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </ChartCard>
 
-      {/* Linha 2: Por Médico + Por Plano */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Por Médico */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Top 15 Medicos por Atendimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <ChartCard title="Distribuicao por Servico" icon={Stethoscope} delay={0.4}>
+            {dadosRadarServico.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={dadosRadarServico}>
+                  <PolarGrid strokeDasharray="3 3" className="opacity-30" />
+                  <PolarAngleAxis
+                    dataKey="subject"
+                    tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <PolarRadiusAxis tick={{ fontSize: 9 }} />
+                  <Radar
+                    name="Atendimentos"
+                    dataKey="total"
+                    stroke="#8b5cf6"
+                    fill="#8b5cf6"
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                  />
+                  <Tooltip content={<SimpleTooltip />} />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                Sem dados
+              </div>
+            )}
+          </ChartCard>
+        </div>
+
+        {/* Top Médicos + Top Planos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Top 15 Medicos por Atendimentos" icon={Users} delay={0.45}>
             {dadosMedico.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, dadosMedico.length * 28)}>
+              <ResponsiveContainer width="100%" height={Math.max(300, dadosMedico.length * 30)}>
                 <BarChart data={dadosMedico} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis
                     type="category"
                     dataKey="nome"
-                    width={140}
-                    tick={{ fontSize: 10 }}
+                    width={150}
+                    tick={{ fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm">
-                          <p className="font-medium">{d.nomeCompleto}</p>
-                          <p className="text-muted-foreground">
-                            Atendimentos: <span className="font-semibold text-foreground">{d.total.toLocaleString("pt-BR")}</span>
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" name="Atendimentos" fill="#0088FE" radius={[0, 4, 4, 0]} barSize={18} />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={18}>
+                    {dadosMedico.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -369,44 +493,28 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
                 Sem dados
               </div>
             )}
-          </CardContent>
-        </Card>
+          </ChartCard>
 
-        {/* Por Plano/Convênio */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              Top 15 Planos/Convenios por Atendimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <ChartCard title="Top 15 Planos/Convenios" icon={Building2} delay={0.5}>
             {dadosPlano.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, dadosPlano.length * 28)}>
+              <ResponsiveContainer width="100%" height={Math.max(300, dadosPlano.length * 30)}>
                 <BarChart data={dadosPlano} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis
                     type="category"
                     dataKey="nome"
-                    width={160}
-                    tick={{ fontSize: 10 }}
+                    width={170}
+                    tick={{ fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm">
-                          <p className="font-medium">{d.nomeCompleto}</p>
-                          <p className="text-muted-foreground">
-                            Atendimentos: <span className="font-semibold text-foreground">{d.total.toLocaleString("pt-BR")}</span>
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" name="Atendimentos" fill="#00C49F" radius={[0, 4, 4, 0]} barSize={18} />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={18}>
+                    {dadosPlano.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[(idx + 5) % CHART_COLORS.length]} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -414,92 +522,31 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
                 Sem dados
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </ChartCard>
+        </div>
 
-      {/* Linha 3: Por Serviço + Por CID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Por Serviço */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Stethoscope className="h-4 w-4 text-primary" />
-              Atendimentos por Servico
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dadosServico.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, dadosServico.length * 32)}>
-                <BarChart data={dadosServico} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="nome"
-                    width={140}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm">
-                          <p className="font-medium">{d.nomeCompleto}</p>
-                          <p className="text-muted-foreground">
-                            Atendimentos: <span className="font-semibold text-foreground">{d.total.toLocaleString("pt-BR")}</span>
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" name="Atendimentos" fill="#FFBB28" radius={[0, 4, 4, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-                Sem dados
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Por CID */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" />
-              Top 15 CIDs por Atendimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* CID + Procedimentos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Top 15 CIDs por Atendimentos" icon={FileText} delay={0.55}>
             {dadosCid.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, dadosCid.length * 28)}>
+              <ResponsiveContainer width="100%" height={Math.max(300, dadosCid.length * 30)}>
                 <BarChart data={dadosCid} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis
                     type="category"
                     dataKey="nome"
-                    width={80}
-                    tick={{ fontSize: 10 }}
+                    width={90}
+                    tick={{ fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm max-w-xs">
-                          <p className="font-medium">{d.nomeCompleto}</p>
-                          <p className="text-muted-foreground">
-                            Atendimentos: <span className="font-semibold text-foreground">{d.total.toLocaleString("pt-BR")}</span>
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" name="Atendimentos" fill="#8884D8" radius={[0, 4, 4, 0]} barSize={18} />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={18}>
+                    {dadosCid.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[(idx + 3) % CHART_COLORS.length]} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -507,54 +554,68 @@ export default function DashboardAtendimentos({ metricas, isLoading }: Dashboard
                 Sem dados
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </ChartCard>
 
-      {/* Linha 4: Por Procedimento */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Stethoscope className="h-4 w-4 text-primary" />
-            Top 15 Procedimentos por Atendimentos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {dadosProcedimento.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(350, dadosProcedimento.length * 28)}>
-              <BarChart data={dadosProcedimento} layout="vertical" margin={{ left: 10, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
+          <ChartCard title="Top 15 Procedimentos" icon={Stethoscope} delay={0.6}>
+            {dadosProcedimento.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(300, dadosProcedimento.length * 30)}>
+                <BarChart data={dadosProcedimento} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="nome"
+                    width={170}
+                    tick={{ fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={18}>
+                    {dadosProcedimento.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[(idx + 7) % CHART_COLORS.length]} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                Sem dados
+              </div>
+            )}
+          </ChartCard>
+        </div>
+
+        {/* Serviços (barras horizontais full width) */}
+        <ChartCard title="Atendimentos por Servico" icon={Stethoscope} delay={0.65}>
+          {dadosServico.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(300, dadosServico.length * 35)}>
+              <BarChart data={dadosServico} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis
                   type="category"
                   dataKey="nome"
-                  width={160}
-                  tick={{ fontSize: 10 }}
+                  width={150}
+                  tick={{ fontSize: 9 }}
+                  tickLine={false}
+                  axisLine={false}
                 />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div className="bg-card text-card-foreground border border-border rounded-lg shadow-lg px-3 py-2 text-sm max-w-sm">
-                        <p className="font-medium">{d.nomeCompleto}</p>
-                        <p className="text-muted-foreground">
-                          Atendimentos: <span className="font-semibold text-foreground">{d.total.toLocaleString("pt-BR")}</span>
-                        </p>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar dataKey="total" name="Atendimentos" fill="#FF8042" radius={[0, 4, 4, 0]} barSize={18} />
+                <Tooltip content={<SimpleTooltip />} />
+                <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={22}>
+                  {dadosServico.map((_, idx) => (
+                    <Cell key={idx} fill={CHART_COLORS[(idx + 2) % CHART_COLORS.length]} fillOpacity={0.85} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[350px] flex items-center justify-center text-muted-foreground text-sm">
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
               Sem dados
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </ChartCard>
+      </div>
+    </AnimatePresence>
   );
 }
