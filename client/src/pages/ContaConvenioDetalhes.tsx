@@ -358,6 +358,12 @@ export default function ContaConvenioDetalhes() {
     { enabled: !!numeroConta && !!estabelecimentoId }
   );
 
+  // Log de Análise - Padrões/Gabaritos Usados
+  const logsAnaliseQuery = trpc.contasConvenio.getLogsAnalise.useQuery(
+    { numeroConta, estabelecimentoId: Number(estabelecimentoId) },
+    { enabled: !!numeroConta && !!estabelecimentoId }
+  );
+
   // Criar um mapa de feedbacks por chave (codigoItem + tipoDivergencia)
   const feedbackMap = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -1231,16 +1237,10 @@ export default function ContaConvenioDetalhes() {
                     </div>
 
                     {/* Log de Análise - Padrões/Gabaritos Usados */}
-                    {(() => {
-                      const logsQuery = trpc.contasConvenio.getLogsAnalise.useQuery(
-                        { numeroConta, estabelecimentoId: Number(estabelecimentoId) },
-                        { enabled: !!numeroConta && !!estabelecimentoId }
-                      );
-                      if (!logsQuery.data?.logs?.length) return null;
-                      const logs = logsQuery.data.logs;
-                      // Agrupar por data (mostrar última análise)
+                    {logsAnaliseQuery.data?.logs?.length ? (() => {
+                      const logs = logsAnaliseQuery.data.logs;
                       const ultimaAnalise = logs[0];
-                      const logsUltimaAnalise = logs.filter(l => 
+                      const logsUltimaAnalise = logs.filter((l: any) => 
                         l.criadoEm && ultimaAnalise.criadoEm && 
                         Math.abs(new Date(l.criadoEm).getTime() - new Date(ultimaAnalise.criadoEm).getTime()) < 5000
                       );
@@ -1257,7 +1257,7 @@ export default function ContaConvenioDetalhes() {
                               </span>
                             </div>
                             <div className="space-y-2">
-                              {logsUltimaAnalise.map((log, idx) => (
+                              {logsUltimaAnalise.map((log: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-3 p-2 rounded-lg bg-white/60 dark:bg-gray-800/40 border border-indigo-100 dark:border-indigo-800">
                                   <div className={`px-2 py-1 rounded text-xs font-medium ${
                                     log.isGabarito === 1 
@@ -1301,7 +1301,7 @@ export default function ContaConvenioDetalhes() {
                           </CardContent>
                         </Card>
                       );
-                    })()}
+                    })() : null}
 
                     {/* Tabela de Divergências */}
                     <div className="overflow-x-auto">

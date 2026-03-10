@@ -2584,3 +2584,4 @@
 - [x] Divergências: Indicador visual de severidade nos cards (crítico=vermelho, alerta=laranja, aviso=amarelo)
 - [x] Log de auditoria: Registrar qual gabarito/padrão foi usado em cada análise para rastreabilidade
 - [x] Testes vitest para melhorias de auditoria (11 testes passando)
+- [x] Bug: "Rendered more hooks than during the previous render" no ContaConvenioDetalhes - useQuery condicional dentro de IIFE na aba Divergências - movido useQuery para nível superior do componente
