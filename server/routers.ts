@@ -25,6 +25,7 @@ import { contasConvenioRouter } from "./routers/contasConvenioRouter";
 import { cbhpmRouter } from "./routers/cbhpmRouter";
 import { auditoriaRouter } from "./routers/auditoriaRouter";
 import { conferenciaRouter } from "./routers/conferenciaRouter";
+import { relatorioAtendimentosRouter } from "./routers/relatorioAtendimentosRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 
@@ -85,6 +86,7 @@ function mapTipoDespesaParaTipoItem(tipoDespesa?: string): string {
 
 export const appRouter = router({
   system: systemRouter,
+  relatorioAtendimentos: relatorioAtendimentosRouter,
   
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),

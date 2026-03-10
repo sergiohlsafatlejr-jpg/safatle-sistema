@@ -2603,3 +2603,6 @@
 - [x] Testes vitest para categorias e grupos de itens no gabarito (10 testes passando)
 - [x] Exibir badge de categoria (Obrigatório/Condicional/Opcional) e grupo na listagem de itens do gabarito
 - [x] Liberar edição manual dos valores dos itens na tela de edição do gabarito (campo valor atualmente não editável)
+- [x] Criar relatório de atendimentos usando banco PostgreSQL do Urológico - query com JOINs para trazer descrições ao invés de códigos
+- [x] Tela de relatório de atendimentos no sistema com filtros e exportação
+- [x] Testes vitest para relatório de atendimentos (6 testes passando)
