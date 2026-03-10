@@ -2601,3 +2601,4 @@
 - [x] Opção 3: Atualizar tela de edição do gabarito para permitir definir grupos de itens
 - [x] Opção 3: Motor de comparação com lógica de grupo - se tem algum item do grupo na conta, cobra todos do grupo
 - [x] Testes vitest para categorias e grupos de itens no gabarito (10 testes passando)
+- [x] Exibir badge de categoria (Obrigatório/Condicional/Opcional) e grupo na listagem de itens do gabarito

@@ -979,6 +979,15 @@ export default function PadroesCobranca() {
                                       <span className="text-xs text-muted-foreground w-10 shrink-0">{assoc.frequencia}%</span>
                                       <Badge variant="outline" className="text-xs shrink-0">{assoc.codigo}</Badge>
                                       <span className="truncate flex-1">{assoc.descricao}</span>
+                                      {assoc.categoria === "condicional" ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30 shrink-0">
+                                          Condicional{assoc.grupo ? ` (${assoc.grupo})` : ""}
+                                        </Badge>
+                                      ) : assoc.categoria === "opcional" ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-blue-500/20 text-blue-400 border-blue-500/30 shrink-0">
+                                          Opcional
+                                        </Badge>
+                                      ) : null}
                                       <span className="text-xs text-muted-foreground shrink-0">Qtd: {assoc.quantidadeMedia}</span>
                                       {assoc.valorMedio ? <span className="text-xs text-green-400 shrink-0">{formatCurrency(assoc.valorMedio)}</span> : null}
                                     </div>
