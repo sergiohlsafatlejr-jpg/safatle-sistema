@@ -2602,3 +2602,4 @@
 - [x] Opção 3: Motor de comparação com lógica de grupo - se tem algum item do grupo na conta, cobra todos do grupo
 - [x] Testes vitest para categorias e grupos de itens no gabarito (10 testes passando)
 - [x] Exibir badge de categoria (Obrigatório/Condicional/Opcional) e grupo na listagem de itens do gabarito
+- [x] Liberar edição manual dos valores dos itens na tela de edição do gabarito (campo valor atualmente não editável)

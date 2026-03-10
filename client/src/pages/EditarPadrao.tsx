@@ -513,8 +513,20 @@ export default function EditarPadrao() {
                         }} className="h-8 text-xs" />
                       </div>
                       {/* Valor */}
-                      <div>
-                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">{item.valorMedio ? formatCurrency(item.valorMedio) : "-"}</span>
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.valorMedio || ""}
+                          placeholder="R$ 0,00"
+                          onChange={(e) => {
+                            const newItens = [...itens];
+                            newItens[idx].valorMedio = Number(e.target.value);
+                            setItens(newItens);
+                          }}
+                          className="h-8 text-xs text-green-600 dark:text-green-400"
+                        />
                       </div>
                       {/* Ações rápidas de categoria */}
                       <div className="flex gap-1">
