@@ -700,23 +700,34 @@ export async function sincronizarCustosProdutos(
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
         await db.insert(custosProtudosCache).values(
-          batch.map((r: any) => ({
-            estabelecimentoId,
-            codprod: r.codprod?.trim() || "",
-            descricao: r.descricao?.trim() || null,
-            tipoprod: r.tipoprod?.trim() || null,
-            capacidadeEstoque: r.capacidade_estoque != null ? String(r.capacidade_estoque) : null,
-            multEstoque: r.mult_estoque != null ? String(r.mult_estoque) : null,
-            multFaturas: r.mult_faturas != null ? String(r.mult_faturas) : null,
-            unidadeEstoque: r.unidade_estoque?.trim() || null,
-            unidadeFaturas: r.unidade_faturas?.trim() || null,
-            custoEstoque: r.custo_estoque != null ? String(r.custo_estoque) : null,
-            custoMultFat: r.custo_mult_fat != null ? String(r.custo_mult_fat) : null,
-            valormm: r.valormm != null ? String(r.valormm) : null,
-            prevenbras: r.prevenbras != null ? String(r.prevenbras) : null,
-            prefabsimp: r.prefabsimp != null ? String(r.prefabsimp) : null,
-            codtbmm: r.codtbmm?.trim() || "",
-          }))
+          batch.map((r: any) => {
+            // Helper to safely convert numeric values to decimal(18,6) compatible strings
+            const toDecimal = (val: any): string | null => {
+              if (val == null || val === '' || val === undefined) return null;
+              const num = parseFloat(String(val));
+              if (isNaN(num)) return null;
+              // Truncate to 6 decimal places and max 12 integer digits to fit decimal(18,6)
+              return num.toFixed(6);
+            };
+
+            return {
+              estabelecimentoId,
+              codprod: r.codprod?.trim() || "",
+              descricao: r.descricao?.trim() || null,
+              tipoprod: r.tipoprod?.trim() || null,
+              capacidadeEstoque: toDecimal(r.capacidade_estoque),
+              multEstoque: toDecimal(r.mult_estoque),
+              multFaturas: toDecimal(r.mult_faturas),
+              unidadeEstoque: r.unidade_estoque?.trim() || null,
+              unidadeFaturas: r.unidade_faturas?.trim() || null,
+              custoEstoque: toDecimal(r.custo_estoque),
+              custoMultFat: toDecimal(r.custo_mult_fat),
+              valormm: toDecimal(r.valormm),
+              prevenbras: toDecimal(r.prevenbras),
+              prefabsimp: toDecimal(r.prefabsimp),
+              codtbmm: r.codtbmm?.trim() || "",
+            };
+          })
         );
       }
     } finally {

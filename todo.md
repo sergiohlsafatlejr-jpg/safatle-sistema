@@ -2659,3 +2659,6 @@
 - [x] Filtros interativos no dashboard e tabela
 - [x] Registrar rota no App.tsx e sidebar
 - [x] Escrever testes vitest para os endpoints (11 testes passando)
+
+## Bug: Erro INSERT custos_produtos_cache - campos numéricos nulos
+- [x] Corrigir mapeamento de dados no relatorioCustos.ts para tratar campos numéricos nulos/vazios do Warleine (toDecimal helper com toFixed(6))
