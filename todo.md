@@ -2632,3 +2632,10 @@
 - [x] Gráfico de barras: Total por Procedimento (top 15)
 - [x] Adicionar aba Dashboard na tela de Relatório de Atendimentos
 - [x] Escrever testes vitest para os endpoints de métricas (12 testes passando)
+
+## Filtros no Dashboard de Atendimentos
+- [x] Atualizar endpoint metricasDashboard para aceitar filtros (tipoAtendimento, codPlaco, codPrest, codServ)
+- [x] Adicionar barra de filtros no frontend do dashboard (tipo, convênio, médico, serviço)
+- [x] Filtros devem atualizar os gráficos e KPIs em tempo real
+- [x] Botão para limpar todos os filtros
+- [x] Atualizar testes vitest para cobrir filtros no endpoint de métricas (14 testes passando)

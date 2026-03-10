@@ -63,13 +63,17 @@ export default function RelatorioAtendimentos() {
   const [dashboardAtivo, setDashboardAtivo] = useState(false);
   const itensPorPagina = 50;
 
-  // Dashboard period
+  // Dashboard period + filtros
   const [dashDataInicio, setDashDataInicio] = useState(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
     return d.toISOString().split("T")[0];
   });
   const [dashDataFim, setDashDataFim] = useState(hoje.toISOString().split("T")[0]);
+  const [dashTipoAtendimento, setDashTipoAtendimento] = useState<string>("");
+  const [dashCodPlaco, setDashCodPlaco] = useState<string>("");
+  const [dashCodPrest, setDashCodPrest] = useState<string>("");
+  const [dashCodServ, setDashCodServ] = useState<string>("");
 
   // Sync period inputs
   const [syncDataInicio, setSyncDataInicio] = useState(() => {
@@ -135,7 +139,11 @@ export default function RelatorioAtendimentos() {
   const metricasInput = useMemo(() => ({
     dataInicio: dashDataInicio,
     dataFim: dashDataFim + "T23:59:59",
-  }), [dashDataInicio, dashDataFim]);
+    tipoAtendimento: dashTipoAtendimento || undefined,
+    codPlaco: dashCodPlaco || undefined,
+    codPrest: dashCodPrest || undefined,
+    codServ: dashCodServ || undefined,
+  }), [dashDataInicio, dashDataFim, dashTipoAtendimento, dashCodPlaco, dashCodPrest, dashCodServ]);
 
   const { data: metricas, isLoading: loadingMetricas } = trpc.relatorioAtendimentos.metricasDashboard.useQuery(
     metricasInput,
@@ -150,6 +158,16 @@ export default function RelatorioAtendimentos() {
   const handleCarregarDashboard = () => {
     setDashboardAtivo(true);
   };
+
+  const handleLimparFiltrosDashboard = () => {
+    setDashTipoAtendimento("");
+    setDashCodPlaco("");
+    setDashCodPrest("");
+    setDashCodServ("");
+    setDashboardAtivo(false);
+  };
+
+  const totalFiltrosDashAtivos = [dashTipoAtendimento, dashCodPlaco, dashCodPrest, dashCodServ].filter(Boolean).length;
 
   const handleLimparFiltros = () => {
     setTipoAtendimento("");
@@ -361,9 +379,18 @@ export default function RelatorioAtendimentos() {
           <TabsContent value="dashboard" className="space-y-6 mt-4">
             {/* Filtros do Dashboard */}
             <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="space-y-1.5 flex-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filtros do Dashboard
+                  {totalFiltrosDashAtivos > 0 && (
+                    <Badge variant="secondary" className="ml-2">{totalFiltrosDashAtivos} filtro(s)</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Periodo Inicio</Label>
                     <Input
                       type="date"
@@ -372,7 +399,7 @@ export default function RelatorioAtendimentos() {
                       className="h-9"
                     />
                   </div>
-                  <div className="space-y-1.5 flex-1">
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Periodo Fim</Label>
                     <Input
                       type="date"
@@ -381,7 +408,59 @@ export default function RelatorioAtendimentos() {
                       className="h-9"
                     />
                   </div>
-                  <Button onClick={handleCarregarDashboard} disabled={loadingMetricas} className="h-9">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Tipo Atendimento</Label>
+                    <Select value={dashTipoAtendimento} onValueChange={(v) => { setDashTipoAtendimento(v === "all" ? "" : v); setDashboardAtivo(false); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="I">Internacao</SelectItem>
+                        <SelectItem value="A">Ambulatorial</SelectItem>
+                        <SelectItem value="E">Emergencia</SelectItem>
+                        <SelectItem value="U">Urgencia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Plano/Convenio</Label>
+                    <Select value={dashCodPlaco} onValueChange={(v) => { setDashCodPlaco(v === "all" ? "" : v); setDashboardAtivo(false); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.planos?.map((p) => (
+                          <SelectItem key={p.codplaco} value={p.codplaco}>{p.nomeplaco?.trim() || p.codplaco}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Prestador/Medico</Label>
+                    <Select value={dashCodPrest} onValueChange={(v) => { setDashCodPrest(v === "all" ? "" : v); setDashboardAtivo(false); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.prestadores?.map((p) => (
+                          <SelectItem key={p.codprest} value={p.codprest}>{p.nomeprest?.trim() || p.codprest}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Servico</Label>
+                    <Select value={dashCodServ} onValueChange={(v) => { setDashCodServ(v === "all" ? "" : v); setDashboardAtivo(false); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.servicos?.map((s) => (
+                          <SelectItem key={s.codserv} value={s.codserv}>{s.nomeserv?.trim() || s.codserv}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-4">
+                  <Button onClick={handleCarregarDashboard} disabled={loadingMetricas}>
                     {loadingMetricas ? (
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                     ) : (
@@ -389,6 +468,12 @@ export default function RelatorioAtendimentos() {
                     )}
                     {loadingMetricas ? "Carregando..." : "Carregar Dashboard"}
                   </Button>
+                  {totalFiltrosDashAtivos > 0 && (
+                    <Button variant="ghost" size="sm" onClick={handleLimparFiltrosDashboard}>
+                      <X className="h-4 w-4 mr-1" />
+                      Limpar filtros
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

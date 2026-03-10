@@ -765,8 +765,17 @@ export interface MetricasDashboard {
   fonte: "cache_local" | "postgresql_direto";
 }
 
+export interface FiltrosDashboard {
+  dataInicio: string;
+  dataFim: string;
+  tipoAtendimento?: string;
+  codPlaco?: string;
+  codPrest?: string;
+  codServ?: string;
+}
+
 export async function buscarMetricasDashboard(
-  filtros: { dataInicio: string; dataFim: string }
+  filtros: FiltrosDashboard
 ): Promise<MetricasDashboard> {
   // Tentar cache local primeiro
   try {
@@ -777,7 +786,7 @@ export async function buscarMetricasDashboard(
         .from(relatorioAtendimentosCache);
 
       if (cacheCount[0]?.total > 0) {
-        return buscarMetricasDoCache(db, filtros);
+        return buscarMetricasDoCache(db, filtros as FiltrosDashboard);
       }
     }
   } catch (e) {
@@ -790,12 +799,32 @@ export async function buscarMetricasDashboard(
 
 async function buscarMetricasDoCache(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
-  filtros: { dataInicio: string; dataFim: string }
+  filtros: FiltrosDashboard
 ): Promise<MetricasDashboard> {
-  const dateCondition = and(
+  const baseConditions: any[] = [
     gte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataInicio)),
-    lte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataFim))
-  );
+    lte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataFim)),
+  ];
+
+  // Filtros opcionais
+  if (filtros.tipoAtendimento) {
+    const tipoMap: Record<string, string> = {
+      "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
+    };
+    const tipoDesc = tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento;
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimento, tipoDesc));
+  }
+  if (filtros.codPlaco) {
+    baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
+  }
+  if (filtros.codPrest) {
+    baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
+  }
+  if (filtros.codServ) {
+    baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+  }
+
+  const dateCondition = and(...baseConditions);
 
   const [
     totalResult,
@@ -914,12 +943,37 @@ async function buscarMetricasDoCache(
 }
 
 async function buscarMetricasDoPostgresql(
-  filtros: { dataInicio: string; dataFim: string }
+  filtros: FiltrosDashboard
 ): Promise<MetricasDashboard> {
   const client = await getWarleinePool().connect();
   try {
-    const params = [filtros.dataInicio, filtros.dataFim];
-    const dateWhere = `WHERE a.datatend >= $1 AND a.datatend <= $2`;
+    const params: any[] = [filtros.dataInicio, filtros.dataFim];
+    let paramIndex = 3;
+    const extraConditions: string[] = [];
+
+    if (filtros.tipoAtendimento) {
+      extraConditions.push(`a.tipoatend = $${paramIndex}`);
+      params.push(filtros.tipoAtendimento);
+      paramIndex++;
+    }
+    if (filtros.codPlaco) {
+      extraConditions.push(`a.codplaco = $${paramIndex}`);
+      params.push(filtros.codPlaco);
+      paramIndex++;
+    }
+    if (filtros.codPrest) {
+      extraConditions.push(`a.codprest = $${paramIndex}`);
+      params.push(filtros.codPrest);
+      paramIndex++;
+    }
+    if (filtros.codServ) {
+      extraConditions.push(`a.codserv = $${paramIndex}`);
+      params.push(filtros.codServ);
+      paramIndex++;
+    }
+
+    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+    const dateWhere = `WHERE a.datatend >= $1 AND a.datatend <= $2${extraWhere}`;
 
     const [
       totalResult,

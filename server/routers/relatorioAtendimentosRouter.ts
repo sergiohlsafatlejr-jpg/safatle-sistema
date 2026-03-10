@@ -57,6 +57,10 @@ export const relatorioAtendimentosRouter = router({
       z.object({
         dataInicio: z.string(),
         dataFim: z.string(),
+        tipoAtendimento: z.string().optional(),
+        codPlaco: z.string().optional(),
+        codPrest: z.string().optional(),
+        codServ: z.string().optional(),
       })
     )
     .query(async ({ input }) => {

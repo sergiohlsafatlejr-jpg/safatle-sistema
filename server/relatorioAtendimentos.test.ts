@@ -394,5 +394,71 @@ describe("Relatório de Atendimentos - Cache Local + Fallback PostgreSQL", () =>
       expect(metricas.porProcedimento).toHaveLength(0);
       expect(metricas.fonte).toBe("postgresql_direto");
     });
+
+    it("deve aplicar filtros opcionais na query de métricas PostgreSQL", async () => {
+      const { buscarMetricasDashboard } = await import("./relatorioAtendimentos");
+
+      // Mock all 8 queries
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "DR. SILVA", codigo: "P01", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "Internação", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "UNIMED", codigo: "001", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "INTERNACAO CIRURGICA", codigo: "01", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ mes_ano: "2025-01", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "NEOPLASIA", codigo: "C61", total: "50" }] })
+        .mockResolvedValueOnce({ rows: [{ nome: "PROSTATAVESICULECTOMIA", codigo: "31102360", total: "50" }] });
+
+      const metricas = await buscarMetricasDashboard({
+        dataInicio: "2025-01-01",
+        dataFim: "2025-12-31",
+        tipoAtendimento: "I",
+        codPlaco: "001",
+        codPrest: "P01",
+        codServ: "01",
+      });
+
+      // Verificar que os filtros foram aplicados nas queries
+      // A primeira query (total) deve ter os parâmetros extras
+      const totalCall = mockQuery.mock.calls[0];
+      expect(totalCall[1]).toContain("I");
+      expect(totalCall[1]).toContain("001");
+      expect(totalCall[1]).toContain("P01");
+      expect(totalCall[1]).toContain("01");
+      expect(totalCall[1]).toHaveLength(6); // dataInicio, dataFim + 4 filtros
+
+      expect(metricas.totalAtendimentos).toBe(50);
+      expect(metricas.fonte).toBe("postgresql_direto");
+      expect(mockRelease).toHaveBeenCalled();
+    });
+
+    it("deve funcionar com apenas alguns filtros opcionais", async () => {
+      const { buscarMetricasDashboard } = await import("./relatorioAtendimentos");
+
+      // Mock all 8 queries
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: "100" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const metricas = await buscarMetricasDashboard({
+        dataInicio: "2025-01-01",
+        dataFim: "2025-12-31",
+        tipoAtendimento: "A",
+      });
+
+      // Deve ter 3 parâmetros: dataInicio, dataFim, tipoAtendimento
+      const totalCall = mockQuery.mock.calls[0];
+      expect(totalCall[1]).toContain("A");
+      expect(totalCall[1]).toHaveLength(3);
+
+      expect(metricas.totalAtendimentos).toBe(100);
+      expect(metricas.fonte).toBe("postgresql_direto");
+    });
   });
 });
