@@ -852,3 +852,402 @@ async function upsertSyncMeta(
       .where(eq(custosProdutosSyncMeta.estabelecimentoId, estabelecimentoId));
   }
 }
+
+
+// ============================================================
+// COMPARAÇÃO: CUSTO HOSPITAL vs VALOR CONVÊNIO
+// ============================================================
+
+export interface FiltroComparacao {
+  tipoprod?: string;
+  codtbmm?: string;
+  busca?: string;
+  apenasComPrejuizo?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ComparacaoCustoConvenio {
+  itens: {
+    codprod: string;
+    descricao: string;
+    tipoprod: string;
+    tipoprodDesc: string;
+    codtbmm: string;
+    tabelaPrecoDesc: string;
+    custoHospital: number;
+    valorConvenio: number;
+    margemReais: number;
+    margemPercent: number;
+    status: "lucro" | "prejuizo" | "neutro";
+  }[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  resumo: {
+    totalItens: number;
+    totalComLucro: number;
+    totalComPrejuizo: number;
+    totalNeutro: number;
+    margemMediaPercent: number;
+    margemTotalReais: number;
+    custoTotalHospital: number;
+    valorTotalConvenio: number;
+  };
+  topPrejuizo: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
+  topLucro: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
+  margemPorTipo: { tipo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
+  margemPorTabela: { tabela: string; codigo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export async function buscarComparacaoCustoConvenio(
+  estabelecimentoId: number,
+  filtros: FiltroComparacao
+): Promise<ComparacaoCustoConvenio> {
+  const limit = filtros.limit || 50;
+  const offset = filtros.offset || 0;
+
+  // Tentar cache local primeiro
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(custosProtudosCache)
+        .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarComparacaoDoCache(db, estabelecimentoId, filtros, limit, offset);
+      }
+    }
+  } catch (e) {
+    console.warn("[RelatorioCustos] Cache indisponível para comparação:", (e as Error).message);
+  }
+
+  // Fallback: PostgreSQL direto
+  return buscarComparacaoDoPostgresql(filtros, limit, offset);
+}
+
+async function buscarComparacaoDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  estabelecimentoId: number,
+  filtros: FiltroComparacao,
+  limit: number,
+  offset: number
+): Promise<ComparacaoCustoConvenio> {
+  // Condições base: apenas itens com custo > 0 e valor convênio > 0
+  const conditions: any[] = [
+    eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
+    sql`${custosProtudosCache.custoEstoque} IS NOT NULL`,
+    sql`${custosProtudosCache.custoEstoque} > 0`,
+    sql`${custosProtudosCache.valormm} IS NOT NULL`,
+    sql`${custosProtudosCache.valormm} > 0`,
+  ];
+
+  if (filtros.tipoprod) {
+    conditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
+  }
+  if (filtros.codtbmm) {
+    conditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
+  }
+  if (filtros.busca) {
+    conditions.push(
+      sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
+    );
+  }
+  if (filtros.apenasComPrejuizo) {
+    conditions.push(sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))`);
+  }
+
+  const whereClause = and(...conditions);
+
+  // Buscar dados paginados
+  const [totalResult, dados] = await Promise.all([
+    db.select({ total: count() }).from(custosProtudosCache).where(whereClause),
+    db
+      .select()
+      .from(custosProtudosCache)
+      .where(whereClause)
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) ASC`)
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const total = totalResult[0]?.total || 0;
+
+  // Calcular itens com margem
+  const itens = dados.map((d) => {
+    const custoHospital = parseFloat(d.custoEstoque || "0");
+    const valorConvenio = parseFloat(d.valormm || "0");
+    const margemReais = valorConvenio - custoHospital;
+    const margemPercent = custoHospital > 0 ? ((margemReais / custoHospital) * 100) : 0;
+
+    return {
+      codprod: d.codprod,
+      descricao: d.descricao || "",
+      tipoprod: d.tipoprod || "",
+      tipoprodDesc: TIPO_PROD_MAP[d.tipoprod || ""] || d.tipoprod || "?",
+      codtbmm: d.codtbmm,
+      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      custoHospital,
+      valorConvenio,
+      margemReais,
+      margemPercent,
+      status: (margemReais > 0.01 ? "lucro" : margemReais < -0.01 ? "prejuizo" : "neutro") as "lucro" | "prejuizo" | "neutro",
+    };
+  });
+
+  // Resumo geral (sem paginação)
+  const baseConditions: any[] = [
+    eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
+    sql`${custosProtudosCache.custoEstoque} IS NOT NULL`,
+    sql`${custosProtudosCache.custoEstoque} > 0`,
+    sql`${custosProtudosCache.valormm} IS NOT NULL`,
+    sql`${custosProtudosCache.valormm} > 0`,
+  ];
+  if (filtros.tipoprod) baseConditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
+  if (filtros.codtbmm) baseConditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
+  if (filtros.busca) {
+    baseConditions.push(
+      sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
+    );
+  }
+  const baseWhere = and(...baseConditions);
+
+  const [resumoResult, topPrejuizoResult, topLucroResult, margemPorTipoResult, margemPorTabelaResult] = await Promise.all([
+    db.select({
+      totalItens: count(),
+      totalComLucro: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01 THEN 1 ELSE 0 END)`,
+      totalComPrejuizo: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) - 0.01 THEN 1 ELSE 0 END)`,
+      custoTotalHospital: sql<string>`SUM(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      valorTotalConvenio: sql<string>`SUM(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+    }).from(custosProtudosCache).where(baseWhere),
+
+    // Top 15 com maior prejuízo
+    db.select()
+      .from(custosProtudosCache)
+      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) - 0.01`))
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) ASC`)
+      .limit(15),
+
+    // Top 15 com maior lucro
+    db.select()
+      .from(custosProtudosCache)
+      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01`))
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) DESC`)
+      .limit(15),
+
+    // Margem por tipo de produto
+    db.select({
+      tipoprod: custosProtudosCache.tipoprod,
+      total: count(),
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+    }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.tipoprod),
+
+    // Margem por tabela de preço
+    db.select({
+      codtbmm: custosProtudosCache.codtbmm,
+      total: count(),
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+    }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.codtbmm),
+  ]);
+
+  const r = resumoResult[0];
+  const custoTotal = parseFloat(r?.custoTotalHospital || "0");
+  const valorTotal = parseFloat(r?.valorTotalConvenio || "0");
+  const margemTotal = valorTotal - custoTotal;
+  const totalItens = r?.totalItens || 0;
+
+  const mapItem = (d: any) => {
+    const ch = parseFloat(d.custoEstoque || "0");
+    const vc = parseFloat(d.valormm || "0");
+    const mr = vc - ch;
+    return {
+      codprod: d.codprod,
+      descricao: d.descricao || "",
+      tipoprod: d.tipoprod || "",
+      codtbmm: d.codtbmm,
+      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      custoHospital: ch,
+      valorConvenio: vc,
+      margemReais: mr,
+      margemPercent: ch > 0 ? (mr / ch) * 100 : 0,
+    };
+  };
+
+  return {
+    itens,
+    total,
+    pagina: Math.floor(offset / limit) + 1,
+    totalPaginas: Math.ceil(total / limit),
+    resumo: {
+      totalItens,
+      totalComLucro: Number(r?.totalComLucro || 0),
+      totalComPrejuizo: Number(r?.totalComPrejuizo || 0),
+      totalNeutro: totalItens - Number(r?.totalComLucro || 0) - Number(r?.totalComPrejuizo || 0),
+      margemMediaPercent: custoTotal > 0 ? (margemTotal / custoTotal) * 100 : 0,
+      margemTotalReais: margemTotal,
+      custoTotalHospital: custoTotal,
+      valorTotalConvenio: valorTotal,
+    },
+    topPrejuizo: topPrejuizoResult.map(mapItem),
+    topLucro: topLucroResult.map(mapItem),
+    margemPorTipo: margemPorTipoResult.map((t) => {
+      const avgC = parseFloat(t.avgCusto || "0");
+      const avgV = parseFloat(t.avgValor || "0");
+      return {
+        tipo: TIPO_PROD_MAP[t.tipoprod || ""] || t.tipoprod || "?",
+        margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0,
+        custoMedio: avgC,
+        valorMedio: avgV,
+        total: t.total,
+      };
+    }),
+    margemPorTabela: margemPorTabelaResult.map((t) => {
+      const avgC = parseFloat(t.avgCusto || "0");
+      const avgV = parseFloat(t.avgValor || "0");
+      return {
+        tabela: TABELA_PRECO_MAP[t.codtbmm] || `Tabela ${t.codtbmm}`,
+        codigo: t.codtbmm,
+        margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0,
+        custoMedio: avgC,
+        valorMedio: avgV,
+        total: t.total,
+      };
+    }),
+    fonte: "cache_local",
+  };
+}
+
+async function buscarComparacaoDoPostgresql(
+  filtros: FiltroComparacao,
+  limit: number,
+  offset: number
+): Promise<ComparacaoCustoConvenio> {
+  const client = await getWarleinePool().connect();
+  try {
+    const tabelasCodtbmm = filtros.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    const extraConditions: string[] = [
+      "A.custoatual IS NOT NULL",
+      "A.custoatual > 0",
+      "B.valormm IS NOT NULL",
+      "B.valormm > 0",
+    ];
+    if (filtros.tipoprod) {
+      extraConditions.push(`A.tipoprod = $${paramIdx}`);
+      params.push(filtros.tipoprod);
+      paramIdx++;
+    }
+    if (filtros.busca) {
+      extraConditions.push(`(A.descricao ILIKE $${paramIdx} OR A.codprod ILIKE $${paramIdx})`);
+      params.push(`%${filtros.busca}%`);
+      paramIdx++;
+    }
+
+    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+
+    const unionParts = tabelasCodtbmm.map((tbmm) => `
+      SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
+        A.custoatual AS custo_hospital,
+        B.valormm AS valor_convenio,
+        (B.valormm - A.custoatual) AS margem_reais
+      FROM "PACIENTE".tabprod A
+      JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+      WHERE B.codtbmm = '${tbmm}'
+        AND A.tipoprod IN ('M','T','O')
+        AND A.inativo IS NULL
+        ${extraWhere}
+    `);
+
+    const fullQuery = unionParts.join(" UNION ALL ");
+
+    let filteredQuery = fullQuery;
+    if (filtros.apenasComPrejuizo) {
+      filteredQuery = `SELECT * FROM (${fullQuery}) sub WHERE margem_reais < -0.01`;
+    }
+
+    const [countResult, dataResult, resumoResult, topPrejResult, topLucroResult, porTipoResult, porTabelaResult] = await Promise.all([
+      client.query(`SELECT COUNT(*) as total FROM (${filteredQuery}) sub2`, params),
+      client.query(`SELECT * FROM (${filteredQuery}) sub2 ORDER BY margem_reais ASC LIMIT ${limit} OFFSET ${offset}`, params),
+      client.query(`SELECT COUNT(*) as total, SUM(CASE WHEN margem_reais > 0.01 THEN 1 ELSE 0 END) as lucro, SUM(CASE WHEN margem_reais < -0.01 THEN 1 ELSE 0 END) as prejuizo, SUM(custo_hospital) as custo_total, SUM(valor_convenio) as valor_total FROM (${fullQuery}) sub`, params),
+      client.query(`SELECT * FROM (${fullQuery}) sub WHERE margem_reais < -0.01 ORDER BY margem_reais ASC LIMIT 15`, params),
+      client.query(`SELECT * FROM (${fullQuery}) sub WHERE margem_reais > 0.01 ORDER BY margem_reais DESC LIMIT 15`, params),
+      client.query(`SELECT tipoprod, COUNT(*) as total, AVG(custo_hospital) as avg_custo, AVG(valor_convenio) as avg_valor FROM (${fullQuery}) sub GROUP BY tipoprod`, params),
+      client.query(`SELECT codtbmm, COUNT(*) as total, AVG(custo_hospital) as avg_custo, AVG(valor_convenio) as avg_valor FROM (${fullQuery}) sub GROUP BY codtbmm`, params),
+    ]);
+
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+    const rs = resumoResult.rows[0];
+    const custoTotal = parseFloat(rs?.custo_total || "0");
+    const valorTotal = parseFloat(rs?.valor_total || "0");
+    const margemTotal = valorTotal - custoTotal;
+    const totalItens = parseInt(rs?.total || "0", 10);
+
+    const mapRow = (r: any) => {
+      const ch = parseFloat(r.custo_hospital || "0");
+      const vc = parseFloat(r.valor_convenio || "0");
+      const mr = vc - ch;
+      return {
+        codprod: r.codprod,
+        descricao: r.descricao || "",
+        tipoprod: r.tipoprod || "",
+        tipoprodDesc: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
+        codtbmm: r.codtbmm,
+        tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        custoHospital: ch,
+        valorConvenio: vc,
+        margemReais: mr,
+        margemPercent: ch > 0 ? (mr / ch) * 100 : 0,
+        status: (mr > 0.01 ? "lucro" : mr < -0.01 ? "prejuizo" : "neutro") as "lucro" | "prejuizo" | "neutro",
+      };
+    };
+
+    return {
+      itens: dataResult.rows.map(mapRow),
+      total,
+      pagina: Math.floor(offset / limit) + 1,
+      totalPaginas: Math.ceil(total / limit),
+      resumo: {
+        totalItens,
+        totalComLucro: parseInt(rs?.lucro || "0", 10),
+        totalComPrejuizo: parseInt(rs?.prejuizo || "0", 10),
+        totalNeutro: totalItens - parseInt(rs?.lucro || "0", 10) - parseInt(rs?.prejuizo || "0", 10),
+        margemMediaPercent: custoTotal > 0 ? (margemTotal / custoTotal) * 100 : 0,
+        margemTotalReais: margemTotal,
+        custoTotalHospital: custoTotal,
+        valorTotalConvenio: valorTotal,
+      },
+      topPrejuizo: topPrejResult.rows.map((r: any) => {
+        const ch = parseFloat(r.custo_hospital || "0");
+        const vc = parseFloat(r.valor_convenio || "0");
+        const mr = vc - ch;
+        return { codprod: r.codprod, descricao: r.descricao || "", tipoprod: r.tipoprod, codtbmm: r.codtbmm, tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, custoHospital: ch, valorConvenio: vc, margemReais: mr, margemPercent: ch > 0 ? (mr / ch) * 100 : 0 };
+      }),
+      topLucro: topLucroResult.rows.map((r: any) => {
+        const ch = parseFloat(r.custo_hospital || "0");
+        const vc = parseFloat(r.valor_convenio || "0");
+        const mr = vc - ch;
+        return { codprod: r.codprod, descricao: r.descricao || "", tipoprod: r.tipoprod, codtbmm: r.codtbmm, tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, custoHospital: ch, valorConvenio: vc, margemReais: mr, margemPercent: ch > 0 ? (mr / ch) * 100 : 0 };
+      }),
+      margemPorTipo: porTipoResult.rows.map((r: any) => {
+        const avgC = parseFloat(r.avg_custo || "0");
+        const avgV = parseFloat(r.avg_valor || "0");
+        return { tipo: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod, margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0, custoMedio: avgC, valorMedio: avgV, total: parseInt(r.total, 10) };
+      }),
+      margemPorTabela: porTabelaResult.rows.map((r: any) => {
+        const avgC = parseFloat(r.avg_custo || "0");
+        const avgV = parseFloat(r.avg_valor || "0");
+        return { tabela: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, codigo: r.codtbmm, margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0, custoMedio: avgC, valorMedio: avgV, total: parseInt(r.total, 10) };
+      }),
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardCustos from "@/components/DashboardCustos";
+import ComparacaoCustoConvenio from "@/components/ComparacaoCustoConvenio";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Download, ChevronLeft, ChevronRight, Filter, X,
   Package, RefreshCw, Database, Cloud, CheckCircle2, AlertCircle, Clock, Loader2,
-  BarChart3, TableIcon, DollarSign,
+  BarChart3, TableIcon, DollarSign, Scale,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +47,15 @@ export default function RelatorioCustos() {
   const [dashTipoprod, setDashTipoprod] = useState<string>("");
   const [dashCodtbmm, setDashCodtbmm] = useState<string>("");
   const [dashLoaded, setDashLoaded] = useState(false);
+
+  // Comparação filters
+  const [compTipoprod, setCompTipoprod] = useState<string>("");
+  const [compCodtbmm, setCompCodtbmm] = useState<string>("");
+  const [compBusca, setCompBusca] = useState("");
+  const [compBuscaInput, setCompBuscaInput] = useState("");
+  const [compApenasComPrejuizo, setCompApenasComPrejuizo] = useState(false);
+  const [compPagina, setCompPagina] = useState(1);
+  const [compLoaded, setCompLoaded] = useState(false);
 
   // Table filters
   const [tipoprod, setTipoprod] = useState<string>("");
@@ -79,6 +89,22 @@ export default function RelatorioCustos() {
   const dashMetricas = trpc.relatorioCustos.metricasDashboard.useQuery(
     dashInput,
     { enabled: estabelecimentoId > 0 && dashLoaded }
+  );
+
+  // Comparação data
+  const compInput = useMemo(() => ({
+    estabelecimentoId,
+    tipoprod: compTipoprod || undefined,
+    codtbmm: compCodtbmm || undefined,
+    busca: compBusca || undefined,
+    apenasComPrejuizo: compApenasComPrejuizo || undefined,
+    limit: 50,
+    offset: (compPagina - 1) * 50,
+  }), [estabelecimentoId, compTipoprod, compCodtbmm, compBusca, compApenasComPrejuizo, compPagina]);
+
+  const comparacaoData = trpc.relatorioCustos.comparacaoCustoConvenio.useQuery(
+    compInput,
+    { enabled: estabelecimentoId > 0 && compLoaded }
   );
 
   // Table data
@@ -152,6 +178,30 @@ export default function RelatorioCustos() {
     setDashTipoprod("");
     setDashCodtbmm("");
   };
+
+  const handleLoadComparacao = () => {
+    if (estabelecimentoId <= 0) {
+      toast.error("Selecione um estabelecimento");
+      return;
+    }
+    setCompLoaded(true);
+  };
+
+  const handleCompSearch = () => {
+    setCompBusca(compBuscaInput);
+    setCompPagina(1);
+  };
+
+  const handleClearCompFilters = () => {
+    setCompTipoprod("");
+    setCompCodtbmm("");
+    setCompBusca("");
+    setCompBuscaInput("");
+    setCompApenasComPrejuizo(false);
+    setCompPagina(1);
+  };
+
+  const compFilterCount = [compTipoprod, compCodtbmm, compBusca, compApenasComPrejuizo].filter(Boolean).length;
 
   const dashFilterCount = [dashTipoprod, dashCodtbmm].filter(Boolean).length;
   const tableFilterCount = [tipoprod, codtbmm, busca].filter(Boolean).length;
@@ -257,6 +307,10 @@ export default function RelatorioCustos() {
               <BarChart3 className="h-4 w-4" />
               Dashboard
             </TabsTrigger>
+            <TabsTrigger value="comparacao" className="gap-1.5">
+              <Scale className="h-4 w-4" />
+              Custo vs Convenio
+            </TabsTrigger>
             <TabsTrigger value="tabela" className="gap-1.5">
               <TableIcon className="h-4 w-4" />
               Tabela Detalhada
@@ -319,6 +373,211 @@ export default function RelatorioCustos() {
               metricas={dashMetricas.data}
               isLoading={dashMetricas.isLoading && dashLoaded}
             />
+          </TabsContent>
+
+          {/* ======== ABA CUSTO VS CONVÊNIO ======== */}
+          <TabsContent value="comparacao" className="space-y-4 mt-4">
+            {/* Filtros da comparação */}
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="w-48">
+                    <Label className="text-xs text-muted-foreground">Tipo Produto</Label>
+                    <Select value={compTipoprod} onValueChange={(v) => { setCompTipoprod(v === "all" ? "" : v); setCompPagina(1); }}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {(opcoesFiltro.data?.tiposProduto || []).map((t) => (
+                          <SelectItem key={t.codigo} value={t.codigo}>{t.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="w-56">
+                    <Label className="text-xs text-muted-foreground">Tabela de Preco</Label>
+                    <Select value={compCodtbmm} onValueChange={(v) => { setCompCodtbmm(v === "all" ? "" : v); setCompPagina(1); }}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {(opcoesFiltro.data?.tabelasPreco || []).map((t) => (
+                          <SelectItem key={t.codigo} value={t.codigo}>{t.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="w-64">
+                    <Label className="text-xs text-muted-foreground">Buscar Produto</Label>
+                    <div className="flex gap-1">
+                      <Input
+                        className="h-9 text-sm"
+                        placeholder="Codigo ou descricao..."
+                        value={compBuscaInput}
+                        onChange={(e) => setCompBuscaInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleCompSearch()}
+                      />
+                      <Button variant="outline" size="sm" className="h-9 px-2" onClick={handleCompSearch}>
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={compApenasComPrejuizo}
+                        onChange={(e) => { setCompApenasComPrejuizo(e.target.checked); setCompPagina(1); }}
+                        className="rounded border-border"
+                      />
+                      Apenas com prejuizo
+                    </label>
+                  </div>
+
+                  {compFilterCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleClearCompFilters}>
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      Limpar ({compFilterCount})
+                    </Button>
+                  )}
+
+                  {!compLoaded && (
+                    <Button size="sm" className="h-9" onClick={handleLoadComparacao}>
+                      Carregar Comparacao
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Dashboard de comparação */}
+            {compLoaded && comparacaoData.isLoading && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-24" />)}
+                </div>
+                <Skeleton className="h-[300px]" />
+              </div>
+            )}
+
+            {compLoaded && comparacaoData.data && (
+              <>
+                {/* Fonte dos dados */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {comparacaoData.data.fonte === "cache_local" ? (
+                    <><Database className="h-3.5 w-3.5" /> Fonte: Cache Local</>
+                  ) : (
+                    <><Cloud className="h-3.5 w-3.5" /> Fonte: PostgreSQL Direto</>
+                  )}
+                </div>
+
+                <ComparacaoCustoConvenio data={comparacaoData.data} />
+
+                {/* Tabela detalhada de itens */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Detalhamento por Item ({comparacaoData.data.total.toLocaleString("pt-BR")} itens)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b text-left">
+                            <th className="pb-2 font-medium">Codigo</th>
+                            <th className="pb-2 font-medium">Descricao</th>
+                            <th className="pb-2 font-medium">Tipo</th>
+                            <th className="pb-2 font-medium">Tabela</th>
+                            <th className="pb-2 font-medium text-right">Custo Hospital</th>
+                            <th className="pb-2 font-medium text-right">Valor Convenio</th>
+                            <th className="pb-2 font-medium text-right">Margem R$</th>
+                            <th className="pb-2 font-medium text-right">Margem %</th>
+                            <th className="pb-2 font-medium text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comparacaoData.data.itens.map((item, i) => (
+                            <tr key={`${item.codprod}-${item.codtbmm}-${i}`} className={`border-b border-border/30 ${item.status === "prejuizo" ? "bg-red-500/5" : item.status === "lucro" ? "bg-green-500/5" : ""}`}>
+                              <td className="py-1.5 font-mono">{item.codprod}</td>
+                              <td className="py-1.5 max-w-[250px] truncate" title={item.descricao}>{item.descricao}</td>
+                              <td className="py-1.5">{item.tipoprodDesc}</td>
+                              <td className="py-1.5">{item.tabelaPrecoDesc}</td>
+                              <td className="py-1.5 text-right font-mono">{formatCurrency(item.custoHospital)}</td>
+                              <td className="py-1.5 text-right font-mono">{formatCurrency(item.valorConvenio)}</td>
+                              <td className={`py-1.5 text-right font-mono font-medium ${item.margemReais >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {formatCurrency(item.margemReais)}
+                              </td>
+                              <td className={`py-1.5 text-right font-mono ${item.margemPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {item.margemPercent >= 0 ? "+" : ""}{item.margemPercent.toFixed(1)}%
+                              </td>
+                              <td className="py-1.5 text-center">
+                                <Badge
+                                  variant={item.status === "lucro" ? "default" : item.status === "prejuizo" ? "destructive" : "secondary"}
+                                  className="text-[10px] px-1.5"
+                                >
+                                  {item.status === "lucro" ? "Lucro" : item.status === "prejuizo" ? "Prejuizo" : "Neutro"}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                          {comparacaoData.data.itens.length === 0 && (
+                            <tr>
+                              <td colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum item encontrado com os filtros selecionados</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Paginação */}
+                    {comparacaoData.data.totalPaginas > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <p className="text-xs text-muted-foreground">
+                          Pagina {comparacaoData.data.pagina} de {comparacaoData.data.totalPaginas}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCompPagina((p) => Math.max(1, p - 1))}
+                            disabled={compPagina <= 1}
+                          >
+                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCompPagina((p) => Math.min(comparacaoData.data!.totalPaginas, p + 1))}
+                            disabled={compPagina >= comparacaoData.data.totalPaginas}
+                          >
+                            Proximo
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {!compLoaded && (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center text-muted-foreground">
+                    <Scale className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">Clique em "Carregar Comparacao" para analisar custo do hospital vs valor pago pelos convenios</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ======== ABA TABELA DETALHADA ======== */}

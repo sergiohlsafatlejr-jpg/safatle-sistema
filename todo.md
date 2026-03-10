@@ -2662,3 +2662,26 @@
 
 ## Bug: Erro INSERT custos_produtos_cache - campos numéricos nulos
 - [x] Corrigir mapeamento de dados no relatorioCustos.ts para tratar campos numéricos nulos/vazios do Warleine (toDecimal helper com toFixed(6))
+
+## Comparação Custo do Item vs Valor Pago pelos Convênios
+- [ ] Analisar estrutura de dados: tabela de custos (custos_produtos_cache) + tabela de itens pagos (procedimentos/demonstrativo)
+- [ ] Criar endpoint backend que cruza custo do item com valores pagos por convênio (por código do item)
+- [ ] Criar aba/seção "Custo vs Recebido" no Relatório de Custos
+- [ ] KPIs: Margem média, Total itens com prejuízo, Total itens com lucro
+- [ ] Tabela comparativa: código, descrição, custo, valor pago por convênio, margem (%)
+- [ ] Gráfico: Top itens com maior prejuízo (custo > valor pago)
+- [ ] Gráfico: Top itens com maior margem positiva
+- [ ] Filtros por convênio, tipo de produto, busca por código/descrição
+- [ ] Escrever testes vitest
+
+## Comparação Custo vs Convênio (Relatório de Custos)
+- [x] Criar endpoint backend comparacaoCustoConvenio usando dados do cache (custo_estoque vs valormm/custo_mult_fat)
+- [x] Criar aba "Custo vs Convênio" no frontend do Relatório de Custos
+- [x] KPIs: Margem média, Total itens com prejuízo, Total itens com lucro, Margem total
+- [x] Tabela comparativa: código, descrição, tipo, custo hospital, valor convênio (por tabela), margem R$ e %
+- [x] Gráfico: Top itens com maior prejuízo (custo > valor convênio)
+- [x] Gráfico: Top itens com maior margem positiva
+- [x] Gráfico: Distribuição de margem por tipo de produto
+- [x] Filtros por tipo de produto, tabela de preço, busca por código/descrição
+- [x] Destacar visualmente itens com prejuízo (vermelho) e lucro (verde)
+- [x] Escrever testes vitest (18 testes passando)

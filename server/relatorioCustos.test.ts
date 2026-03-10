@@ -195,4 +195,130 @@ describe("relatorioCustos", () => {
       expect(result).toHaveProperty("fonte");
     });
   });
+
+  describe("comparacaoCustoConvenio", () => {
+    it("retorna estrutura completa de comparacao", { timeout: 30000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("total");
+      expect(result).toHaveProperty("pagina");
+      expect(result).toHaveProperty("totalPaginas");
+      expect(result).toHaveProperty("resumo");
+      expect(result).toHaveProperty("fonte");
+
+      expect(Array.isArray(result.itens)).toBe(true);
+      expect(typeof result.total).toBe("number");
+      expect(typeof result.pagina).toBe("number");
+      expect(typeof result.totalPaginas).toBe("number");
+
+      // Resumo
+      expect(result.resumo).toHaveProperty("totalItens");
+      expect(result.resumo).toHaveProperty("totalComLucro");
+      expect(result.resumo).toHaveProperty("totalComPrejuizo");
+      expect(result.resumo).toHaveProperty("totalNeutro");
+      expect(result.resumo).toHaveProperty("margemMediaPercent");
+      expect(result.resumo).toHaveProperty("margemTotalReais");
+      expect(result.resumo).toHaveProperty("custoTotalHospital");
+      expect(result.resumo).toHaveProperty("valorTotalConvenio");
+      expect(typeof result.resumo.totalItens).toBe("number");
+      expect(typeof result.resumo.totalComLucro).toBe("number");
+      expect(typeof result.resumo.totalComPrejuizo).toBe("number");
+    });
+
+    it("aceita filtro por tipo de produto", { timeout: 15000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        tipoprod: "M",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("resumo");
+    });
+
+    it("aceita filtro por tabela de preco", async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        codtbmm: "50",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("resumo");
+    });
+
+    it("aceita filtro apenasComPrejuizo", { timeout: 15000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        apenasComPrejuizo: true,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("resumo");
+      // Se houver itens, todos devem ter margem negativa
+      for (const item of result.itens) {
+        if (item.custoHospital > 0) {
+          expect(item.margemReais).toBeLessThanOrEqual(0);
+        }
+      }
+    });
+
+    it("aceita busca textual", { timeout: 15000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        busca: "dipirona",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("resumo");
+    });
+
+    it("aceita combinacao de filtros", { timeout: 15000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        tipoprod: "M",
+        codtbmm: "50",
+        busca: "test",
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveProperty("itens");
+      expect(result).toHaveProperty("resumo");
+    });
+
+    it("itens retornados tem campos de margem calculados", { timeout: 15000 }, async () => {
+      const result = await caller.relatorioCustos.comparacaoCustoConvenio({
+        estabelecimentoId: 1,
+        limit: 10,
+        offset: 0,
+      });
+
+      for (const item of result.itens) {
+        expect(item).toHaveProperty("codprod");
+        expect(item).toHaveProperty("descricao");
+        expect(item).toHaveProperty("custoHospital");
+        expect(item).toHaveProperty("valorConvenio");
+        expect(item).toHaveProperty("margemReais");
+        expect(item).toHaveProperty("margemPercent");
+        expect(item).toHaveProperty("status");
+        expect(["lucro", "prejuizo", "neutro"]).toContain(item.status);
+        expect(typeof item.custoHospital).toBe("number");
+        expect(typeof item.valorConvenio).toBe("number");
+        expect(typeof item.margemReais).toBe("number");
+        expect(typeof item.margemPercent).toBe("number");
+      }
+    });
+  });
 });
