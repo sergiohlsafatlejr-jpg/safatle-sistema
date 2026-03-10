@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardAtendimentos from "@/components/DashboardAtendimentos";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Download, ChevronLeft, ChevronRight, Users, Calendar, Filter, X,
   Activity, RefreshCw, Database, Cloud, CheckCircle2, AlertCircle, Clock, Loader2,
+  BarChart3, TableIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,6 +44,9 @@ export default function RelatorioAtendimentos() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
 
+  // Tab ativa
+  const [abaAtiva, setAbaAtiva] = useState("dashboard");
+
   // Filtros
   const hoje = new Date();
   const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -54,7 +60,16 @@ export default function RelatorioAtendimentos() {
   const [carater, setCarater] = useState<string>("");
   const [pagina, setPagina] = useState(1);
   const [buscaAtiva, setBuscaAtiva] = useState(false);
+  const [dashboardAtivo, setDashboardAtivo] = useState(false);
   const itensPorPagina = 50;
+
+  // Dashboard period
+  const [dashDataInicio, setDashDataInicio] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [dashDataFim, setDashDataFim] = useState(hoje.toISOString().split("T")[0]);
 
   // Sync period inputs
   const [syncDataInicio, setSyncDataInicio] = useState(() => {
@@ -77,13 +92,16 @@ export default function RelatorioAtendimentos() {
       if (result.sucesso) {
         toast.success(result.mensagem);
         refetchStatus();
-        // Se já tinha busca ativa, refaz a busca para usar cache novo
         if (buscaAtiva) {
           setBuscaAtiva(false);
           setTimeout(() => setBuscaAtiva(true), 100);
         }
+        if (dashboardAtivo) {
+          setDashboardAtivo(false);
+          setTimeout(() => setDashboardAtivo(true), 100);
+        }
       } else {
-        toast.error(`Erro na sincronização: ${result.mensagem}`);
+        toast.error(`Erro na sincronizacao: ${result.mensagem}`);
       }
     },
     onError: (error) => {
@@ -92,9 +110,9 @@ export default function RelatorioAtendimentos() {
   });
 
   // Buscar opções de filtro
-  const { data: opcoesFiltro, isLoading: loadingFiltros } = trpc.relatorioAtendimentos.opcoesFiltro.useQuery();
+  const { data: opcoesFiltro } = trpc.relatorioAtendimentos.opcoesFiltro.useQuery();
 
-  // Buscar atendimentos
+  // Buscar atendimentos (tabela)
   const filtrosQuery = useMemo(() => ({
     dataInicio,
     dataFim: dataFim + "T23:59:59",
@@ -113,9 +131,24 @@ export default function RelatorioAtendimentos() {
     { enabled: buscaAtiva }
   );
 
+  // Buscar métricas do dashboard
+  const metricasInput = useMemo(() => ({
+    dataInicio: dashDataInicio,
+    dataFim: dashDataFim + "T23:59:59",
+  }), [dashDataInicio, dashDataFim]);
+
+  const { data: metricas, isLoading: loadingMetricas } = trpc.relatorioAtendimentos.metricasDashboard.useQuery(
+    metricasInput,
+    { enabled: dashboardAtivo }
+  );
+
   const handleBuscar = () => {
     setPagina(1);
     setBuscaAtiva(true);
+  };
+
+  const handleCarregarDashboard = () => {
+    setDashboardAtivo(true);
   };
 
   const handleLimparFiltros = () => {
@@ -222,7 +255,7 @@ export default function RelatorioAtendimentos() {
     const config = statusConfig[statusSync.status] || statusConfig.pendente;
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="secondary" className={`text-xs py-1 px-2 ${config.color}`}>
           {config.icon}
           <span className="ml-1">{config.label}</span>
@@ -253,42 +286,15 @@ export default function RelatorioAtendimentos() {
               Relatorio de Atendimentos
             </h1>
             <p className="text-muted-foreground mt-1">
-              Consulte os atendimentos realizados com dados descritivos completos
+              Dashboard e consulta detalhada de atendimentos realizados
             </p>
           </div>
-          {resultado && (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-sm py-1 px-3">
-                <Users className="h-3.5 w-3.5 mr-1" />
-                {resultado.total.toLocaleString("pt-BR")} atendimentos
-              </Badge>
-              {/* Fonte dos dados */}
-              <Badge
-                variant="secondary"
-                className={`text-xs py-1 px-2 ${
-                  resultado.fonte === "cache_local"
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                }`}
-              >
-                {resultado.fonte === "cache_local" ? (
-                  <><Database className="h-3 w-3 mr-1" /> Cache Local</>
-                ) : (
-                  <><Cloud className="h-3 w-3 mr-1" /> PostgreSQL Direto</>
-                )}
-              </Badge>
-              <Button variant="outline" size="sm" onClick={handleExportarExcel} disabled={!resultado.dados.length}>
-                <Download className="h-4 w-4 mr-1" />
-                Exportar CSV
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Sincronização */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
+            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Sincronizacao de Dados
@@ -335,341 +341,323 @@ export default function RelatorioAtendimentos() {
                 Ultimo erro: {statusSync.mensagemErro}
               </div>
             )}
-            <p className="text-xs text-muted-foreground mt-2">
-              A sincronizacao copia os dados do Warleine (PostgreSQL) para o cache local, permitindo consultas mais rapidas e disponiveis mesmo offline.
-              {statusSync?.status === "nunca" && " Recomendamos sincronizar antes de usar o relatorio."}
-            </p>
           </CardContent>
         </Card>
 
-        {/* Filtros */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filtros de Pesquisa
-              {totalFiltrosAtivos > 0 && (
-                <Badge variant="secondary" className="ml-2">{totalFiltrosAtivos} filtro(s)</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Período */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Data Inicio</Label>
-                <Input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Data Fim</Label>
-                <Input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                  className="h-9"
-                />
-              </div>
+        {/* Tabs: Dashboard / Tabela */}
+        <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="dashboard" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="tabela" className="flex items-center gap-2">
+              <TableIcon className="h-4 w-4" />
+              Tabela Detalhada
+            </TabsTrigger>
+          </TabsList>
 
-              {/* Tipo Atendimento */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Tipo Atendimento</Label>
-                <Select value={tipoAtendimento} onValueChange={setTipoAtendimento}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="I">Internacao</SelectItem>
-                    <SelectItem value="A">Ambulatorial</SelectItem>
-                    <SelectItem value="E">Emergencia</SelectItem>
-                    <SelectItem value="U">Urgencia</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Caráter */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Carater</Label>
-                <Select value={carater} onValueChange={setCarater}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="UR">Urgencia</SelectItem>
-                    <SelectItem value="EL">Eletivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Serviço */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Servico</Label>
-                <Select value={codServ} onValueChange={setCodServ}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {opcoesFiltro?.servicos?.map((s) => (
-                      <SelectItem key={s.codserv} value={s.codserv}>
-                        {s.nomeserv?.trim() || s.codserv}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Plano/Convênio */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Plano/Convenio</Label>
-                <Select value={codPlaco} onValueChange={setCodPlaco}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {opcoesFiltro?.planos?.map((p) => (
-                      <SelectItem key={p.codplaco} value={p.codplaco}>
-                        {p.nomeplaco?.trim() || p.codplaco}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Centro de Custo */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Centro de Custo</Label>
-                <Select value={codCc} onValueChange={setCodCc}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {opcoesFiltro?.centrosCusto?.map((c) => (
-                      <SelectItem key={c.codcc} value={c.codcc}>
-                        {c.nomecc?.trim() || c.codcc}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Prestador */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Prestador</Label>
-                <Select value={codPrest} onValueChange={setCodPrest}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {opcoesFiltro?.prestadores?.map((p) => (
-                      <SelectItem key={p.codprest} value={p.codprest}>
-                        {p.nomeprest?.trim() || p.codprest}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-4">
-              <Button onClick={handleBuscar} disabled={isLoading}>
-                <Search className="h-4 w-4 mr-1" />
-                Buscar
-              </Button>
-              {totalFiltrosAtivos > 0 && (
-                <Button variant="ghost" size="sm" onClick={handleLimparFiltros}>
-                  <X className="h-4 w-4 mr-1" />
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Resultados */}
-        {!buscaAtiva && (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-medium text-muted-foreground">Selecione o periodo e clique em Buscar</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                {statusSync?.totalRegistrosCache && statusSync.totalRegistrosCache > 0
-                  ? `${statusSync.totalRegistrosCache.toLocaleString("pt-BR")} atendimentos em cache local disponiveis`
-                  : "Os dados serao consultados diretamente do banco de dados do hospital"}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {buscaAtiva && isLoading && (
-          <Card>
-            <CardContent className="py-8">
-              <div className="space-y-3">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {buscaAtiva && resultado && (
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="whitespace-nowrap font-semibold">N Atend.</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Tipo</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Paciente</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Plano/Convenio</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Servico</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Data Atend.</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Data Saida</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Centro Custo</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Prestador</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Procedimento</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">CID</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Carater</TableHead>
-                      <TableHead className="whitespace-nowrap font-semibold">Proveniente</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {resultado.dados.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
-                          Nenhum atendimento encontrado para os filtros selecionados
-                        </TableCell>
-                      </TableRow>
+          {/* ========== ABA DASHBOARD ========== */}
+          <TabsContent value="dashboard" className="space-y-6 mt-4">
+            {/* Filtros do Dashboard */}
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs font-medium">Periodo Inicio</Label>
+                    <Input
+                      type="date"
+                      value={dashDataInicio}
+                      onChange={(e) => { setDashDataInicio(e.target.value); setDashboardAtivo(false); }}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs font-medium">Periodo Fim</Label>
+                    <Input
+                      type="date"
+                      value={dashDataFim}
+                      onChange={(e) => { setDashDataFim(e.target.value); setDashboardAtivo(false); }}
+                      className="h-9"
+                    />
+                  </div>
+                  <Button onClick={handleCarregarDashboard} disabled={loadingMetricas} className="h-9">
+                    {loadingMetricas ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                     ) : (
-                      resultado.dados.map((a, idx) => (
-                        <TableRow key={`${a.numatend}-${idx}`} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm font-medium">{a.numatend}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className={`text-xs ${getTipoColor(a.tipo_atendimento)}`}>
-                              {a.tipo_atendimento}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={a.paciente || ""}>
-                            {a.paciente || "-"}
-                          </TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={a.plano_convenio || ""}>
-                            {a.plano_convenio || a.codplaco}
-                          </TableCell>
-                          <TableCell className="text-sm">{a.servico || a.codserv}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_atendimento)}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_saida)}</TableCell>
-                          <TableCell className="max-w-[150px] truncate text-sm" title={a.centro_custo || ""}>
-                            {a.centro_custo || a.codcc || "-"}
-                          </TableCell>
-                          <TableCell className="max-w-[180px] truncate text-sm" title={a.prestador || ""}>
-                            {a.prestador || a.codprest || "-"}
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-sm" title={a.procedimento_principal || ""}>
-                            {a.procedimento_principal || a.procprin || "-"}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {a.cidprin ? (
-                              <span title={a.diagnostico_cid || ""} className="cursor-help">
-                                {a.cidprin}
-                              </span>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {a.carater_atendimento ? (
-                              <Badge variant="outline" className="text-xs">
-                                {a.carater_atendimento}
-                              </Badge>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell className="text-sm">{a.proveniente || "-"}</TableCell>
-                        </TableRow>
-                      ))
+                      <BarChart3 className="h-4 w-4 mr-1" />
                     )}
-                  </TableBody>
-                </Table>
-              </div>
+                    {loadingMetricas ? "Carregando..." : "Carregar Dashboard"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Paginação */}
-              {resultado.totalPaginas > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t">
-                  <p className="text-sm text-muted-foreground">
-                    Pagina {resultado.pagina} de {resultado.totalPaginas} ({resultado.total.toLocaleString("pt-BR")} registros)
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPagina(p => Math.max(1, p - 1))}
-                      disabled={pagina <= 1 || isFetching}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPagina(p => Math.min(resultado.totalPaginas, p + 1))}
-                      disabled={pagina >= resultado.totalPaginas || isFetching}
-                    >
-                      Proxima
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+            <DashboardAtendimentos metricas={metricas} isLoading={loadingMetricas && dashboardAtivo} />
+          </TabsContent>
+
+          {/* ========== ABA TABELA ========== */}
+          <TabsContent value="tabela" className="space-y-6 mt-4">
+            {/* Filtros */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filtros de Pesquisa
+                  {totalFiltrosAtivos > 0 && (
+                    <Badge variant="secondary" className="ml-2">{totalFiltrosAtivos} filtro(s)</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Data Inicio</Label>
+                    <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Data Fim</Label>
+                    <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Tipo Atendimento</Label>
+                    <Select value={tipoAtendimento} onValueChange={setTipoAtendimento}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="I">Internacao</SelectItem>
+                        <SelectItem value="A">Ambulatorial</SelectItem>
+                        <SelectItem value="E">Emergencia</SelectItem>
+                        <SelectItem value="U">Urgencia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Carater</Label>
+                    <Select value={carater} onValueChange={setCarater}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="UR">Urgencia</SelectItem>
+                        <SelectItem value="EL">Eletivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Servico</Label>
+                    <Select value={codServ} onValueChange={setCodServ}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.servicos?.map((s) => (
+                          <SelectItem key={s.codserv} value={s.codserv}>{s.nomeserv?.trim() || s.codserv}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Plano/Convenio</Label>
+                    <Select value={codPlaco} onValueChange={setCodPlaco}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.planos?.map((p) => (
+                          <SelectItem key={p.codplaco} value={p.codplaco}>{p.nomeplaco?.trim() || p.codplaco}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Centro de Custo</Label>
+                    <Select value={codCc} onValueChange={setCodCc}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.centrosCusto?.map((c) => (
+                          <SelectItem key={c.codcc} value={c.codcc}>{c.nomecc?.trim() || c.codcc}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Prestador</Label>
+                    <Select value={codPrest} onValueChange={setCodPrest}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {opcoesFiltro?.prestadores?.map((p) => (
+                          <SelectItem key={p.codprest} value={p.codprest}>{p.nomeprest?.trim() || p.codprest}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
-        {/* KPIs resumo */}
-        {buscaAtiva && resultado && resultado.dados.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Total Atendimentos</p>
-                <p className="text-2xl font-bold">{resultado.total.toLocaleString("pt-BR")}</p>
+                <div className="flex items-center gap-2 mt-4">
+                  <Button onClick={handleBuscar} disabled={isLoading}>
+                    <Search className="h-4 w-4 mr-1" />
+                    Buscar
+                  </Button>
+                  {totalFiltrosAtivos > 0 && (
+                    <Button variant="ghost" size="sm" onClick={handleLimparFiltros}>
+                      <X className="h-4 w-4 mr-1" />
+                      Limpar filtros
+                    </Button>
+                  )}
+                  {resultado && (
+                    <div className="flex items-center gap-2 ml-auto">
+                      <Badge variant="outline" className="text-sm py-1 px-3">
+                        <Users className="h-3.5 w-3.5 mr-1" />
+                        {resultado.total.toLocaleString("pt-BR")} atendimentos
+                      </Badge>
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs py-1 px-2 ${
+                          resultado.fonte === "cache_local"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                        }`}
+                      >
+                        {resultado.fonte === "cache_local" ? (
+                          <><Database className="h-3 w-3 mr-1" /> Cache Local</>
+                        ) : (
+                          <><Cloud className="h-3 w-3 mr-1" /> PostgreSQL Direto</>
+                        )}
+                      </Badge>
+                      <Button variant="outline" size="sm" onClick={handleExportarExcel} disabled={!resultado.dados.length}>
+                        <Download className="h-4 w-4 mr-1" />
+                        CSV
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Internacoes</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {resultado.dados.filter(d => d.tipo_atendimento === "Internação").length}
-                </p>
-                <p className="text-xs text-muted-foreground">(nesta pagina)</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Ambulatoriais</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {resultado.dados.filter(d => d.tipo_atendimento === "Ambulatorial").length}
-                </p>
-                <p className="text-xs text-muted-foreground">(nesta pagina)</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs text-muted-foreground">Emergencias</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {resultado.dados.filter(d => d.tipo_atendimento === "Emergência").length}
-                </p>
-                <p className="text-xs text-muted-foreground">(nesta pagina)</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+
+            {/* Resultados */}
+            {!buscaAtiva && (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-medium text-muted-foreground">Selecione o periodo e clique em Buscar</h3>
+                  <p className="text-sm text-muted-foreground/70 mt-1">
+                    {statusSync?.totalRegistrosCache && statusSync.totalRegistrosCache > 0
+                      ? `${statusSync.totalRegistrosCache.toLocaleString("pt-BR")} atendimentos em cache local disponiveis`
+                      : "Os dados serao consultados diretamente do banco de dados do hospital"}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {buscaAtiva && isLoading && (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="space-y-3">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {buscaAtiva && resultado && (
+              <Card>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="whitespace-nowrap font-semibold">N Atend.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Tipo</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Paciente</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Plano/Convenio</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Servico</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Data Atend.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Data Saida</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Centro Custo</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Prestador</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Procedimento</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">CID</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Carater</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Proveniente</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {resultado.dados.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                              Nenhum atendimento encontrado para os filtros selecionados
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          resultado.dados.map((a, idx) => (
+                            <TableRow key={`${a.numatend}-${idx}`} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-sm font-medium">{a.numatend}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className={`text-xs ${getTipoColor(a.tipo_atendimento)}`}>
+                                  {a.tipo_atendimento}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={a.paciente || ""}>{a.paciente || "-"}</TableCell>
+                              <TableCell className="max-w-[150px] truncate" title={a.plano_convenio || ""}>{a.plano_convenio || a.codplaco}</TableCell>
+                              <TableCell className="text-sm">{a.servico || a.codserv}</TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_atendimento)}</TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_saida)}</TableCell>
+                              <TableCell className="max-w-[150px] truncate text-sm" title={a.centro_custo || ""}>{a.centro_custo || a.codcc || "-"}</TableCell>
+                              <TableCell className="max-w-[180px] truncate text-sm" title={a.prestador || ""}>{a.prestador || a.codprest || "-"}</TableCell>
+                              <TableCell className="max-w-[200px] truncate text-sm" title={a.procedimento_principal || ""}>{a.procedimento_principal || a.procprin || "-"}</TableCell>
+                              <TableCell className="text-xs">
+                                {a.cidprin ? (
+                                  <span title={a.diagnostico_cid || ""} className="cursor-help">{a.cidprin}</span>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell>
+                                {a.carater_atendimento ? (
+                                  <Badge variant="outline" className="text-xs">{a.carater_atendimento}</Badge>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell className="text-sm">{a.proveniente || "-"}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Paginação */}
+                  {resultado.totalPaginas > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        Pagina {resultado.pagina} de {resultado.totalPaginas} ({resultado.total.toLocaleString("pt-BR")} registros)
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPagina(p => Math.max(1, p - 1))}
+                          disabled={pagina <= 1 || isFetching}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPagina(p => Math.min(resultado.totalPaginas, p + 1))}
+                          disabled={pagina >= resultado.totalPaginas || isFetching}
+                        >
+                          Proxima
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

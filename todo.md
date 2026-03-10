@@ -2619,3 +2619,16 @@
 - [x] Frontend mostra fonte dos dados (Cache Local vs PostgreSQL Direto)
 - [x] Escrever testes vitest para a nova implementação (9 testes passando)
 - [x] Manter fallback para PostgreSQL direto quando cache estiver vazio
+
+## Dashboard Profissional - Relatório de Atendimentos
+- [x] Criar endpoint de métricas agregadas no backend (agrupamentos por médico, tipo, plano, serviço, mês/ano, CID, procedimento)
+- [x] Criar componente de dashboard com cards de KPIs (total atendimentos, total médicos, total convênios, etc.)
+- [x] Gráfico de barras: Total por Médico (top 15)
+- [x] Gráfico de pizza/donut: Total por Tipo de Atendimento
+- [x] Gráfico de barras horizontais: Total por Plano/Convênio
+- [x] Gráfico de barras: Total por Serviço
+- [x] Gráfico de linha: Total por Mês/Ano (evolução temporal)
+- [x] Gráfico de barras: Total por CID (top 15)
+- [x] Gráfico de barras: Total por Procedimento (top 15)
+- [x] Adicionar aba Dashboard na tela de Relatório de Atendimentos
+- [x] Escrever testes vitest para os endpoints de métricas (12 testes passando)

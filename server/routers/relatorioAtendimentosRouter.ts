@@ -5,6 +5,7 @@ import {
   buscarOpcoesFiltro,
   sincronizarRelatorioAtendimentos,
   obterStatusSincronizacao,
+  buscarMetricasDashboard,
 } from "../relatorioAtendimentos";
 
 export const relatorioAtendimentosRouter = router({
@@ -48,6 +49,18 @@ export const relatorioAtendimentosRouter = router({
         ctx.user.id,
         ctx.user.name || undefined
       );
+    }),
+
+  // Métricas agregadas para dashboard
+  metricasDashboard: protectedProcedure
+    .input(
+      z.object({
+        dataInicio: z.string(),
+        dataFim: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarMetricasDashboard(input);
     }),
 
   // Obter status da última sincronização

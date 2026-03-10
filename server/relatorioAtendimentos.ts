@@ -733,3 +733,301 @@ async function upsertSyncMeta(
       .where(eq(relatorioAtendimentosSyncMeta.estabelecimentoId, estabelecimentoId));
   }
 }
+
+
+// ============================================================
+// MÉTRICAS AGREGADAS PARA DASHBOARD
+// ============================================================
+
+export interface MetricaAgrupada {
+  nome: string;
+  codigo: string | null;
+  total: number;
+}
+
+export interface MetricaMesAno {
+  mesAno: string; // "2025-01"
+  total: number;
+}
+
+export interface MetricasDashboard {
+  totalAtendimentos: number;
+  totalMedicos: number;
+  totalConvenios: number;
+  totalProcedimentos: number;
+  porMedico: MetricaAgrupada[];
+  porTipo: MetricaAgrupada[];
+  porPlano: MetricaAgrupada[];
+  porServico: MetricaAgrupada[];
+  porMesAno: MetricaMesAno[];
+  porCid: MetricaAgrupada[];
+  porProcedimento: MetricaAgrupada[];
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export async function buscarMetricasDashboard(
+  filtros: { dataInicio: string; dataFim: string }
+): Promise<MetricasDashboard> {
+  // Tentar cache local primeiro
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(relatorioAtendimentosCache);
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarMetricasDoCache(db, filtros);
+      }
+    }
+  } catch (e) {
+    console.warn("[Dashboard] Cache local indisponível, usando PostgreSQL:", (e as Error).message);
+  }
+
+  // Fallback: PostgreSQL direto
+  return buscarMetricasDoPostgresql(filtros);
+}
+
+async function buscarMetricasDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  filtros: { dataInicio: string; dataFim: string }
+): Promise<MetricasDashboard> {
+  const dateCondition = and(
+    gte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataInicio)),
+    lte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataFim))
+  );
+
+  const [
+    totalResult,
+    porMedico,
+    porTipo,
+    porPlano,
+    porServico,
+    porMesAno,
+    porCid,
+    porProcedimento,
+  ] = await Promise.all([
+    // Total geral
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(dateCondition),
+
+    // Por médico (top 20)
+    db.select({
+      nome: relatorioAtendimentosCache.prestador,
+      codigo: relatorioAtendimentosCache.codprest,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.codprest} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.prestador, relatorioAtendimentosCache.codprest)
+      .orderBy(desc(count()))
+      .limit(20),
+
+    // Por tipo
+    db.select({
+      nome: relatorioAtendimentosCache.tipoAtendimento,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.tipoAtendimento} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.tipoAtendimento)
+      .orderBy(desc(count())),
+
+    // Por plano/convênio (top 20)
+    db.select({
+      nome: relatorioAtendimentosCache.planoConvenio,
+      codigo: relatorioAtendimentosCache.codplaco,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.codplaco} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.planoConvenio, relatorioAtendimentosCache.codplaco)
+      .orderBy(desc(count()))
+      .limit(20),
+
+    // Por serviço
+    db.select({
+      nome: relatorioAtendimentosCache.servico,
+      codigo: relatorioAtendimentosCache.codserv,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.codserv} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.servico, relatorioAtendimentosCache.codserv)
+      .orderBy(desc(count())),
+
+    // Por mês/ano
+    db.select({
+      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(dateCondition)
+      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+
+    // Por CID (top 20)
+    db.select({
+      nome: relatorioAtendimentosCache.diagnosticoCid,
+      codigo: relatorioAtendimentosCache.cidprin,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.cidprin} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.diagnosticoCid, relatorioAtendimentosCache.cidprin)
+      .orderBy(desc(count()))
+      .limit(20),
+
+    // Por procedimento (top 20)
+    db.select({
+      nome: relatorioAtendimentosCache.procedimentoPrincipal,
+      codigo: relatorioAtendimentosCache.procprin,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.procedimentoPrincipal, relatorioAtendimentosCache.procprin)
+      .orderBy(desc(count()))
+      .limit(20),
+  ]);
+
+  const totalAtendimentos = totalResult[0]?.total || 0;
+  const medicosUnicos = new Set(porMedico.map(m => m.codigo)).size;
+  const conveniosUnicos = new Set(porPlano.map(p => p.codigo)).size;
+  const procedimentosUnicos = new Set(porProcedimento.map(p => p.codigo)).size;
+
+  return {
+    totalAtendimentos,
+    totalMedicos: medicosUnicos,
+    totalConvenios: conveniosUnicos,
+    totalProcedimentos: procedimentosUnicos,
+    porMedico: porMedico.map(m => ({ nome: m.nome || "Sem nome", codigo: m.codigo, total: m.total })),
+    porTipo: porTipo.map(t => ({ nome: t.nome || "Outros", codigo: null, total: t.total })),
+    porPlano: porPlano.map(p => ({ nome: p.nome || "Sem plano", codigo: p.codigo, total: p.total })),
+    porServico: porServico.map(s => ({ nome: s.nome || "Sem serviço", codigo: s.codigo, total: s.total })),
+    porMesAno: porMesAno.map(m => ({ mesAno: m.mesAno, total: m.total })),
+    porCid: porCid.map(c => ({ nome: c.nome || c.codigo || "Sem CID", codigo: c.codigo, total: c.total })),
+    porProcedimento: porProcedimento.map(p => ({ nome: p.nome || p.codigo || "Sem procedimento", codigo: p.codigo, total: p.total })),
+    fonte: "cache_local",
+  };
+}
+
+async function buscarMetricasDoPostgresql(
+  filtros: { dataInicio: string; dataFim: string }
+): Promise<MetricasDashboard> {
+  const client = await getWarleinePool().connect();
+  try {
+    const params = [filtros.dataInicio, filtros.dataFim];
+    const dateWhere = `WHERE a.datatend >= $1 AND a.datatend <= $2`;
+
+    const [
+      totalResult,
+      porMedicoResult,
+      porTipoResult,
+      porPlanoResult,
+      porServicoResult,
+      porMesAnoResult,
+      porCidResult,
+      porProcedimentoResult,
+    ] = await Promise.all([
+      // Total
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere}`, params),
+
+      // Por médico (top 20)
+      client.query(`
+        SELECT pr.nomeprest AS nome, a.codprest AS codigo, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".cadprest pr ON pr.codprest = a.codprest
+        ${dateWhere} AND a.codprest IS NOT NULL
+        GROUP BY pr.nomeprest, a.codprest
+        ORDER BY total DESC LIMIT 20
+      `, params),
+
+      // Por tipo
+      client.query(`
+        SELECT 
+          CASE a.tipoatend 
+            WHEN 'A' THEN 'Ambulatorial'
+            WHEN 'I' THEN 'Internação'
+            WHEN 'E' THEN 'Emergência'
+            WHEN 'U' THEN 'Urgência'
+            ELSE a.tipoatend
+          END AS nome,
+          COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        ${dateWhere} AND a.tipoatend IS NOT NULL
+        GROUP BY a.tipoatend
+        ORDER BY total DESC
+      `, params),
+
+      // Por plano (top 20)
+      client.query(`
+        SELECT p.nomeplaco AS nome, a.codplaco AS codigo, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".cadplaco p ON p.codplaco = a.codplaco
+        ${dateWhere} AND a.codplaco IS NOT NULL
+        GROUP BY p.nomeplaco, a.codplaco
+        ORDER BY total DESC LIMIT 20
+      `, params),
+
+      // Por serviço
+      client.query(`
+        SELECT s.nomeserv AS nome, a.codserv AS codigo, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".cadserv s ON s.codserv = a.codserv
+        ${dateWhere} AND a.codserv IS NOT NULL
+        GROUP BY s.nomeserv, a.codserv
+        ORDER BY total DESC
+      `, params),
+
+      // Por mês/ano
+      client.query(`
+        SELECT TO_CHAR(a.datatend, 'YYYY-MM') AS mes_ano, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        ${dateWhere}
+        GROUP BY TO_CHAR(a.datatend, 'YYYY-MM')
+        ORDER BY mes_ano
+      `, params),
+
+      // Por CID (top 20)
+      client.query(`
+        SELECT cid.descrcid AS nome, a.cidprin AS codigo, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".tabcid cid ON cid.codcid = a.cidprin
+        ${dateWhere} AND a.cidprin IS NOT NULL
+        GROUP BY cid.descrcid, a.cidprin
+        ORDER BY total DESC LIMIT 20
+      `, params),
+
+      // Por procedimento (top 20)
+      client.query(`
+        SELECT COALESCE(a.dsprocprin, fp.descrproc) AS nome, a.procprin AS codigo, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".filanpro fp ON fp.codproc = a.procprin
+        ${dateWhere} AND a.procprin IS NOT NULL
+        GROUP BY COALESCE(a.dsprocprin, fp.descrproc), a.procprin
+        ORDER BY total DESC LIMIT 20
+      `, params),
+    ]);
+
+    const totalAtendimentos = parseInt(totalResult.rows[0]?.total || "0", 10);
+
+    return {
+      totalAtendimentos,
+      totalMedicos: porMedicoResult.rows.length,
+      totalConvenios: porPlanoResult.rows.length,
+      totalProcedimentos: porProcedimentoResult.rows.length,
+      porMedico: porMedicoResult.rows.map((r: any) => ({ nome: r.nome || "Sem nome", codigo: r.codigo, total: parseInt(r.total, 10) })),
+      porTipo: porTipoResult.rows.map((r: any) => ({ nome: r.nome || "Outros", codigo: null, total: parseInt(r.total, 10) })),
+      porPlano: porPlanoResult.rows.map((r: any) => ({ nome: r.nome || "Sem plano", codigo: r.codigo, total: parseInt(r.total, 10) })),
+      porServico: porServicoResult.rows.map((r: any) => ({ nome: r.nome || "Sem serviço", codigo: r.codigo, total: parseInt(r.total, 10) })),
+      porMesAno: porMesAnoResult.rows.map((r: any) => ({ mesAno: r.mes_ano, total: parseInt(r.total, 10) })),
+      porCid: porCidResult.rows.map((r: any) => ({ nome: r.nome || r.codigo || "Sem CID", codigo: r.codigo, total: parseInt(r.total, 10) })),
+      porProcedimento: porProcedimentoResult.rows.map((r: any) => ({ nome: r.nome || r.codigo || "Sem procedimento", codigo: r.codigo, total: parseInt(r.total, 10) })),
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}

@@ -237,4 +237,162 @@ describe("Relatório de Atendimentos - Cache Local + Fallback PostgreSQL", () =>
       expect(result.totalRegistros).toBe(0);
     });
   });
+
+  describe("buscarMetricasDashboard - Fallback PostgreSQL", () => {
+    it("deve retornar métricas agregadas via PostgreSQL quando cache vazio", async () => {
+      const { buscarMetricasDashboard } = await import("./relatorioAtendimentos");
+
+      // Mock all 8 parallel queries for metrics
+      mockQuery
+        // Total
+        .mockResolvedValueOnce({ rows: [{ total: "500" }] })
+        // Por médico
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "DR. SILVA", codigo: "P01", total: "120" },
+            { nome: "DRA. SANTOS", codigo: "P02", total: "80" },
+          ],
+        })
+        // Por tipo
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "Internação", total: "200" },
+            { nome: "Ambulatorial", total: "250" },
+            { nome: "Emergência", total: "50" },
+          ],
+        })
+        // Por plano
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "UNIMED", codigo: "001", total: "300" },
+            { nome: "BRADESCO SAUDE", codigo: "002", total: "200" },
+          ],
+        })
+        // Por serviço
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "INTERNACAO CIRURGICA", codigo: "01", total: "250" },
+            { nome: "AMBULATORIO", codigo: "02", total: "250" },
+          ],
+        })
+        // Por mês/ano
+        .mockResolvedValueOnce({
+          rows: [
+            { mes_ano: "2025-01", total: "80" },
+            { mes_ano: "2025-02", total: "90" },
+            { mes_ano: "2025-03", total: "110" },
+          ],
+        })
+        // Por CID
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "NEOPLASIA MALIGNA DA PROSTATA", codigo: "C61", total: "45" },
+            { nome: "HIPERPLASIA BENIGNA DA PROSTATA", codigo: "N40", total: "30" },
+          ],
+        })
+        // Por procedimento
+        .mockResolvedValueOnce({
+          rows: [
+            { nome: "PROSTATAVESICULECTOMIA RADICAL", codigo: "31102360", total: "40" },
+            { nome: "CONSULTA MEDICA", codigo: "10101012", total: "100" },
+          ],
+        });
+
+      const metricas = await buscarMetricasDashboard({
+        dataInicio: "2025-01-01",
+        dataFim: "2025-12-31",
+      });
+
+      // Verificar totais
+      expect(metricas.totalAtendimentos).toBe(500);
+      expect(metricas.totalMedicos).toBe(2);
+      expect(metricas.totalConvenios).toBe(2);
+      expect(metricas.totalProcedimentos).toBe(2);
+      expect(metricas.fonte).toBe("postgresql_direto");
+
+      // Verificar por médico
+      expect(metricas.porMedico).toHaveLength(2);
+      expect(metricas.porMedico[0].nome).toBe("DR. SILVA");
+      expect(metricas.porMedico[0].total).toBe(120);
+
+      // Verificar por tipo
+      expect(metricas.porTipo).toHaveLength(3);
+      expect(metricas.porTipo[0].nome).toBe("Internação");
+      expect(metricas.porTipo[0].total).toBe(200);
+
+      // Verificar por plano
+      expect(metricas.porPlano).toHaveLength(2);
+      expect(metricas.porPlano[0].nome).toBe("UNIMED");
+      expect(metricas.porPlano[0].total).toBe(300);
+
+      // Verificar por serviço
+      expect(metricas.porServico).toHaveLength(2);
+      expect(metricas.porServico[0].nome).toBe("INTERNACAO CIRURGICA");
+
+      // Verificar por mês/ano
+      expect(metricas.porMesAno).toHaveLength(3);
+      expect(metricas.porMesAno[0].mesAno).toBe("2025-01");
+      expect(metricas.porMesAno[0].total).toBe(80);
+
+      // Verificar por CID
+      expect(metricas.porCid).toHaveLength(2);
+      expect(metricas.porCid[0].codigo).toBe("C61");
+      expect(metricas.porCid[0].total).toBe(45);
+
+      // Verificar por procedimento
+      expect(metricas.porProcedimento).toHaveLength(2);
+      expect(metricas.porProcedimento[0].codigo).toBe("31102360");
+      expect(metricas.porProcedimento[0].total).toBe(40);
+
+      expect(mockRelease).toHaveBeenCalled();
+    });
+
+    it("deve liberar conexão mesmo em caso de erro nas métricas", async () => {
+      const { buscarMetricasDashboard } = await import("./relatorioAtendimentos");
+
+      mockQuery.mockRejectedValueOnce(new Error("Metrics query error"));
+
+      await expect(
+        buscarMetricasDashboard({
+          dataInicio: "2025-01-01",
+          dataFim: "2025-12-31",
+        })
+      ).rejects.toThrow("Metrics query error");
+
+      expect(mockRelease).toHaveBeenCalled();
+    });
+
+    it("deve retornar valores zerados quando não há dados", async () => {
+      const { buscarMetricasDashboard } = await import("./relatorioAtendimentos");
+
+      // Mock all 8 queries returning empty results
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ total: "0" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const metricas = await buscarMetricasDashboard({
+        dataInicio: "2025-01-01",
+        dataFim: "2025-12-31",
+      });
+
+      expect(metricas.totalAtendimentos).toBe(0);
+      expect(metricas.totalMedicos).toBe(0);
+      expect(metricas.totalConvenios).toBe(0);
+      expect(metricas.totalProcedimentos).toBe(0);
+      expect(metricas.porMedico).toHaveLength(0);
+      expect(metricas.porTipo).toHaveLength(0);
+      expect(metricas.porPlano).toHaveLength(0);
+      expect(metricas.porServico).toHaveLength(0);
+      expect(metricas.porMesAno).toHaveLength(0);
+      expect(metricas.porCid).toHaveLength(0);
+      expect(metricas.porProcedimento).toHaveLength(0);
+      expect(metricas.fonte).toBe("postgresql_direto");
+    });
+  });
 });
