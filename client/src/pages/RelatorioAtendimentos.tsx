@@ -203,6 +203,12 @@ export default function RelatorioAtendimentos() {
     { enabled: dashboardAtivo }
   );
 
+  // Buscar métricas avançadas (permanência, turno, conversão, caráter)
+  const { data: metricasAvancadas } = trpc.relatorioAtendimentos.metricasAvancadas.useQuery(
+    metricasInput,
+    { enabled: dashboardAtivo }
+  );
+
   // ===== HANDLERS =====
 
   const handleBuscar = () => {
@@ -420,6 +426,7 @@ export default function RelatorioAtendimentos() {
             <DashboardAtendimentos
               metricas={metricas}
               comparacao={comparacao}
+              metricasAvancadas={metricasAvancadas}
               isLoading={loadingMetricas && dashboardAtivo}
             />
           </TabsContent>

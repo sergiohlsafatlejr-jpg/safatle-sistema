@@ -2706,3 +2706,28 @@
 - [x] Adicionar RadarChart para distribuição por serviço
 - [ ] Implementar click-to-filter nos gráficos - futuro
 - [x] Atualizar RelatorioAtendimentos.tsx para usar DashboardFilters
+
+## Métricas Avançadas Dashboard Atendimentos
+- [ ] Endpoint backend: Média de Permanência (internações com data_saida)
+- [ ] Endpoint backend: Taxa de Conversão Emergência → Internação (mensal)
+- [ ] Endpoint backend: Volume por Turno (manhã/tarde/noite/madrugada)
+- [ ] Endpoint backend: Comparativo detalhado (internações, ambulatoriais, procedimentos por período)
+- [ ] Componente visual: Volume por Turno (barras + cards com percentual e pico)
+- [ ] Componente visual: Taxa de Conversão (funil emergências → internados → taxa %, evolução mensal)
+- [ ] Componente visual: Comparativo de Períodos detalhado (internações, ambulatoriais, procedimentos)
+- [ ] KPI: Média de Permanência (dias) no dashboard
+- [ ] Gráfico: Volume de Atendimentos (área/linha) para picos de demanda
+- [ ] Gráfico: Distribuição por Convênio (donut) - rentabilidade/frequência
+- [ ] Gráfico: Top 10 CIDs (barras horizontais) - causa clínica principal
+- [ ] Gráfico: Status de Atendimentos (funil) - eletivos vs urgência
+- [ ] Integrar todos os novos componentes no DashboardAtendimentos
+
+- [x] Implementar KPI de Média de Permanência (dias) para internações no Dashboard de Atendimentos
+- [x] Implementar KPI de Taxa de Conversão Emergência → Internação no Dashboard de Atendimentos
+- [x] Implementar gráfico de Volume por Turno (manhã, tarde, noite, madrugada) no Dashboard de Atendimentos
+- [x] Implementar gráfico de Taxa de Conversão com evolução mensal no Dashboard de Atendimentos
+- [x] Implementar gráfico Donut de Distribuição por Convênio no Dashboard de Atendimentos
+- [x] Implementar funil de Caráter (Eletivo vs Urgência) no Dashboard de Atendimentos
+- [x] Implementar comparativo detalhado por tipo (Internações, Ambulatoriais, Emergências, Urgências) no Dashboard de Atendimentos
+- [x] Integrar endpoint metricasAvancadas no frontend (RelatorioAtendimentos → DashboardAtendimentos)
+- [x] Testes unitários para buscarMetricasAvancadas (8 testes passando)

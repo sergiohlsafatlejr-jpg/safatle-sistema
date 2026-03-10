@@ -1154,3 +1154,562 @@ export async function buscarComparacaoPeriodos(
     fonte: metricasAtual.fonte,
   };
 }
+
+
+// ============================================================
+// MÉTRICAS AVANÇADAS - Permanência, Turno, Conversão, Caráter
+// ============================================================
+
+export interface MetricasAvancadas {
+  // Média de permanência (dias) para internações
+  mediaPermanenciaDias: number;
+  totalInternacoes: number;
+  
+  // Volume por turno
+  porTurno: {
+    manha: number;   // 06:00-11:59
+    tarde: number;    // 12:00-17:59
+    noite: number;    // 18:00-23:59
+    madrugada: number; // 00:00-05:59
+    total: number;
+  };
+  
+  // Taxa de conversão Emergência → Internação
+  taxaConversao: {
+    totalEmergencias: number;
+    totalConvertidos: number; // internações com proveniente = emergência
+    taxa: number; // percentual
+    evolucaoMensal: Array<{
+      mesAno: string;
+      emergencias: number;
+      convertidos: number;
+      taxa: number;
+    }>;
+  };
+  
+  // Comparativo detalhado por tipo
+  comparativoDetalhado: {
+    periodoAtual: {
+      label: string;
+      internacoes: number;
+      ambulatoriais: number;
+      emergencias: number;
+      urgencias: number;
+      procedimentos: number;
+    };
+    periodoAnterior: {
+      label: string;
+      internacoes: number;
+      ambulatoriais: number;
+      emergencias: number;
+      urgencias: number;
+      procedimentos: number;
+    };
+  };
+  
+  // Caráter: Eletivo vs Urgência
+  porCarater: Array<{ nome: string; total: number }>;
+  
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export async function buscarMetricasAvancadas(
+  filtros: FiltrosDashboard
+): Promise<MetricasAvancadas> {
+  // Tentar cache local primeiro
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(relatorioAtendimentosCache);
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarMetricasAvancadasDoCache(db, filtros);
+      }
+    }
+  } catch (e) {
+    console.warn("[MetricasAvancadas] Cache local indisponível, usando PostgreSQL:", (e as Error).message);
+  }
+
+  // Fallback: PostgreSQL direto
+  return buscarMetricasAvancadasDoPostgresql(filtros);
+}
+
+async function buscarMetricasAvancadasDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  filtros: FiltrosDashboard
+): Promise<MetricasAvancadas> {
+  const inicio = new Date(filtros.dataInicio);
+  const fim = new Date(filtros.dataFim);
+  
+  const baseConditions: any[] = [
+    gte(relatorioAtendimentosCache.dataAtendimento, inicio),
+    lte(relatorioAtendimentosCache.dataAtendimento, fim),
+  ];
+
+  if (filtros.tipoAtendimento) {
+    const tipoMap: Record<string, string> = {
+      "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
+    };
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimento, tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento));
+  }
+  if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
+  if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
+  if (filtros.codServ) baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+
+  const whereClause = and(...baseConditions);
+
+  // Calcular período anterior
+  const duracaoMs = fim.getTime() - inicio.getTime();
+  const inicioAnterior = new Date(inicio.getTime() - duracaoMs);
+  const fimAnterior = new Date(inicio.getTime() - 1);
+  const formatDate = (d: Date) => d.toISOString().split("T")[0];
+  const formatLabel = (d1: Date, d2: Date) => {
+    const opts: Intl.DateTimeFormatOptions = { month: "short", year: "numeric" };
+    const m1 = d1.toLocaleDateString("pt-BR", opts);
+    const m2 = d2.toLocaleDateString("pt-BR", opts);
+    return m1 === m2 ? m1 : `${m1} - ${m2}`;
+  };
+
+  const whereAnterior = and(
+    gte(relatorioAtendimentosCache.dataAtendimento, inicioAnterior),
+    lte(relatorioAtendimentosCache.dataAtendimento, fimAnterior),
+  );
+
+  const [
+    // Média de permanência
+    internacoes,
+    // Volume por turno
+    turnoManha,
+    turnoTarde,
+    turnoNoite,
+    turnoMadrugada,
+    // Emergências e conversões
+    totalEmergencias,
+    totalConvertidos,
+    // Conversão mensal
+    emergenciasMensal,
+    convertidosMensal,
+    // Caráter
+    porCarater,
+    // Comparativo detalhado - período atual
+    internacoesAtual,
+    ambulatoriaisAtual,
+    emergenciasAtual,
+    urgenciasAtual,
+    procedimentosAtual,
+    // Comparativo detalhado - período anterior
+    internacoesAnterior,
+    ambulatoriaisAnterior,
+    emergenciasAnterior,
+    urgenciasAnterior,
+    procedimentosAnterior,
+  ] = await Promise.all([
+    // 1. Internações com data_saida para média de permanência
+    db.select({
+      dataAtendimento: relatorioAtendimentosCache.dataAtendimento,
+      dataSaida: relatorioAtendimentosCache.dataSaida,
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, 
+        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        sql`${relatorioAtendimentosCache.dataSaida} IS NOT NULL`
+      )),
+
+    // 2. Turno - Manhã (06-11)
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`HOUR(${relatorioAtendimentosCache.dataAtendimento}) >= 6 AND HOUR(${relatorioAtendimentosCache.dataAtendimento}) < 12`)),
+
+    // 3. Turno - Tarde (12-17)
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`HOUR(${relatorioAtendimentosCache.dataAtendimento}) >= 12 AND HOUR(${relatorioAtendimentosCache.dataAtendimento}) < 18`)),
+
+    // 4. Turno - Noite (18-23)
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`HOUR(${relatorioAtendimentosCache.dataAtendimento}) >= 18 AND HOUR(${relatorioAtendimentosCache.dataAtendimento}) < 24`)),
+
+    // 5. Turno - Madrugada (00-05)
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`HOUR(${relatorioAtendimentosCache.dataAtendimento}) >= 0 AND HOUR(${relatorioAtendimentosCache.dataAtendimento}) < 6`)),
+
+    // 6. Total emergências
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+
+    // 7. Internações com proveniente contendo "emerg"
+    db.select({ total: count() })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, 
+        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        like(relatorioAtendimentosCache.proveniente, "%merg%")
+      )),
+
+    // 8. Emergências por mês
+    db.select({
+      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência")))
+      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+
+    // 9. Convertidos por mês
+    db.select({
+      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, 
+        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        like(relatorioAtendimentosCache.proveniente, "%merg%")
+      ))
+      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+
+    // 10. Por caráter
+    db.select({
+      nome: relatorioAtendimentosCache.caraterAtendimento,
+      total: count(),
+    })
+      .from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`${relatorioAtendimentosCache.caraterAtendimento} IS NOT NULL AND ${relatorioAtendimentosCache.caraterAtendimento} != ''`))
+      .groupBy(relatorioAtendimentosCache.caraterAtendimento)
+      .orderBy(desc(count())),
+
+    // 11-15. Comparativo período atual
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Ambulatorial"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Urgência"))),
+    db.select({ total: sql<number>`COUNT(DISTINCT ${relatorioAtendimentosCache.procprin})` }).from(relatorioAtendimentosCache)
+      .where(and(whereClause, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`)),
+
+    // 16-20. Comparativo período anterior
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Ambulatorial"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+    db.select({ total: count() }).from(relatorioAtendimentosCache)
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Urgência"))),
+    db.select({ total: sql<number>`COUNT(DISTINCT ${relatorioAtendimentosCache.procprin})` }).from(relatorioAtendimentosCache)
+      .where(and(whereAnterior, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`)),
+  ]);
+
+  // Calcular média de permanência
+  let mediaPermanenciaDias = 0;
+  if (internacoes.length > 0) {
+    const totalDias = internacoes.reduce((acc, curr) => {
+      if (!curr.dataAtendimento || !curr.dataSaida) return acc;
+      const entrada = new Date(curr.dataAtendimento).getTime();
+      const saida = new Date(curr.dataSaida).getTime();
+      return acc + (saida - entrada);
+    }, 0);
+    const mediaMs = totalDias / internacoes.length;
+    mediaPermanenciaDias = parseFloat((mediaMs / (1000 * 60 * 60 * 24)).toFixed(1));
+  }
+
+  // Volume por turno
+  const manhaTotal = turnoManha[0]?.total || 0;
+  const tardeTotal = turnoTarde[0]?.total || 0;
+  const noiteTotal = turnoNoite[0]?.total || 0;
+  const madrugadaTotal = turnoMadrugada[0]?.total || 0;
+  const turnoTotal = manhaTotal + tardeTotal + noiteTotal + madrugadaTotal;
+
+  // Taxa de conversão
+  const emergenciasTotal = totalEmergencias[0]?.total || 0;
+  const convertidosTotal = totalConvertidos[0]?.total || 0;
+  const taxaConversaoPerc = emergenciasTotal > 0 
+    ? parseFloat(((convertidosTotal / emergenciasTotal) * 100).toFixed(1)) 
+    : 0;
+
+  // Evolução mensal da conversão
+  const mesesEmergencia = new Map(emergenciasMensal.map(e => [e.mesAno, e.total]));
+  const mesesConvertidos = new Map(convertidosMensal.map(c => [c.mesAno, c.total]));
+  const todosMeses = new Set([...mesesEmergencia.keys(), ...mesesConvertidos.keys()]);
+  const evolucaoMensal = Array.from(todosMeses).sort().map(mesAno => {
+    const emerg = mesesEmergencia.get(mesAno) || 0;
+    const conv = mesesConvertidos.get(mesAno) || 0;
+    return {
+      mesAno,
+      emergencias: emerg,
+      convertidos: conv,
+      taxa: emerg > 0 ? parseFloat(((conv / emerg) * 100).toFixed(1)) : 0,
+    };
+  });
+
+  return {
+    mediaPermanenciaDias,
+    totalInternacoes: internacoes.length,
+    porTurno: {
+      manha: manhaTotal,
+      tarde: tardeTotal,
+      noite: noiteTotal,
+      madrugada: madrugadaTotal,
+      total: turnoTotal,
+    },
+    taxaConversao: {
+      totalEmergencias: emergenciasTotal,
+      totalConvertidos: convertidosTotal,
+      taxa: taxaConversaoPerc,
+      evolucaoMensal,
+    },
+    comparativoDetalhado: {
+      periodoAtual: {
+        label: formatLabel(inicio, fim),
+        internacoes: internacoesAtual[0]?.total || 0,
+        ambulatoriais: ambulatoriaisAtual[0]?.total || 0,
+        emergencias: emergenciasAtual[0]?.total || 0,
+        urgencias: urgenciasAtual[0]?.total || 0,
+        procedimentos: procedimentosAtual[0]?.total || 0,
+      },
+      periodoAnterior: {
+        label: formatLabel(inicioAnterior, fimAnterior),
+        internacoes: internacoesAnterior[0]?.total || 0,
+        ambulatoriais: ambulatoriaisAnterior[0]?.total || 0,
+        emergencias: emergenciasAnterior[0]?.total || 0,
+        urgencias: urgenciasAnterior[0]?.total || 0,
+        procedimentos: procedimentosAnterior[0]?.total || 0,
+      },
+    },
+    porCarater: porCarater.map(c => ({ nome: c.nome || "Não informado", total: c.total })),
+    fonte: "cache_local",
+  };
+}
+
+async function buscarMetricasAvancadasDoPostgresql(
+  filtros: FiltrosDashboard
+): Promise<MetricasAvancadas> {
+  const client = await getWarleinePool().connect();
+  try {
+    const inicio = new Date(filtros.dataInicio);
+    const fim = new Date(filtros.dataFim);
+    const duracaoMs = fim.getTime() - inicio.getTime();
+    const inicioAnterior = new Date(inicio.getTime() - duracaoMs);
+    const fimAnterior = new Date(inicio.getTime() - 1);
+    const formatDate = (d: Date) => d.toISOString().split("T")[0];
+    const formatLabel = (d1: Date, d2: Date) => {
+      const opts: Intl.DateTimeFormatOptions = { month: "short", year: "numeric" };
+      const m1 = d1.toLocaleDateString("pt-BR", opts);
+      const m2 = d2.toLocaleDateString("pt-BR", opts);
+      return m1 === m2 ? m1 : `${m1} - ${m2}`;
+    };
+
+    const params: any[] = [filtros.dataInicio, filtros.dataFim];
+    let paramIndex = 3;
+    const extraConditions: string[] = [];
+
+    if (filtros.tipoAtendimento) {
+      extraConditions.push(`a.tipoatend = $${paramIndex}`);
+      params.push(filtros.tipoAtendimento);
+      paramIndex++;
+    }
+    if (filtros.codPlaco) {
+      extraConditions.push(`a.codplaco = $${paramIndex}`);
+      params.push(filtros.codPlaco);
+      paramIndex++;
+    }
+    if (filtros.codPrest) {
+      extraConditions.push(`a.codprest = $${paramIndex}`);
+      params.push(filtros.codPrest);
+      paramIndex++;
+    }
+    if (filtros.codServ) {
+      extraConditions.push(`a.codserv = $${paramIndex}`);
+      params.push(filtros.codServ);
+      paramIndex++;
+    }
+
+    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+    const dateWhere = `WHERE a.datatend >= $1 AND a.datatend <= $2${extraWhere}`;
+
+    const paramsAnterior = [formatDate(inicioAnterior), formatDate(fimAnterior), ...params.slice(2)];
+    const dateWhereAnterior = `WHERE a.datatend >= $1 AND a.datatend <= $2${extraWhere}`;
+
+    const [
+      // Média de permanência
+      permanenciaResult,
+      // Turnos
+      turnoResult,
+      // Emergências
+      emergResult,
+      convertResult,
+      // Conversão mensal
+      emergMensalResult,
+      convertMensalResult,
+      // Caráter
+      caraterResult,
+      // Comparativo atual
+      intAtualResult,
+      ambAtualResult,
+      emAtualResult,
+      urgAtualResult,
+      procAtualResult,
+      // Comparativo anterior
+      intAntResult,
+      ambAntResult,
+      emAntResult,
+      urgAntResult,
+      procAntResult,
+    ] = await Promise.all([
+      // 1. Permanência
+      client.query(`
+        SELECT a.datatend, a.datasai FROM "PACIENTE".arqatend a
+        ${dateWhere} AND a.tipoatend = 'I' AND a.datasai IS NOT NULL
+      `, params),
+
+      // 2. Turnos
+      client.query(`
+        SELECT
+          SUM(CASE WHEN EXTRACT(HOUR FROM a.datatend) >= 6 AND EXTRACT(HOUR FROM a.datatend) < 12 THEN 1 ELSE 0 END) AS manha,
+          SUM(CASE WHEN EXTRACT(HOUR FROM a.datatend) >= 12 AND EXTRACT(HOUR FROM a.datatend) < 18 THEN 1 ELSE 0 END) AS tarde,
+          SUM(CASE WHEN EXTRACT(HOUR FROM a.datatend) >= 18 AND EXTRACT(HOUR FROM a.datatend) < 24 THEN 1 ELSE 0 END) AS noite,
+          SUM(CASE WHEN EXTRACT(HOUR FROM a.datatend) >= 0 AND EXTRACT(HOUR FROM a.datatend) < 6 THEN 1 ELSE 0 END) AS madrugada
+        FROM "PACIENTE".arqatend a ${dateWhere}
+      `, params),
+
+      // 3. Emergências
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'E'`, params),
+
+      // 4. Convertidos (internações com proveniente = emergência)
+      client.query(`
+        SELECT COUNT(*) as total FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".cdproven pv ON pv.codproven = a.codproven
+        ${dateWhere} AND a.tipoatend = 'I' AND LOWER(pv.nomeproven) LIKE '%merg%'
+      `, params),
+
+      // 5. Emergências mensal
+      client.query(`
+        SELECT TO_CHAR(a.datatend, 'YYYY-MM') AS mes_ano, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'E'
+        GROUP BY TO_CHAR(a.datatend, 'YYYY-MM') ORDER BY mes_ano
+      `, params),
+
+      // 6. Convertidos mensal
+      client.query(`
+        SELECT TO_CHAR(a.datatend, 'YYYY-MM') AS mes_ano, COUNT(*) AS total
+        FROM "PACIENTE".arqatend a
+        LEFT JOIN "PACIENTE".cdproven pv ON pv.codproven = a.codproven
+        ${dateWhere} AND a.tipoatend = 'I' AND LOWER(pv.nomeproven) LIKE '%merg%'
+        GROUP BY TO_CHAR(a.datatend, 'YYYY-MM') ORDER BY mes_ano
+      `, params),
+
+      // 7. Caráter
+      client.query(`
+        SELECT CASE a.carater WHEN 'UR' THEN 'Urgência' WHEN 'EL' THEN 'Eletivo' ELSE a.carater END AS nome,
+        COUNT(*) AS total FROM "PACIENTE".arqatend a
+        ${dateWhere} AND a.carater IS NOT NULL AND a.carater != ''
+        GROUP BY a.carater ORDER BY total DESC
+      `, params),
+
+      // 8-12. Comparativo atual
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'I'`, params),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'A'`, params),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'E'`, params),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.tipoatend = 'U'`, params),
+      client.query(`SELECT COUNT(DISTINCT a.procprin) as total FROM "PACIENTE".arqatend a ${dateWhere} AND a.procprin IS NOT NULL`, params),
+
+      // 13-17. Comparativo anterior
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhereAnterior} AND a.tipoatend = 'I'`, paramsAnterior),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhereAnterior} AND a.tipoatend = 'A'`, paramsAnterior),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhereAnterior} AND a.tipoatend = 'E'`, paramsAnterior),
+      client.query(`SELECT COUNT(*) as total FROM "PACIENTE".arqatend a ${dateWhereAnterior} AND a.tipoatend = 'U'`, paramsAnterior),
+      client.query(`SELECT COUNT(DISTINCT a.procprin) as total FROM "PACIENTE".arqatend a ${dateWhereAnterior} AND a.procprin IS NOT NULL`, paramsAnterior),
+    ]);
+
+    // Calcular média de permanência
+    let mediaPermanenciaDias = 0;
+    const internacoesRows = permanenciaResult.rows;
+    if (internacoesRows.length > 0) {
+      const totalDias = internacoesRows.reduce((acc: number, curr: any) => {
+        const entrada = new Date(curr.datatend).getTime();
+        const saida = new Date(curr.datasai).getTime();
+        return acc + (saida - entrada);
+      }, 0);
+      const mediaMs = totalDias / internacoesRows.length;
+      mediaPermanenciaDias = parseFloat((mediaMs / (1000 * 60 * 60 * 24)).toFixed(1));
+    }
+
+    // Turnos
+    const turnoRow = turnoResult.rows[0] || {};
+    const manhaTotal = parseInt(turnoRow.manha || "0", 10);
+    const tardeTotal = parseInt(turnoRow.tarde || "0", 10);
+    const noiteTotal = parseInt(turnoRow.noite || "0", 10);
+    const madrugadaTotal = parseInt(turnoRow.madrugada || "0", 10);
+    const turnoTotal = manhaTotal + tardeTotal + noiteTotal + madrugadaTotal;
+
+    // Conversão
+    const emergenciasTotal = parseInt(emergResult.rows[0]?.total || "0", 10);
+    const convertidosTotal = parseInt(convertResult.rows[0]?.total || "0", 10);
+    const taxaConversaoPerc = emergenciasTotal > 0
+      ? parseFloat(((convertidosTotal / emergenciasTotal) * 100).toFixed(1))
+      : 0;
+
+    // Evolução mensal
+    const mesesEmergencia = new Map(emergMensalResult.rows.map((r: any) => [r.mes_ano, parseInt(r.total, 10)]));
+    const mesesConvertidos = new Map(convertMensalResult.rows.map((r: any) => [r.mes_ano, parseInt(r.total, 10)]));
+    const todosMeses = new Set([...mesesEmergencia.keys(), ...mesesConvertidos.keys()]);
+    const evolucaoMensal = Array.from(todosMeses).sort().map(mesAno => {
+      const emerg = mesesEmergencia.get(mesAno) || 0;
+      const conv = mesesConvertidos.get(mesAno) || 0;
+      return {
+        mesAno,
+        emergencias: emerg,
+        convertidos: conv,
+        taxa: emerg > 0 ? parseFloat(((conv / emerg) * 100).toFixed(1)) : 0,
+      };
+    });
+
+    return {
+      mediaPermanenciaDias,
+      totalInternacoes: internacoesRows.length,
+      porTurno: {
+        manha: manhaTotal,
+        tarde: tardeTotal,
+        noite: noiteTotal,
+        madrugada: madrugadaTotal,
+        total: turnoTotal,
+      },
+      taxaConversao: {
+        totalEmergencias: emergenciasTotal,
+        totalConvertidos: convertidosTotal,
+        taxa: taxaConversaoPerc,
+        evolucaoMensal,
+      },
+      comparativoDetalhado: {
+        periodoAtual: {
+          label: formatLabel(inicio, fim),
+          internacoes: parseInt(intAtualResult.rows[0]?.total || "0", 10),
+          ambulatoriais: parseInt(ambAtualResult.rows[0]?.total || "0", 10),
+          emergencias: parseInt(emAtualResult.rows[0]?.total || "0", 10),
+          urgencias: parseInt(urgAtualResult.rows[0]?.total || "0", 10),
+          procedimentos: parseInt(procAtualResult.rows[0]?.total || "0", 10),
+        },
+        periodoAnterior: {
+          label: formatLabel(inicioAnterior, fimAnterior),
+          internacoes: parseInt(intAntResult.rows[0]?.total || "0", 10),
+          ambulatoriais: parseInt(ambAntResult.rows[0]?.total || "0", 10),
+          emergencias: parseInt(emAntResult.rows[0]?.total || "0", 10),
+          urgencias: parseInt(urgAntResult.rows[0]?.total || "0", 10),
+          procedimentos: parseInt(procAntResult.rows[0]?.total || "0", 10),
+        },
+      },
+      porCarater: caraterResult.rows.map((r: any) => ({ nome: r.nome || "Não informado", total: parseInt(r.total, 10) })),
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}

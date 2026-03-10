@@ -7,13 +7,15 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity, Users, Building2, Stethoscope, FileText, TrendingUp,
-  Heart, Layers,
+  Heart, Layers, BedDouble, ArrowRightLeft, Clock,
 } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import ChartCard from "@/components/dashboard/ChartCard";
 import CustomTooltip, { SimpleTooltip } from "@/components/dashboard/CustomTooltip";
 import FunilStatusAtendimentos from "@/components/dashboard/FunilStatusAtendimentos";
 import ComparacaoCards from "@/components/dashboard/ComparacaoCards";
+import { VolumePorTurno } from "@/components/dashboard/VolumePorTurno";
+import { TaxaConversaoEmergencia } from "@/components/dashboard/TaxaConversaoEmergencia";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const CHART_COLORS = [
@@ -64,15 +66,60 @@ interface ComparacaoData {
   fonte: string;
 }
 
+interface MetricasAvancadasData {
+  mediaPermanenciaDias: number;
+  totalInternacoes: number;
+  porTurno: {
+    manha: number;
+    tarde: number;
+    noite: number;
+    madrugada: number;
+    total: number;
+  };
+  taxaConversao: {
+    totalEmergencias: number;
+    totalConvertidos: number;
+    taxa: number;
+    evolucaoMensal: Array<{
+      mesAno: string;
+      emergencias: number;
+      convertidos: number;
+      taxa: number;
+    }>;
+  };
+  comparativoDetalhado: {
+    periodoAtual: {
+      label: string;
+      internacoes: number;
+      ambulatoriais: number;
+      emergencias: number;
+      urgencias: number;
+      procedimentos: number;
+    };
+    periodoAnterior: {
+      label: string;
+      internacoes: number;
+      ambulatoriais: number;
+      emergencias: number;
+      urgencias: number;
+      procedimentos: number;
+    };
+  };
+  porCarater: Array<{ nome: string; total: number }>;
+  fonte: string;
+}
+
 interface DashboardAtendimentosProps {
   metricas: MetricasData | null | undefined;
   comparacao?: ComparacaoData | null;
+  metricasAvancadas?: MetricasAvancadasData | null;
   isLoading: boolean;
 }
 
 export default function DashboardAtendimentos({
   metricas,
   comparacao,
+  metricasAvancadas,
   isLoading,
 }: DashboardAtendimentosProps) {
   // Prepare chart data
@@ -105,9 +152,9 @@ export default function DashboardAtendimentos({
   const dadosPlano = useMemo(() => {
     if (!metricas?.porPlano) return [];
     return metricas.porPlano.slice(0, 15).map((p) => ({
-      nome: p.nome?.length > 25 ? p.nome.substring(0, 25) + "..." : p.nome,
+      name: p.nome?.length > 25 ? p.nome.substring(0, 25) + "..." : p.nome,
       nomeCompleto: p.nome,
-      total: p.total,
+      value: p.total,
     }));
   }, [metricas?.porPlano]);
 
@@ -123,7 +170,7 @@ export default function DashboardAtendimentos({
   const dadosCid = useMemo(() => {
     if (!metricas?.porCid) return [];
     return metricas.porCid.slice(0, 15).map((c) => ({
-      nome: c.nome?.length > 12 ? c.nome.substring(0, 12) + "..." : c.nome,
+      nome: c.nome?.length > 30 ? c.nome.substring(0, 30) + "..." : c.nome,
       nomeCompleto: c.nome,
       total: c.total,
     }));
@@ -161,12 +208,26 @@ export default function DashboardAtendimentos({
       }));
   }, [dadosTipo]);
 
+  // Caráter data for funil
+  const dadosCarater = useMemo(() => {
+    if (!metricasAvancadas?.porCarater) return [];
+    const caraterColors: Record<string, string> = {
+      "Eletivo": "#3b82f6",
+      "Urgência": "#ef4444",
+    };
+    return metricasAvancadas.porCarater.map((c, idx) => ({
+      nome: c.nome,
+      total: c.total,
+      cor: caraterColors[c.nome] || FUNIL_COLORS[idx % FUNIL_COLORS.length],
+    }));
+  }, [metricasAvancadas?.porCarater]);
+
   // Loading skeleton
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-[140px] rounded-xl" />
           ))}
         </div>
@@ -200,8 +261,8 @@ export default function DashboardAtendimentos({
   return (
     <AnimatePresence>
       <div className="space-y-6">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI Cards - 6 cards em uma linha */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <KpiCard
             title="Total Atendimentos"
             value={metricas.totalAtendimentos}
@@ -218,7 +279,7 @@ export default function DashboardAtendimentos({
                             comparacao.periodoAnterior.totalAtendimentos) *
                           100
                         : 0,
-                    label: "vs periodo anterior",
+                    label: "vs anterior",
                   }
                 : undefined
             }
@@ -240,7 +301,7 @@ export default function DashboardAtendimentos({
                             comparacao.periodoAnterior.totalMedicos) *
                           100
                         : 0,
-                    label: "vs periodo anterior",
+                    label: "vs anterior",
                   }
                 : undefined
             }
@@ -262,7 +323,7 @@ export default function DashboardAtendimentos({
                             comparacao.periodoAnterior.totalConvenios) *
                           100
                         : 0,
-                    label: "vs periodo anterior",
+                    label: "vs anterior",
                   }
                 : undefined
             }
@@ -274,21 +335,25 @@ export default function DashboardAtendimentos({
             subtitle="Procedimentos distintos"
             icon={Heart}
             gradient="amber"
-            trend={
-              comparacao
-                ? {
-                    value:
-                      comparacao.periodoAnterior.totalProcedimentos > 0
-                        ? ((comparacao.periodoAtual.totalProcedimentos -
-                            comparacao.periodoAnterior.totalProcedimentos) /
-                            comparacao.periodoAnterior.totalProcedimentos) *
-                          100
-                        : 0,
-                    label: "vs periodo anterior",
-                  }
-                : undefined
-            }
             delay={0.15}
+          />
+          {/* Média de Permanência */}
+          <KpiCard
+            title="Media Permanencia"
+            value={metricasAvancadas ? `${metricasAvancadas.mediaPermanenciaDias} dias` : "-"}
+            subtitle={metricasAvancadas ? `${metricasAvancadas.totalInternacoes} internacoes` : "Carregando..."}
+            icon={BedDouble}
+            gradient="blue"
+            delay={0.2}
+          />
+          {/* Taxa de Conversão */}
+          <KpiCard
+            title="Conversao Emerg."
+            value={metricasAvancadas ? `${metricasAvancadas.taxaConversao.taxa}%` : "-"}
+            subtitle={metricasAvancadas ? `${metricasAvancadas.taxaConversao.totalConvertidos} de ${metricasAvancadas.taxaConversao.totalEmergencias}` : "Carregando..."}
+            icon={ArrowRightLeft}
+            gradient="emerald"
+            delay={0.25}
           />
         </div>
 
@@ -327,12 +392,47 @@ export default function DashboardAtendimentos({
           />
         )}
 
+        {/* Comparativo Detalhado por Tipo (se métricas avançadas disponíveis) */}
+        {metricasAvancadas?.comparativoDetalhado && (
+          <ComparacaoCards
+            periodoAtual={metricasAvancadas.comparativoDetalhado.periodoAtual.label}
+            periodoAnterior={metricasAvancadas.comparativoDetalhado.periodoAnterior.label}
+            items={[
+              {
+                label: "Internacoes",
+                valorAtual: metricasAvancadas.comparativoDetalhado.periodoAtual.internacoes,
+                valorAnterior: metricasAvancadas.comparativoDetalhado.periodoAnterior.internacoes,
+                icon: BedDouble,
+              },
+              {
+                label: "Ambulatoriais",
+                valorAtual: metricasAvancadas.comparativoDetalhado.periodoAtual.ambulatoriais,
+                valorAnterior: metricasAvancadas.comparativoDetalhado.periodoAnterior.ambulatoriais,
+                icon: Stethoscope,
+              },
+              {
+                label: "Emergencias",
+                valorAtual: metricasAvancadas.comparativoDetalhado.periodoAtual.emergencias,
+                valorAnterior: metricasAvancadas.comparativoDetalhado.periodoAnterior.emergencias,
+                icon: Heart,
+              },
+              {
+                label: "Urgencias",
+                valorAtual: metricasAvancadas.comparativoDetalhado.periodoAtual.urgencias,
+                valorAnterior: metricasAvancadas.comparativoDetalhado.periodoAnterior.urgencias,
+                icon: Activity,
+              },
+            ]}
+            delay={0.25}
+          />
+        )}
+
         {/* Evolução Mensal (AreaChart) + Funil de Tipos */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <ChartCard
-            title="Evolucao Mensal de Atendimentos"
+            title="Volume de Atendimentos (Evolucao Mensal)"
             icon={TrendingUp}
-            delay={0.25}
+            delay={0.3}
             className="lg:col-span-2"
           >
             {dadosMesAno.length > 0 ? (
@@ -377,20 +477,76 @@ export default function DashboardAtendimentos({
             )}
           </ChartCard>
 
-          <FunilStatusAtendimentos dados={dadosFunil} delay={0.3} />
+          <FunilStatusAtendimentos dados={dadosFunil} delay={0.35} />
         </div>
 
-        {/* Distribuição por Tipo (Donut) + Radar de Serviços */}
+        {/* Distribuição por Convênio (Donut) + Distribuição por Tipo (Donut) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard title="Distribuicao por Tipo de Atendimento" icon={Layers} delay={0.35}>
+          <ChartCard title="Distribuicao por Convenio" icon={Building2} delay={0.4}>
+            {dadosPlano.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={dadosPlano}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    strokeWidth={2}
+                    stroke="hsl(var(--card))"
+                  >
+                    {dadosPlano.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      const total = dadosPlano.reduce((acc, p) => acc + p.value, 0);
+                      const perc = total > 0 ? ((d.value / total) * 100).toFixed(1) : "0";
+                      return (
+                        <div className="rounded-lg border border-border bg-card px-4 py-3 shadow-xl">
+                          <p className="text-xs font-semibold text-card-foreground mb-1">{d.nomeCompleto || d.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Atendimentos:{" "}
+                            <span className="font-bold text-card-foreground">
+                              {d.value.toLocaleString("pt-BR")}
+                            </span>
+                            {" "}({perc}%)
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span className="text-[10px] text-muted-foreground">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[320px] flex items-center justify-center text-muted-foreground text-sm">
+                Sem dados
+              </div>
+            )}
+          </ChartCard>
+
+          <ChartCard title="Distribuicao por Tipo de Atendimento" icon={Layers} delay={0.45}>
             {dadosTipo.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={320}>
                 <PieChart>
                   <Pie
                     data={dadosTipo}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
+                    innerRadius={55}
                     outerRadius={100}
                     paddingAngle={4}
                     dataKey="value"
@@ -429,13 +585,28 @@ export default function DashboardAtendimentos({
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                 Sem dados
               </div>
             )}
           </ChartCard>
+        </div>
 
-          <ChartCard title="Distribuicao por Servico" icon={Stethoscope} delay={0.4}>
+        {/* Volume por Turno + Taxa de Conversão */}
+        {metricasAvancadas && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <VolumePorTurno data={metricasAvancadas.porTurno} />
+            <TaxaConversaoEmergencia data={metricasAvancadas.taxaConversao} />
+          </div>
+        )}
+
+        {/* Caráter (Eletivo vs Urgência) + Radar de Serviços */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {dadosCarater.length > 0 && (
+            <FunilStatusAtendimentos dados={dadosCarater} delay={0.5} />
+          )}
+
+          <ChartCard title="Distribuicao por Servico" icon={Stethoscope} delay={0.55}>
             {dadosRadarServico.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={dadosRadarServico}>
@@ -464,9 +635,9 @@ export default function DashboardAtendimentos({
           </ChartCard>
         </div>
 
-        {/* Top Médicos + Top Planos */}
+        {/* Top Médicos + Top CIDs (barras horizontais) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard title="Top 15 Medicos por Atendimentos" icon={Users} delay={0.45}>
+          <ChartCard title="Top 15 Medicos por Atendimentos" icon={Users} delay={0.6}>
             {dadosMedico.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(300, dadosMedico.length * 30)}>
                 <BarChart data={dadosMedico} layout="vertical" margin={{ left: 10, right: 30 }}>
@@ -495,39 +666,7 @@ export default function DashboardAtendimentos({
             )}
           </ChartCard>
 
-          <ChartCard title="Top 15 Planos/Convenios" icon={Building2} delay={0.5}>
-            {dadosPlano.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, dadosPlano.length * 30)}>
-                <BarChart data={dadosPlano} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="nome"
-                    width={170}
-                    tick={{ fontSize: 9 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<SimpleTooltip />} />
-                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={18}>
-                    {dadosPlano.map((_, idx) => (
-                      <Cell key={idx} fill={CHART_COLORS[(idx + 5) % CHART_COLORS.length]} fillOpacity={0.85} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-                Sem dados
-              </div>
-            )}
-          </ChartCard>
-        </div>
-
-        {/* CID + Procedimentos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard title="Top 15 CIDs por Atendimentos" icon={FileText} delay={0.55}>
+          <ChartCard title="Top 15 CIDs (Diagnosticos)" icon={FileText} delay={0.65}>
             {dadosCid.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(300, dadosCid.length * 30)}>
                 <BarChart data={dadosCid} layout="vertical" margin={{ left: 10, right: 30 }}>
@@ -536,7 +675,7 @@ export default function DashboardAtendimentos({
                   <YAxis
                     type="category"
                     dataKey="nome"
-                    width={90}
+                    width={200}
                     tick={{ fontSize: 9 }}
                     tickLine={false}
                     axisLine={false}
@@ -555,8 +694,11 @@ export default function DashboardAtendimentos({
               </div>
             )}
           </ChartCard>
+        </div>
 
-          <ChartCard title="Top 15 Procedimentos" icon={Stethoscope} delay={0.6}>
+        {/* Procedimentos + Serviços */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Top 15 Procedimentos" icon={Stethoscope} delay={0.7}>
             {dadosProcedimento.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(300, dadosProcedimento.length * 30)}>
                 <BarChart data={dadosProcedimento} layout="vertical" margin={{ left: 10, right: 30 }}>
@@ -584,37 +726,36 @@ export default function DashboardAtendimentos({
               </div>
             )}
           </ChartCard>
-        </div>
 
-        {/* Serviços (barras horizontais full width) */}
-        <ChartCard title="Atendimentos por Servico" icon={Stethoscope} delay={0.65}>
-          {dadosServico.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(300, dadosServico.length * 35)}>
-              <BarChart data={dadosServico} layout="vertical" margin={{ left: 10, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis
-                  type="category"
-                  dataKey="nome"
-                  width={150}
-                  tick={{ fontSize: 9 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip content={<SimpleTooltip />} />
-                <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={22}>
-                  {dadosServico.map((_, idx) => (
-                    <Cell key={idx} fill={CHART_COLORS[(idx + 2) % CHART_COLORS.length]} fillOpacity={0.85} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-              Sem dados
-            </div>
-          )}
-        </ChartCard>
+          <ChartCard title="Atendimentos por Servico" icon={Stethoscope} delay={0.75}>
+            {dadosServico.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(300, dadosServico.length * 35)}>
+                <BarChart data={dadosServico} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="nome"
+                    width={150}
+                    tick={{ fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<SimpleTooltip />} />
+                  <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]} barSize={22}>
+                    {dadosServico.map((_, idx) => (
+                      <Cell key={idx} fill={CHART_COLORS[(idx + 2) % CHART_COLORS.length]} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                Sem dados
+              </div>
+            )}
+          </ChartCard>
+        </div>
       </div>
     </AnimatePresence>
   );

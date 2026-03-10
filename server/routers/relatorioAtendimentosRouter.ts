@@ -7,6 +7,7 @@ import {
   obterStatusSincronizacao,
   buscarMetricasDashboard,
   buscarComparacaoPeriodos,
+  buscarMetricasAvancadas,
 } from "../relatorioAtendimentos";
 
 export const relatorioAtendimentosRouter = router({
@@ -78,6 +79,22 @@ export const relatorioAtendimentosRouter = router({
     )
     .query(async ({ input }) => {
       return buscarComparacaoPeriodos(input.dataInicio, input.dataFim);
+    }),
+
+  // Métricas avançadas (permanência, turno, conversão, caráter)
+  metricasAvancadas: protectedProcedure
+    .input(
+      z.object({
+        dataInicio: z.string(),
+        dataFim: z.string(),
+        tipoAtendimento: z.string().optional(),
+        codPlaco: z.string().optional(),
+        codPrest: z.string().optional(),
+        codServ: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarMetricasAvancadas(input);
     }),
 
   // Obter status da última sincronização
