@@ -389,6 +389,8 @@ export async function compararContaComPadroes(
 
   // Para cada setor, verificar composição
   const procedimentosJaAnalisados = new Set<string>();
+  // Track quais procedimentos foram cobertos por gabaritos compostos (para não duplicar com padrão individual)
+  const procedimentosCobertosGabarito = new Set<string>();
   
   for (const [setor, itensDoSetor] of Array.from(itensPorSetor.entries())) {
     const procedimentosNoSetor = itensDoSetor
@@ -401,20 +403,68 @@ export async function compararContaComPadroes(
 
     const codigosNoSetor = new Set(itensDoSetor.map(i => i.codigoItem).filter(Boolean) as string[]);
 
+    // FASE 1: Buscar gabaritos compostos PRIMEIRO (prioridade máxima)
+    // Gabaritos compostos cobrem múltiplos procedimentos e devem ter prioridade sobre padrões individuais
+    const gabaritosCompostos = padroesCompFiltrados.filter(p => 
+      p.isGabarito === 1 && p.codigoProcedimentoPrincipal.includes(" + ")
+    );
+    
+    for (const gabCombo of gabaritosCompostos) {
+      const codigosCombinados = gabCombo.codigoProcedimentoPrincipal.split(" + ").map(c => c.trim());
+      // Verificar se TODOS os procedimentos do gabarito estão na conta
+      const todosPresentes = codigosCombinados.every(c => codigosNaConta.has(c));
+      // Verificar se pelo menos um procedimento está neste setor
+      const algumNoSetor = codigosCombinados.some(c => codigosNoSetor.has(c));
+      
+      if (todosPresentes && algumNoSetor) {
+        // Verificar match de setor
+        const setorMatch = !gabCombo.setor || (setor !== 'GERAL' && gabCombo.setor.trim().toUpperCase() === setor.trim().toUpperCase());
+        if (!setorMatch) continue;
+        
+        const chaveCombo = `${gabCombo.codigoProcedimentoPrincipal}|${setor}`;
+        if (procedimentosJaAnalisados.has(chaveCombo)) continue;
+        procedimentosJaAnalisados.add(chaveCombo);
+        
+        // Marcar todos os procedimentos do gabarito como cobertos
+        for (const c of codigosCombinados) {
+          procedimentosCobertosGabarito.add(`${c}|${setor}`);
+        }
+        
+        processarPadraoComposicao(gabCombo, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
+        gabaritosUsados++;
+        
+        const scoreCombo = 200; // Gabarito composto = máxima prioridade
+        padroesDetalhados.push({
+          padraoId: gabCombo.id,
+          padraoNome: `${gabCombo.codigoProcedimentoPrincipal} - ${gabCombo.descricaoProcedimentoPrincipal || 'Sem nome'}`,
+          isGabarito: true,
+          convenioNome: (gabCombo as any).convenioNome || undefined,
+          setor: (gabCombo as any).setor || setor,
+          scoreMatch: scoreCombo,
+          motivoSelecao: `Gabarito composto selecionado para setor ${setor}`,
+        });
+        
+        logger.info({ message: "Gabarito composto selecionado", padraoId: gabCombo.id, proc: gabCombo.codigoProcedimentoPrincipal, setor, numeroConta });
+      }
+    }
+
+    // FASE 2: Para procedimentos NÃO cobertos por gabaritos compostos, buscar padrão individual ou combinado
     for (const codigoProc of procedimentosNoSetor) {
       if (!codigoProc) continue;
       
       // Evitar analisar o mesmo procedimento+setor duas vezes
       const chaveAnalise = `${codigoProc}|${setor}`;
       if (procedimentosJaAnalisados.has(chaveAnalise)) continue;
+      
+      // Se este procedimento já foi coberto por um gabarito composto, pular
+      if (procedimentosCobertosGabarito.has(chaveAnalise)) continue;
       procedimentosJaAnalisados.add(chaveAnalise);
 
       // Selecionar o melhor padrão para este procedimento+setor
       const padrao = selecionarMelhorPadrao(padroesCompFiltrados as any, codigoProc, setor !== 'GERAL' ? setor : null);
       
-      // Também verificar padrões combinados
+      // Se não encontrou padrão individual, tentar match com padrões combinados (não-gabarito)
       if (!padrao) {
-        // Tentar match com padrões combinados
         for (const p of padroesCompFiltrados) {
           if (!p.codigoProcedimentoPrincipal.includes(" + ")) continue;
           const codigosCombinados = p.codigoProcedimentoPrincipal.split(" + ").map(c => c.trim());
@@ -424,7 +474,6 @@ export async function compararContaComPadroes(
               const chaveCombo = `${p.codigoProcedimentoPrincipal}|${setor}`;
               if (!procedimentosJaAnalisados.has(chaveCombo)) {
                 procedimentosJaAnalisados.add(chaveCombo);
-                // Processar este padrão combinado
                 processarPadraoComposicao(p, codigosNoSetor, codigosNaConta, itensDoSetor, itens, setor, divergencias, tiposProcedimento);
                 if (p.isGabarito === 1) gabaritosUsados++;
                 else padroesUsados++;
@@ -434,8 +483,8 @@ export async function compararContaComPadroes(
                   isGabarito: p.isGabarito === 1,
                   convenioNome: (p as any).convenioNome || undefined,
                   setor: (p as any).setor || setor,
-                  scoreMatch: 0,
-                  motivoSelecao: `Match combinado no setor ${setor}`,
+                  scoreMatch: p.isGabarito === 1 ? 200 : 30,
+                  motivoSelecao: `Match combinado ${p.isGabarito === 1 ? '(gabarito)' : '(aprendido)'} no setor ${setor}`,
                 });
               }
             }

@@ -2585,3 +2585,7 @@
 - [x] Log de auditoria: Registrar qual gabarito/padrão foi usado em cada análise para rastreabilidade
 - [x] Testes vitest para melhorias de auditoria (11 testes passando)
 - [x] Bug: "Rendered more hooks than during the previous render" no ContaConvenioDetalhes - useQuery condicional dentro de IIFE na aba Divergências - movido useQuery para nível superior do componente
+- [ ] Rel. Faturista: Mostrar apenas ajustes realizados pelo auditor e alertas críticos (remover divergências de aviso)
+- [x] Investigar por que itens faltantes das regras do usuário (taxa de laser, taxa de auditoria intra) não aparecem nas divergências da conta 143810
+- [x] Bug fix: Gabaritos compostos (ex: 31102360 + 31102050) não eram priorizados sobre padrões aprendidos individuais - motor usava padrão individual e nunca consultava gabarito composto. Corrigido com FASE 1 (gabaritos compostos) antes de FASE 2 (padrões individuais)
+- [x] Testes vitest para prioridade de gabaritos compostos (5 testes passando)

@@ -69,6 +69,7 @@ import {
   ClipboardList,
   FileCheck,
   FileSearch,
+  Filter,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -2178,170 +2179,215 @@ export default function ContaConvenioDetalhes() {
                 </div>
               </CardHeader>
               <CardContent>
-                {!relatorioFaturistaData.length ? (
-                  <div className="text-center py-8">
-                    <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium">Nenhum apontamento de auditoria</h3>
-                    <p className="text-muted-foreground">
-                      Quando a auditoria registrar divergências, falhas de prontuário ou ajustes, eles aparecerão aqui consolidados.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Resumo do Relatório */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <Card className="border-red-200 bg-red-50/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Divergências</p>
-                              <p className="text-2xl font-bold text-red-600">
-                                {relatorioFaturistaData.filter(r => r.origem === 'DIVERGÊNCIA').length}
-                              </p>
-                            </div>
-                            <AlertTriangle className="h-8 w-8 text-red-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-amber-200 bg-amber-50/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Falhas Prontuário</p>
-                              <p className="text-2xl font-bold text-amber-600">
-                                {relatorioFaturistaData.filter(r => r.origem === 'FALHA PRONTUÁRIO').length}
-                              </p>
-                            </div>
-                            <FileWarning className="h-8 w-8 text-amber-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-blue-200 bg-blue-50/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Ajustes Realizados</p>
-                              <p className="text-2xl font-bold text-blue-600">
-                                {relatorioFaturistaData.filter(r => r.origem === 'AJUSTE').length}
-                              </p>
-                            </div>
-                            <Wrench className="h-8 w-8 text-blue-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-violet-200 bg-violet-50/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Total Apontamentos</p>
-                              <p className="text-2xl font-bold text-violet-600">
-                                {relatorioFaturistaData.length}
-                              </p>
-                            </div>
-                            <ClipboardList className="h-8 w-8 text-violet-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                {(() => {
+                  // Filtrar para mostrar apenas: ajustes do auditor + divergências críticas/alerta
+                  const dadosFiltrados = relatorioFaturistaData.filter(r => {
+                    // Sempre mostrar ajustes realizados pelo auditor
+                    if (r.origem === 'AJUSTE') return true;
+                    // Mostrar divergências apenas se forem críticas ou alerta
+                    if (r.origem === 'DIVERGÊNCIA') {
+                      return r.severidade === 'critico' || r.severidade === 'critica' || r.severidade === 'alerta' || r.severidade === 'grave';
+                    }
+                    // Mostrar falhas de prontuário apenas se forem graves
+                    if (r.origem === 'FALHA PRONTUÁRIO') {
+                      return r.severidade === 'critica' || r.severidade === 'grave' || r.severidade === 'alta';
+                    }
+                    return false;
+                  });
 
-                    {/* Tabela do Relatório */}
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead className="w-[40px]">#</TableHead>
-                            <TableHead>Origem</TableHead>
-                            <TableHead>Item / Código</TableHead>
-                            <TableHead>Descrição do Apontamento</TableHead>
-                            <TableHead>Severidade</TableHead>
-                            <TableHead>Decisão Auditor</TableHead>
-                            <TableHead className="text-right">Impacto Financeiro</TableHead>
-                            <TableHead>Ação Necessária</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {relatorioFaturistaData.map((item, index) => (
-                            <TableRow key={`${item.origem}-${index}`} className={`${
-                              item.severidade === 'critico' || item.severidade === 'critica' ? 'bg-red-50/50' :
-                              item.severidade === 'grave' || item.severidade === 'alerta' ? 'bg-orange-50/50' : ''
-                            }`}>
-                              <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
-                              <TableCell>
-                                <Badge className={`text-xs ${
-                                  item.origem === 'DIVERGÊNCIA' ? 'bg-red-100 text-red-800 border-red-200' :
-                                  item.origem === 'FALHA PRONTUÁRIO' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                                  'bg-blue-100 text-blue-800 border-blue-200'
-                                }`}>
-                                  {item.origem}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div>
-                                  <p className="font-mono text-sm">{item.codigo || '-'}</p>
-                                  <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={item.descricaoItem}>
-                                    {item.descricaoItem || '-'}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="max-w-xs">
-                                <p className="text-sm">{item.descricaoApontamento}</p>
-                                {item.observacaoAuditor && (
-                                  <p className="text-xs text-indigo-600 mt-1 italic">
-                                    <UserCheck className="h-3 w-3 inline mr-1" />
-                                    {item.observacaoAuditor}
-                                  </p>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {item.severidade === 'critico' || item.severidade === 'critica' ? (
-                                  <Badge variant="destructive" className="text-xs"><XCircle className="h-3 w-3 mr-1" />Crítico</Badge>
-                                ) : item.severidade === 'alerta' || item.severidade === 'grave' ? (
-                                  <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Alto</Badge>
-                                ) : item.severidade === 'moderada' ? (
-                                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs"><Info className="h-3 w-3 mr-1" />Médio</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-xs"><Info className="h-3 w-3 mr-1" />Info</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {item.decisaoAuditor ? (
-                                  <DecisaoBadge decisao={item.decisaoAuditor} />
-                                ) : (
-                                  <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300">Pendente</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">
-                                {item.impactoFinanceiro != null && item.impactoFinanceiro !== 0 ? (
-                                  <span className={item.impactoFinanceiro > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
-                                    {formatCurrency(item.impactoFinanceiro)}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <p className="text-sm font-medium text-violet-700">{item.acaoNecessaria}</p>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                  const totalAjustes = dadosFiltrados.filter(r => r.origem === 'AJUSTE').length;
+                  const totalDivCriticas = dadosFiltrados.filter(r => r.origem === 'DIVERGÊNCIA').length;
+                  const totalFalhasGraves = dadosFiltrados.filter(r => r.origem === 'FALHA PRONTUÁRIO').length;
+                  const totalOcultos = relatorioFaturistaData.length - dadosFiltrados.length;
 
-                    {/* Rodapé com total de impacto */}
-                    {(() => {
-                      const totalImpacto = relatorioFaturistaData.reduce((acc, r) => acc + (r.impactoFinanceiro || 0), 0);
-                      return totalImpacto !== 0 ? (
-                        <div className="flex items-center justify-end gap-4 p-4 bg-muted/50 rounded-lg">
-                          <span className="text-sm font-medium text-muted-foreground">Impacto Financeiro Total:</span>
-                          <span className={`text-xl font-bold ${totalImpacto > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {formatCurrency(totalImpacto)}
+                  if (!dadosFiltrados.length && !relatorioFaturistaData.length) {
+                    return (
+                      <div className="text-center py-8">
+                        <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                        <h3 className="text-lg font-medium">Nenhum apontamento de auditoria</h3>
+                        <p className="text-muted-foreground">
+                          Quando a auditoria registrar divergências, falhas de prontuário ou ajustes, eles aparecerão aqui consolidados.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Info: itens filtrados */}
+                      {totalOcultos > 0 && (
+                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                          <Filter className="h-4 w-4 flex-shrink-0" />
+                          <span>
+                            Exibindo <strong>{dadosFiltrados.length}</strong> apontamentos relevantes (ajustes do auditor + alertas críticos).
+                            {' '}<span className="text-blue-600">{totalOcultos} divergências de baixa severidade foram ocultadas.</span>
                           </span>
                         </div>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
+                      )}
+
+                      {/* Resumo do Relatório */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card className="border-blue-200 bg-blue-50/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Ajustes do Auditor</p>
+                                <p className="text-2xl font-bold text-blue-600">{totalAjustes}</p>
+                              </div>
+                              <Wrench className="h-8 w-8 text-blue-500" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-red-200 bg-red-50/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Divergências Críticas</p>
+                                <p className="text-2xl font-bold text-red-600">{totalDivCriticas}</p>
+                              </div>
+                              <AlertTriangle className="h-8 w-8 text-red-500" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-amber-200 bg-amber-50/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Falhas Graves</p>
+                                <p className="text-2xl font-bold text-amber-600">{totalFalhasGraves}</p>
+                              </div>
+                              <FileWarning className="h-8 w-8 text-amber-500" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-violet-200 bg-violet-50/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Total Exibido</p>
+                                <p className="text-2xl font-bold text-violet-600">{dadosFiltrados.length}</p>
+                                {totalOcultos > 0 && (
+                                  <p className="text-xs text-muted-foreground">de {relatorioFaturistaData.length} total</p>
+                                )}
+                              </div>
+                              <ClipboardList className="h-8 w-8 text-violet-500" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {!dadosFiltrados.length ? (
+                        <div className="text-center py-8">
+                          <CheckCircle2 className="mx-auto h-12 w-12 text-green-500 mb-4" />
+                          <h3 className="text-lg font-medium text-green-700">Nenhum apontamento crítico</h3>
+                          <p className="text-muted-foreground">
+                            Não há ajustes do auditor nem divergências críticas para esta conta.
+                            {totalOcultos > 0 && ` (${totalOcultos} divergências de baixa severidade foram ocultadas)`}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Tabela do Relatório */}
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                  <TableHead className="w-[40px]">#</TableHead>
+                                  <TableHead>Origem</TableHead>
+                                  <TableHead>Item / Código</TableHead>
+                                  <TableHead>Descrição do Apontamento</TableHead>
+                                  <TableHead>Severidade</TableHead>
+                                  <TableHead>Decisão Auditor</TableHead>
+                                  <TableHead className="text-right">Impacto Financeiro</TableHead>
+                                  <TableHead>Ação Necessária</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {dadosFiltrados.map((item, index) => (
+                                  <TableRow key={`${item.origem}-${index}`} className={`${
+                                    item.severidade === 'critico' || item.severidade === 'critica' ? 'bg-red-50/50' :
+                                    item.severidade === 'grave' || item.severidade === 'alerta' ? 'bg-orange-50/50' : ''
+                                  }`}>
+                                    <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                                    <TableCell>
+                                      <Badge className={`text-xs ${
+                                        item.origem === 'DIVERGÊNCIA' ? 'bg-red-100 text-red-800 border-red-200' :
+                                        item.origem === 'FALHA PRONTUÁRIO' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                                        'bg-blue-100 text-blue-800 border-blue-200'
+                                      }`}>
+                                        {item.origem}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div>
+                                        <p className="font-mono text-sm">{item.codigo || '-'}</p>
+                                        <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={item.descricaoItem}>
+                                          {item.descricaoItem || '-'}
+                                        </p>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="max-w-xs">
+                                      <p className="text-sm">{item.descricaoApontamento}</p>
+                                      {item.observacaoAuditor && (
+                                        <p className="text-xs text-indigo-600 mt-1 italic">
+                                          <UserCheck className="h-3 w-3 inline mr-1" />
+                                          {item.observacaoAuditor}
+                                        </p>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      {item.severidade === 'critico' || item.severidade === 'critica' ? (
+                                        <Badge variant="destructive" className="text-xs"><XCircle className="h-3 w-3 mr-1" />Crítico</Badge>
+                                      ) : item.severidade === 'alerta' || item.severidade === 'grave' ? (
+                                        <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Alto</Badge>
+                                      ) : item.severidade === 'moderada' ? (
+                                        <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs"><Info className="h-3 w-3 mr-1" />Médio</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs"><Info className="h-3 w-3 mr-1" />Info</Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      {item.decisaoAuditor ? (
+                                        <DecisaoBadge decisao={item.decisaoAuditor} />
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300">Pendente</Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                      {item.impactoFinanceiro != null && item.impactoFinanceiro !== 0 ? (
+                                        <span className={item.impactoFinanceiro > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
+                                          {formatCurrency(item.impactoFinanceiro)}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <p className="text-sm font-medium text-violet-700">{item.acaoNecessaria}</p>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* Rodapé com total de impacto */}
+                          {(() => {
+                            const totalImpacto = dadosFiltrados.reduce((acc, r) => acc + (r.impactoFinanceiro || 0), 0);
+                            return totalImpacto !== 0 ? (
+                              <div className="flex items-center justify-end gap-4 p-4 bg-muted/50 rounded-lg">
+                                <span className="text-sm font-medium text-muted-foreground">Impacto Financeiro Total:</span>
+                                <span className={`text-xl font-bold ${totalImpacto > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {formatCurrency(totalImpacto)}
+                                </span>
+                              </div>
+                            ) : null;
+                          })()}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
