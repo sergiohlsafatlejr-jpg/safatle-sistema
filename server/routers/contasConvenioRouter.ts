@@ -506,6 +506,11 @@ export const contasConvenioRouter = router({
           }>;
           itensAdicionados: number;
           itensRemovidos: number;
+          valorItensAdicionados: number;
+          valorItensRemovidos: number;
+          diferencaAlteracoes: number;
+          listaItensAdicionados: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
+          listaItensRemovidos: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
         } | null = null;
 
         if (hadPreviousData) {
@@ -574,17 +579,55 @@ export const contasConvenioRouter = router({
             }
           }
 
-          // Contar itens adicionados (estão nos novos mas não nos antigos)
+          // Contar e somar valor dos itens adicionados (estão nos novos mas não nos antigos)
           let itensAdicionados = 0;
+          let valorItensAdicionados = 0;
+          const listaItensAdicionados: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }> = [];
           for (const item of dadosNovos) {
             const chave = `${item.codigoItem || ''}_${item.dataExecucao ? new Date(item.dataExecucao).toISOString().split('T')[0] : ''}_${item.setor || ''}`;
-            if (!mapaAntigos.has(chave)) itensAdicionados++;
+            if (!mapaAntigos.has(chave)) {
+              itensAdicionados++;
+              valorItensAdicionados += parseFloat(item.valorTotal || '0');
+              listaItensAdicionados.push({
+                codigoItem: item.codigoItem || '-',
+                descricaoItem: item.descricaoItem || '-',
+                valorTotal: `R$ ${parseFloat(item.valorTotal || '0').toFixed(2)}`,
+                quantidade: item.quantidade || '1',
+              });
+            }
           }
 
-          // Contar itens removidos (estão nos antigos mas não nos novos)
+          // Contar e somar valor dos itens removidos (estão nos antigos mas não nos novos)
           let itensRemovidos = 0;
-          for (const [chave] of mapaAntigos) {
-            if (!mapaNovos.has(chave)) itensRemovidos++;
+          let valorItensRemovidos = 0;
+          const listaItensRemovidos: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }> = [];
+          for (const [chave, itemAntigo] of mapaAntigos) {
+            if (!mapaNovos.has(chave)) {
+              itensRemovidos++;
+              valorItensRemovidos += parseFloat(itemAntigo.valorTotal || '0');
+              // Extrair codigoItem da chave
+              const codigoItem = chave.split('_')[0] || '-';
+              listaItensRemovidos.push({
+                codigoItem,
+                descricaoItem: itemAntigo.descricaoItem || '-',
+                valorTotal: `R$ ${parseFloat(itemAntigo.valorTotal || '0').toFixed(2)}`,
+                quantidade: itemAntigo.quantidade || '1',
+              });
+            }
+          }
+
+          // Calcular diferença líquida das alterações de valor (apenas itens que existiam antes e depois)
+          let diferencaAlteracoes = 0;
+          for (const item of dadosNovos) {
+            const chave = `${item.codigoItem || ''}_${item.dataExecucao ? new Date(item.dataExecucao).toISOString().split('T')[0] : ''}_${item.setor || ''}`;
+            const antigo = mapaAntigos.get(chave);
+            if (antigo) {
+              const valNovo = parseFloat(item.valorTotal || '0');
+              const valAntigo = parseFloat(antigo.valorTotal || '0');
+              if (valNovo !== valAntigo) {
+                diferencaAlteracoes += (valNovo - valAntigo);
+              }
+            }
           }
 
           comparativo = {
@@ -594,9 +637,14 @@ export const contasConvenioRouter = router({
             diferencaValor: valorTotalConta - valorTotalAnterior,
             totalItensAnterior,
             totalItensNovo: totalInseridos,
-            itensAlterados: itensAlterados.slice(0, 50), // Limitar a 50 para não sobrecarregar
+            itensAlterados: itensAlterados.slice(0, 50),
             itensAdicionados,
             itensRemovidos,
+            valorItensAdicionados,
+            valorItensRemovidos,
+            diferencaAlteracoes,
+            listaItensAdicionados: listaItensAdicionados.slice(0, 30),
+            listaItensRemovidos: listaItensRemovidos.slice(0, 30),
           };
 
           logger.info({

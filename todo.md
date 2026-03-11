@@ -2739,3 +2739,6 @@
 - [x] Card de resumo da reimportação: valor antigo vs valor novo, itens alterados/adicionados/removidos
 - [x] Destaque visual nos itens que foram alterados após reimportação
 - [x] Toast detalhado com resumo das alterações encontradas na reimportação
+- [x] Corrigir cálculo do comparativo: mostrar valor dos itens excluídos e adicionados separadamente
+- [x] Adicionar campos valorItensExcluidos e valorItensAdicionados no card de comparativo
+- [x] Calcular diferença real considerando itens excluídos e adicionados

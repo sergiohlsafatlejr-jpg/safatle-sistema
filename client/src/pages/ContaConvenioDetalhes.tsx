@@ -253,6 +253,11 @@ export default function ContaConvenioDetalhes() {
     }>;
     itensAdicionados: number;
     itensRemovidos: number;
+    valorItensAdicionados: number;
+    valorItensRemovidos: number;
+    diferencaAlteracoes: number;
+    listaItensAdicionados: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
+    listaItensRemovidos: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
   } | null>(null);
 
   // Estado para aba de Ajustes de Itens
@@ -1010,9 +1015,9 @@ export default function ContaConvenioDetalhes() {
                 Comparação entre os dados anteriores e os dados recém importados do banco do hospital
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {/* Resumo Geral */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <CardContent className="space-y-6">
+              {/* Resumo Geral - Valores */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-lg bg-white/70 dark:bg-gray-800/50 border">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor Anterior</p>
                   <p className="text-xl font-bold text-gray-600 dark:text-gray-300">{formatCurrency(comparativoReimport.valorAnterior)}</p>
@@ -1028,13 +1033,17 @@ export default function ContaConvenioDetalhes() {
                       ? 'bg-red-50 dark:bg-red-950/30 border-red-200' 
                       : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200'
                 }`}>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Diferença</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Diferença Total</p>
                   <p className={`text-xl font-bold ${
                     comparativoReimport.diferencaValor > 0 ? 'text-green-600' : comparativoReimport.diferencaValor < 0 ? 'text-red-600' : 'text-gray-500'
                   }`}>
                     {comparativoReimport.diferencaValor > 0 ? '+' : ''}{formatCurrency(comparativoReimport.diferencaValor)}
                   </p>
                 </div>
+              </div>
+
+              {/* Detalhamento da Diferença */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="p-4 rounded-lg bg-white/70 dark:bg-gray-800/50 border">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Itens</p>
                   <p className="text-sm mt-1">
@@ -1057,14 +1066,107 @@ export default function ContaConvenioDetalhes() {
                     )}
                   </div>
                 </div>
+                {comparativoReimport.valorItensRemovidos > 0 && (
+                  <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200">
+                    <p className="text-xs text-red-600 uppercase tracking-wider">Valor Itens Excluídos</p>
+                    <p className="text-xl font-bold text-red-600">-{formatCurrency(comparativoReimport.valorItensRemovidos)}</p>
+                    <p className="text-xs text-red-500 mt-1">{comparativoReimport.itensRemovidos} {comparativoReimport.itensRemovidos === 1 ? 'item removido' : 'itens removidos'}</p>
+                  </div>
+                )}
+                {comparativoReimport.valorItensAdicionados > 0 && (
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200">
+                    <p className="text-xs text-green-600 uppercase tracking-wider">Valor Itens Adicionados</p>
+                    <p className="text-xl font-bold text-green-600">+{formatCurrency(comparativoReimport.valorItensAdicionados)}</p>
+                    <p className="text-xs text-green-500 mt-1">{comparativoReimport.itensAdicionados} {comparativoReimport.itensAdicionados === 1 ? 'item novo' : 'itens novos'}</p>
+                  </div>
+                )}
+                {comparativoReimport.diferencaAlteracoes !== 0 && (
+                  <div className={`p-4 rounded-lg border ${
+                    comparativoReimport.diferencaAlteracoes > 0 
+                      ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200' 
+                      : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200'
+                  }`}>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Dif. Alterações de Valor</p>
+                    <p className={`text-xl font-bold ${
+                      comparativoReimport.diferencaAlteracoes > 0 ? 'text-blue-600' : 'text-orange-600'
+                    }`}>
+                      {comparativoReimport.diferencaAlteracoes > 0 ? '+' : ''}{formatCurrency(comparativoReimport.diferencaAlteracoes)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{comparativoReimport.itensAlterados.length} {comparativoReimport.itensAlterados.length === 1 ? 'item com valor alterado' : 'itens com valor alterado'}</p>
+                  </div>
+                )}
               </div>
+
+              {/* Tabela de Itens Excluídos */}
+              {comparativoReimport.listaItensRemovidos && comparativoReimport.listaItensRemovidos.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-red-700 dark:text-red-400">
+                    <Trash2 className="h-4 w-4" />
+                    Itens Excluídos ({comparativoReimport.itensRemovidos}) — Total: {formatCurrency(comparativoReimport.valorItensRemovidos)}
+                  </h3>
+                  <div className="rounded-md border border-red-200 overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-red-50 dark:bg-red-950/20">
+                          <TableHead className="font-semibold">Código</TableHead>
+                          <TableHead className="font-semibold">Descrição</TableHead>
+                          <TableHead className="font-semibold text-center">Qtd</TableHead>
+                          <TableHead className="font-semibold text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {comparativoReimport.listaItensRemovidos.map((item, idx) => (
+                          <TableRow key={idx} className="bg-red-50/30 dark:bg-red-950/10">
+                            <TableCell className="font-mono text-sm text-red-700">{item.codigoItem}</TableCell>
+                            <TableCell className="text-sm max-w-[250px] truncate text-red-700">{item.descricaoItem}</TableCell>
+                            <TableCell className="text-center text-red-600">{item.quantidade}</TableCell>
+                            <TableCell className="text-right font-mono text-red-600 font-semibold line-through">{item.valorTotal}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabela de Itens Adicionados */}
+              {comparativoReimport.listaItensAdicionados && comparativoReimport.listaItensAdicionados.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-green-700 dark:text-green-400">
+                    <Plus className="h-4 w-4" />
+                    Itens Adicionados ({comparativoReimport.itensAdicionados}) — Total: {formatCurrency(comparativoReimport.valorItensAdicionados)}
+                  </h3>
+                  <div className="rounded-md border border-green-200 overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-green-50 dark:bg-green-950/20">
+                          <TableHead className="font-semibold">Código</TableHead>
+                          <TableHead className="font-semibold">Descrição</TableHead>
+                          <TableHead className="font-semibold text-center">Qtd</TableHead>
+                          <TableHead className="font-semibold text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {comparativoReimport.listaItensAdicionados.map((item, idx) => (
+                          <TableRow key={idx} className="bg-green-50/30 dark:bg-green-950/10">
+                            <TableCell className="font-mono text-sm text-green-700">{item.codigoItem}</TableCell>
+                            <TableCell className="text-sm max-w-[250px] truncate text-green-700">{item.descricaoItem}</TableCell>
+                            <TableCell className="text-center text-green-600">{item.quantidade}</TableCell>
+                            <TableCell className="text-right font-mono text-green-600 font-semibold">{item.valorTotal}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
 
               {/* Tabela de Itens Alterados */}
               {comparativoReimport.itensAlterados.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-amber-800 dark:text-amber-300">
                     <Pencil className="h-4 w-4" />
-                    Itens Alterados ({comparativoReimport.itensAlterados.length})
+                    Itens com Valor Alterado ({comparativoReimport.itensAlterados.length})
                   </h3>
                   <div className="rounded-md border overflow-hidden">
                     <Table>
