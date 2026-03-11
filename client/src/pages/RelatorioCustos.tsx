@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardCustos from "@/components/DashboardCustos";
 import ComparacaoCustoConvenio from "@/components/ComparacaoCustoConvenio";
+import CustosPorConvenio from "@/components/CustosPorConvenio";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Download, ChevronLeft, ChevronRight, Filter, X,
   Package, RefreshCw, Database, Cloud, CheckCircle2, AlertCircle, Clock, Loader2,
-  BarChart3, TableIcon, DollarSign, Scale,
+  BarChart3, TableIcon, DollarSign, Scale, Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -311,6 +312,10 @@ export default function RelatorioCustos() {
               <Scale className="h-4 w-4" />
               Custo vs Convenio
             </TabsTrigger>
+            <TabsTrigger value="custosConvenio" className="gap-1.5">
+              <Building2 className="h-4 w-4" />
+              Custos por Convênio
+            </TabsTrigger>
             <TabsTrigger value="tabela" className="gap-1.5">
               <TableIcon className="h-4 w-4" />
               Tabela Detalhada
@@ -580,7 +585,12 @@ export default function RelatorioCustos() {
             )}
           </TabsContent>
 
-          {/* ======== ABA TABELA DETALHADA ======== */}
+                {/* ======== ABA CUSTOS POR CONVÊNIO ======== */}
+          <TabsContent value="custosConvenio" className="space-y-4 mt-4">
+            <CustosPorConvenio estabelecimentoId={estabelecimentoId} />
+          </TabsContent>
+
+          {/* ======== ABA TABELA ======== */}
           <TabsContent value="tabela" className="space-y-4 mt-4">
             {/* Table Filters */}
             <Card>

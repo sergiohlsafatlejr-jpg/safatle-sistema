@@ -2748,3 +2748,7 @@
 - [x] 34 testes unitários passando (incluindo 11 novos para cruzamento de ajustes)
 - [x] Adicionar data do item nas colunas Auditoria e Atual (Banco) na Verificação dos Ajustes
 - [x] Melhorar visibilidade dos marcadores/badges na tela de Divergências e Composição (texto maior, contraste melhor)
+- [x] Melhorar query de custos: cruzar dados de atendimentos com custos dos produtos por convênio
+- [x] Endpoint de custos por convênio baseado em atendimentos faturados
+- [x] Componente frontend para exibir custos separados por convênio
+- [x] 22 testes unitários para lógica de custos por convênio (custosPorConvenio.test.ts)
