@@ -2752,3 +2752,17 @@
 - [x] Endpoint de custos por convênio baseado em atendimentos faturados
 - [x] Componente frontend para exibir custos separados por convênio
 - [x] 22 testes unitários para lógica de custos por convênio (custosPorConvenio.test.ts)
+- [ ] Melhorar clareza e usabilidade do relatório Custos por Convênio (layout confuso para o usuário)
+- [ ] Adicionar textos explicativos e subtítulos claros em cada seção do relatório
+- [ ] Simplificar KPIs e gráficos para facilitar a compreensão
+- [ ] Refazer relatório Custos por Convênio usando tabela `lancamen` do PostgreSQL Warleine
+- [ ] Investigar estrutura da tabela lancamen (campos, convênio, código do item, valores)
+- [ ] Criar endpoint backend cruzando lancamen (faturamento por convênio) com tabprod/tabmprop (custo estoque)
+- [ ] Layout simples: item, custo hospital, valor por convênio (Unimed, Ipasgo, etc), lucro/prejuízo
+- [ ] Resumo final por convênio (total lucro/prejuízo)
+- [ ] Testes vitest para o novo endpoint
+- [ ] Mapear principais tabelas do PostgreSQL Warleine (schema PACIENTE) com colunas e relacionamentos
+- [x] Refazer backend custosPorConvenio usando lancamen + contas + cadplaco + tabprod do PostgreSQL Warleine
+- [x] Refazer frontend CustosPorConvenio com layout simples: item, custo, valor por convênio, lucro/prejuízo
+- [x] Integrar novo componente no RelatorioCustos.tsx
+- [x] Escrever testes para o novo endpoint (27 testes passando)

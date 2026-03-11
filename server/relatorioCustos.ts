@@ -1254,351 +1254,324 @@ async function buscarComparacaoDoPostgresql(
 
 
 // ============================================================
-// CUSTOS POR CONVÊNIO - Baseado em Atendimentos Reais
+// CUSTOS POR CONVÊNIO - Dados diretos do PostgreSQL Warleine
+// Tabelas: lancamen + contas + cadplaco + tabprod
 // ============================================================
 
 export interface FiltroCustoPorConvenio {
   convenio?: string;
-  tipoItem?: string;
-  competencia?: string;
+  tipoItem?: string; // P = Produto, S = Serviço
+  competencia?: string; // formato YYYY-MM
   busca?: string;
 }
 
+export interface ItemCustoConvenio {
+  codprod: string;
+  descricao: string;
+  tipoItem: string; // P ou S
+  custoEstoque: number; // custoatual da tabprod
+  convenios: {
+    convenio: string;
+    codplaco: string;
+    quantidade: number;
+    valorCobrado: number; // vltotreais
+    vlcusto: number; // vlcusto do lancamen
+    custoTotal: number; // custoEstoque * quantidade
+    margem: number; // valorCobrado - custoTotal
+    resultado: "lucro" | "prejuizo" | "empate";
+  }[];
+}
+
+export interface ResumoConvenio {
+  convenio: string;
+  codplaco: string;
+  totalLancamentos: number;
+  totalFaturado: number;
+  totalCusto: number;
+  margem: number;
+  margemPercent: number;
+  resultado: "lucro" | "prejuizo" | "empate";
+}
+
 export interface CustoPorConvenioResult {
-  resumoPorConvenio: {
-    convenio: string;
-    totalContas: number;
-    totalItens: number;
-    valorFaturado: number;
-    custoEstoque: number;
-    margem: number;
-    margemPercent: number;
-  }[];
-  resumoPorTipoItem: {
-    tipoItem: string;
-    totalItens: number;
-    valorFaturado: number;
-    custoEstoque: number;
-    margem: number;
-    margemPercent: number;
-  }[];
-  topItensCusto: {
-    codigoItem: string;
-    descricao: string;
-    tipoItem: string;
-    convenio: string;
-    quantidade: number;
-    valorFaturado: number;
-    custoEstoque: number;
-    custoTotal: number;
-    margem: number;
-    margemPercent: number;
-  }[];
-  topItensPrejuizo: {
-    codigoItem: string;
-    descricao: string;
-    tipoItem: string;
-    convenio: string;
-    quantidade: number;
-    valorFaturado: number;
-    custoEstoque: number;
-    custoTotal: number;
-    margem: number;
-    margemPercent: number;
-  }[];
-  evolucaoMensal: {
-    competencia: string;
-    valorFaturado: number;
-    custoEstoque: number;
-    margem: number;
-    margemPercent: number;
-  }[];
+  // Tabela principal: cada item com valor por convênio
+  itens: ItemCustoConvenio[];
+  totalItens: number;
+  // Resumo por convênio
+  resumoPorConvenio: ResumoConvenio[];
+  // KPIs simples
   kpis: {
     totalConvenios: number;
     totalItensAnalisados: number;
     totalItensSemCusto: number;
     valorFaturadoTotal: number;
-    custoEstoqueTotal: number;
+    custoTotal: number;
     margemTotal: number;
     margemMediaPercent: number;
-    conveniMaiorFaturamento: string;
-    convenioMaiorMargem: string;
-    convenioMenorMargem: string;
   };
-  conveniosDisponiveis: string[];
-  tiposItemDisponiveis: string[];
+  // Top itens com maior prejuízo
+  topItensPrejuizo: {
+    codprod: string;
+    descricao: string;
+    convenio: string;
+    quantidade: number;
+    valorCobrado: number;
+    custoTotal: number;
+    margem: number;
+  }[];
+  // Top itens com maior lucro
+  topItensLucro: {
+    codprod: string;
+    descricao: string;
+    convenio: string;
+    quantidade: number;
+    valorCobrado: number;
+    custoTotal: number;
+    margem: number;
+  }[];
+  // Listas de filtros
+  conveniosDisponiveis: { codplaco: string; nome: string }[];
   competenciasDisponiveis: string[];
+  fonte: string;
 }
 
 export async function buscarCustosPorConvenio(
-  estabelecimentoId: number,
+  _estabelecimentoId: number,
   filtros: FiltroCustoPorConvenio
 ): Promise<CustoPorConvenioResult> {
-  const db = await getDb();
-  if (!db) {
-    throw new Error("Banco de dados local não disponível");
-  }
+  const pool = getWarleinePool();
+  const client = await pool.connect();
 
-  const { contasConvenioItens } = await import("../drizzle/schema");
+  try {
+    await client.query("SET statement_timeout = '120s'");
 
-  // ---- Condições base ----
-  const baseConditions: any[] = [
-    eq(contasConvenioItens.estabelecimentoId, estabelecimentoId),
-    sql`${contasConvenioItens.valorTotal} IS NOT NULL`,
-    sql`${contasConvenioItens.valorTotal} > 0`,
-    sql`${contasConvenioItens.convenio} IS NOT NULL`,
-    sql`${contasConvenioItens.convenio} != ''`,
-  ];
+    // ---- Filtros dinâmicos ----
+    const conditions: string[] = [
+      `L.vltotreais::numeric > 0`,
+    ];
+    const params: any[] = [];
+    let paramIdx = 1;
 
-  if (filtros.convenio) {
-    baseConditions.push(eq(contasConvenioItens.convenio, filtros.convenio));
-  }
-  if (filtros.tipoItem) {
-    baseConditions.push(eq(contasConvenioItens.tipoItem, filtros.tipoItem));
-  }
-  if (filtros.competencia) {
-    baseConditions.push(eq(contasConvenioItens.competencia, filtros.competencia));
-  }
-  if (filtros.busca) {
-    baseConditions.push(
-      sql`(${contasConvenioItens.descricaoItem} LIKE ${"%" + filtros.busca + "%"} OR ${contasConvenioItens.codigoItem} LIKE ${"%" + filtros.busca + "%"})`
+    // Filtro de período: default últimos 12 meses
+    if (filtros.competencia) {
+      conditions.push(`TO_CHAR(L.data, 'YYYY-MM') = $${paramIdx}`);
+      params.push(filtros.competencia);
+      paramIdx++;
+    } else {
+      conditions.push(`L.data >= NOW() - INTERVAL '12 months'`);
+    }
+
+    if (filtros.convenio) {
+      conditions.push(`CP.codplaco = $${paramIdx}`);
+      params.push(filtros.convenio);
+      paramIdx++;
+    }
+
+    if (filtros.tipoItem) {
+      conditions.push(`L.tipoitem = $${paramIdx}`);
+      params.push(filtros.tipoItem);
+      paramIdx++;
+    }
+
+    if (filtros.busca) {
+      conditions.push(`(L.descricao ILIKE $${paramIdx} OR L.codprod ILIKE $${paramIdx})`);
+      params.push(`%${filtros.busca}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    // ---- 1. Buscar convênios disponíveis ----
+    const conveniosResult = await client.query(
+      `SELECT codplaco, nomeplaco FROM "PACIENTE".cadplaco WHERE inativo IS NULL ORDER BY nomeplaco`
     );
-  }
+    const conveniosDisponiveis = conveniosResult.rows.map((r: any) => ({
+      codplaco: r.codplaco,
+      nome: r.nomeplaco,
+    }));
 
-  const whereClause = and(...baseConditions);
+    // ---- 2. Buscar competências disponíveis ----
+    const compResult = await client.query(
+      `SELECT DISTINCT TO_CHAR(L.data, 'YYYY-MM') as comp
+       FROM "PACIENTE".lancamen L
+       WHERE L.data >= NOW() - INTERVAL '24 months'
+       ORDER BY comp DESC`
+    );
+    const competenciasDisponiveis = compResult.rows.map((r: any) => r.comp);
 
-  // ---- Buscar custos do cache para cruzamento ----
-  const custosCache = await db
-    .select({
-      codprod: custosProtudosCache.codprod,
-      custoEstoque: custosProtudosCache.custoEstoque,
-      descricao: custosProtudosCache.descricao,
-    })
-    .from(custosProtudosCache)
-    .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+    // ---- 3. Query principal: itens agrupados por produto + convênio ----
+    const mainQuery = `
+      SELECT
+        TRIM(L.codprod) as codprod,
+        L.descricao,
+        L.tipoitem,
+        CP.codplaco,
+        CP.nomeplaco as convenio,
+        SUM(L.quantidade::numeric) as total_quantidade,
+        SUM(L.vltotreais::numeric) as total_cobrado,
+        SUM(L.vlcusto::numeric) as total_vlcusto,
+        TP.custoatual::numeric as custo_estoque_unitario,
+        COUNT(*) as num_lancamentos
+      FROM "PACIENTE".lancamen L
+      JOIN "PACIENTE".contas C ON L.numconta = C.numconta
+      LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
+      LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
+      WHERE ${whereClause}
+        AND L.codprod IS NOT NULL
+        AND TRIM(L.codprod) != ''
+      GROUP BY TRIM(L.codprod), L.descricao, L.tipoitem, CP.codplaco, CP.nomeplaco, TP.custoatual
+      ORDER BY total_cobrado DESC
+    `;
+    const mainResult = await client.query(mainQuery, params);
 
-  // Mapa de custos por código do produto (usar o menor custo se houver duplicatas por tabela)
-  const custosMap = new Map<string, number>();
-  for (const c of custosCache) {
-    const cod = c.codprod?.trim();
-    if (!cod) continue;
-    const custo = parseFloat(c.custoEstoque || "0");
-    if (custo > 0) {
-      const existing = custosMap.get(cod);
-      if (existing === undefined || custo < existing) {
-        custosMap.set(cod, custo);
+    // ---- 4. Query de resumo por convênio ----
+    const resumoQuery = `
+      SELECT
+        CP.codplaco,
+        CP.nomeplaco as convenio,
+        COUNT(*) as total_lancamentos,
+        SUM(L.vltotreais::numeric) as total_faturado,
+        SUM(L.vlcusto::numeric) as total_vlcusto,
+        SUM(COALESCE(TP.custoatual::numeric, 0) * L.quantidade::numeric) as total_custo_estoque
+      FROM "PACIENTE".lancamen L
+      JOIN "PACIENTE".contas C ON L.numconta = C.numconta
+      LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
+      LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
+      WHERE ${whereClause}
+      GROUP BY CP.codplaco, CP.nomeplaco
+      ORDER BY total_faturado DESC
+    `;
+    const resumoResult = await client.query(resumoQuery, params);
+
+    // ---- Processar dados ----
+
+    // Agrupar itens por codprod (cada item mostra valor por convênio)
+    const itensMap = new Map<string, ItemCustoConvenio>();
+    let totalItensSemCusto = 0;
+    let valorFaturadoTotal = 0;
+    let custoTotalGeral = 0;
+
+    for (const row of mainResult.rows) {
+      const codprod = (row.codprod || "").trim();
+      const descricao = (row.descricao || "").trim();
+      const tipoItem = row.tipoitem || "P";
+      const convenio = row.convenio || "Sem Convênio";
+      const codplaco = row.codplaco || "";
+      const quantidade = parseFloat(row.total_quantidade || "0");
+      const valorCobrado = parseFloat(row.total_cobrado || "0");
+      const vlcusto = parseFloat(row.total_vlcusto || "0");
+      const custoEstoqueUnit = parseFloat(row.custo_estoque_unitario || "0");
+      const custoTotal = custoEstoqueUnit > 0 ? custoEstoqueUnit * quantidade : vlcusto;
+      const margem = valorCobrado - custoTotal;
+
+      if (custoEstoqueUnit === 0 && vlcusto === 0) {
+        totalItensSemCusto++;
       }
-    }
-  }
 
-  // ---- Buscar itens das contas ----
-  const itensContas = await db
-    .select({
-      codigoItem: contasConvenioItens.codigoItem,
-      descricaoItem: contasConvenioItens.descricaoItem,
-      tipoItem: contasConvenioItens.tipoItem,
-      convenio: contasConvenioItens.convenio,
-      numeroConta: contasConvenioItens.numeroConta,
-      quantidade: contasConvenioItens.quantidade,
-      valorUnitario: contasConvenioItens.valorUnitario,
-      valorTotal: contasConvenioItens.valorTotal,
-      competencia: contasConvenioItens.competencia,
-    })
-    .from(contasConvenioItens)
-    .where(whereClause);
+      valorFaturadoTotal += valorCobrado;
+      custoTotalGeral += custoTotal;
 
-  // ---- Processar dados ----
-  // Agrupar por convênio
-  const porConvenioMap = new Map<string, {
-    totalContas: Set<string>;
-    totalItens: number;
-    valorFaturado: number;
-    custoEstoque: number;
-  }>();
+      if (!itensMap.has(codprod)) {
+        itensMap.set(codprod, {
+          codprod,
+          descricao,
+          tipoItem,
+          custoEstoque: custoEstoqueUnit,
+          convenios: [],
+        });
+      }
 
-  // Agrupar por tipo de item
-  const porTipoMap = new Map<string, {
-    totalItens: number;
-    valorFaturado: number;
-    custoEstoque: number;
-  }>();
-
-  // Agrupar por competência (evolução mensal)
-  const porCompetenciaMap = new Map<string, {
-    valorFaturado: number;
-    custoEstoque: number;
-  }>();
-
-  // Top itens por custo
-  const itensDetalhados: {
-    codigoItem: string;
-    descricao: string;
-    tipoItem: string;
-    convenio: string;
-    quantidade: number;
-    valorFaturado: number;
-    custoEstoque: number;
-    custoTotal: number;
-    margem: number;
-    margemPercent: number;
-  }[] = [];
-
-  let totalItensSemCusto = 0;
-  let valorFaturadoTotal = 0;
-  let custoEstoqueTotal = 0;
-
-  for (const item of itensContas) {
-    const conv = item.convenio || "Sem Convênio";
-    const tipo = item.tipoItem || "Outros";
-    const comp = item.competencia || "Sem Competência";
-    const cod = item.codigoItem?.trim() || "";
-    const qtd = parseFloat(item.quantidade || "0");
-    const valFat = parseFloat(item.valorTotal || "0");
-    const custoUnit = custosMap.get(cod) || 0;
-    const custoTotal = custoUnit * qtd;
-
-    if (custoUnit === 0) {
-      totalItensSemCusto++;
-    }
-
-    valorFaturadoTotal += valFat;
-    custoEstoqueTotal += custoTotal;
-
-    // Por convênio
-    if (!porConvenioMap.has(conv)) {
-      porConvenioMap.set(conv, { totalContas: new Set(), totalItens: 0, valorFaturado: 0, custoEstoque: 0 });
-    }
-    const convData = porConvenioMap.get(conv)!;
-    convData.totalContas.add(item.numeroConta);
-    convData.totalItens++;
-    convData.valorFaturado += valFat;
-    convData.custoEstoque += custoTotal;
-
-    // Por tipo
-    if (!porTipoMap.has(tipo)) {
-      porTipoMap.set(tipo, { totalItens: 0, valorFaturado: 0, custoEstoque: 0 });
-    }
-    const tipoData = porTipoMap.get(tipo)!;
-    tipoData.totalItens++;
-    tipoData.valorFaturado += valFat;
-    tipoData.custoEstoque += custoTotal;
-
-    // Por competência
-    if (!porCompetenciaMap.has(comp)) {
-      porCompetenciaMap.set(comp, { valorFaturado: 0, custoEstoque: 0 });
-    }
-    const compData = porCompetenciaMap.get(comp)!;
-    compData.valorFaturado += valFat;
-    compData.custoEstoque += custoTotal;
-
-    // Detalhe do item (apenas se tem custo)
-    if (custoUnit > 0) {
-      itensDetalhados.push({
-        codigoItem: cod,
-        descricao: item.descricaoItem || "",
-        tipoItem: tipo,
-        convenio: conv,
-        quantidade: qtd,
-        valorFaturado: valFat,
-        custoEstoque: custoUnit,
-        custoTotal,
-        margem: valFat - custoTotal,
-        margemPercent: custoTotal > 0 ? ((valFat - custoTotal) / custoTotal) * 100 : 0,
+      const item = itensMap.get(codprod)!;
+      item.convenios.push({
+        convenio,
+        codplaco,
+        quantidade: Math.round(quantidade * 100) / 100,
+        valorCobrado: Math.round(valorCobrado * 100) / 100,
+        vlcusto: Math.round(vlcusto * 100) / 100,
+        custoTotal: Math.round(custoTotal * 100) / 100,
+        margem: Math.round(margem * 100) / 100,
+        resultado: margem > 0.01 ? "lucro" : margem < -0.01 ? "prejuizo" : "empate",
       });
     }
+
+    const itens = Array.from(itensMap.values())
+      .sort((a, b) => {
+        const totalA = a.convenios.reduce((s, c) => s + c.valorCobrado, 0);
+        const totalB = b.convenios.reduce((s, c) => s + c.valorCobrado, 0);
+        return totalB - totalA;
+      })
+      .slice(0, 200); // Limitar a 200 itens para performance
+
+    // Resumo por convênio
+    const resumoPorConvenio: ResumoConvenio[] = resumoResult.rows.map((r: any) => {
+      const totalFaturado = parseFloat(r.total_faturado || "0");
+      const totalCustoEstoque = parseFloat(r.total_custo_estoque || "0");
+      const totalVlcusto = parseFloat(r.total_vlcusto || "0");
+      // Usar custo de estoque quando disponível, senão vlcusto do lançamento
+      const totalCusto = totalCustoEstoque > 0 ? totalCustoEstoque : totalVlcusto;
+      const margem = totalFaturado - totalCusto;
+      return {
+        convenio: r.convenio || "Sem Convênio",
+        codplaco: r.codplaco || "",
+        totalLancamentos: parseInt(r.total_lancamentos || "0"),
+        totalFaturado: Math.round(totalFaturado * 100) / 100,
+        totalCusto: Math.round(totalCusto * 100) / 100,
+        margem: Math.round(margem * 100) / 100,
+        margemPercent: totalCusto > 0 ? Math.round((margem / totalCusto) * 10000) / 100 : 0,
+        resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+      };
+    });
+
+    // Top 20 itens com maior prejuízo por convênio
+    const todosItensConvenio: { codprod: string; descricao: string; convenio: string; quantidade: number; valorCobrado: number; custoTotal: number; margem: number }[] = [];
+    for (const item of itensMap.values()) {
+      for (const conv of item.convenios) {
+        todosItensConvenio.push({
+          codprod: item.codprod,
+          descricao: item.descricao,
+          convenio: conv.convenio,
+          quantidade: conv.quantidade,
+          valorCobrado: conv.valorCobrado,
+          custoTotal: conv.custoTotal,
+          margem: conv.margem,
+        });
+      }
+    }
+
+    const topItensPrejuizo = todosItensConvenio
+      .filter((i) => i.margem < -0.01)
+      .sort((a, b) => a.margem - b.margem)
+      .slice(0, 20);
+
+    const topItensLucro = todosItensConvenio
+      .filter((i) => i.margem > 0.01)
+      .sort((a, b) => b.margem - a.margem)
+      .slice(0, 20);
+
+    const margemTotal = valorFaturadoTotal - custoTotalGeral;
+
+    return {
+      itens,
+      totalItens: itensMap.size,
+      resumoPorConvenio,
+      kpis: {
+        totalConvenios: resumoPorConvenio.length,
+        totalItensAnalisados: mainResult.rows.length,
+        totalItensSemCusto,
+        valorFaturadoTotal: Math.round(valorFaturadoTotal * 100) / 100,
+        custoTotal: Math.round(custoTotalGeral * 100) / 100,
+        margemTotal: Math.round(margemTotal * 100) / 100,
+        margemMediaPercent: custoTotalGeral > 0
+          ? Math.round((margemTotal / custoTotalGeral) * 10000) / 100
+          : 0,
+      },
+      topItensPrejuizo,
+      topItensLucro,
+      conveniosDisponiveis,
+      competenciasDisponiveis,
+      fonte: "postgresql_warleine_direto",
+    };
+  } finally {
+    client.release();
   }
-
-  // ---- Montar resultado ----
-  const resumoPorConvenio = Array.from(porConvenioMap.entries())
-    .map(([conv, data]) => ({
-      convenio: conv,
-      totalContas: data.totalContas.size,
-      totalItens: data.totalItens,
-      valorFaturado: Math.round(data.valorFaturado * 100) / 100,
-      custoEstoque: Math.round(data.custoEstoque * 100) / 100,
-      margem: Math.round((data.valorFaturado - data.custoEstoque) * 100) / 100,
-      margemPercent: data.custoEstoque > 0
-        ? Math.round(((data.valorFaturado - data.custoEstoque) / data.custoEstoque) * 10000) / 100
-        : 0,
-    }))
-    .sort((a, b) => b.valorFaturado - a.valorFaturado);
-
-  const resumoPorTipoItem = Array.from(porTipoMap.entries())
-    .map(([tipo, data]) => ({
-      tipoItem: tipo,
-      totalItens: data.totalItens,
-      valorFaturado: Math.round(data.valorFaturado * 100) / 100,
-      custoEstoque: Math.round(data.custoEstoque * 100) / 100,
-      margem: Math.round((data.valorFaturado - data.custoEstoque) * 100) / 100,
-      margemPercent: data.custoEstoque > 0
-        ? Math.round(((data.valorFaturado - data.custoEstoque) / data.custoEstoque) * 10000) / 100
-        : 0,
-    }))
-    .sort((a, b) => b.valorFaturado - a.valorFaturado);
-
-  const evolucaoMensal = Array.from(porCompetenciaMap.entries())
-    .map(([comp, data]) => ({
-      competencia: comp,
-      valorFaturado: Math.round(data.valorFaturado * 100) / 100,
-      custoEstoque: Math.round(data.custoEstoque * 100) / 100,
-      margem: Math.round((data.valorFaturado - data.custoEstoque) * 100) / 100,
-      margemPercent: data.custoEstoque > 0
-        ? Math.round(((data.valorFaturado - data.custoEstoque) / data.custoEstoque) * 10000) / 100
-        : 0,
-    }))
-    .sort((a, b) => a.competencia.localeCompare(b.competencia));
-
-  // Top 20 itens com maior custo total
-  const topItensCusto = itensDetalhados
-    .sort((a, b) => b.custoTotal - a.custoTotal)
-    .slice(0, 20);
-
-  // Top 20 itens com maior prejuízo (margem negativa)
-  const topItensPrejuizo = itensDetalhados
-    .filter((i) => i.margem < 0)
-    .sort((a, b) => a.margem - b.margem)
-    .slice(0, 20);
-
-  // Convênio com maior faturamento
-  const convMaiorFat = resumoPorConvenio[0]?.convenio || "-";
-  // Convênio com maior margem %
-  const convMaiorMargem = [...resumoPorConvenio]
-    .filter((c) => c.custoEstoque > 0)
-    .sort((a, b) => b.margemPercent - a.margemPercent)[0]?.convenio || "-";
-  // Convênio com menor margem %
-  const convMenorMargem = [...resumoPorConvenio]
-    .filter((c) => c.custoEstoque > 0)
-    .sort((a, b) => a.margemPercent - b.margemPercent)[0]?.convenio || "-";
-
-  // Listas de filtros disponíveis
-  const conveniosDisponiveis = Array.from(porConvenioMap.keys()).sort();
-  const tiposItemDisponiveis = Array.from(porTipoMap.keys()).sort();
-  const competenciasDisponiveis = Array.from(porCompetenciaMap.keys()).sort();
-
-  const margemTotal = valorFaturadoTotal - custoEstoqueTotal;
-
-  return {
-    resumoPorConvenio,
-    resumoPorTipoItem,
-    topItensCusto,
-    topItensPrejuizo,
-    evolucaoMensal,
-    kpis: {
-      totalConvenios: porConvenioMap.size,
-      totalItensAnalisados: itensContas.length,
-      totalItensSemCusto,
-      valorFaturadoTotal: Math.round(valorFaturadoTotal * 100) / 100,
-      custoEstoqueTotal: Math.round(custoEstoqueTotal * 100) / 100,
-      margemTotal: Math.round(margemTotal * 100) / 100,
-      margemMediaPercent: custoEstoqueTotal > 0
-        ? Math.round((margemTotal / custoEstoqueTotal) * 10000) / 100
-        : 0,
-      conveniMaiorFaturamento: convMaiorFat,
-      convenioMaiorMargem: convMaiorMargem,
-      convenioMenorMargem: convMenorMargem,
-    },
-    conveniosDisponiveis,
-    tiposItemDisponiveis,
-    competenciasDisponiveis,
-  };
 }
