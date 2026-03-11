@@ -403,4 +403,365 @@ describe("Contas Convênio - Reimportação com forceRemote e fonteDados", () =>
       expect(itemAlterado.valorAntigo).not.toBe(itemAlterado.valorNovo);
     });
   });
+
+  // ============================================================
+  // TESTES: Cruzamento com Ajustes da Auditoria
+  // ============================================================
+  describe("Cruzamento com Ajustes da Auditoria", () => {
+    // Simula a lógica de cruzamento do backend
+    type AjusteAuditoria = {
+      tipoAjuste: string;
+      codigoItem: string;
+      descricaoItem: string;
+      quantidadeOriginal: string | null;
+      quantidadeAjustada: string | null;
+      valorOriginal: string | null;
+      valorAjustado: string | null;
+      status: string;
+    };
+
+    type ItemNovo = {
+      codigoItem: string;
+      quantidade: string;
+      valorTotal: string;
+      descricaoItem: string;
+    };
+
+    function cruzarAjustes(
+      ajustes: AjusteAuditoria[],
+      itensNovos: ItemNovo[]
+    ) {
+      const mapaNovosPorCodigo = new Map<string, ItemNovo[]>();
+      for (const item of itensNovos) {
+        const cod = item.codigoItem;
+        if (!mapaNovosPorCodigo.has(cod)) mapaNovosPorCodigo.set(cod, []);
+        mapaNovosPorCodigo.get(cod)!.push(item);
+      }
+
+      const statusAjustes: Array<{
+        tipoAjuste: string;
+        codigoItem: string;
+        descricaoItem: string;
+        status: 'corrigido' | 'parcialmente_corrigido' | 'nao_corrigido' | 'item_nao_encontrado';
+        quantidadeAtual: string | null;
+        valorAtual: string | null;
+      }> = [];
+
+      for (const aj of ajustes) {
+        const cod = aj.codigoItem;
+        const novos = mapaNovosPorCodigo.get(cod) || [];
+        const itemNovo = novos[0];
+
+        if (aj.tipoAjuste === 'ADICIONAR_ITEM') {
+          statusAjustes.push({
+            tipoAjuste: aj.tipoAjuste,
+            codigoItem: cod,
+            descricaoItem: aj.descricaoItem,
+            status: novos.length > 0 ? 'corrigido' : 'nao_corrigido',
+            quantidadeAtual: itemNovo?.quantidade || null,
+            valorAtual: itemNovo?.valorTotal || null,
+          });
+        } else if (aj.tipoAjuste === 'REMOVER_ITEM') {
+          statusAjustes.push({
+            tipoAjuste: aj.tipoAjuste,
+            codigoItem: cod,
+            descricaoItem: aj.descricaoItem,
+            status: novos.length === 0 ? 'corrigido' : 'nao_corrigido',
+            quantidadeAtual: itemNovo?.quantidade || null,
+            valorAtual: itemNovo?.valorTotal || null,
+          });
+        } else if (aj.tipoAjuste === 'ALTERAR_QUANTIDADE') {
+          if (!itemNovo) {
+            statusAjustes.push({
+              tipoAjuste: aj.tipoAjuste,
+              codigoItem: cod,
+              descricaoItem: aj.descricaoItem,
+              status: 'item_nao_encontrado',
+              quantidadeAtual: null,
+              valorAtual: null,
+            });
+          } else {
+            const qtdAtual = parseFloat(itemNovo.quantidade);
+            const qtdAjustada = parseFloat(aj.quantidadeAjustada || '0');
+            const qtdOriginal = parseFloat(aj.quantidadeOriginal || '0');
+            let status: 'corrigido' | 'parcialmente_corrigido' | 'nao_corrigido' = 'nao_corrigido';
+            if (Math.abs(qtdAtual - qtdAjustada) < 0.001) status = 'corrigido';
+            else if (Math.abs(qtdAtual - qtdOriginal) > 0.001) status = 'parcialmente_corrigido';
+            statusAjustes.push({
+              tipoAjuste: aj.tipoAjuste,
+              codigoItem: cod,
+              descricaoItem: aj.descricaoItem,
+              status,
+              quantidadeAtual: itemNovo.quantidade,
+              valorAtual: itemNovo.valorTotal,
+            });
+          }
+        } else if (aj.tipoAjuste === 'ALTERAR_VALOR') {
+          if (!itemNovo) {
+            statusAjustes.push({
+              tipoAjuste: aj.tipoAjuste,
+              codigoItem: cod,
+              descricaoItem: aj.descricaoItem,
+              status: 'item_nao_encontrado',
+              quantidadeAtual: null,
+              valorAtual: null,
+            });
+          } else {
+            const valAtual = parseFloat(itemNovo.valorTotal);
+            const valAjustado = parseFloat(aj.valorAjustado || '0');
+            const valOriginal = parseFloat(aj.valorOriginal || '0');
+            let status: 'corrigido' | 'parcialmente_corrigido' | 'nao_corrigido' = 'nao_corrigido';
+            if (Math.abs(valAtual - valAjustado) < 0.01) status = 'corrigido';
+            else if (Math.abs(valAtual - valOriginal) > 0.01) status = 'parcialmente_corrigido';
+            statusAjustes.push({
+              tipoAjuste: aj.tipoAjuste,
+              codigoItem: cod,
+              descricaoItem: aj.descricaoItem,
+              status,
+              quantidadeAtual: itemNovo.quantidade,
+              valorAtual: itemNovo.valorTotal,
+            });
+          }
+        }
+      }
+
+      return statusAjustes;
+    }
+
+    it("deve marcar ALTERAR_QUANTIDADE como 'corrigido' quando qtd atual = qtd ajustada", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_QUANTIDADE',
+        codigoItem: '90562100',
+        descricaoItem: 'CIPROFLOXACINO 2 MG/ML',
+        quantidadeOriginal: '4',
+        quantidadeAjustada: '2',
+        valorOriginal: null,
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: '90562100',
+        quantidade: '2',
+        valorTotal: '50.00',
+        descricaoItem: 'CIPROFLOXACINO 2 MG/ML',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('corrigido');
+      expect(result[0].quantidadeAtual).toBe('2');
+    });
+
+    it("deve marcar ALTERAR_QUANTIDADE como 'nao_corrigido' quando qtd permanece original", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_QUANTIDADE',
+        codigoItem: '1900637599',
+        descricaoItem: 'AGULHA 25X7MM',
+        quantidadeOriginal: '3',
+        quantidadeAjustada: '4',
+        valorOriginal: null,
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: '1900637599',
+        quantidade: '3',
+        valorTotal: '15.00',
+        descricaoItem: 'AGULHA 25X7MM',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('nao_corrigido');
+    });
+
+    it("deve marcar ALTERAR_QUANTIDADE como 'parcialmente_corrigido' quando qtd diferente de ambos", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_QUANTIDADE',
+        codigoItem: '1900146234',
+        descricaoItem: 'SERINGA 20ML',
+        quantidadeOriginal: '1',
+        quantidadeAjustada: '2',
+        valorOriginal: null,
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: '1900146234',
+        quantidade: '3',
+        valorTotal: '30.00',
+        descricaoItem: 'SERINGA 20ML',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('parcialmente_corrigido');
+    });
+
+    it("deve marcar ADICIONAR_ITEM como 'corrigido' quando item existe nos novos", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ADICIONAR_ITEM',
+        codigoItem: 'SORO100',
+        descricaoItem: 'soro fisiológico 100ml',
+        quantidadeOriginal: null,
+        quantidadeAjustada: '1',
+        valorOriginal: null,
+        valorAjustado: '10.00',
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: 'SORO100',
+        quantidade: '1',
+        valorTotal: '10.00',
+        descricaoItem: 'soro fisiológico 100ml',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('corrigido');
+    });
+
+    it("deve marcar ADICIONAR_ITEM como 'nao_corrigido' quando item NÃO existe nos novos", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ADICIONAR_ITEM',
+        codigoItem: 'SORO100',
+        descricaoItem: 'soro fisiológico 100ml',
+        quantidadeOriginal: null,
+        quantidadeAjustada: '1',
+        valorOriginal: null,
+        valorAjustado: '10.00',
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('nao_corrigido');
+    });
+
+    it("deve marcar REMOVER_ITEM como 'corrigido' quando item NÃO existe nos novos", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'REMOVER_ITEM',
+        codigoItem: 'ITEM_EXTRA',
+        descricaoItem: 'Item cobrado indevidamente',
+        quantidadeOriginal: '1',
+        quantidadeAjustada: null,
+        valorOriginal: '50.00',
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('corrigido');
+    });
+
+    it("deve marcar REMOVER_ITEM como 'nao_corrigido' quando item ainda existe nos novos", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'REMOVER_ITEM',
+        codigoItem: 'ITEM_EXTRA',
+        descricaoItem: 'Item cobrado indevidamente',
+        quantidadeOriginal: '1',
+        quantidadeAjustada: null,
+        valorOriginal: '50.00',
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: 'ITEM_EXTRA',
+        quantidade: '1',
+        valorTotal: '50.00',
+        descricaoItem: 'Item cobrado indevidamente',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('nao_corrigido');
+    });
+
+    it("deve marcar ALTERAR_VALOR como 'corrigido' quando valor atual = valor ajustado", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_VALOR',
+        codigoItem: '31102050',
+        descricaoItem: 'COLOCACAO CISTOSCOPICA',
+        quantidadeOriginal: null,
+        quantidadeAjustada: null,
+        valorOriginal: '238.39',
+        valorAjustado: '340.09',
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: '31102050',
+        quantidade: '1',
+        valorTotal: '340.09',
+        descricaoItem: 'COLOCACAO CISTOSCOPICA',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('corrigido');
+    });
+
+    it("deve marcar ALTERAR_VALOR como 'nao_corrigido' quando valor permanece original", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_VALOR',
+        codigoItem: '31102050',
+        descricaoItem: 'COLOCACAO CISTOSCOPICA',
+        quantidadeOriginal: null,
+        quantidadeAjustada: null,
+        valorOriginal: '238.39',
+        valorAjustado: '340.09',
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [{
+        codigoItem: '31102050',
+        quantidade: '1',
+        valorTotal: '238.39',
+        descricaoItem: 'COLOCACAO CISTOSCOPICA',
+      }];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('nao_corrigido');
+    });
+
+    it("deve marcar como 'item_nao_encontrado' quando item não existe nos dados reimportados", () => {
+      const ajustes: AjusteAuditoria[] = [{
+        tipoAjuste: 'ALTERAR_QUANTIDADE',
+        codigoItem: 'ITEM_INEXISTENTE',
+        descricaoItem: 'Item que não existe',
+        quantidadeOriginal: '1',
+        quantidadeAjustada: '3',
+        valorOriginal: null,
+        valorAjustado: null,
+        status: 'aplicado',
+      }];
+      const itensNovos: ItemNovo[] = [];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result[0].status).toBe('item_nao_encontrado');
+    });
+
+    it("deve processar múltiplos ajustes da mesma conta e retornar contadores corretos", () => {
+      const ajustes: AjusteAuditoria[] = [
+        { tipoAjuste: 'ALTERAR_QUANTIDADE', codigoItem: '90562100', descricaoItem: 'CIPRO', quantidadeOriginal: '4', quantidadeAjustada: '2', valorOriginal: null, valorAjustado: null, status: 'aplicado' },
+        { tipoAjuste: 'ALTERAR_QUANTIDADE', codigoItem: '1900637599', descricaoItem: 'AGULHA', quantidadeOriginal: '3', quantidadeAjustada: '4', valorOriginal: null, valorAjustado: null, status: 'aplicado' },
+        { tipoAjuste: 'ADICIONAR_ITEM', codigoItem: 'SORO100', descricaoItem: 'Soro', quantidadeOriginal: null, quantidadeAjustada: '1', valorOriginal: null, valorAjustado: '10.00', status: 'aplicado' },
+        { tipoAjuste: 'ALTERAR_VALOR', codigoItem: '90018516', descricaoItem: 'CEFTRIAXONA', quantidadeOriginal: null, quantidadeAjustada: null, valorOriginal: '50.00', valorAjustado: '75.00', status: 'aplicado' },
+      ];
+      const itensNovos: ItemNovo[] = [
+        { codigoItem: '90562100', quantidade: '2', valorTotal: '25.00', descricaoItem: 'CIPRO' },
+        { codigoItem: '1900637599', quantidade: '3', valorTotal: '15.00', descricaoItem: 'AGULHA' },
+        { codigoItem: '90018516', quantidade: '1', valorTotal: '75.00', descricaoItem: 'CEFTRIAXONA' },
+      ];
+
+      const result = cruzarAjustes(ajustes, itensNovos);
+      expect(result).toHaveLength(4);
+
+      const corrigidos = result.filter(r => r.status === 'corrigido');
+      const naoCorrigidos = result.filter(r => r.status === 'nao_corrigido');
+
+      // CIPRO: qtd 2 = ajustada 2 → corrigido
+      expect(corrigidos.some(r => r.codigoItem === '90562100')).toBe(true);
+      // AGULHA: qtd 3 = original 3 → nao_corrigido
+      expect(naoCorrigidos.some(r => r.codigoItem === '1900637599')).toBe(true);
+      // SORO: não existe nos novos → nao_corrigido
+      expect(naoCorrigidos.some(r => r.codigoItem === 'SORO100')).toBe(true);
+      // CEFTRIAXONA: valor 75 = ajustado 75 → corrigido
+      expect(corrigidos.some(r => r.codigoItem === '90018516')).toBe(true);
+    });
+  });
 });

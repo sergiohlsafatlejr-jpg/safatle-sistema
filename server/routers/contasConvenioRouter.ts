@@ -2,7 +2,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca, logAnaliseComparacao } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca, logAnaliseComparacao, ajustesAuditoria } from "../../drizzle/schema";
 import { queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq, and, sql, desc, like, or, inArray } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -511,6 +511,22 @@ export const contasConvenioRouter = router({
           diferencaAlteracoes: number;
           listaItensAdicionados: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
           listaItensRemovidos: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
+          statusAjustesAuditoria: Array<{
+            tipoAjuste: string;
+            codigoItem: string;
+            descricaoItem: string;
+            quantidadeOriginal: string | null;
+            quantidadeAjustada: string | null;
+            valorOriginal: string | null;
+            valorAjustado: string | null;
+            quantidadeAtual: string | null;
+            valorAtual: string | null;
+            status: string;
+            observacao: string;
+          }>;
+          totalAjustesCorrigidos: number;
+          totalAjustesParciais: number;
+          totalAjustesNaoCorrigidos: number;
         } | null = null;
 
         if (hadPreviousData) {
@@ -630,6 +646,238 @@ export const contasConvenioRouter = router({
             }
           }
 
+          // ============================================================
+          // CRUZAR COM AJUSTES DA AUDITORIA
+          // ============================================================
+          const ajustesAudit = await db.select().from(ajustesAuditoria).where(
+            and(
+              eq(ajustesAuditoria.numeroConta, input.numeroConta),
+              eq(ajustesAuditoria.estabelecimentoId, input.estabelecimentoId),
+              eq(ajustesAuditoria.status, "aplicado"),
+            )
+          );
+
+          // Criar mapa dos novos itens por código para cruzamento
+          const mapaNovosPorCodigo = new Map<string, Array<{ quantidade: string | null; valorUnitario: string | null; valorTotal: string | null; descricaoItem: string | null }>>();
+          for (const item of dadosNovos) {
+            const cod = item.codigoItem || '';
+            if (!mapaNovosPorCodigo.has(cod)) mapaNovosPorCodigo.set(cod, []);
+            mapaNovosPorCodigo.get(cod)!.push(item);
+          }
+
+          const statusAjustes: Array<{
+            tipoAjuste: string;
+            codigoItem: string;
+            descricaoItem: string;
+            quantidadeOriginal: string | null;
+            quantidadeAjustada: string | null;
+            valorOriginal: string | null;
+            valorAjustado: string | null;
+            quantidadeAtual: string | null;
+            valorAtual: string | null;
+            status: 'corrigido' | 'parcialmente_corrigido' | 'nao_corrigido' | 'item_nao_encontrado';
+            observacao: string;
+          }> = [];
+
+          for (const aj of ajustesAudit) {
+            const cod = aj.codigoItem || '';
+            const itensNovos = mapaNovosPorCodigo.get(cod) || [];
+            const itemNovo = itensNovos[0];
+
+            if (aj.tipoAjuste === 'ADICIONAR_ITEM') {
+              // Verificar se o item foi adicionado
+              if (itensNovos.length > 0) {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: null,
+                  quantidadeAjustada: aj.quantidadeAjustada,
+                  valorOriginal: null,
+                  valorAjustado: aj.valorAjustado,
+                  quantidadeAtual: itemNovo?.quantidade || null,
+                  valorAtual: itemNovo?.valorTotal || null,
+                  status: 'corrigido',
+                  observacao: `Item adicionado conforme auditoria`,
+                });
+              } else {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: null,
+                  quantidadeAjustada: aj.quantidadeAjustada,
+                  valorOriginal: null,
+                  valorAjustado: aj.valorAjustado,
+                  quantidadeAtual: null,
+                  valorAtual: null,
+                  status: 'nao_corrigido',
+                  observacao: `Item NÃO encontrado na reimportação`,
+                });
+              }
+            } else if (aj.tipoAjuste === 'REMOVER_ITEM') {
+              if (itensNovos.length === 0) {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: aj.quantidadeOriginal,
+                  quantidadeAjustada: '0',
+                  valorOriginal: aj.valorOriginal,
+                  valorAjustado: '0',
+                  quantidadeAtual: null,
+                  valorAtual: null,
+                  status: 'corrigido',
+                  observacao: `Item removido conforme auditoria`,
+                });
+              } else {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: aj.quantidadeOriginal,
+                  quantidadeAjustada: '0',
+                  valorOriginal: aj.valorOriginal,
+                  valorAjustado: '0',
+                  quantidadeAtual: itemNovo?.quantidade || null,
+                  valorAtual: itemNovo?.valorTotal || null,
+                  status: 'nao_corrigido',
+                  observacao: `Item ainda presente na conta`,
+                });
+              }
+            } else if (aj.tipoAjuste === 'ALTERAR_QUANTIDADE') {
+              if (!itemNovo) {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: aj.quantidadeOriginal,
+                  quantidadeAjustada: aj.quantidadeAjustada,
+                  valorOriginal: aj.valorOriginal,
+                  valorAjustado: aj.valorAjustado,
+                  quantidadeAtual: null,
+                  valorAtual: null,
+                  status: 'item_nao_encontrado',
+                  observacao: `Item não encontrado na reimportação`,
+                });
+              } else {
+                const qtdAtual = parseFloat(itemNovo.quantidade || '0');
+                const qtdAjustada = parseFloat(aj.quantidadeAjustada || '0');
+                const qtdOriginal = parseFloat(aj.quantidadeOriginal || '0');
+                if (Math.abs(qtdAtual - qtdAjustada) < 0.001) {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'corrigido',
+                    observacao: `Quantidade corrigida: ${qtdOriginal} → ${qtdAtual}`,
+                  });
+                } else if (Math.abs(qtdAtual - qtdOriginal) > 0.001) {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'parcialmente_corrigido',
+                    observacao: `Quantidade alterada para ${qtdAtual}, mas auditoria esperava ${qtdAjustada}`,
+                  });
+                } else {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'nao_corrigido',
+                    observacao: `Quantidade permanece ${qtdAtual}, auditoria ajustou para ${qtdAjustada}`,
+                  });
+                }
+              }
+            } else if (aj.tipoAjuste === 'ALTERAR_VALOR') {
+              if (!itemNovo) {
+                statusAjustes.push({
+                  tipoAjuste: aj.tipoAjuste,
+                  codigoItem: cod,
+                  descricaoItem: aj.descricaoItem || '-',
+                  quantidadeOriginal: aj.quantidadeOriginal,
+                  quantidadeAjustada: aj.quantidadeAjustada,
+                  valorOriginal: aj.valorOriginal,
+                  valorAjustado: aj.valorAjustado,
+                  quantidadeAtual: null,
+                  valorAtual: null,
+                  status: 'item_nao_encontrado',
+                  observacao: `Item não encontrado na reimportação`,
+                });
+              } else {
+                const valAtual = parseFloat(itemNovo.valorTotal || '0');
+                const valAjustado = parseFloat(aj.valorAjustado || '0');
+                const valOriginal = parseFloat(aj.valorOriginal || '0');
+                if (Math.abs(valAtual - valAjustado) < 0.01) {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'corrigido',
+                    observacao: `Valor corrigido: R$ ${valOriginal.toFixed(2)} → R$ ${valAtual.toFixed(2)}`,
+                  });
+                } else if (Math.abs(valAtual - valOriginal) > 0.01) {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'parcialmente_corrigido',
+                    observacao: `Valor alterado para R$ ${valAtual.toFixed(2)}, mas auditoria esperava R$ ${valAjustado.toFixed(2)}`,
+                  });
+                } else {
+                  statusAjustes.push({
+                    tipoAjuste: aj.tipoAjuste,
+                    codigoItem: cod,
+                    descricaoItem: aj.descricaoItem || '-',
+                    quantidadeOriginal: aj.quantidadeOriginal,
+                    quantidadeAjustada: aj.quantidadeAjustada,
+                    valorOriginal: aj.valorOriginal,
+                    valorAjustado: aj.valorAjustado,
+                    quantidadeAtual: itemNovo.quantidade,
+                    valorAtual: itemNovo.valorTotal,
+                    status: 'nao_corrigido',
+                    observacao: `Valor permanece R$ ${valOriginal.toFixed(2)}, auditoria ajustou para R$ ${valAjustado.toFixed(2)}`,
+                  });
+                }
+              }
+            }
+          }
+
+          const totalAjustesCorrigidos = statusAjustes.filter(a => a.status === 'corrigido').length;
+          const totalAjustesParciais = statusAjustes.filter(a => a.status === 'parcialmente_corrigido').length;
+          const totalAjustesNaoCorrigidos = statusAjustes.filter(a => a.status === 'nao_corrigido' || a.status === 'item_nao_encontrado').length;
+
           comparativo = {
             hadPreviousData: true,
             valorAnterior: valorTotalAnterior,
@@ -645,6 +893,10 @@ export const contasConvenioRouter = router({
             diferencaAlteracoes,
             listaItensAdicionados: listaItensAdicionados.slice(0, 30),
             listaItensRemovidos: listaItensRemovidos.slice(0, 30),
+            statusAjustesAuditoria: statusAjustes,
+            totalAjustesCorrigidos,
+            totalAjustesParciais,
+            totalAjustesNaoCorrigidos,
           };
 
           logger.info({

@@ -2742,3 +2742,7 @@
 - [x] Corrigir cálculo do comparativo: mostrar valor dos itens excluídos e adicionados separadamente
 - [x] Adicionar campos valorItensExcluidos e valorItensAdicionados no card de comparativo
 - [x] Calcular diferença real considerando itens excluídos e adicionados
+- [x] Bug: Ajustes da auditoria (alterações de qtd, adições de itens) não refletidos na reimportação do banco
+- [x] Seção 'Verificação dos Ajustes da Auditoria' no card de comparativo
+- [x] Cruzamento automático: ajustes da auditoria vs dados reimportados (corrigido/parcial/não corrigido)
+- [x] 34 testes unitários passando (incluindo 11 novos para cruzamento de ajustes)

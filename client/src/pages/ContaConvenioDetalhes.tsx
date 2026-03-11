@@ -258,6 +258,22 @@ export default function ContaConvenioDetalhes() {
     diferencaAlteracoes: number;
     listaItensAdicionados: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
     listaItensRemovidos: Array<{ codigoItem: string; descricaoItem: string; valorTotal: string; quantidade: string }>;
+    statusAjustesAuditoria?: Array<{
+      tipoAjuste: string;
+      codigoItem: string;
+      descricaoItem: string;
+      quantidadeOriginal: string | null;
+      quantidadeAjustada: string | null;
+      valorOriginal: string | null;
+      valorAjustado: string | null;
+      quantidadeAtual: string | null;
+      valorAtual: string | null;
+      status: string;
+      observacao: string;
+    }>;
+    totalAjustesCorrigidos?: number;
+    totalAjustesParciais?: number;
+    totalAjustesNaoCorrigidos?: number;
   } | null>(null);
 
   // Estado para aba de Ajustes de Itens
@@ -1193,6 +1209,120 @@ export default function ContaConvenioDetalhes() {
                             <TableCell className="text-right font-mono text-green-600 font-semibold">{item.valorNovo}</TableCell>
                           </TableRow>
                         ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Status dos Ajustes da Auditoria */}
+              {comparativoReimport.statusAjustesAuditoria && comparativoReimport.statusAjustesAuditoria.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 text-purple-800 dark:text-purple-300">
+                      <Shield className="h-4 w-4" />
+                      Verificação dos Ajustes da Auditoria ({comparativoReimport.statusAjustesAuditoria.length})
+                    </h3>
+                    <div className="flex gap-2">
+                      {(comparativoReimport.totalAjustesCorrigidos || 0) > 0 && (
+                        <Badge className="bg-green-100 text-green-800 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          {comparativoReimport.totalAjustesCorrigidos} corrigido{(comparativoReimport.totalAjustesCorrigidos || 0) > 1 ? 's' : ''}
+                        </Badge>
+                      )}
+                      {(comparativoReimport.totalAjustesParciais || 0) > 0 && (
+                        <Badge className="bg-amber-100 text-amber-800 text-xs">
+                          {comparativoReimport.totalAjustesParciais} parcial{(comparativoReimport.totalAjustesParciais || 0) > 1 ? 'is' : ''}
+                        </Badge>
+                      )}
+                      {(comparativoReimport.totalAjustesNaoCorrigidos || 0) > 0 && (
+                        <Badge className="bg-red-100 text-red-800 text-xs">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          {comparativoReimport.totalAjustesNaoCorrigidos} não corrigido{(comparativoReimport.totalAjustesNaoCorrigidos || 0) > 1 ? 's' : ''}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-purple-200 overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-purple-50 dark:bg-purple-950/20">
+                          <TableHead className="font-semibold">Status</TableHead>
+                          <TableHead className="font-semibold">Tipo</TableHead>
+                          <TableHead className="font-semibold">Código</TableHead>
+                          <TableHead className="font-semibold">Descrição</TableHead>
+                          <TableHead className="font-semibold text-center">Auditoria</TableHead>
+                          <TableHead className="font-semibold text-center">Atual (Banco)</TableHead>
+                          <TableHead className="font-semibold">Observação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {comparativoReimport.statusAjustesAuditoria.map((aj, idx) => {
+                          const statusColor = aj.status === 'corrigido'
+                            ? 'text-green-700 bg-green-50 dark:bg-green-950/20'
+                            : aj.status === 'parcialmente_corrigido'
+                              ? 'text-amber-700 bg-amber-50 dark:bg-amber-950/20'
+                              : 'text-red-700 bg-red-50 dark:bg-red-950/20';
+                          const statusIcon = aj.status === 'corrigido'
+                            ? <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            : aj.status === 'parcialmente_corrigido'
+                              ? <AlertTriangle className="h-4 w-4 text-amber-600" />
+                              : <XCircle className="h-4 w-4 text-red-600" />;
+                          const statusLabel = aj.status === 'corrigido' ? 'Corrigido'
+                            : aj.status === 'parcialmente_corrigido' ? 'Parcial'
+                              : aj.status === 'item_nao_encontrado' ? 'Não Encontrado'
+                                : 'Não Corrigido';
+
+                          // Formatar o que a auditoria pediu
+                          let auditoriaTexto = '';
+                          if (aj.tipoAjuste === 'ALTERAR_QUANTIDADE') {
+                            auditoriaTexto = `Qtd: ${aj.quantidadeOriginal || '?'} → ${aj.quantidadeAjustada || '?'}`;
+                          } else if (aj.tipoAjuste === 'ALTERAR_VALOR') {
+                            auditoriaTexto = `R$ ${parseFloat(aj.valorOriginal || '0').toFixed(2)} → R$ ${parseFloat(aj.valorAjustado || '0').toFixed(2)}`;
+                          } else if (aj.tipoAjuste === 'ADICIONAR_ITEM') {
+                            auditoriaTexto = `Adicionar (Qtd: ${aj.quantidadeAjustada || '?'})`;
+                          } else if (aj.tipoAjuste === 'REMOVER_ITEM') {
+                            auditoriaTexto = `Remover item`;
+                          } else {
+                            auditoriaTexto = aj.tipoAjuste;
+                          }
+
+                          // Valor atual do banco
+                          let atualTexto = '-';
+                          if (aj.quantidadeAtual !== null && aj.valorAtual !== null) {
+                            atualTexto = `Qtd: ${aj.quantidadeAtual} / R$ ${parseFloat(aj.valorAtual || '0').toFixed(2)}`;
+                          } else if (aj.quantidadeAtual !== null) {
+                            atualTexto = `Qtd: ${aj.quantidadeAtual}`;
+                          } else if (aj.valorAtual !== null) {
+                            atualTexto = `R$ ${parseFloat(aj.valorAtual || '0').toFixed(2)}`;
+                          }
+
+                          // Tipo badge
+                          const tipoBadge = aj.tipoAjuste === 'ALTERAR_QUANTIDADE' ? 'Qtd'
+                            : aj.tipoAjuste === 'ALTERAR_VALOR' ? 'Valor'
+                              : aj.tipoAjuste === 'ADICIONAR_ITEM' ? '+ Item'
+                                : aj.tipoAjuste === 'REMOVER_ITEM' ? '- Item'
+                                  : aj.tipoAjuste;
+
+                          return (
+                            <TableRow key={idx} className={statusColor}>
+                              <TableCell>
+                                <div className="flex items-center gap-1.5">
+                                  {statusIcon}
+                                  <span className="text-xs font-medium">{statusLabel}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">{tipoBadge}</Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">{aj.codigoItem}</TableCell>
+                              <TableCell className="text-sm max-w-[180px] truncate">{aj.descricaoItem}</TableCell>
+                              <TableCell className="text-center text-sm font-medium">{auditoriaTexto}</TableCell>
+                              <TableCell className="text-center text-sm">{atualTexto}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px]">{aj.observacao}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
