@@ -28,6 +28,7 @@ export const contasConvenioRouter = router({
     .input(z.object({
       numeroConta: z.string().min(1, "Número da conta é obrigatório"),
       estabelecimentoId: z.number(),
+      forceRemote: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -183,17 +184,30 @@ export const contasConvenioRouter = router({
         });
 
         let dados: any[];
+        let fonteDados: "BANCO_REMOTO" | "CACHE_LOCAL" = "BANCO_REMOTO";
         try {
           dados = await connector.executarQuery(querySql, [input.numeroConta]);
+          fonteDados = "BANCO_REMOTO";
         } catch (queryError) {
+          const errMsg = queryError instanceof Error ? queryError.message : String(queryError);
           logger.warn({
-            message: "Query do Integrador falhou, tentando busca local",
-            error: queryError instanceof Error ? queryError.message : String(queryError),
+            message: "Query do Integrador falhou",
+            error: errMsg,
+            forceRemote: input.forceRemote,
           });
 
           await connector.desconectar();
 
+          // Se forceRemote=true, NÃO usar fallback - retornar erro direto
+          if (input.forceRemote) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: `Falha ao buscar conta diretamente do banco do hospital: ${errMsg}. Verifique se a conexão está ativa e a query está correta no Integrador de Dados.`,
+            });
+          }
+
           // Fallback: buscar da tabela local integ_faturado (dados já sincronizados)
+          // AVISO: esses dados podem estar desatualizados!
           const localResult = await db.execute(sql`
             SELECT 
               numconta as numconta,
@@ -230,6 +244,16 @@ export const contasConvenioRouter = router({
           `);
 
           dados = (localResult as any)[0] || [];
+          fonteDados = "CACHE_LOCAL";
+
+          if (dados.length > 0) {
+            logger.warn({
+              message: "ATENÇÃO: Dados carregados do CACHE LOCAL (integ_faturado) - podem estar DESATUALIZADOS!",
+              numeroConta: input.numeroConta,
+              totalItens: dados.length,
+              motivoFallback: errMsg,
+            });
+          }
         }
 
         await connector.desconectar();
@@ -412,11 +436,16 @@ export const contasConvenioRouter = router({
           buscadoPor: ctx.user?.id || null,
         });
 
+        const avisoFallback = fonteDados === "CACHE_LOCAL"
+          ? " ⚠️ ATENÇÃO: Dados carregados do cache local (podem estar desatualizados). Use 'Reimportar do Banco' para buscar dados atualizados diretamente do sistema do hospital."
+          : "";
+
         return {
           sucesso: true,
-          mensagem: `Conta ${input.numeroConta} importada com ${totalInseridos} itens. Valor total: R$ ${valorTotalConta.toFixed(2)}`,
+          mensagem: `Conta ${input.numeroConta} importada com ${totalInseridos} itens. Valor total: R$ ${valorTotalConta.toFixed(2)}${avisoFallback}`,
           totalItens: totalInseridos,
           valorTotal: valorTotalConta,
+          fonteDados,
           convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
           paciente: resumoPaciente ? String(resumoPaciente) : null,
           conta: {

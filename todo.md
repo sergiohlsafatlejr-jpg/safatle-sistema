@@ -2731,3 +2731,8 @@
 - [x] Implementar comparativo detalhado por tipo (Internações, Ambulatoriais, Emergências, Urgências) no Dashboard de Atendimentos
 - [x] Integrar endpoint metricasAvancadas no frontend (RelatorioAtendimentos → DashboardAtendimentos)
 - [x] Testes unitários para buscarMetricasAvancadas (8 testes passando)
+- [x] Bug: Reimportação de conta após correções da faturista não traz dados atualizados (conta 143800)
+- [x] Botão "Reimportar do Banco" na tela de detalhes da conta (forceRemote=true, sem fallback)
+- [x] Indicador de fonte dos dados (BANCO_REMOTO vs CACHE_LOCAL) no retorno da API
+- [x] Aviso claro quando dados vieram do cache local desatualizado
+- [x] 12 testes unitários para lógica de reimportação (contasConvenioReimport.test.ts)

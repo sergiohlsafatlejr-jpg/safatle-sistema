@@ -464,6 +464,19 @@ export default function ContaConvenioDetalhes() {
     onError: (err) => toast.error(err.message),
   });
 
+  // Mutation para reimportar conta diretamente do banco do hospital
+  const reimportarMutation = trpc.contasConvenio.buscarConta.useMutation({
+    onSuccess: (result) => {
+      if (result.fonteDados === "CACHE_LOCAL") {
+        toast.warning(`Conta reimportada com ${result.totalItens} itens, mas os dados vieram do CACHE LOCAL (podem estar desatualizados). Verifique a conexão com o banco do hospital.`);
+      } else {
+        toast.success(`Conta reimportada com sucesso! ${result.totalItens} itens atualizados diretamente do banco do hospital. Valor total: R$ ${result.valorTotal?.toFixed(2)}`);
+      }
+      refetch();
+    },
+    onError: (err) => toast.error(`Erro ao reimportar: ${err.message}`),
+  });
+
   const compararMutation = trpc.contasConvenio.compararComPadroes.useMutation({
     onSuccess: (result) => {
       if (result.statusGeral === "conforme") {
@@ -707,6 +720,28 @@ export default function ContaConvenioDetalhes() {
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Atualizar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              onClick={() => {
+                if (confirm("Reimportar conta do banco do hospital?\n\nIsso irá buscar os dados mais recentes diretamente do sistema do hospital, substituindo os dados atuais.")) {
+                  reimportarMutation.mutate({
+                    numeroConta,
+                    estabelecimentoId,
+                    forceRemote: true,
+                  });
+                }
+              }}
+              disabled={reimportarMutation.isPending}
+            >
+              {reimportarMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Database className="mr-2 h-4 w-4" />
+              )}
+              Reimportar do Banco
             </Button>
             <Button 
               size="sm" 
