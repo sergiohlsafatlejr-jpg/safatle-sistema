@@ -236,6 +236,25 @@ export default function ContaConvenioDetalhes() {
   const [falhaDescricao, setFalhaDescricao] = useState("");
   const [falhaSeveridade, setFalhaSeveridade] = useState<"leve" | "moderada" | "grave" | "critica">("moderada");
 
+  // Estado para comparativo de reimportação
+  const [comparativoReimport, setComparativoReimport] = useState<{
+    hadPreviousData: boolean;
+    valorAnterior: number;
+    valorNovo: number;
+    diferencaValor: number;
+    totalItensAnterior: number;
+    totalItensNovo: number;
+    itensAlterados: Array<{
+      codigoItem: string;
+      descricaoItem: string;
+      campo: string;
+      valorAntigo: string;
+      valorNovo: string;
+    }>;
+    itensAdicionados: number;
+    itensRemovidos: number;
+  } | null>(null);
+
   // Estado para aba de Ajustes de Itens
   const [ajusteDialog, setAjusteDialog] = useState<{
     open: boolean;
@@ -466,11 +485,15 @@ export default function ContaConvenioDetalhes() {
 
   // Mutation para reimportar conta diretamente do banco do hospital
   const reimportarMutation = trpc.contasConvenio.buscarConta.useMutation({
-    onSuccess: (result) => {
+    onSuccess: (result: any) => {
       if (result.fonteDados === "CACHE_LOCAL") {
         toast.warning(`Conta reimportada com ${result.totalItens} itens, mas os dados vieram do CACHE LOCAL (podem estar desatualizados). Verifique a conexão com o banco do hospital.`);
       } else {
         toast.success(`Conta reimportada com sucesso! ${result.totalItens} itens atualizados diretamente do banco do hospital. Valor total: R$ ${result.valorTotal?.toFixed(2)}`);
+      }
+      // Salvar comparativo para exibição
+      if (result.comparativo && result.comparativo.hadPreviousData) {
+        setComparativoReimport(result.comparativo);
       }
       refetch();
     },
@@ -964,6 +987,118 @@ export default function ContaConvenioDetalhes() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Card de Comparativo de Reimportação */}
+        {comparativoReimport && (
+          <Card className="border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                  <RefreshCw className="h-5 w-5" />
+                  Resultado da Reimportação
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setComparativoReimport(null)}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+              <CardDescription className="text-amber-700 dark:text-amber-400">
+                Comparação entre os dados anteriores e os dados recém importados do banco do hospital
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Resumo Geral */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 rounded-lg bg-white/70 dark:bg-gray-800/50 border">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor Anterior</p>
+                  <p className="text-xl font-bold text-gray-600 dark:text-gray-300">{formatCurrency(comparativoReimport.valorAnterior)}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-white/70 dark:bg-gray-800/50 border">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor Atual</p>
+                  <p className="text-xl font-bold text-emerald-600">{formatCurrency(comparativoReimport.valorNovo)}</p>
+                </div>
+                <div className={`p-4 rounded-lg border ${
+                  comparativoReimport.diferencaValor > 0 
+                    ? 'bg-green-50 dark:bg-green-950/30 border-green-200' 
+                    : comparativoReimport.diferencaValor < 0 
+                      ? 'bg-red-50 dark:bg-red-950/30 border-red-200' 
+                      : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200'
+                }`}>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Diferença</p>
+                  <p className={`text-xl font-bold ${
+                    comparativoReimport.diferencaValor > 0 ? 'text-green-600' : comparativoReimport.diferencaValor < 0 ? 'text-red-600' : 'text-gray-500'
+                  }`}>
+                    {comparativoReimport.diferencaValor > 0 ? '+' : ''}{formatCurrency(comparativoReimport.diferencaValor)}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-white/70 dark:bg-gray-800/50 border">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Itens</p>
+                  <p className="text-sm mt-1">
+                    <span className="font-semibold">{comparativoReimport.totalItensAnterior}</span>
+                    <span className="text-muted-foreground mx-2">→</span>
+                    <span className="font-semibold">{comparativoReimport.totalItensNovo}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {comparativoReimport.itensAdicionados > 0 && (
+                      <Badge className="bg-green-100 text-green-800 text-xs">+{comparativoReimport.itensAdicionados} novo{comparativoReimport.itensAdicionados > 1 ? 's' : ''}</Badge>
+                    )}
+                    {comparativoReimport.itensRemovidos > 0 && (
+                      <Badge className="bg-red-100 text-red-800 text-xs">-{comparativoReimport.itensRemovidos} removido{comparativoReimport.itensRemovidos > 1 ? 's' : ''}</Badge>
+                    )}
+                    {comparativoReimport.itensAlterados.length > 0 && (
+                      <Badge className="bg-amber-100 text-amber-800 text-xs">{comparativoReimport.itensAlterados.length} alteraçõ{comparativoReimport.itensAlterados.length > 1 ? 'es' : 'ão'}</Badge>
+                    )}
+                    {comparativoReimport.itensAlterados.length === 0 && comparativoReimport.itensAdicionados === 0 && comparativoReimport.itensRemovidos === 0 && (
+                      <Badge className="bg-gray-100 text-gray-600 text-xs">Nenhuma alteração detectada</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabela de Itens Alterados */}
+              {comparativoReimport.itensAlterados.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                    <Pencil className="h-4 w-4" />
+                    Itens Alterados ({comparativoReimport.itensAlterados.length})
+                  </h3>
+                  <div className="rounded-md border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+                          <TableHead className="font-semibold">Código</TableHead>
+                          <TableHead className="font-semibold">Descrição</TableHead>
+                          <TableHead className="font-semibold">Campo</TableHead>
+                          <TableHead className="font-semibold text-right">Valor Anterior</TableHead>
+                          <TableHead className="font-semibold text-center">→</TableHead>
+                          <TableHead className="font-semibold text-right">Valor Atual</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {comparativoReimport.itensAlterados.map((item, idx) => (
+                          <TableRow key={idx} className="bg-white dark:bg-gray-900">
+                            <TableCell className="font-mono text-sm">{item.codigoItem}</TableCell>
+                            <TableCell className="text-sm max-w-[200px] truncate">{item.descricaoItem}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{item.campo}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-red-600 line-through">{item.valorAntigo}</TableCell>
+                            <TableCell className="text-center text-muted-foreground">→</TableCell>
+                            <TableCell className="text-right font-mono text-green-600 font-semibold">{item.valorNovo}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Tabs: Itens, Divergências e Auditoria */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

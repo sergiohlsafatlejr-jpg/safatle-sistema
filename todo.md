@@ -2736,3 +2736,6 @@
 - [x] Indicador de fonte dos dados (BANCO_REMOTO vs CACHE_LOCAL) no retorno da API
 - [x] Aviso claro quando dados vieram do cache local desatualizado
 - [x] 12 testes unitários para lógica de reimportação (contasConvenioReimport.test.ts)
+- [x] Card de resumo da reimportação: valor antigo vs valor novo, itens alterados/adicionados/removidos
+- [x] Destaque visual nos itens que foram alterados após reimportação
+- [x] Toast detalhado com resumo das alterações encontradas na reimportação

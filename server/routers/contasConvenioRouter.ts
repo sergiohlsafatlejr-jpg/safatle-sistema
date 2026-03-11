@@ -286,6 +286,53 @@ export const contasConvenioRouter = router({
           });
         }
 
+        // ============================================================
+        // CAPTURAR DADOS ANTIGOS ANTES DO DELETE (para comparativo)
+        // ============================================================
+        const dadosAntigos = await db.select({
+          codigoItem: contasConvenioItens.codigoItem,
+          descricaoItem: contasConvenioItens.descricaoItem,
+          quantidade: contasConvenioItens.quantidade,
+          valorUnitario: contasConvenioItens.valorUnitario,
+          valorTotal: contasConvenioItens.valorTotal,
+          tipoItem: contasConvenioItens.tipoItem,
+          dataExecucao: contasConvenioItens.dataExecucao,
+          setor: contasConvenioItens.setor,
+        }).from(contasConvenioItens).where(
+          and(
+            eq(contasConvenioItens.numeroConta, input.numeroConta),
+            eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+            eq(contasConvenioItens.origem, "BANCO_CLIENTE"),
+          )
+        );
+
+        const resumoAntigo = await db.select({
+          totalItens: contasConvenioResumo.totalItens,
+          valorTotal: contasConvenioResumo.valorTotal,
+        }).from(contasConvenioResumo).where(
+          and(
+            eq(contasConvenioResumo.numeroConta, input.numeroConta),
+            eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+            eq(contasConvenioResumo.origem, "BANCO_CLIENTE"),
+          )
+        ).limit(1);
+
+        const hadPreviousData = dadosAntigos.length > 0;
+        const valorTotalAnterior = resumoAntigo[0] ? parseFloat(String(resumoAntigo[0].valorTotal || "0")) : 0;
+        const totalItensAnterior = resumoAntigo[0]?.totalItens || 0;
+
+        // Criar mapa dos itens antigos por chave (codigo + data + setor)
+        const mapaAntigos = new Map<string, { quantidade: string | null; valorUnitario: string | null; valorTotal: string | null; descricaoItem: string | null }>();
+        for (const item of dadosAntigos) {
+          const chave = `${item.codigoItem || ''}_${item.dataExecucao ? new Date(item.dataExecucao).toISOString().split('T')[0] : ''}_${item.setor || ''}`;
+          mapaAntigos.set(chave, {
+            quantidade: item.quantidade,
+            valorUnitario: item.valorUnitario,
+            valorTotal: item.valorTotal,
+            descricaoItem: item.descricaoItem,
+          });
+        }
+
         // Limpar dados existentes desta conta (se já foi buscada antes)
         await db.delete(contasConvenioItens).where(
           and(
@@ -440,12 +487,136 @@ export const contasConvenioRouter = router({
           ? " ⚠️ ATENÇÃO: Dados carregados do cache local (podem estar desatualizados). Use 'Reimportar do Banco' para buscar dados atualizados diretamente do sistema do hospital."
           : "";
 
+        // ============================================================
+        // COMPARATIVO: Gerar diff entre dados antigos e novos
+        // ============================================================
+        let comparativo: {
+          hadPreviousData: boolean;
+          valorAnterior: number;
+          valorNovo: number;
+          diferencaValor: number;
+          totalItensAnterior: number;
+          totalItensNovo: number;
+          itensAlterados: Array<{
+            codigoItem: string;
+            descricaoItem: string;
+            campo: string;
+            valorAntigo: string;
+            valorNovo: string;
+          }>;
+          itensAdicionados: number;
+          itensRemovidos: number;
+        } | null = null;
+
+        if (hadPreviousData) {
+          // Buscar os novos itens recém inseridos para comparar
+          const dadosNovos = await db.select({
+            codigoItem: contasConvenioItens.codigoItem,
+            descricaoItem: contasConvenioItens.descricaoItem,
+            quantidade: contasConvenioItens.quantidade,
+            valorUnitario: contasConvenioItens.valorUnitario,
+            valorTotal: contasConvenioItens.valorTotal,
+            tipoItem: contasConvenioItens.tipoItem,
+            dataExecucao: contasConvenioItens.dataExecucao,
+            setor: contasConvenioItens.setor,
+          }).from(contasConvenioItens).where(
+            and(
+              eq(contasConvenioItens.numeroConta, input.numeroConta),
+              eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+              eq(contasConvenioItens.origem, "BANCO_CLIENTE"),
+            )
+          );
+
+          const itensAlterados: Array<{
+            codigoItem: string;
+            descricaoItem: string;
+            campo: string;
+            valorAntigo: string;
+            valorNovo: string;
+          }> = [];
+
+          // Criar mapa dos novos
+          const mapaNovos = new Set<string>();
+          for (const item of dadosNovos) {
+            const chave = `${item.codigoItem || ''}_${item.dataExecucao ? new Date(item.dataExecucao).toISOString().split('T')[0] : ''}_${item.setor || ''}`;
+            mapaNovos.add(chave);
+
+            const antigo = mapaAntigos.get(chave);
+            if (antigo) {
+              // Comparar campos
+              if (antigo.valorTotal !== item.valorTotal) {
+                itensAlterados.push({
+                  codigoItem: item.codigoItem || '-',
+                  descricaoItem: item.descricaoItem || '-',
+                  campo: 'Valor Total',
+                  valorAntigo: `R$ ${parseFloat(antigo.valorTotal || '0').toFixed(2)}`,
+                  valorNovo: `R$ ${parseFloat(item.valorTotal || '0').toFixed(2)}`,
+                });
+              }
+              if (antigo.quantidade !== item.quantidade) {
+                itensAlterados.push({
+                  codigoItem: item.codigoItem || '-',
+                  descricaoItem: item.descricaoItem || '-',
+                  campo: 'Quantidade',
+                  valorAntigo: antigo.quantidade || '0',
+                  valorNovo: item.quantidade || '0',
+                });
+              }
+              if (antigo.valorUnitario !== item.valorUnitario) {
+                itensAlterados.push({
+                  codigoItem: item.codigoItem || '-',
+                  descricaoItem: item.descricaoItem || '-',
+                  campo: 'Valor Unitário',
+                  valorAntigo: `R$ ${parseFloat(antigo.valorUnitario || '0').toFixed(2)}`,
+                  valorNovo: `R$ ${parseFloat(item.valorUnitario || '0').toFixed(2)}`,
+                });
+              }
+            }
+          }
+
+          // Contar itens adicionados (estão nos novos mas não nos antigos)
+          let itensAdicionados = 0;
+          for (const item of dadosNovos) {
+            const chave = `${item.codigoItem || ''}_${item.dataExecucao ? new Date(item.dataExecucao).toISOString().split('T')[0] : ''}_${item.setor || ''}`;
+            if (!mapaAntigos.has(chave)) itensAdicionados++;
+          }
+
+          // Contar itens removidos (estão nos antigos mas não nos novos)
+          let itensRemovidos = 0;
+          for (const [chave] of mapaAntigos) {
+            if (!mapaNovos.has(chave)) itensRemovidos++;
+          }
+
+          comparativo = {
+            hadPreviousData: true,
+            valorAnterior: valorTotalAnterior,
+            valorNovo: valorTotalConta,
+            diferencaValor: valorTotalConta - valorTotalAnterior,
+            totalItensAnterior,
+            totalItensNovo: totalInseridos,
+            itensAlterados: itensAlterados.slice(0, 50), // Limitar a 50 para não sobrecarregar
+            itensAdicionados,
+            itensRemovidos,
+          };
+
+          logger.info({
+            message: "Comparativo de reimportação gerado",
+            numeroConta: input.numeroConta,
+            valorAnterior: valorTotalAnterior,
+            valorNovo: valorTotalConta,
+            itensAlterados: itensAlterados.length,
+            itensAdicionados,
+            itensRemovidos,
+          });
+        }
+
         return {
           sucesso: true,
           mensagem: `Conta ${input.numeroConta} importada com ${totalInseridos} itens. Valor total: R$ ${valorTotalConta.toFixed(2)}${avisoFallback}`,
           totalItens: totalInseridos,
           valorTotal: valorTotalConta,
           fonteDados,
+          comparativo,
           convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
           paciente: resumoPaciente ? String(resumoPaciente) : null,
           conta: {
