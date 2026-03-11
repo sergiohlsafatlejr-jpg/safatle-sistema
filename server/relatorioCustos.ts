@@ -1265,6 +1265,24 @@ export interface FiltroCustoPorConvenio {
   busca?: string;
 }
 
+export interface ItemDetalhadoConvenio {
+  codprod: string;
+  descricao: string;
+  tipoItem: string; // P, S, M, T, O
+  tipoItemLabel: string; // Medicamento, Taxa, etc.
+  convenio: string;
+  codplaco: string;
+  unidade: string; // UND, AMP, BOL, etc.
+  quantidade: number;
+  custoUnitario: number; // custoatual da tabprod
+  custoTotal: number; // custoUnitario * quantidade
+  valorCobradoUnitario: number; // vlunitab do lancamen
+  valorCobradoTotal: number; // vltotreais do lancamen
+  vlcusto: number; // vlcusto do lancamen (custo na época)
+  margem: number; // valorCobradoTotal - custoTotal
+  resultado: "lucro" | "prejuizo" | "empate";
+}
+
 export interface ItemCustoConvenio {
   codprod: string;
   descricao: string;
@@ -1294,7 +1312,10 @@ export interface ResumoConvenio {
 }
 
 export interface CustoPorConvenioResult {
-  // Tabela principal: cada item com valor por convênio
+  // Tabela detalhada: cada linha = 1 item + 1 convênio (estilo tabela de custos)
+  itensDetalhados: ItemDetalhadoConvenio[];
+  totalItensDetalhados: number;
+  // Tabela agrupada: cada item com valor por convênio
   itens: ItemCustoConvenio[];
   totalItens: number;
   // Resumo por convênio
@@ -1399,7 +1420,35 @@ export async function buscarCustosPorConvenio(
     );
     const competenciasDisponiveis = compResult.rows.map((r: any) => r.comp);
 
-    // ---- 3. Query principal: itens agrupados por produto + convênio ----
+    // ---- 3a. Query detalhada: cada linha = 1 item + 1 convênio (com dados unitários) ----
+    const detalhadoQuery = `
+      SELECT
+        TRIM(L.codprod) as codprod,
+        L.descricao,
+        L.tipoitem,
+        CP.codplaco,
+        CP.nomeplaco as convenio,
+        L.unidade,
+        SUM(L.quantidade::numeric) as total_quantidade,
+        AVG(L.vlunitab::numeric) as vlunitab_medio,
+        SUM(L.vltotreais::numeric) as total_cobrado,
+        SUM(L.vlcusto::numeric) as total_vlcusto,
+        COALESCE(TP.custoatual::numeric, 0) as custo_estoque_unitario,
+        COUNT(*) as num_lancamentos
+      FROM "PACIENTE".lancamen L
+      JOIN "PACIENTE".contas C ON L.numconta = C.numconta
+      LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
+      LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
+      WHERE ${whereClause}
+        AND L.codprod IS NOT NULL
+        AND TRIM(L.codprod) != ''
+      GROUP BY TRIM(L.codprod), L.descricao, L.tipoitem, CP.codplaco, CP.nomeplaco, L.unidade, TP.custoatual
+      ORDER BY L.descricao ASC, CP.nomeplaco ASC
+      LIMIT 1000
+    `;
+    const detalhadoResult = await client.query(detalhadoQuery, params);
+
+    // ---- 3b. Query agrupada: itens por produto + convênio (para resumo) ----
     const mainQuery = `
       SELECT
         TRIM(L.codprod) as codprod,
@@ -1443,7 +1492,50 @@ export async function buscarCustosPorConvenio(
     `;
     const resumoResult = await client.query(resumoQuery, params);
 
-    // ---- Processar dados ----
+    // ---- Processar dados detalhados ----
+    const TIPO_ITEM_LABEL: Record<string, string> = {
+      M: "Medicamento",
+      T: "Taxa",
+      P: "Produto",
+      S: "Serviço",
+      O: "Outros",
+    };
+
+    const itensDetalhados: ItemDetalhadoConvenio[] = detalhadoResult.rows.map((row: any) => {
+      const codprod = (row.codprod || "").trim();
+      const descricao = (row.descricao || "").trim();
+      const tipoItem = row.tipoitem || "P";
+      const convenio = row.convenio || "Sem Convênio";
+      const codplaco = row.codplaco || "";
+      const unidade = (row.unidade || "UND").trim();
+      const quantidade = parseFloat(row.total_quantidade || "0");
+      const vlunitabMedio = parseFloat(row.vlunitab_medio || "0");
+      const valorCobradoTotal = parseFloat(row.total_cobrado || "0");
+      const vlcusto = parseFloat(row.total_vlcusto || "0");
+      const custoEstoqueUnit = parseFloat(row.custo_estoque_unitario || "0");
+      const custoTotal = custoEstoqueUnit > 0 ? custoEstoqueUnit * quantidade : vlcusto;
+      const margem = valorCobradoTotal - custoTotal;
+
+      return {
+        codprod,
+        descricao,
+        tipoItem,
+        tipoItemLabel: TIPO_ITEM_LABEL[tipoItem] || tipoItem,
+        convenio,
+        codplaco,
+        unidade,
+        quantidade: Math.round(quantidade * 100) / 100,
+        custoUnitario: Math.round(custoEstoqueUnit * 100) / 100,
+        custoTotal: Math.round(custoTotal * 100) / 100,
+        valorCobradoUnitario: Math.round(vlunitabMedio * 100) / 100,
+        valorCobradoTotal: Math.round(valorCobradoTotal * 100) / 100,
+        vlcusto: Math.round(vlcusto * 100) / 100,
+        margem: Math.round(margem * 100) / 100,
+        resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+      };
+    });
+
+    // ---- Processar dados agrupados ----
 
     // Agrupar itens por codprod (cada item mostra valor por convênio)
     const itensMap = new Map<string, ItemCustoConvenio>();
@@ -1551,6 +1643,8 @@ export async function buscarCustosPorConvenio(
     const margemTotal = valorFaturadoTotal - custoTotalGeral;
 
     return {
+      itensDetalhados,
+      totalItensDetalhados: detalhadoResult.rows.length,
       itens,
       totalItens: itensMap.size,
       resumoPorConvenio,

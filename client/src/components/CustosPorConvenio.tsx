@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, TrendingUp, TrendingDown, DollarSign, AlertTriangle,
-  Loader2, ChevronDown, ChevronUp, Database, ArrowUpDown,
+  Loader2, Database, ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 
 function formatCurrency(value: number | null | undefined): string {
@@ -26,14 +26,18 @@ interface CustosPorConvenioProps {
   estabelecimentoId: number;
 }
 
+type SortField = "codprod" | "convenio" | "descricao" | "tipoItem" | "quantidade" | "custoUnitario" | "custoTotal" | "valorCobradoUnitario" | "valorCobradoTotal" | "margem";
+type SortDir = "asc" | "desc";
+
 export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConvenioProps) {
   const [convenio, setConvenio] = useState<string>("");
   const [tipoItem, setTipoItem] = useState<string>("");
   const [competencia, setCompetencia] = useState<string>("");
   const [busca, setBusca] = useState("");
   const [buscaInput, setBuscaInput] = useState("");
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"itens" | "resumo" | "prejuizo" | "lucro">("resumo");
+  const [activeTab, setActiveTab] = useState<"detalhado" | "resumo" | "prejuizo" | "lucro">("detalhado");
+  const [sortField, setSortField] = useState<SortField>("descricao");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const queryInput = useMemo(() => ({
     estabelecimentoId,
@@ -59,6 +63,49 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
     setBuscaInput("");
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedItensDetalhados = useMemo(() => {
+    if (!data?.itensDetalhados) return [];
+    return [...data.itensDetalhados].sort((a, b) => {
+      let cmp = 0;
+      const fieldA = a[sortField];
+      const fieldB = b[sortField];
+      if (typeof fieldA === "string" && typeof fieldB === "string") {
+        cmp = fieldA.localeCompare(fieldB, "pt-BR");
+      } else if (typeof fieldA === "number" && typeof fieldB === "number") {
+        cmp = fieldA - fieldB;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [data?.itensDetalhados, sortField, sortDir]);
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1 text-primary" />
+      : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
+  };
+
+  const SortableHead = ({ field, children, className }: { field: SortField; children: React.ReactNode; className?: string }) => (
+    <TableHead
+      className={`cursor-pointer select-none hover:text-primary ${className || ""}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center">
+        {children}
+        <SortIcon field={field} />
+      </div>
+    </TableHead>
+  );
+
   if (error) {
     return (
       <Card className="border-destructive">
@@ -74,7 +121,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
 
   return (
     <div className="space-y-4">
-      {/* Cabeçalho explicativo */}
+      {/* Cabeçalho */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
@@ -82,10 +129,9 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
             <CardTitle className="text-lg">Custos por Convênio</CardTitle>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Dados diretos do sistema Warleine (PostgreSQL). Cruza a tabela de <strong>lançamentos</strong> (itens cobrados)
-            com o <strong>cadastro de produtos</strong> (custo de estoque) e o <strong>cadastro de convênios</strong>,
-            mostrando se cada item dá <span className="text-green-600 font-medium">lucro</span> ou{" "}
-            <span className="text-red-600 font-medium">prejuízo</span> em cada convênio.
+            Dados do Warleine (PostgreSQL). Cada linha mostra um item, o convênio, custo unitário, valor cobrado e se dá{" "}
+            <span className="text-green-600 font-medium">lucro</span> ou{" "}
+            <span className="text-red-600 font-medium">prejuízo</span>.
           </p>
         </CardHeader>
       </Card>
@@ -117,8 +163,10 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="P">Produto (Mat/Med)</SelectItem>
-                  <SelectItem value="S">Serviço/Procedimento</SelectItem>
+                  <SelectItem value="P">Produto</SelectItem>
+                  <SelectItem value="M">Medicamento</SelectItem>
+                  <SelectItem value="T">Taxa</SelectItem>
+                  <SelectItem value="S">Serviço</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -205,8 +253,8 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
           {/* Abas */}
           <div className="flex gap-1 border-b">
             {[
+              { key: "detalhado" as const, label: "Tabela Detalhada" },
               { key: "resumo" as const, label: "Resumo por Convênio" },
-              { key: "itens" as const, label: "Itens Detalhados" },
               { key: "prejuizo" as const, label: "Top Prejuízo" },
               { key: "lucro" as const, label: "Top Lucro" },
             ].map((tab) => (
@@ -224,25 +272,124 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
             ))}
           </div>
 
-          {/* Conteúdo das abas */}
-          {activeTab === "resumo" && (
+          {/* ======== ABA TABELA DETALHADA ======== */}
+          {activeTab === "detalhado" && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Resumo por Convênio</CardTitle>
+                <CardTitle className="text-base">Tabela Detalhada - Custo vs. Convênio</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Quanto o hospital faturou e quanto custou para cada convênio. Margem positiva = lucro, negativa = prejuízo.
+                  Cada linha = 1 item + 1 convênio. Mostra custo unitário do hospital, valor cobrado ao convênio, e se dá lucro ou prejuízo.
+                  Clique nos cabeçalhos para ordenar.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-muted/50">
+                        <SortableHead field="codprod">Código</SortableHead>
+                        <SortableHead field="convenio">Convênio</SortableHead>
+                        <SortableHead field="descricao">Descrição</SortableHead>
+                        <SortableHead field="tipoItem" className="text-center">Tipo</SortableHead>
+                        <SortableHead field="quantidade" className="text-right">Qtd</SortableHead>
+                        <TableHead className="text-center">Unid.</TableHead>
+                        <SortableHead field="custoUnitario" className="text-right">Custo Unit.</SortableHead>
+                        <SortableHead field="custoTotal" className="text-right">Custo Total</SortableHead>
+                        <SortableHead field="valorCobradoUnitario" className="text-right">Vlr Cobrado Unit.</SortableHead>
+                        <SortableHead field="valorCobradoTotal" className="text-right">Vlr Cobrado Total</SortableHead>
+                        <SortableHead field="margem" className="text-right">Margem</SortableHead>
+                        <TableHead className="text-center">Resultado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedItensDetalhados.map((item, idx) => (
+                        <TableRow
+                          key={`${item.codprod}-${item.codplaco}-${item.unidade}-${idx}`}
+                          className={item.resultado === "prejuizo" ? "bg-red-50/50 dark:bg-red-950/10" : ""}
+                        >
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{item.codprod}</TableCell>
+                          <TableCell className="text-xs font-medium whitespace-nowrap max-w-[150px] truncate" title={item.convenio}>
+                            {item.convenio}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm max-w-[250px] truncate" title={item.descricao}>
+                            {item.descricao}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                item.tipoItemLabel === "Medicamento" ? "border-blue-400 text-blue-600" :
+                                item.tipoItemLabel === "Taxa" ? "border-green-400 text-green-600" :
+                                "border-gray-400 text-gray-600"
+                              }`}
+                            >
+                              {item.tipoItemLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(item.quantidade)}</TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">{item.unidade}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.custoUnitario)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.custoTotal)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.valorCobradoUnitario)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{formatCurrency(item.valorCobradoTotal)}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-bold ${
+                            item.margem > 0 ? "text-green-600" : item.margem < 0 ? "text-red-600" : "text-muted-foreground"
+                          }`}>
+                            {formatCurrency(item.margem)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {item.resultado === "lucro" ? (
+                              <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+                                <TrendingUp className="h-3 w-3 mr-1" />Lucro
+                              </Badge>
+                            ) : item.resultado === "prejuizo" ? (
+                              <Badge variant="destructive" className="text-xs">
+                                <TrendingDown className="h-3 w-3 mr-1" />Prejuízo
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Empate</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {sortedItensDetalhados.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                            Nenhum item encontrado para os filtros selecionados
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {data.totalItensDetalhados > 0 && (
+                  <p className="text-xs text-muted-foreground p-3 text-center border-t">
+                    Exibindo {sortedItensDetalhados.length} registros. Use os filtros para refinar a busca.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ======== ABA RESUMO POR CONVÊNIO ======== */}
+          {activeTab === "resumo" && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Resumo por Convênio</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Total faturado e custo por convênio. Margem positiva = lucro, negativa = prejuízo.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
                         <TableHead>Convênio</TableHead>
                         <TableHead className="text-right">Lançamentos</TableHead>
                         <TableHead className="text-right">Total Faturado</TableHead>
                         <TableHead className="text-right">Total Custo</TableHead>
-                        <TableHead className="text-right">Margem (R$)</TableHead>
+                        <TableHead className="text-right">Margem</TableHead>
                         <TableHead className="text-right">Margem (%)</TableHead>
                         <TableHead className="text-center">Resultado</TableHead>
                       </TableRow>
@@ -256,17 +403,18 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                               <span className="text-xs text-muted-foreground ml-2">({conv.codplaco})</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">{conv.totalLancamentos.toLocaleString("pt-BR")}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(conv.totalFaturado)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(conv.totalCusto)}</TableCell>
-                          <TableCell className={`text-right font-bold ${conv.margem >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <TableCell className="text-right tabular-nums">{conv.totalLancamentos.toLocaleString("pt-BR")}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{formatCurrency(conv.totalFaturado)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(conv.totalCusto)}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-bold ${conv.margem >= 0 ? "text-green-600" : "text-red-600"}`}>
                             {formatCurrency(conv.margem)}
                           </TableCell>
-                          <TableCell className={`text-right ${conv.margemPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <TableCell className={`text-right tabular-nums ${conv.margemPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
                             {conv.margemPercent.toFixed(1)}%
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge variant={conv.resultado === "lucro" ? "default" : conv.resultado === "prejuizo" ? "destructive" : "secondary"}>
+                            <Badge variant={conv.resultado === "lucro" ? "default" : conv.resultado === "prejuizo" ? "destructive" : "secondary"}
+                              className={conv.resultado === "lucro" ? "bg-green-600 hover:bg-green-700" : ""}>
                               {conv.resultado === "lucro" ? (
                                 <><TrendingUp className="h-3 w-3 mr-1" />Lucro</>
                               ) : conv.resultado === "prejuizo" ? (
@@ -279,7 +427,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                       {data.resumoPorConvenio.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                            Nenhum dado encontrado para os filtros selecionados
+                            Nenhum dado encontrado
                           </TableCell>
                         </TableRow>
                       )}
@@ -290,119 +438,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
             </Card>
           )}
 
-          {activeTab === "itens" && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Itens Detalhados por Convênio</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Cada produto/material com seu custo de estoque e o valor cobrado em cada convênio.
-                  Clique em um item para expandir e ver os valores por convênio.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead className="text-center">Tipo</TableHead>
-                        <TableHead className="text-right">Custo Estoque (un.)</TableHead>
-                        <TableHead className="text-right">Convênios</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.itens.map((item) => (
-                        <>
-                          <TableRow
-                            key={item.codprod}
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => setExpandedItem(expandedItem === item.codprod ? null : item.codprod)}
-                          >
-                            <TableCell>
-                              {expandedItem === item.codprod ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">{item.codprod}</TableCell>
-                            <TableCell className="font-medium max-w-[300px] truncate">{item.descricao}</TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant="outline" className="text-xs">
-                                {item.tipoItem === "P" ? "Produto" : "Serviço"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.custoEstoque)}</TableCell>
-                            <TableCell className="text-right">{item.convenios.length}</TableCell>
-                          </TableRow>
-                          {expandedItem === item.codprod && (
-                            <TableRow key={`${item.codprod}-detail`}>
-                              <TableCell colSpan={6} className="bg-muted/30 p-0">
-                                <div className="p-3">
-                                  <p className="text-xs text-muted-foreground mb-2 font-medium">
-                                    Valores por convênio para: {item.descricao}
-                                  </p>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Convênio</TableHead>
-                                        <TableHead className="text-right">Qtd</TableHead>
-                                        <TableHead className="text-right">Valor Cobrado</TableHead>
-                                        <TableHead className="text-right">Custo Total</TableHead>
-                                        <TableHead className="text-right">Margem</TableHead>
-                                        <TableHead className="text-center">Resultado</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {item.convenios.map((conv, idx) => (
-                                        <TableRow key={idx}>
-                                          <TableCell className="font-medium">{conv.convenio}</TableCell>
-                                          <TableCell className="text-right">{formatNumber(conv.quantidade)}</TableCell>
-                                          <TableCell className="text-right">{formatCurrency(conv.valorCobrado)}</TableCell>
-                                          <TableCell className="text-right">{formatCurrency(conv.custoTotal)}</TableCell>
-                                          <TableCell className={`text-right font-bold ${conv.margem >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                            {formatCurrency(conv.margem)}
-                                          </TableCell>
-                                          <TableCell className="text-center">
-                                            {conv.resultado === "lucro" ? (
-                                              <Badge variant="default" className="text-xs"><TrendingUp className="h-3 w-3 mr-1" />Lucro</Badge>
-                                            ) : conv.resultado === "prejuizo" ? (
-                                              <Badge variant="destructive" className="text-xs"><TrendingDown className="h-3 w-3 mr-1" />Prejuízo</Badge>
-                                            ) : (
-                                              <Badge variant="secondary" className="text-xs">Empate</Badge>
-                                            )}
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      ))}
-                      {data.itens.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            Nenhum item encontrado
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                {data.totalItens > data.itens.length && (
-                  <p className="text-xs text-muted-foreground p-3 text-center">
-                    Exibindo {data.itens.length} de {data.totalItens} itens. Use os filtros para refinar a busca.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
+          {/* ======== ABA TOP PREJUÍZO ======== */}
           {activeTab === "prejuizo" && (
             <Card>
               <CardHeader className="pb-2">
@@ -411,43 +447,40 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                   Top 20 Itens com Maior Prejuízo
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Itens onde o hospital gasta mais do que recebe do convênio. Margem negativa = o convênio paga menos que o custo.
+                  Itens onde o hospital gasta mais do que recebe do convênio.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-muted/50">
                         <TableHead>#</TableHead>
+                        <TableHead>Código</TableHead>
                         <TableHead>Produto</TableHead>
                         <TableHead>Convênio</TableHead>
                         <TableHead className="text-right">Qtd</TableHead>
-                        <TableHead className="text-right">Valor Cobrado</TableHead>
+                        <TableHead className="text-right">Vlr Cobrado</TableHead>
                         <TableHead className="text-right">Custo Total</TableHead>
                         <TableHead className="text-right">Prejuízo</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.topItensPrejuizo.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <span className="font-medium">{item.descricao}</span>
-                              <span className="text-xs text-muted-foreground ml-2">({item.codprod})</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{item.convenio}</TableCell>
-                          <TableCell className="text-right">{formatNumber(item.quantidade)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.valorCobrado)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.custoTotal)}</TableCell>
-                          <TableCell className="text-right font-bold text-red-600">{formatCurrency(item.margem)}</TableCell>
+                        <TableRow key={idx} className="bg-red-50/30 dark:bg-red-950/10">
+                          <TableCell className="text-muted-foreground font-medium">{idx + 1}</TableCell>
+                          <TableCell className="font-mono text-xs">{item.codprod}</TableCell>
+                          <TableCell className="font-medium">{item.descricao}</TableCell>
+                          <TableCell className="text-sm">{item.convenio}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(item.quantidade)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.valorCobrado)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.custoTotal)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-bold text-red-600">{formatCurrency(item.margem)}</TableCell>
                         </TableRow>
                       ))}
                       {data.topItensPrejuizo.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-green-600 py-8">
+                          <TableCell colSpan={8} className="text-center text-green-600 py-8">
                             Nenhum item com prejuízo encontrado
                           </TableCell>
                         </TableRow>
@@ -459,6 +492,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
             </Card>
           )}
 
+          {/* ======== ABA TOP LUCRO ======== */}
           {activeTab === "lucro" && (
             <Card>
               <CardHeader className="pb-2">
@@ -467,19 +501,20 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                   Top 20 Itens com Maior Lucro
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Itens onde o hospital recebe mais do que gasta. Margem positiva = o convênio paga mais que o custo.
+                  Itens onde o hospital recebe mais do que gasta.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-muted/50">
                         <TableHead>#</TableHead>
+                        <TableHead>Código</TableHead>
                         <TableHead>Produto</TableHead>
                         <TableHead>Convênio</TableHead>
                         <TableHead className="text-right">Qtd</TableHead>
-                        <TableHead className="text-right">Valor Cobrado</TableHead>
+                        <TableHead className="text-right">Vlr Cobrado</TableHead>
                         <TableHead className="text-right">Custo Total</TableHead>
                         <TableHead className="text-right">Lucro</TableHead>
                       </TableRow>
@@ -487,23 +522,19 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                     <TableBody>
                       {data.topItensLucro.map((item, idx) => (
                         <TableRow key={idx}>
-                          <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <span className="font-medium">{item.descricao}</span>
-                              <span className="text-xs text-muted-foreground ml-2">({item.codprod})</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{item.convenio}</TableCell>
-                          <TableCell className="text-right">{formatNumber(item.quantidade)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.valorCobrado)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.custoTotal)}</TableCell>
-                          <TableCell className="text-right font-bold text-green-600">{formatCurrency(item.margem)}</TableCell>
+                          <TableCell className="text-muted-foreground font-medium">{idx + 1}</TableCell>
+                          <TableCell className="font-mono text-xs">{item.codprod}</TableCell>
+                          <TableCell className="font-medium">{item.descricao}</TableCell>
+                          <TableCell className="text-sm">{item.convenio}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(item.quantidade)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.valorCobrado)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(item.custoTotal)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-bold text-green-600">{formatCurrency(item.margem)}</TableCell>
                         </TableRow>
                       ))}
                       {data.topItensLucro.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             Nenhum item com lucro encontrado
                           </TableCell>
                         </TableRow>
@@ -517,7 +548,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
 
           {/* Fonte dos dados */}
           <p className="text-xs text-muted-foreground text-center">
-            Fonte: PostgreSQL Warleine (tabelas lancamen + contas + cadplaco + tabprod) | {data.fonte}
+            Fonte: PostgreSQL Warleine (lancamen + contas + cadplaco + tabprod) | {data.fonte}
           </p>
         </>
       ) : null}

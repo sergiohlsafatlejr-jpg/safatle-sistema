@@ -2766,3 +2766,6 @@
 - [x] Refazer frontend CustosPorConvenio com layout simples: item, custo, valor por convênio, lucro/prejuízo
 - [x] Integrar novo componente no RelatorioCustos.tsx
 - [x] Escrever testes para o novo endpoint (27 testes passando)
+- [x] Ajustar backend custosPorConvenio para retornar dados unitários detalhados (custo unit, valor cobrado unit, unidade)
+- [x] Refazer frontend CustosPorConvenio com tabela detalhada estilo tabela de custos existente + coluna lucro/prejuízo
+- [x] Manter visual simples com indicação clara de lucro (verde) e prejuízo (vermelho) - 36 testes passando

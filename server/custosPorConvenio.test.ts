@@ -530,6 +530,266 @@ describe("Cenários com múltiplos convênios para o mesmo item", () => {
   });
 });
 
+// ====== Testes para a nova interface ItemDetalhadoConvenio ======
+
+interface DetalhadoRow {
+  codprod: string;
+  descricao: string;
+  tipoitem: string;
+  codplaco: string;
+  convenio: string;
+  unidade: string;
+  total_quantidade: number;
+  vlunitab_medio: number;
+  total_cobrado: number;
+  total_vlcusto: number;
+  custo_estoque_unitario: number;
+  num_lancamentos: number;
+}
+
+interface ItemDetalhadoConvenio {
+  codprod: string;
+  descricao: string;
+  tipoItem: string;
+  tipoItemLabel: string;
+  convenio: string;
+  codplaco: string;
+  unidade: string;
+  quantidade: number;
+  custoUnitario: number;
+  custoTotal: number;
+  valorCobradoUnitario: number;
+  valorCobradoTotal: number;
+  vlcusto: number;
+  margem: number;
+  resultado: "lucro" | "prejuizo" | "empate";
+}
+
+const TIPO_ITEM_LABEL: Record<string, string> = {
+  M: "Medicamento",
+  T: "Taxa",
+  P: "Produto",
+  S: "Serviço",
+  O: "Outros",
+};
+
+function processarItensDetalhados(rows: DetalhadoRow[]): ItemDetalhadoConvenio[] {
+  return rows.map((row) => {
+    const codprod = (row.codprod || "").trim();
+    const descricao = (row.descricao || "").trim();
+    const tipoItem = row.tipoitem || "P";
+    const convenio = row.convenio || "Sem Convênio";
+    const codplaco = row.codplaco || "";
+    const unidade = (row.unidade || "UND").trim();
+    const quantidade = row.total_quantidade;
+    const vlunitabMedio = row.vlunitab_medio;
+    const valorCobradoTotal = row.total_cobrado;
+    const vlcusto = row.total_vlcusto;
+    const custoEstoqueUnit = row.custo_estoque_unitario;
+    const custoTotal = custoEstoqueUnit > 0 ? custoEstoqueUnit * quantidade : vlcusto;
+    const margem = valorCobradoTotal - custoTotal;
+
+    return {
+      codprod,
+      descricao,
+      tipoItem,
+      tipoItemLabel: TIPO_ITEM_LABEL[tipoItem] || tipoItem,
+      convenio,
+      codplaco,
+      unidade,
+      quantidade: Math.round(quantidade * 100) / 100,
+      custoUnitario: Math.round(custoEstoqueUnit * 100) / 100,
+      custoTotal: Math.round(custoTotal * 100) / 100,
+      valorCobradoUnitario: Math.round(vlunitabMedio * 100) / 100,
+      valorCobradoTotal: Math.round(valorCobradoTotal * 100) / 100,
+      vlcusto: Math.round(vlcusto * 100) / 100,
+      margem: Math.round(margem * 100) / 100,
+      resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+    };
+  });
+}
+
+describe("Processamento de Itens Detalhados (tabela estilo custos)", () => {
+  const sampleDetalhado: DetalhadoRow[] = [
+    {
+      codprod: "00000340",
+      descricao: "AGUA DESTILADA; AMPOLA 10ML SOLUCAO I",
+      tipoitem: "M",
+      codplaco: "04",
+      convenio: "IPASGO",
+      unidade: "AMP",
+      total_quantidade: 1,
+      vlunitab_medio: 0.16,
+      total_cobrado: 1.17,
+      total_vlcusto: 0,
+      custo_estoque_unitario: 0.16,
+      num_lancamentos: 1,
+    },
+    {
+      codprod: "00000340",
+      descricao: "AGUA DESTILADA; AMPOLA 10ML SOLUCAO I",
+      tipoitem: "M",
+      codplaco: "07",
+      convenio: "UNIMED",
+      unidade: "AMP",
+      total_quantidade: 1,
+      vlunitab_medio: 0.56,
+      total_cobrado: 1.17,
+      total_vlcusto: 0,
+      custo_estoque_unitario: 0.16,
+      num_lancamentos: 1,
+    },
+    {
+      codprod: "00002461",
+      descricao: "AGULHA BIOPSIA DE PROSTATA PROMAG 2.2",
+      tipoitem: "T",
+      codplaco: "06",
+      convenio: "PARTICULAR",
+      unidade: "UNI",
+      total_quantidade: 1,
+      vlunitab_medio: 90.00,
+      total_cobrado: 149.46,
+      total_vlcusto: 0,
+      custo_estoque_unitario: 90.00,
+      num_lancamentos: 1,
+    },
+  ];
+
+  it("deve gerar uma linha por item+convênio (não agrupa)", () => {
+    const result = processarItensDetalhados(sampleDetalhado);
+    expect(result).toHaveLength(3);
+  });
+
+  it("deve trazer dados unitários corretos", () => {
+    const result = processarItensDetalhados(sampleDetalhado);
+    const aguaIpasgo = result[0];
+    expect(aguaIpasgo.codprod).toBe("00000340");
+    expect(aguaIpasgo.convenio).toBe("IPASGO");
+    expect(aguaIpasgo.unidade).toBe("AMP");
+    expect(aguaIpasgo.custoUnitario).toBe(0.16);
+    expect(aguaIpasgo.valorCobradoUnitario).toBe(0.16);
+    expect(aguaIpasgo.valorCobradoTotal).toBe(1.17);
+  });
+
+  it("deve mapear tipoItem para label corretamente", () => {
+    const result = processarItensDetalhados(sampleDetalhado);
+    expect(result[0].tipoItemLabel).toBe("Medicamento");
+    expect(result[2].tipoItemLabel).toBe("Taxa");
+  });
+
+  it("deve calcular margem e resultado por linha", () => {
+    const result = processarItensDetalhados(sampleDetalhado);
+    const aguaIpasgo = result[0];
+    // custoTotal = 0.16 * 1 = 0.16, valorCobradoTotal = 1.17, margem = 1.01
+    expect(aguaIpasgo.custoTotal).toBe(0.16);
+    expect(aguaIpasgo.margem).toBe(1.01);
+    expect(aguaIpasgo.resultado).toBe("lucro");
+  });
+
+  it("deve mostrar mesmo item com convênios diferentes em linhas separadas", () => {
+    const result = processarItensDetalhados(sampleDetalhado);
+    const aguaIpasgo = result.find(r => r.codprod === "00000340" && r.convenio === "IPASGO")!;
+    const aguaUnimed = result.find(r => r.codprod === "00000340" && r.convenio === "UNIMED")!;
+    expect(aguaIpasgo).toBeDefined();
+    expect(aguaUnimed).toBeDefined();
+    // Mesmo custo unitário, mas valor cobrado unitário diferente
+    expect(aguaIpasgo.custoUnitario).toBe(aguaUnimed.custoUnitario);
+    expect(aguaIpasgo.valorCobradoUnitario).not.toBe(aguaUnimed.valorCobradoUnitario);
+  });
+
+  it("deve usar vlcusto como fallback quando custoEstoque é zero", () => {
+    const rows: DetalhadoRow[] = [
+      {
+        codprod: "SVC01",
+        descricao: "CONSULTA MEDICA",
+        tipoitem: "S",
+        codplaco: "10",
+        convenio: "UNIMED",
+        unidade: "UNI",
+        total_quantidade: 1,
+        vlunitab_medio: 150,
+        total_cobrado: 150,
+        total_vlcusto: 80,
+        custo_estoque_unitario: 0,
+        num_lancamentos: 1,
+      },
+    ];
+    const result = processarItensDetalhados(rows);
+    expect(result[0].custoTotal).toBe(80); // usa vlcusto
+    expect(result[0].margem).toBe(70); // 150 - 80
+    expect(result[0].resultado).toBe("lucro");
+  });
+
+  it("deve tratar unidade vazia como UND", () => {
+    const rows: DetalhadoRow[] = [
+      {
+        codprod: "001",
+        descricao: "ITEM SEM UNIDADE",
+        tipoitem: "P",
+        codplaco: "10",
+        convenio: "TESTE",
+        unidade: "",
+        total_quantidade: 1,
+        vlunitab_medio: 10,
+        total_cobrado: 10,
+        total_vlcusto: 5,
+        custo_estoque_unitario: 0,
+        num_lancamentos: 1,
+      },
+    ];
+    const result = processarItensDetalhados(rows);
+    expect(result[0].unidade).toBe("UND");
+  });
+
+  it("deve detectar prejuízo quando custo > valor cobrado", () => {
+    const rows: DetalhadoRow[] = [
+      {
+        codprod: "CARO01",
+        descricao: "MATERIAL CARO",
+        tipoitem: "P",
+        codplaco: "20",
+        convenio: "IPASGO",
+        unidade: "UND",
+        total_quantidade: 10,
+        vlunitab_medio: 5,
+        total_cobrado: 50,
+        total_vlcusto: 0,
+        custo_estoque_unitario: 8,
+        num_lancamentos: 10,
+      },
+    ];
+    const result = processarItensDetalhados(rows);
+    // custoTotal = 8 * 10 = 80, valorCobradoTotal = 50, margem = -30
+    expect(result[0].custoTotal).toBe(80);
+    expect(result[0].margem).toBe(-30);
+    expect(result[0].resultado).toBe("prejuizo");
+  });
+
+  it("deve arredondar valores corretamente", () => {
+    const rows: DetalhadoRow[] = [
+      {
+        codprod: "001",
+        descricao: "ITEM ARREDONDAMENTO",
+        tipoitem: "P",
+        codplaco: "10",
+        convenio: "TESTE",
+        unidade: "UND",
+        total_quantidade: 3,
+        vlunitab_medio: 3.333,
+        total_cobrado: 9.999,
+        total_vlcusto: 0,
+        custo_estoque_unitario: 2.777,
+        num_lancamentos: 3,
+      },
+    ];
+    const result = processarItensDetalhados(rows);
+    expect(result[0].custoUnitario).toBe(2.78);
+    expect(result[0].valorCobradoUnitario).toBe(3.33);
+    expect(result[0].custoTotal).toBe(8.33); // 2.777 * 3 = 8.331 → 8.33
+    expect(result[0].valorCobradoTotal).toBe(10); // 9.999 → 10
+  });
+});
+
 describe("Arredondamento e precisão", () => {
   it("deve arredondar valores para 2 casas decimais", () => {
     const rows: LancamenRow[] = [
