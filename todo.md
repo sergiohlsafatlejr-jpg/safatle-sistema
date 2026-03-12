@@ -2811,3 +2811,6 @@
 
 ## Bug - Custos por Conta
 - [x] Corrigir erro 'column c.nomepac does not exist' na query de Custos por Conta (usar JOIN com cadpac via prontuario=codpac)
+
+## Bug - Conferência Pós-Correção (React #310)
+- [x] Corrigir erro React #310 ao clicar em 'Ver' na Conferência Pós-Correção (separado em dois componentes de rota distintos)

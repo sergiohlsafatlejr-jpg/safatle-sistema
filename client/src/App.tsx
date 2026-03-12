@@ -71,6 +71,7 @@ const DetalhesPadrao = lazy(() => import("./pages/DetalhesPadrao"));
 const TabelasPorte = lazy(() => import("./pages/TabelasPorte"));
 const DashboardAuditoria = lazy(() => import("./pages/DashboardAuditoria"));
 const ConferenciaCorrecao = lazy(() => import("./pages/ConferenciaCorrecao"));
+const ConferenciaCorrecaoDetalhes = lazy(() => import("./pages/ConferenciaCorrecao").then(m => ({ default: m.ConferenciaCorrecaoDetalhes })));
 const RelatorioAtendimentos = lazy(() => import("./pages/RelatorioAtendimentos"));
 const RelatorioCustos = lazy(() => import("./pages/RelatorioCustos"));
 
@@ -166,7 +167,7 @@ function Router() {
         <Route path={"/tabelas-porte"} component={TabelasPorte} />
         <Route path={"/dashboard-auditoria"} component={DashboardAuditoria} />
         <Route path={"/conferencia-correcao"} component={ConferenciaCorrecao} />
-        <Route path={"/conferencia-correcao/:snapshotId"} component={ConferenciaCorrecao} />
+        <Route path={"/conferencia-correcao/:snapshotId"} component={ConferenciaCorrecaoDetalhes} />
         <Route path={"/relatorio-faturamento"} component={NotFound} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
         <Route path={"/relatorio-custos"} component={RelatorioCustos} />
