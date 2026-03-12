@@ -1678,11 +1678,14 @@ export const contasConvenioRouter = router({
 
         if (padrao) {
           // Contar quantas rejeições esse padrão tem
-          const [countResult] = await db.execute(sql`
-            SELECT COUNT(*) as total FROM feedback_divergencias 
-            WHERE padrao_id = ${input.padraoId} AND decisao = 'rejeitar'
-          `) as any;
-          const totalRejeicoes = Number((countResult as any)?.total || 0);
+          const countResults = await db
+            .select({ total: sql<number>`COUNT(*)` })
+            .from(feedbackDivergencias)
+            .where(and(
+              eq(feedbackDivergencias.padraoId, input.padraoId),
+              eq(feedbackDivergencias.decisao, "rejeitar")
+            ));
+          const totalRejeicoes = Number(countResults[0]?.total || 0);
 
           // Se muitas rejeições (>5), sugerir revisão do padrão
           if (totalRejeicoes >= 5 && padrao.status === "ativo" && padrao.isGabarito !== 1) {

@@ -2771,3 +2771,5 @@
 - [x] Manter visual simples com indicação clara de lucro (verde) e prejuízo (vermelho) - 36 testes passando
 - [x] Bug: Corrigir erro 'column l.unidade does not exist' - campo correto é L.unimatmed (lancamen) com fallback para TP.unidade (tabprod)
 - [ ] Otimizar performance da query custosPorConvenio (demora a abrir)
+- [ ] Bug: Verificar e corrigir exibição de custo unitário vs valor unitário por convênio na aba Custos por Convênio
+- [x] Bug: Corrigido erro feedback_divergencias - query SQL raw usava 'padrao_id' (nome errado) em vez da API Drizzle com feedbackDivergencias.padraoId
