@@ -2788,3 +2788,7 @@
 - [x] Remover códigos de tabela fixos e usar cadplaco.codtbmm dinâmico
 - [x] Atualizar frontend CustosPorConvenio.tsx para novos campos (nome_plano, tabela_preco)
 - [x] Atualizar testes unitários para a nova lógica corrigida
+
+## Bug - Reimportação de Conta do Banco
+- [x] Corrigir reimportação do banco: campos Conformes/Divergentes ficam zerados após reimportar
+- [x] Garantir que a reimportação preserve/recalcule comparações e ajustes de auditoria

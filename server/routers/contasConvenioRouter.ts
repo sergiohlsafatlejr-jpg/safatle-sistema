@@ -9,6 +9,7 @@ import { WarleineConnector } from "../connectors/WarleineConnector";
 import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
 import { ENV } from "../_core/env";
 import { logger } from "../_core/logger";
+import { compararContaComPadroes } from "../services/comparadorPadroes";
 
 /**
  * Router para Contas Convênio - Gestão Operacional
@@ -934,6 +935,118 @@ export const contasConvenioRouter = router({
           });
         }
 
+        // ============================================================
+        // ANÁLISE AUTOMÁTICA: Comparar com padrões após reimportação
+        // ============================================================
+        let analiseResultado: { totalConformes: number; totalDivergentes: number; scoreRisco: number } = {
+          totalConformes: 0,
+          totalDivergentes: 0,
+          scoreRisco: 0,
+        };
+
+        try {
+          logger.info({
+            message: "Executando análise automática pós-importação",
+            numeroConta: input.numeroConta,
+            estabelecimentoId: input.estabelecimentoId,
+          });
+
+          const resultadoComparacao = await compararContaComPadroes(
+            input.numeroConta,
+            input.estabelecimentoId
+          );
+
+          // Mapear divergências por codigoItem para atualizar statusAnalise de cada item
+          const divergenciasPorItem = new Map<string, any[]>();
+          const divergenciasGerais: any[] = []; // Divergências sem item (ITEM_FALTANTE, etc.)
+
+          for (const div of resultadoComparacao.divergencias) {
+            if (div.codigoItem) {
+              if (!divergenciasPorItem.has(div.codigoItem)) {
+                divergenciasPorItem.set(div.codigoItem, []);
+              }
+              divergenciasPorItem.get(div.codigoItem)!.push(div);
+            } else {
+              divergenciasGerais.push(div);
+            }
+          }
+
+          // Buscar itens recém inseridos
+          const itensInseridos = await db.select({
+            id: contasConvenioItens.id,
+            codigoItem: contasConvenioItens.codigoItem,
+          }).from(contasConvenioItens).where(
+            and(
+              eq(contasConvenioItens.numeroConta, input.numeroConta),
+              eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+              eq(contasConvenioItens.origem, "BANCO_CLIENTE"),
+            )
+          );
+
+          let totalConformes = 0;
+          let totalDivergentes = 0;
+
+          // Atualizar cada item com suas divergências e status
+          for (const item of itensInseridos) {
+            const divs = item.codigoItem ? divergenciasPorItem.get(item.codigoItem) : null;
+            if (divs && divs.length > 0) {
+              totalDivergentes++;
+              await db.update(contasConvenioItens)
+                .set({
+                  statusAnalise: "divergente",
+                  divergencias: divs,
+                })
+                .where(eq(contasConvenioItens.id, item.id));
+            } else {
+              totalConformes++;
+              await db.update(contasConvenioItens)
+                .set({
+                  statusAnalise: "conforme",
+                  divergencias: null,
+                })
+                .where(eq(contasConvenioItens.id, item.id));
+            }
+          }
+
+          // Atualizar resumo da conta com score de risco e divergências gerais
+          const statusGeral = resultadoComparacao.statusGeral === "divergente" ? "divergente" : "conforme";
+          await db.update(contasConvenioResumo)
+            .set({
+              statusAnalise: statusGeral,
+              scoreRisco: resultadoComparacao.scoreRisco.score,
+              detalhesRisco: resultadoComparacao.scoreRisco,
+              divergenciasGerais: divergenciasGerais.length > 0 ? divergenciasGerais : null,
+            })
+            .where(
+              and(
+                eq(contasConvenioResumo.numeroConta, input.numeroConta),
+                eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+                eq(contasConvenioResumo.origem, "BANCO_CLIENTE"),
+              )
+            );
+
+          analiseResultado = {
+            totalConformes,
+            totalDivergentes,
+            scoreRisco: resultadoComparacao.scoreRisco.score,
+          };
+
+          logger.info({
+            message: "Análise automática concluída",
+            numeroConta: input.numeroConta,
+            totalConformes,
+            totalDivergentes,
+            scoreRisco: resultadoComparacao.scoreRisco.score,
+            statusGeral,
+          });
+        } catch (analiseError) {
+          logger.warn({
+            message: "Análise automática falhou (não bloqueia importação)",
+            error: analiseError instanceof Error ? analiseError.message : String(analiseError),
+            numeroConta: input.numeroConta,
+          });
+        }
+
         return {
           sucesso: true,
           mensagem: `Conta ${input.numeroConta} importada com ${totalInseridos} itens. Valor total: R$ ${valorTotalConta.toFixed(2)}${avisoFallback}`,
@@ -941,6 +1054,7 @@ export const contasConvenioRouter = router({
           valorTotal: valorTotalConta,
           fonteDados,
           comparativo,
+          analise: analiseResultado,
           convenio: resumoConvenio ? String(resumoConvenio).trim() : null,
           paciente: resumoPaciente ? String(resumoPaciente) : null,
           conta: {
@@ -1968,16 +2082,95 @@ export const contasConvenioRouter = router({
         totalResumos += batch.length;
       }
 
+      // ============================================================
+      // ANÁLISE AUTOMÁTICA: Comparar cada conta com padrões
+      // ============================================================
+      let totalContasAnalisadas = 0;
+      let totalContasDivergentes = 0;
+
+      try {
+        for (const [guia] of resumoEntries) {
+          try {
+            const resultadoComparacao = await compararContaComPadroes(guia, input.estabelecimentoId);
+
+            // Mapear divergências por codigoItem
+            const divergenciasPorItem = new Map<string, any[]>();
+            const divergenciasGerais: any[] = [];
+
+            for (const div of resultadoComparacao.divergencias) {
+              if (div.codigoItem) {
+                if (!divergenciasPorItem.has(div.codigoItem)) {
+                  divergenciasPorItem.set(div.codigoItem, []);
+                }
+                divergenciasPorItem.get(div.codigoItem)!.push(div);
+              } else {
+                divergenciasGerais.push(div);
+              }
+            }
+
+            // Buscar itens desta conta
+            const itensDestaConta = await db.select({
+              id: contasConvenioItens.id,
+              codigoItem: contasConvenioItens.codigoItem,
+            }).from(contasConvenioItens).where(
+              and(
+                eq(contasConvenioItens.numeroConta, guia),
+                eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+              )
+            );
+
+            // Atualizar cada item
+            for (const item of itensDestaConta) {
+              const divs = item.codigoItem ? divergenciasPorItem.get(item.codigoItem) : null;
+              if (divs && divs.length > 0) {
+                await db.update(contasConvenioItens)
+                  .set({ statusAnalise: "divergente", divergencias: divs })
+                  .where(eq(contasConvenioItens.id, item.id));
+              } else {
+                await db.update(contasConvenioItens)
+                  .set({ statusAnalise: "conforme", divergencias: null })
+                  .where(eq(contasConvenioItens.id, item.id));
+              }
+            }
+
+            // Atualizar resumo
+            const statusGeral = resultadoComparacao.statusGeral === "divergente" ? "divergente" : "conforme";
+            if (statusGeral === "divergente") totalContasDivergentes++;
+            await db.update(contasConvenioResumo)
+              .set({
+                statusAnalise: statusGeral,
+                scoreRisco: resultadoComparacao.scoreRisco.score,
+                detalhesRisco: resultadoComparacao.scoreRisco,
+                divergenciasGerais: divergenciasGerais.length > 0 ? divergenciasGerais : null,
+              })
+              .where(
+                and(
+                  eq(contasConvenioResumo.numeroConta, guia),
+                  eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+                )
+              );
+
+            totalContasAnalisadas++;
+          } catch (e) {
+            logger.warn({ message: `Análise falhou para conta ${guia}`, error: String(e) });
+          }
+        }
+      } catch (e) {
+        logger.warn({ message: "Análise automática pós-migração falhou", error: String(e) });
+      }
+
       logger.info({
-        message: `Migração concluída: ${totalInseridos} itens, ${totalResumos} contas`,
+        message: `Migração concluída: ${totalInseridos} itens, ${totalResumos} contas, ${totalContasAnalisadas} analisadas`,
         estabelecimentoId: input.estabelecimentoId,
       });
 
       return {
         sucesso: true,
-        mensagem: `Migração concluída: ${totalInseridos} itens importados em ${totalResumos} contas.`,
+        mensagem: `Migração concluída: ${totalInseridos} itens importados em ${totalResumos} contas. ${totalContasAnalisadas} contas analisadas (${totalContasDivergentes} divergentes).`,
         totalItens: totalInseridos,
         totalContas: totalResumos,
+        totalContasAnalisadas,
+        totalContasDivergentes,
       };
     }),
 
