@@ -45,6 +45,7 @@ const SETORES = [
   { value: "centro_cirurgico", label: "Centro Cirúrgico" },
   { value: "medico", label: "Médico" },
   { value: "uti", label: "UTI" },
+  { value: "controle_contas", label: "Controle de Contas" },
 ];
 
 const MEDICOS = [

@@ -2860,3 +2860,6 @@
 - [x] Adicionar motivo "Enviado ao faturamento" nas opções de notificação
 - [x] Adicionar motivo "Pendência UTI" nas opções de notificação
 - [x] Setor "UTI" já existia nas opções de setor (confirmado)
+
+## Novo Setor em Notificações
+- [x] Adicionar setor "Controle de Contas" nas opções de notificação
