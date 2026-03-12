@@ -10,6 +10,7 @@ import {
   buscarMetricasAvancadas,
   buscarAnaliticasDemograficas,
   buscarAnaliticasOperacionais,
+  buscarDadosMapaCalor,
 } from "../relatorioAtendimentos";
 
 const filtrosDashboardSchema = z.object({
@@ -102,6 +103,18 @@ export const relatorioAtendimentosRouter = router({
     .input(filtrosDashboardSchema)
     .query(async ({ input }) => {
       return buscarAnaliticasOperacionais(input);
+    }),
+
+  // Mapa de calor geográfico por CEP
+  mapaCalor: protectedProcedure
+    .input(
+      z.object({
+        dataInicio: z.string(),
+        dataFim: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarDadosMapaCalor(input);
     }),
 
   // Obter status da última sincronização

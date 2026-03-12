@@ -2268,3 +2268,227 @@ async function buscarOperacionaisDoPostgresql(
     client.release();
   }
 }
+
+
+// ============================================================
+// MAPA DE CALOR - Geocodificação de CEPs e dados geográficos
+// ============================================================
+
+import { makeRequest, type GeocodingResult } from "./_core/map";
+import { geocodingCache } from "../drizzle/schema-integracao";
+
+interface CepGeoData {
+  cep: string;
+  latitude: number;
+  longitude: number;
+  enderecoFormatado: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  totalAtendimentos: number;
+}
+
+interface HeatmapData {
+  pontos: CepGeoData[];
+  totalCeps: number;
+  totalAtendimentos: number;
+  centroMapa: { lat: number; lng: number };
+  zoomInicial: number;
+}
+
+async function geocodificarCep(cep: string): Promise<{
+  latitude: number;
+  longitude: number;
+  enderecoFormatado: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+} | null> {
+  try {
+    // Limpar CEP - remover caracteres não numéricos
+    const cepLimpo = cep.replace(/\D/g, "");
+    if (cepLimpo.length < 5) return null;
+
+    // Verificar cache no banco de dados
+    const db = await getDb();
+    if (db) {
+      const cached = await db
+        .select()
+        .from(geocodingCache)
+        .where(eq(geocodingCache.cep, cepLimpo))
+        .limit(1);
+
+      if (cached.length > 0) {
+        return {
+          latitude: parseFloat(String(cached[0].latitude)),
+          longitude: parseFloat(String(cached[0].longitude)),
+          enderecoFormatado: cached[0].enderecoFormatado,
+          bairro: cached[0].bairro,
+          cidade: cached[0].cidade,
+          estado: cached[0].estado,
+        };
+      }
+    }
+
+    // Geocodificar via Google Maps API
+    const result = await makeRequest<GeocodingResult>(
+      "/maps/api/geocode/json",
+      {
+        address: `${cepLimpo}, Brasil`,
+        components: "country:BR",
+      }
+    );
+
+    if (result.status !== "OK" || result.results.length === 0) {
+      console.log(`[Geocoding] CEP ${cepLimpo} não encontrado`);
+      return null;
+    }
+
+    const location = result.results[0].geometry.location;
+    const addressComponents = result.results[0].address_components;
+
+    let bairro: string | null = null;
+    let cidade: string | null = null;
+    let estado: string | null = null;
+
+    for (const comp of addressComponents) {
+      if (comp.types.includes("sublocality_level_1") || comp.types.includes("sublocality")) {
+        bairro = comp.long_name;
+      }
+      if (comp.types.includes("administrative_area_level_2") || comp.types.includes("locality")) {
+        cidade = comp.long_name;
+      }
+      if (comp.types.includes("administrative_area_level_1")) {
+        estado = comp.short_name;
+      }
+    }
+
+    const geoData = {
+      latitude: location.lat,
+      longitude: location.lng,
+      enderecoFormatado: result.results[0].formatted_address,
+      bairro,
+      cidade,
+      estado,
+    };
+
+    // Salvar no cache
+    if (db) {
+      try {
+        await db.insert(geocodingCache).values({
+          cep: cepLimpo,
+          latitude: String(geoData.latitude),
+          longitude: String(geoData.longitude),
+          enderecoFormatado: geoData.enderecoFormatado,
+          bairro: geoData.bairro,
+          cidade: geoData.cidade,
+          estado: geoData.estado,
+        });
+      } catch (e) {
+        // Ignorar erros de duplicata
+        console.log(`[Geocoding] Erro ao salvar cache para CEP ${cepLimpo}:`, e);
+      }
+    }
+
+    return geoData;
+  } catch (error) {
+    console.error(`[Geocoding] Erro ao geocodificar CEP ${cep}:`, error);
+    return null;
+  }
+}
+
+export async function buscarDadosMapaCalor(
+  filtros: { dataInicio: string; dataFim: string }
+): Promise<HeatmapData> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Banco de dados não disponível");
+  }
+
+  // Buscar contagem de atendimentos por CEP do cache
+  const cepCounts = await db
+    .select({
+      cep: sql.raw('cep_paciente'),
+      total: sql<number>`COUNT(*)`,
+    })
+    .from(relatorioAtendimentosCache)
+    .where(
+      and(
+        gte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataInicio)),
+        lte(relatorioAtendimentosCache.dataAtendimento, new Date(filtros.dataFim)),
+        sql`${sql.raw('cep_paciente')} IS NOT NULL AND TRIM(${sql.raw('cep_paciente')}) != ''`
+      )
+    )
+    .groupBy(sql.raw('cep_paciente'))
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(50);
+
+  console.log(`[MapaCalor] Encontrados ${cepCounts.length} CEPs distintos`);
+
+  // Geocodificar cada CEP
+  const pontos: CepGeoData[] = [];
+  let totalAtendimentos = 0;
+
+  for (const item of cepCounts) {
+    const cep = String(item.cep);
+    const total = Number(item.total);
+    totalAtendimentos += total;
+
+    const geoData = await geocodificarCep(cep);
+    if (geoData) {
+      pontos.push({
+        cep,
+        latitude: geoData.latitude,
+        longitude: geoData.longitude,
+        enderecoFormatado: geoData.enderecoFormatado,
+        bairro: geoData.bairro,
+        cidade: geoData.cidade,
+        estado: geoData.estado,
+        totalAtendimentos: total,
+      });
+    }
+  }
+
+  // Calcular centro do mapa (média ponderada das coordenadas)
+  let centroLat = -15.7801;  // Centro do Brasil como fallback
+  let centroLng = -47.9292;
+  let zoomInicial = 4;
+
+  if (pontos.length > 0) {
+    let somaLat = 0;
+    let somaLng = 0;
+    let somaPeso = 0;
+
+    for (const p of pontos) {
+      somaLat += p.latitude * p.totalAtendimentos;
+      somaLng += p.longitude * p.totalAtendimentos;
+      somaPeso += p.totalAtendimentos;
+    }
+
+    centroLat = somaLat / somaPeso;
+    centroLng = somaLng / somaPeso;
+
+    // Calcular zoom baseado na dispersão dos pontos
+    const lats = pontos.map(p => p.latitude);
+    const lngs = pontos.map(p => p.longitude);
+    const latRange = Math.max(...lats) - Math.min(...lats);
+    const lngRange = Math.max(...lngs) - Math.min(...lngs);
+    const maxRange = Math.max(latRange, lngRange);
+
+    if (maxRange < 0.1) zoomInicial = 14;
+    else if (maxRange < 0.5) zoomInicial = 12;
+    else if (maxRange < 1) zoomInicial = 11;
+    else if (maxRange < 2) zoomInicial = 10;
+    else if (maxRange < 5) zoomInicial = 8;
+    else if (maxRange < 10) zoomInicial = 7;
+    else zoomInicial = 5;
+  }
+
+  return {
+    pontos,
+    totalCeps: pontos.length,
+    totalAtendimentos,
+    centroMapa: { lat: centroLat, lng: centroLng },
+    zoomInicial,
+  };
+}

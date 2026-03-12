@@ -2835,3 +2835,17 @@
 - [x] Frontend: criar aba "Análise Operacional" (top centros de custo, CBO, proveniência, especialidades radar)
 - [x] Integrar novas abas com filtros existentes do dashboard
 - [x] Corrigir sql.raw() para nomes de colunas em queries de analytics (mesmo bug do DATE_FORMAT)
+
+## Mapa de Calor Geográfico - Distribuição de Pacientes por CEP
+- [x] Backend: criar endpoint para geocodificação de CEPs e cache de coordenadas
+- [x] Frontend: integrar Google Maps com heatmap na aba Perfil Paciente
+- [x] Implementar cache de geocodificação para evitar chamadas repetidas à API
+- [x] Adicionar marcadores com contagem de atendimentos por região
+- [x] Controles de raio, opacidade e toggle heatmap/marcadores
+- [x] InfoWindow com detalhes (bairro, cidade, estado, total atendimentos)
+- [x] Testes unitários para buscarDadosMapaCalor
+
+## Melhorias Perfil Paciente - CEPs e Mapa
+- [ ] Transformar CEPs em nomes de cidades no backend (usar geocoding_cache)
+- [ ] Substituir gráfico de barras de CEPs pelo mapa de calor geográfico
+- [ ] Manter tabela detalhada com nomes de cidades em vez de CEPs

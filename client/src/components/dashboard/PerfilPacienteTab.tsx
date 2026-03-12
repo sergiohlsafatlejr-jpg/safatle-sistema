@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Users, MapPin, UserCheck, Percent } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import ChartCard from "@/components/dashboard/ChartCard";
+import HeatmapPacientes from "@/components/dashboard/HeatmapPacientes";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SEXO_COLORS: Record<string, string> = {
@@ -36,6 +37,9 @@ interface DemograficasData {
 interface Props {
   data: DemograficasData | null | undefined;
   isLoading: boolean;
+  dataInicio?: string;
+  dataFim?: string;
+  dashboardAtivo?: boolean;
 }
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
@@ -65,7 +69,7 @@ const PieTooltipContent = ({ active, payload }: any) => {
   );
 };
 
-export default function PerfilPacienteTab({ data, isLoading }: Props) {
+export default function PerfilPacienteTab({ data, isLoading, dataInicio, dataFim, dashboardAtivo }: Props) {
   // Prepare stacked bar data for Sexo × Tipo
   const sexoTipoData = useMemo(() => {
     if (!data?.porSexoTipo?.length) return { chartData: [], tipos: [] };
@@ -197,6 +201,17 @@ export default function PerfilPacienteTab({ data, isLoading }: Props) {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+
+      {/* Mapa de Calor Geográfico */}
+      {dataInicio && dataFim && (
+        <div className="grid grid-cols-1 gap-6">
+          <HeatmapPacientes
+            dataInicio={dataInicio}
+            dataFim={dataFim}
+            enabled={!!dashboardAtivo}
+          />
+        </div>
+      )}
 
       {/* Charts Row 2: CEP */}
       <div className="grid grid-cols-1 gap-6">

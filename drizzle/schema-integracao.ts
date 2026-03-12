@@ -815,3 +815,27 @@ export const custosProdutosSyncMeta = mysqlTable(
     estabelecimentoIdx: uniqueIndex("idx_custos_sync_meta_estab").on(table.estabelecimentoId),
   })
 );
+
+
+/**
+ * CACHE DE GEOCODIFICAÇÃO
+ * Armazena coordenadas lat/lng para CEPs já geocodificados
+ * para evitar chamadas repetidas à API do Google Maps
+ */
+export const geocodingCache = mysqlTable(
+  "geocoding_cache",
+  {
+    id: int().primaryKey().autoincrement(),
+    cep: varchar({ length: 20 }).notNull(),
+    latitude: decimal({ precision: 10, scale: 7 }).notNull(),
+    longitude: decimal({ precision: 10, scale: 7 }).notNull(),
+    enderecoFormatado: text("endereco_formatado"),
+    bairro: varchar({ length: 255 }),
+    cidade: varchar({ length: 255 }),
+    estado: varchar({ length: 2 }),
+    criadoEm: timestamp("criado_em").defaultNow(),
+  },
+  (table) => ({
+    cepIdx: uniqueIndex("idx_geocoding_cache_cep").on(table.cep),
+  })
+);

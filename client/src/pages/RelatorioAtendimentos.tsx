@@ -497,7 +497,13 @@ export default function RelatorioAtendimentos() {
               isSyncing={syncMutation.isPending}
               syncStatus={syncStatusText}
             />
-            <PerfilPacienteTab data={demograficas} isLoading={loadingDemograficas && dashboardAtivo} />
+            <PerfilPacienteTab
+              data={demograficas}
+              isLoading={loadingDemograficas && dashboardAtivo}
+              dataInicio={metricasInput.dataInicio}
+              dataFim={metricasInput.dataFim}
+              dashboardAtivo={dashboardAtivo}
+            />
           </TabsContent>
 
           {/* ========== ABA ANÁLISE OPERACIONAL ========== */}
