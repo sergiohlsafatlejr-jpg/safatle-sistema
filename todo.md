@@ -2825,3 +2825,6 @@
 
 ## Bug - Tabela relatorio_atendimentos_sync_meta
 - [x] Corrigir erro: tabela relatorio_atendimentos_sync_meta - schema Drizzle alinhado com colunas reais do banco (camelCase vs snake_case)
+
+## Bug - Relatório Atendimentos não exibe dados após sincronização
+- [x] Corrigir relatório de Atendimentos que não carrega dados após sincronização - corrigido DATE_FORMAT SQL que gerava SQL inconsistente no Drizzle (sem prefixo de tabela no SELECT mas com prefixo no GROUP BY/ORDER BY)

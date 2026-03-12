@@ -90,6 +90,8 @@ export async function buscarAtendimentos(
   const limit = filtros.limit || 100;
   const offset = filtros.offset || 0;
 
+  console.log("[RelatorioAtendimentos] buscarAtendimentos chamado com filtros:", JSON.stringify(filtros));
+
   // Tentar cache local primeiro
   try {
     const db = await getDb();
@@ -98,15 +100,19 @@ export async function buscarAtendimentos(
         .select({ total: count() })
         .from(relatorioAtendimentosCache);
       
+      console.log("[RelatorioAtendimentos] Cache count:", cacheCount[0]?.total);
       if (cacheCount[0]?.total > 0) {
-        return buscarDoCache(db, filtros, limit, offset);
+        const result = await buscarDoCache(db, filtros, limit, offset);
+        console.log("[RelatorioAtendimentos] Cache result: total=", result.total, "dados.length=", result.dados.length);
+        return result;
       }
     }
   } catch (e) {
-    console.warn("[RelatorioAtendimentos] Cache local indisponível, usando PostgreSQL:", (e as Error).message);
+    console.error("[RelatorioAtendimentos] Cache local ERRO:", (e as Error).message, (e as Error).stack);
   }
 
   // Fallback: PostgreSQL direto
+  console.log("[RelatorioAtendimentos] Usando PostgreSQL direto");
   return buscarDoPostgresql(filtros, limit, offset);
 }
 
@@ -827,6 +833,7 @@ export interface FiltrosDashboard {
 export async function buscarMetricasDashboard(
   filtros: FiltrosDashboard
 ): Promise<MetricasDashboard> {
+  console.log("[Dashboard] buscarMetricasDashboard chamado com filtros:", JSON.stringify(filtros));
   // Tentar cache local primeiro
   try {
     const db = await getDb();
@@ -835,12 +842,15 @@ export async function buscarMetricasDashboard(
         .select({ total: count() })
         .from(relatorioAtendimentosCache);
 
+      console.log("[Dashboard] Cache count:", cacheCount[0]?.total);
       if (cacheCount[0]?.total > 0) {
-        return buscarMetricasDoCache(db, filtros as FiltrosDashboard);
+        const result = await buscarMetricasDoCache(db, filtros as FiltrosDashboard);
+        console.log("[Dashboard] Resultado do cache - totalAtendimentos:", result.totalAtendimentos, "porTipo:", result.porTipo?.length, "porMedico:", result.porMedico?.length);
+        return result;
       }
     }
   } catch (e) {
-    console.warn("[Dashboard] Cache local indisponível, usando PostgreSQL:", (e as Error).message);
+    console.error("[Dashboard] Cache local ERRO:", (e as Error).message, (e as Error).stack);
   }
 
   // Fallback: PostgreSQL direto
@@ -938,13 +948,13 @@ async function buscarMetricasDoCache(
 
     // Por mês/ano
     db.select({
-      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      mesAno: sql<string>`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
       .where(dateCondition)
-      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
-      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+      .groupBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`),
 
     // Por CID (top 20)
     db.select({
@@ -1402,17 +1412,17 @@ async function buscarMetricasAvancadasDoCache(
 
     // 8. Emergências por mês
     db.select({
-      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      mesAno: sql<string>`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
       .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Emergência")))
-      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
-      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+      .groupBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`),
 
     // 9. Convertidos por mês
     db.select({
-      mesAno: sql<string>`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`,
+      mesAno: sql<string>`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
@@ -1420,8 +1430,8 @@ async function buscarMetricasAvancadasDoCache(
         eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"),
         like(relatorioAtendimentosCache.proveniente, "%merg%")
       ))
-      .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
-      .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
+      .groupBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(\`relatorio_atendimentos_cache\`.\`data_atendimento\`, '%Y-%m')`),
 
     // 10. Por caráter
     db.select({
