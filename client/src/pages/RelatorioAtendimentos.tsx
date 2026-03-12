@@ -223,6 +223,12 @@ export default function RelatorioAtendimentos() {
     { enabled: dashboardAtivo && (abaAtiva === "operacional" || abaAtiva === "dashboard") }
   );
 
+  // Buscar pacientes internados (internações sem data de saída)
+  const { data: internadosData, isLoading: loadingInternados } = trpc.relatorioAtendimentos.pacientesInternados.useQuery(
+    undefined,
+    { enabled: dashboardAtivo && (abaAtiva === "operacional" || abaAtiva === "dashboard") }
+  );
+
   // ===== HANDLERS =====
 
   const handleBuscar = () => {
@@ -525,7 +531,12 @@ export default function RelatorioAtendimentos() {
               isSyncing={syncMutation.isPending}
               syncStatus={syncStatusText}
             />
-            <AnaliseOperacionalTab data={operacionais} isLoading={loadingOperacionais && dashboardAtivo} />
+            <AnaliseOperacionalTab
+              data={operacionais}
+              isLoading={loadingOperacionais && dashboardAtivo}
+              internadosData={internadosData}
+              loadingInternados={loadingInternados && dashboardAtivo}
+            />
           </TabsContent>
 
           {/* ========== ABA TABELA ========== */}

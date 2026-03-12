@@ -1,14 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart, Bar, PieChart, Pie, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { motion } from "framer-motion";
-import { Building2, Briefcase, ArrowRightLeft, Stethoscope, Layers } from "lucide-react";
+import { Building2, Briefcase, ArrowRightLeft, Stethoscope, Layers, BedDouble, Clock, Heart, ChevronDown, ChevronUp } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import ChartCard from "@/components/dashboard/ChartCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const CHART_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -31,9 +33,32 @@ interface OperacionaisData {
   fonte: string;
 }
 
+interface PacienteInternado {
+  numatend: string;
+  paciente: string;
+  convenio: string;
+  centroCusto: string;
+  prestador: string;
+  dataEntrada: string;
+  diasInternado: number;
+  procedimento: string;
+  cid: string;
+}
+
+interface InternadosData {
+  totalInternados: number;
+  pacientes: PacienteInternado[];
+  porCentroCusto: Array<{ nome: string; total: number }>;
+  porConvenio: Array<{ nome: string; total: number }>;
+  mediaPermancencia: number;
+  fonte: string;
+}
+
 interface Props {
   data: OperacionaisData | null | undefined;
   isLoading: boolean;
+  internadosData?: InternadosData | null | undefined;
+  loadingInternados?: boolean;
 }
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
@@ -114,7 +139,274 @@ function RankingTable({
   );
 }
 
-export default function AnaliseOperacionalTab({ data, isLoading }: Props) {
+// Badge de dias internado com cores
+function DiasInternadoBadge({ dias }: { dias: number }) {
+  let variant: "default" | "secondary" | "destructive" | "outline" = "secondary";
+  let className = "";
+  if (dias >= 30) {
+    variant = "destructive";
+  } else if (dias >= 14) {
+    className = "bg-orange-500/20 text-orange-400 border-orange-500/30";
+  } else if (dias >= 7) {
+    className = "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+  } else {
+    className = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+  }
+  return (
+    <Badge variant={variant} className={className}>
+      {dias} {dias === 1 ? "dia" : "dias"}
+    </Badge>
+  );
+}
+
+// Seção de Pacientes Internados
+function PacientesInternadosSection({
+  data,
+  isLoading,
+}: {
+  data: InternadosData | null | undefined;
+  isLoading: boolean;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  const [mostrarTodos, setMostrarTodos] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-64 rounded-lg" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const pacientesVisiveis = mostrarTodos ? data.pacientes : data.pacientes.slice(0, 10);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-4"
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between cursor-pointer group"
+        onClick={() => setExpandido(!expandido)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-red-500/10">
+            <BedDouble className="h-5 w-5 text-red-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              Pacientes Internados
+              <Badge variant="destructive" className="text-base px-3 py-0.5">
+                {data.totalInternados}
+              </Badge>
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Internações ativas sem data de saída
+            </p>
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" className="gap-1">
+          {expandido ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {expandido ? "Recolher" : "Expandir"}
+        </Button>
+      </div>
+
+      {/* KPIs de internados */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Total Internados"
+          value={data.totalInternados.toLocaleString("pt-BR")}
+          subtitle="Sem data de saída"
+          icon={BedDouble}
+          gradient="blue"
+        />
+        <KpiCard
+          title="Média de Permanência"
+          value={`${data.mediaPermancencia} dias`}
+          subtitle="Tempo médio internado"
+          icon={Clock}
+          gradient="amber"
+        />
+        <KpiCard
+          title="Setores Ocupados"
+          value={data.porCentroCusto.length.toLocaleString("pt-BR")}
+          subtitle="Centros de custo distintos"
+          icon={Building2}
+          gradient="violet"
+        />
+        <KpiCard
+          title="Convênios"
+          value={data.porConvenio.length.toLocaleString("pt-BR")}
+          subtitle="Convênios distintos"
+          icon={Heart}
+          gradient="emerald"
+        />
+      </div>
+
+      {/* Detalhes expandíveis */}
+      {expandido && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-4"
+        >
+          {/* Gráficos: Por Centro de Custo e Por Convênio */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Internados por Setor" icon={Building2}>
+              {data.porCentroCusto.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(200, data.porCentroCusto.length * 32)}>
+                  <BarChart
+                    data={data.porCentroCusto.slice(0, 10).map(c => ({
+                      ...c,
+                      nome: c.nome.length > 22 ? c.nome.slice(0, 22) + "..." : c.nome,
+                    }))}
+                    layout="vertical"
+                    margin={{ left: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="nome" width={160} tick={{ fontSize: 11 }} />
+                    <Tooltip content={<CustomTooltipContent />} />
+                    <Bar dataKey="total" name="Internados" radius={[0, 6, 6, 0]}>
+                      {data.porCentroCusto.slice(0, 10).map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                  Sem dados
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Internados por Convênio" icon={Heart}>
+              {data.porConvenio.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={data.porConvenio.slice(0, 8)}
+                      dataKey="total"
+                      nameKey="nome"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      innerRadius={50}
+                      paddingAngle={3}
+                      label={({ nome, total }) => `${nome.length > 12 ? nome.slice(0, 12) + "..." : nome} (${total})`}
+                      labelLine={true}
+                    >
+                      {data.porConvenio.slice(0, 8).map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }: any) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0];
+                        return (
+                          <div className="bg-popover text-popover-foreground border rounded-lg shadow-lg p-3 text-sm">
+                            <p className="font-semibold">{d.name}</p>
+                            <p>{d.value} internados</p>
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  Sem dados
+                </div>
+              )}
+            </ChartCard>
+          </div>
+
+          {/* Tabela de pacientes internados */}
+          <ChartCard title={`Lista de Pacientes Internados (${data.totalInternados})`} icon={BedDouble}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Atend.</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Paciente</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Convênio</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Setor</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Prestador</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Entrada</th>
+                    <th className="text-center py-2 px-3 font-medium text-muted-foreground">Permanência</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pacientesVisiveis.map((p, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-2 px-3 font-mono text-xs">{p.numatend}</td>
+                      <td className="py-2 px-3 max-w-[180px] truncate" title={p.paciente}>{p.paciente}</td>
+                      <td className="py-2 px-3 max-w-[150px] truncate" title={p.convenio}>{p.convenio}</td>
+                      <td className="py-2 px-3 max-w-[150px] truncate" title={p.centroCusto}>{p.centroCusto}</td>
+                      <td className="py-2 px-3 max-w-[150px] truncate" title={p.prestador}>{p.prestador}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        {new Date(p.dataEntrada).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <DiasInternadoBadge dias={p.diasInternado} />
+                      </td>
+                    </tr>
+                  ))}
+                  {data.pacientes.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                        Nenhum paciente internado encontrado
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {data.pacientes.length > 10 && (
+              <div className="flex justify-center pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMostrarTodos(!mostrarTodos)}
+                  className="gap-1"
+                >
+                  {mostrarTodos ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Mostrar menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Ver todos ({data.pacientes.length})
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </ChartCard>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
+export default function AnaliseOperacionalTab({ data, isLoading, internadosData, loadingInternados }: Props) {
   // Prepare stacked bar data for Proveniência × Tipo
   const provTipoData = useMemo(() => {
     if (!data?.porProvenienciaTipo?.length) return { chartData: [], tipos: [] };
@@ -174,6 +466,14 @@ export default function AnaliseOperacionalTab({ data, isLoading }: Props) {
       transition={{ duration: 0.3 }}
       className="space-y-6"
     >
+      {/* ===== PACIENTES INTERNADOS ===== */}
+      <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+        <PacientesInternadosSection
+          data={internadosData}
+          isLoading={loadingInternados || false}
+        />
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard

@@ -2525,3 +2525,200 @@ export async function buscarDadosMapaCalor(
     zoomInicial,
   };
 }
+
+
+// ============================================================
+// PACIENTES INTERNADOS (Internações sem data de saída)
+// ============================================================
+
+export interface PacienteInternado {
+  numatend: string;
+  paciente: string;
+  convenio: string;
+  centroCusto: string;
+  prestador: string;
+  dataEntrada: string;
+  diasInternado: number;
+  procedimento: string;
+  cid: string;
+}
+
+export interface DadosInternadosResult {
+  totalInternados: number;
+  pacientes: PacienteInternado[];
+  porCentroCusto: Array<{ nome: string; total: number }>;
+  porConvenio: Array<{ nome: string; total: number }>;
+  mediaPermancencia: number;
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export async function buscarPacientesInternados(): Promise<DadosInternadosResult> {
+  // Tentar cache local primeiro
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(relatorioAtendimentosCache);
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarInternadosDoCache(db);
+      }
+    }
+  } catch (e) {
+    console.warn("[PacientesInternados] Cache indisponível, usando PostgreSQL:", (e as Error).message);
+  }
+  return buscarInternadosDoPostgresql();
+}
+
+async function buscarInternadosDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>
+): Promise<DadosInternadosResult> {
+  // Internações: tipo = 'I' ou descrição = 'Internação', sem data de saída
+  const internados = await db
+    .select({
+      numatend: relatorioAtendimentosCache.numatend,
+      paciente: sql<string>`COALESCE(${relatorioAtendimentosCache.paciente}, 'Não informado')`,
+      convenio: sql<string>`COALESCE(${relatorioAtendimentosCache.planoConvenio}, 'Não informado')`,
+      centroCusto: sql<string>`COALESCE(${relatorioAtendimentosCache.centroCusto}, 'Não informado')`,
+      prestador: sql<string>`COALESCE(${relatorioAtendimentosCache.prestador}, 'Não informado')`,
+      dataEntrada: relatorioAtendimentosCache.dataAtendimento,
+      procedimento: sql<string>`COALESCE(${relatorioAtendimentosCache.dsprocprin}, '')`,
+      cid: sql<string>`COALESCE(CONCAT(${relatorioAtendimentosCache.cidprin}, ' - ', ${relatorioAtendimentosCache.diagnosticoCid}), '')`,
+    })
+    .from(relatorioAtendimentosCache)
+    .where(
+      and(
+        sql`(${relatorioAtendimentosCache.tipoAtendimento} = 'I' OR ${relatorioAtendimentosCache.tipoAtendimentoDescricao} = 'Internação')`,
+        sql`${relatorioAtendimentosCache.dataSaida} IS NULL`
+      )
+    )
+    .orderBy(relatorioAtendimentosCache.dataAtendimento);
+
+  const agora = new Date();
+  const pacientes: PacienteInternado[] = internados.map(r => {
+    const dataEntrada = r.dataEntrada ? new Date(r.dataEntrada) : agora;
+    const diasInternado = Math.max(1, Math.floor((agora.getTime() - dataEntrada.getTime()) / (1000 * 60 * 60 * 24)));
+    return {
+      numatend: r.numatend,
+      paciente: r.paciente,
+      convenio: r.convenio,
+      centroCusto: r.centroCusto,
+      prestador: r.prestador,
+      dataEntrada: dataEntrada.toISOString().split("T")[0],
+      diasInternado,
+      procedimento: r.procedimento,
+      cid: r.cid,
+    };
+  });
+
+  // Agrupar por centro de custo
+  const ccMap = new Map<string, number>();
+  for (const p of pacientes) {
+    ccMap.set(p.centroCusto, (ccMap.get(p.centroCusto) || 0) + 1);
+  }
+  const porCentroCusto = [...ccMap.entries()]
+    .map(([nome, total]) => ({ nome, total }))
+    .sort((a, b) => b.total - a.total);
+
+  // Agrupar por convênio
+  const convMap = new Map<string, number>();
+  for (const p of pacientes) {
+    convMap.set(p.convenio, (convMap.get(p.convenio) || 0) + 1);
+  }
+  const porConvenio = [...convMap.entries()]
+    .map(([nome, total]) => ({ nome, total }))
+    .sort((a, b) => b.total - a.total);
+
+  // Média de permanência
+  const mediaPermancencia = pacientes.length > 0
+    ? Math.round(pacientes.reduce((s, p) => s + p.diasInternado, 0) / pacientes.length * 10) / 10
+    : 0;
+
+  return {
+    totalInternados: pacientes.length,
+    pacientes,
+    porCentroCusto,
+    porConvenio,
+    mediaPermancencia,
+    fonte: "cache_local",
+  };
+}
+
+async function buscarInternadosDoPostgresql(): Promise<DadosInternadosResult> {
+  const pool = getWarleinePool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT 
+        a.numatend,
+        COALESCE(cpc.nomepac, 'Não informado') as paciente,
+        COALESCE(cp.nomeplaco, 'Não informado') as convenio,
+        COALESCE(cc.nomecc, 'Não informado') as centro_custo,
+        COALESCE(pr.nomeprest, 'Não informado') as prestador,
+        a.datatend as data_entrada,
+        COALESCE(proc.dsprocprin, '') as procedimento,
+        COALESCE(a.cidprin || ' - ' || cid.descrcid, '') as cid
+      FROM arqatend a
+      LEFT JOIN cadpac cpc ON cpc.codpac = a.codpac
+      LEFT JOIN cadplaco cp ON cp.codplaco = a.codplaco
+      LEFT JOIN cadcc cc ON cc.codcc = a.codcc
+      LEFT JOIN cadprest pr ON pr.codprest = a.codprest
+      LEFT JOIN tabproc proc ON proc.codproc = a.procprin
+      LEFT JOIN tabcid cid ON cid.codcid = a.cidprin
+      WHERE a.tipoatend = 'I'
+        AND a.datasai IS NULL
+      ORDER BY a.datatend ASC
+    `);
+
+    const agora = new Date();
+    const pacientes: PacienteInternado[] = result.rows.map((r: any) => {
+      const dataEntrada = r.data_entrada ? new Date(r.data_entrada) : agora;
+      const diasInternado = Math.max(1, Math.floor((agora.getTime() - dataEntrada.getTime()) / (1000 * 60 * 60 * 24)));
+      return {
+        numatend: r.numatend,
+        paciente: r.paciente,
+        convenio: r.convenio,
+        centroCusto: r.centro_custo,
+        prestador: r.prestador,
+        dataEntrada: dataEntrada.toISOString().split("T")[0],
+        diasInternado,
+        procedimento: r.procedimento || "",
+        cid: r.cid || "",
+      };
+    });
+
+    // Agrupar por centro de custo
+    const ccMap = new Map<string, number>();
+    for (const p of pacientes) {
+      ccMap.set(p.centroCusto, (ccMap.get(p.centroCusto) || 0) + 1);
+    }
+    const porCentroCusto = [...ccMap.entries()]
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total);
+
+    // Agrupar por convênio
+    const convMap = new Map<string, number>();
+    for (const p of pacientes) {
+      convMap.set(p.convenio, (convMap.get(p.convenio) || 0) + 1);
+    }
+    const porConvenio = [...convMap.entries()]
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total);
+
+    const mediaPermancencia = pacientes.length > 0
+      ? Math.round(pacientes.reduce((s, p) => s + p.diasInternado, 0) / pacientes.length * 10) / 10
+      : 0;
+
+    return {
+      totalInternados: pacientes.length,
+      pacientes,
+      porCentroCusto,
+      porConvenio,
+      mediaPermancencia,
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}

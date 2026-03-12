@@ -2849,3 +2849,9 @@
 - [x] Transformar CEPs em nomes de cidades no backend (usar geocoding_cache)
 - [x] Substituir gráfico de barras de CEPs pelo mapa de calor geográfico
 - [x] Manter tabela detalhada com nomes de cidades em vez de CEPs
+
+## Indicador de Pacientes Internados - Análise Operacional
+- [x] Backend: query de internações ativas (sem data de saída) no PostgreSQL
+- [x] Backend: endpoint tRPC para buscar pacientes internados em tempo real
+- [x] Frontend: KPI e tabela de pacientes internados na aba Análise Operacional
+- [x] Testes unitários para buscarPacientesInternados

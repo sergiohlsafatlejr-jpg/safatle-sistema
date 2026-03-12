@@ -11,6 +11,7 @@ import {
   buscarAnaliticasDemograficas,
   buscarAnaliticasOperacionais,
   buscarDadosMapaCalor,
+  buscarPacientesInternados,
 } from "../relatorioAtendimentos";
 
 const filtrosDashboardSchema = z.object({
@@ -115,6 +116,12 @@ export const relatorioAtendimentosRouter = router({
     )
     .query(async ({ input }) => {
       return buscarDadosMapaCalor(input);
+    }),
+
+  // Pacientes internados (internações sem data de saída)
+  pacientesInternados: protectedProcedure
+    .query(async () => {
+      return buscarPacientesInternados();
     }),
 
   // Obter status da última sincronização
