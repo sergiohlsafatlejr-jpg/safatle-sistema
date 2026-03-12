@@ -1784,8 +1784,8 @@ export interface AnaliticasDemograficas {
   porSexo: Array<{ sexo: string; total: number; percentual: number }>;
   porSexoTipo: Array<{ sexo: string; tipo: string; total: number }>;
 
-  // Distribuição por CEP (Top 20)
-  porCep: Array<{ cep: string; total: number; percentual: number }>;
+  // Distribuição por CEP/Cidade (Top 20)
+  porCep: Array<{ cep: string; cidade: string; total: number; percentual: number }>;
   porCepTipo: Array<{ cep: string; tipo: string; total: number }>;
 
   // Totais
@@ -1937,6 +1937,34 @@ async function buscarDemograficasDoCache(
       .orderBy(desc(count()));
   }
 
+  // Resolver CEPs para nomes de cidades usando geocoding_cache
+  const cepsParaResolver = porCepRaw
+    .filter(r => r.cep !== "Não informado")
+    .map(r => r.cep.replace(/\D/g, ""));
+
+  let cidadeMap: Record<string, string> = {};
+  if (cepsParaResolver.length > 0) {
+    try {
+      const geocodingResults = await db
+        .select({
+          cep: geocodingCache.cep,
+          cidade: geocodingCache.cidade,
+          estado: geocodingCache.estado,
+        })
+        .from(geocodingCache)
+        .where(sql`${geocodingCache.cep} IN (${sql.join(cepsParaResolver.map(c => sql`${c}`), sql`, `)})`);
+
+      for (const g of geocodingResults) {
+        const label = g.cidade && g.estado
+          ? `${g.cidade}/${g.estado}`
+          : g.cidade || g.cep;
+        cidadeMap[g.cep] = label;
+      }
+    } catch (e) {
+      console.warn("[Demograficas] Erro ao resolver cidades:", (e as Error).message);
+    }
+  }
+
   return {
     porSexo: porSexoRaw.map(r => ({
       sexo: r.sexo === "M" ? "Masculino" : r.sexo === "F" ? "Feminino" : r.sexo,
@@ -1948,11 +1976,15 @@ async function buscarDemograficasDoCache(
       tipo: r.tipo,
       total: r.total,
     })),
-    porCep: porCepRaw.map(r => ({
-      cep: r.cep,
-      total: r.total,
-      percentual: totalGeral > 0 ? Math.round((r.total / totalGeral) * 1000) / 10 : 0,
-    })),
+    porCep: porCepRaw.map(r => {
+      const cepLimpo = r.cep.replace(/\D/g, "");
+      return {
+        cep: r.cep,
+        cidade: r.cep === "Não informado" ? "Não informado" : (cidadeMap[cepLimpo] || r.cep),
+        total: r.total,
+        percentual: totalGeral > 0 ? Math.round((r.total / totalGeral) * 1000) / 10 : 0,
+      };
+    }),
     porCepTipo: porCepTipoRaw.map(r => ({
       cep: r.cep,
       tipo: r.tipo,
@@ -2016,6 +2048,7 @@ async function buscarDemograficasDoPostgresql(
 
     const porCep = cepResult.rows.map((r: any) => ({
       cep: r.cep,
+      cidade: r.cep, // PostgreSQL direto não tem cache de geocodificação, usa CEP como fallback
       total: parseInt(r.total, 10),
       percentual: totalGeral > 0 ? Math.round((parseInt(r.total, 10) / totalGeral) * 1000) / 10 : 0,
     }));

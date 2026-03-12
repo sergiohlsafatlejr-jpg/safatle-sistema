@@ -26,7 +26,7 @@ const CHART_COLORS = [
 interface DemograficasData {
   porSexo: Array<{ sexo: string; total: number; percentual: number }>;
   porSexoTipo: Array<{ sexo: string; tipo: string; total: number }>;
-  porCep: Array<{ cep: string; total: number; percentual: number }>;
+  porCep: Array<{ cep: string; cidade?: string; total: number; percentual: number }>;
   porCepTipo: Array<{ cep: string; tipo: string; total: number }>;
   totalComSexo: number;
   totalComCep: number;
@@ -94,6 +94,14 @@ export default function PerfilPacienteTab({ data, isLoading, dataInicio, dataFim
     return cep;
   };
 
+  // Get display name for CEP (city or formatted CEP)
+  const getDisplayName = (item: { cep: string; cidade?: string }) => {
+    if (item.cidade && item.cidade !== item.cep && item.cidade !== "Não informado") {
+      return item.cidade;
+    }
+    return formatCep(item.cep);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -151,7 +159,7 @@ export default function PerfilPacienteTab({ data, isLoading, dataInicio, dataFim
           gradient="violet"
         />
         <KpiCard
-          title="CEPs Distintos"
+          title="Cidades Distintas"
           value={data.porCep.filter(c => c.cep !== "Não informado").length.toLocaleString("pt-BR")}
           icon={MapPin}
           gradient="emerald"
@@ -202,7 +210,7 @@ export default function PerfilPacienteTab({ data, isLoading, dataInicio, dataFim
         </ChartCard>
       </div>
 
-      {/* Mapa de Calor Geográfico */}
+      {/* Mapa de Calor Geográfico - substitui o gráfico de barras de CEPs */}
       {dataInicio && dataFim && (
         <div className="grid grid-cols-1 gap-6">
           <HeatmapPacientes
@@ -213,45 +221,27 @@ export default function PerfilPacienteTab({ data, isLoading, dataInicio, dataFim
         </div>
       )}
 
-      {/* Charts Row 2: CEP */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Bar Chart - Top 20 CEPs */}
-        <ChartCard title="Top 20 CEPs com Mais Atendimentos" icon={MapPin}>
-          <ResponsiveContainer width="100%" height={Math.max(400, data.porCep.length * 28)}>
-            <BarChart data={data.porCep.map(c => ({ ...c, cep: formatCep(c.cep) }))} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis type="category" dataKey="cep" width={110} tick={{ fontSize: 11 }} />
-              <Tooltip content={<CustomTooltipContent />} />
-              <Bar dataKey="total" name="Atendimentos" radius={[0, 6, 6, 0]}>
-                {data.porCep.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Tabela CEP detalhada */}
+      {/* Tabela de Cidades detalhada */}
       {data.porCep.length > 0 && (
-        <ChartCard title="Detalhamento por CEP" icon={MapPin}>
+        <ChartCard title="Top 20 Cidades com Mais Atendimentos" icon={MapPin}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Cidade</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">CEP</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Atendimentos</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">%</th>
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Barra</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Proporção</th>
                 </tr>
               </thead>
               <tbody>
                 {data.porCep.map((item, i) => (
                   <tr key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="py-2 px-3 text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 px-3 font-mono">{formatCep(item.cep)}</td>
+                    <td className="py-2 px-3 font-medium">{getDisplayName(item)}</td>
+                    <td className="py-2 px-3 font-mono text-muted-foreground text-xs">{formatCep(item.cep)}</td>
                     <td className="py-2 px-3 text-right font-medium">{item.total.toLocaleString("pt-BR")}</td>
                     <td className="py-2 px-3 text-right text-muted-foreground">{item.percentual}%</td>
                     <td className="py-2 px-3 w-40">

@@ -2846,6 +2846,6 @@
 - [x] Testes unitários para buscarDadosMapaCalor
 
 ## Melhorias Perfil Paciente - CEPs e Mapa
-- [ ] Transformar CEPs em nomes de cidades no backend (usar geocoding_cache)
-- [ ] Substituir gráfico de barras de CEPs pelo mapa de calor geográfico
-- [ ] Manter tabela detalhada com nomes de cidades em vez de CEPs
+- [x] Transformar CEPs em nomes de cidades no backend (usar geocoding_cache)
+- [x] Substituir gráfico de barras de CEPs pelo mapa de calor geográfico
+- [x] Manter tabela detalhada com nomes de cidades em vez de CEPs
