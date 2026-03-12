@@ -35,13 +35,6 @@ const TIPO_PROD_MAP: Record<string, string> = {
   O: "Outros",
 };
 
-const TABELA_PRECO_MAP: Record<string, string> = {
-  "50": "Tabela 50",
-  "04": "Tabela 04 (Brasindice)",
-  "07": "Tabela 07 (Simpro)",
-  "06": "Tabela 06",
-};
-
 // ============================================================
 // INTERFACES
 // ============================================================
@@ -49,6 +42,7 @@ const TABELA_PRECO_MAP: Record<string, string> = {
 export interface FiltroCustos {
   tipoprod?: string;
   codtbmm?: string;
+  convenio?: string;
   busca?: string;
   limit?: number;
   offset?: number;
@@ -68,6 +62,68 @@ export interface MetricasCustosDashboard {
   topCustoFatura: { codprod: string; descricao: string; custoMultFat: number; tipoprod: string }[];
   comparativoCustos: { tipo: string; custoEstoque: number; custoFatura: number; valorMM: number }[];
   fonte: "cache_local" | "postgresql_direto";
+}
+
+// ============================================================
+// HELPER: Buscar tabelas de preço reais via cadplaco
+// ============================================================
+
+async function buscarTabelasAtivas(): Promise<string[]> {
+  const client = await getWarleinePool().connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT a.codtbmm
+      FROM "PACIENTE".cadplaco a
+      WHERE a.inativo IS NULL
+        AND a.codtbmm IS NOT NULL
+        AND TRIM(a.codtbmm) != ''
+      ORDER BY a.codtbmm
+    `);
+    return result.rows.map((r: any) => r.codtbmm.trim());
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// SQL BASE: Query corrigida usando cadplaco como ponte
+// tabprod → tabmprop (via codprod) → cadplaco (via codtbmm) → cadconv (via codconv)
+// ============================================================
+
+function buildBaseQueryCorrigida(extraConditions: string[] = []): string {
+  const whereExtra = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+  return `
+    SELECT 
+      A.codprod,
+      A.descricao,
+      A.tipoprod,
+      A.capacidade AS capacidade_estoque,
+      A.multcobr AS mult_estoque,
+      B.multcobr AS mult_faturas,
+      A.unidade AS unidade_estoque,
+      B.unidade AS unidade_faturas,
+      A.custoatual AS custo_estoque,
+      CASE 
+        WHEN A.tipoprod IN ('M','T','O') AND COALESCE(B.multcobr, 0) > 0 
+          THEN A.custoatual / B.multcobr
+        ELSE A.custoatual 
+      END AS custo_mult_fat,
+      B.valormm,
+      B.codtbmm,
+      PL.codplaco,
+      PL.nomeplaco AS nome_plano,
+      C.codconv,
+      C.nomeconv AS nome_convenio,
+      A.prevenbras,
+      A.prefabsimp
+    FROM "PACIENTE".tabprod A
+    INNER JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+    INNER JOIN "PACIENTE".cadplaco PL ON PL.codtbmm = B.codtbmm AND PL.inativo IS NULL
+    INNER JOIN "PACIENTE".cadconv C ON C.codconv = PL.codconv
+    WHERE A.tipoprod IN ('M','T','O')
+      AND A.inativo IS NULL
+      ${whereExtra}
+  `;
 }
 
 // ============================================================
@@ -129,6 +185,9 @@ async function buscarDoCache(
   if (filtros.codtbmm) {
     conditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
   }
+  if (filtros.convenio) {
+    conditions.push(eq(custosProtudosCache.codplaco, filtros.convenio));
+  }
   if (filtros.busca) {
     conditions.push(
       sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
@@ -157,7 +216,10 @@ async function buscarDoCache(
       descricao: d.descricao,
       tipoprod: d.tipoprod,
       tipoprodDesc: TIPO_PROD_MAP[d.tipoprod || ""] || d.tipoprod,
-      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      tabelaPrecoDesc: `Tabela ${d.codtbmm}`,
+      nomeConvenio: d.nomeConvenio || "",
+      nomePlano: d.nomePlano || "",
+      codplaco: d.codplaco || "",
       capacidadeEstoque: d.capacidadeEstoque ? parseFloat(d.capacidadeEstoque) : null,
       multEstoque: d.multEstoque ? parseFloat(d.multEstoque) : null,
       multFaturas: d.multFaturas ? parseFloat(d.multFaturas) : null,
@@ -189,7 +251,6 @@ async function buscarDoPostgresql(
 }> {
   const client = await getWarleinePool().connect();
   try {
-    const tabelasCodtbmm = filtros.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
     const params: any[] = [];
     let paramIdx = 1;
 
@@ -199,41 +260,23 @@ async function buscarDoPostgresql(
       params.push(filtros.tipoprod);
       paramIdx++;
     }
+    if (filtros.codtbmm) {
+      extraConditions.push(`B.codtbmm = $${paramIdx}`);
+      params.push(filtros.codtbmm);
+      paramIdx++;
+    }
+    if (filtros.convenio) {
+      extraConditions.push(`PL.codplaco = $${paramIdx}`);
+      params.push(filtros.convenio);
+      paramIdx++;
+    }
     if (filtros.busca) {
       extraConditions.push(`(A.descricao ILIKE $${paramIdx} OR A.codprod ILIKE $${paramIdx})`);
       params.push(`%${filtros.busca}%`);
       paramIdx++;
     }
 
-    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
-
-    // Build UNION query
-    const unionParts = tabelasCodtbmm.map((tbmm) => {
-      return `
-        SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
-          A.capacidade AS capacidade_estoque,
-          A.multcobr AS mult_estoque,
-          B.multcobr AS mult_faturas,
-          A.unidade AS unidade_estoque,
-          B.unidade AS unidade_faturas,
-          A.custoatual AS custo_estoque,
-          CASE 
-            WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0)
-            ELSE A.custoatual
-          END AS custo_mult_fat,
-          B.valormm,
-          A.prevenbras,
-          A.prefabsimp
-        FROM "PACIENTE".tabprod A
-        JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
-        WHERE B.codtbmm = '${tbmm}'
-          AND A.tipoprod IN ('M','T','O')
-          AND A.inativo IS NULL
-          ${extraWhere}
-      `;
-    });
-
-    const fullQuery = unionParts.join(" UNION ALL ");
+    const fullQuery = buildBaseQueryCorrigida(extraConditions);
 
     // Count total
     const countQuery = `SELECT COUNT(*) as total FROM (${fullQuery}) sub`;
@@ -251,7 +294,10 @@ async function buscarDoPostgresql(
         descricao: r.descricao,
         tipoprod: r.tipoprod,
         tipoprodDesc: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
-        tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        tabelaPrecoDesc: `Tabela ${r.codtbmm}`,
+        nomeConvenio: r.nome_convenio || "",
+        nomePlano: r.nome_plano || "",
+        codplaco: r.codplaco || "",
         capacidadeEstoque: r.capacidade_estoque ? parseFloat(r.capacidade_estoque) : null,
         multEstoque: r.mult_estoque ? parseFloat(r.mult_estoque) : null,
         multFaturas: r.mult_faturas ? parseFloat(r.mult_faturas) : null,
@@ -280,6 +326,7 @@ async function buscarDoPostgresql(
 export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Promise<{
   tiposProduto: { codigo: string; nome: string }[];
   tabelasPreco: { codigo: string; nome: string }[];
+  convenios: { codplaco: string; nome: string }[];
   fonte: "cache_local" | "postgresql_direto";
 }> {
   try {
@@ -291,7 +338,7 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
         .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
 
       if (cacheCount[0]?.total > 0) {
-        const [tipos, tabelas] = await Promise.all([
+        const [tipos, tabelas, convenios] = await Promise.all([
           db
             .selectDistinct({ codigo: custosProtudosCache.tipoprod })
             .from(custosProtudosCache)
@@ -307,6 +354,19 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
             .from(custosProtudosCache)
             .where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId))
             .orderBy(custosProtudosCache.codtbmm),
+          db
+            .selectDistinct({ 
+              codplaco: custosProtudosCache.codplaco, 
+              nome: custosProtudosCache.nomeConvenio 
+            })
+            .from(custosProtudosCache)
+            .where(
+              and(
+                eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
+                sql`${custosProtudosCache.codplaco} IS NOT NULL`
+              )
+            )
+            .orderBy(custosProtudosCache.nomeConvenio),
         ]);
 
         return {
@@ -318,8 +378,14 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
             })),
           tabelasPreco: tabelas.map((t) => ({
             codigo: t.codigo,
-            nome: TABELA_PRECO_MAP[t.codigo] || `Tabela ${t.codigo}`,
+            nome: `Tabela ${t.codigo}`,
           })),
+          convenios: convenios
+            .filter((c) => c.codplaco)
+            .map((c) => ({
+              codplaco: c.codplaco!,
+              nome: c.nome || c.codplaco!,
+            })),
           fonte: "cache_local",
         };
       }
@@ -328,19 +394,60 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
     console.warn("[RelatorioCustos] Cache indisponível para filtros:", (e as Error).message);
   }
 
-  // Fallback estático
+  // Fallback: buscar do PostgreSQL direto
+  try {
+    const client = await getWarleinePool().connect();
+    try {
+      const [tabelasResult, conveniosResult] = await Promise.all([
+        client.query(`
+          SELECT DISTINCT a.codtbmm
+          FROM "PACIENTE".cadplaco a
+          WHERE a.inativo IS NULL
+            AND a.codtbmm IS NOT NULL AND TRIM(a.codtbmm) != ''
+          ORDER BY a.codtbmm
+        `),
+        client.query(`
+          SELECT DISTINCT a.codplaco, b.nomeconv
+          FROM "PACIENTE".cadplaco a
+          INNER JOIN "PACIENTE".cadconv b ON b.codconv = a.codconv
+          WHERE a.inativo IS NULL
+            AND a.codtbmm IS NOT NULL AND TRIM(a.codtbmm) != ''
+          ORDER BY b.nomeconv
+        `),
+      ]);
+
+      return {
+        tiposProduto: [
+          { codigo: "M", nome: "Medicamento" },
+          { codigo: "T", nome: "Taxa" },
+          { codigo: "O", nome: "Outros" },
+        ],
+        tabelasPreco: tabelasResult.rows.map((r: any) => ({
+          codigo: r.codtbmm.trim(),
+          nome: `Tabela ${r.codtbmm.trim()}`,
+        })),
+        convenios: conveniosResult.rows.map((r: any) => ({
+          codplaco: r.codplaco,
+          nome: r.nomeconv || r.codplaco,
+        })),
+        fonte: "postgresql_direto",
+      };
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.warn("[RelatorioCustos] Erro ao buscar filtros do PG:", (e as Error).message);
+  }
+
+  // Fallback estático mínimo
   return {
     tiposProduto: [
       { codigo: "M", nome: "Medicamento" },
       { codigo: "T", nome: "Taxa" },
       { codigo: "O", nome: "Outros" },
     ],
-    tabelasPreco: [
-      { codigo: "50", nome: "Tabela 50" },
-      { codigo: "04", nome: "Tabela 04 (Brasindice)" },
-      { codigo: "07", nome: "Tabela 07 (Simpro)" },
-      { codigo: "06", nome: "Tabela 06" },
-    ],
+    tabelasPreco: [],
+    convenios: [],
     fonte: "postgresql_direto",
   };
 }
@@ -395,7 +502,6 @@ async function buscarMetricasDoCache(
     avgResult,
     comparativo,
   ] = await Promise.all([
-    // Totais por tipo
     db
       .select({
         tipoprod: custosProtudosCache.tipoprod,
@@ -404,8 +510,6 @@ async function buscarMetricasDoCache(
       .from(custosProtudosCache)
       .where(whereClause)
       .groupBy(custosProtudosCache.tipoprod),
-
-    // Por tipo (para gráfico)
     db
       .select({
         codigo: custosProtudosCache.tipoprod,
@@ -415,8 +519,6 @@ async function buscarMetricasDoCache(
       .where(whereClause)
       .groupBy(custosProtudosCache.tipoprod)
       .orderBy(desc(count())),
-
-    // Por tabela de preço
     db
       .select({
         codigo: custosProtudosCache.codtbmm,
@@ -426,8 +528,6 @@ async function buscarMetricasDoCache(
       .where(whereClause)
       .groupBy(custosProtudosCache.codtbmm)
       .orderBy(desc(count())),
-
-    // Top 20 custo estoque
     db
       .select({
         codprod: custosProtudosCache.codprod,
@@ -436,11 +536,14 @@ async function buscarMetricasDoCache(
         tipoprod: custosProtudosCache.tipoprod,
       })
       .from(custosProtudosCache)
-      .where(and(whereClause, sql`${custosProtudosCache.custoEstoque} IS NOT NULL AND ${custosProtudosCache.custoEstoque} > 0`))
+      .where(
+        and(
+          ...baseConditions,
+          sql`${custosProtudosCache.custoEstoque} IS NOT NULL AND ${custosProtudosCache.custoEstoque} > 0`
+        )
+      )
       .orderBy(desc(custosProtudosCache.custoEstoque))
       .limit(20),
-
-    // Top 20 custo fatura
     db
       .select({
         codprod: custosProtudosCache.codprod,
@@ -449,11 +552,14 @@ async function buscarMetricasDoCache(
         tipoprod: custosProtudosCache.tipoprod,
       })
       .from(custosProtudosCache)
-      .where(and(whereClause, sql`${custosProtudosCache.custoMultFat} IS NOT NULL AND ${custosProtudosCache.custoMultFat} > 0`))
+      .where(
+        and(
+          ...baseConditions,
+          sql`${custosProtudosCache.custoMultFat} IS NOT NULL AND ${custosProtudosCache.custoMultFat} > 0`
+        )
+      )
       .orderBy(desc(custosProtudosCache.custoMultFat))
       .limit(20),
-
-    // Médias
     db
       .select({
         avgCustoEstoque: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
@@ -462,8 +568,6 @@ async function buscarMetricasDoCache(
       })
       .from(custosProtudosCache)
       .where(whereClause),
-
-    // Comparativo por tipo
     db
       .select({
         tipoprod: custosProtudosCache.tipoprod,
@@ -476,17 +580,15 @@ async function buscarMetricasDoCache(
       .groupBy(custosProtudosCache.tipoprod),
   ]);
 
-  // Calcular totais
   let totalProdutos = 0;
   let totalMedicamentos = 0;
   let totalTaxas = 0;
   let totalOutros = 0;
-  for (const t of totalResult) {
-    const n = t.total;
-    totalProdutos += n;
-    if (t.tipoprod === "M") totalMedicamentos = n;
-    if (t.tipoprod === "T") totalTaxas = n;
-    if (t.tipoprod === "O") totalOutros = n;
+  for (const r of totalResult) {
+    totalProdutos += r.total;
+    if (r.tipoprod === "M") totalMedicamentos = r.total;
+    if (r.tipoprod === "T") totalTaxas = r.total;
+    if (r.tipoprod === "O") totalOutros = r.total;
   }
 
   return {
@@ -503,7 +605,7 @@ async function buscarMetricasDoCache(
       total: t.total,
     })),
     porTabelaPreco: porTabela.map((t) => ({
-      nome: TABELA_PRECO_MAP[t.codigo] || `Tabela ${t.codigo}`,
+      nome: `Tabela ${t.codigo}`,
       codigo: t.codigo,
       total: t.total,
     })),
@@ -534,7 +636,6 @@ async function buscarMetricasDoPostgresql(
 ): Promise<MetricasCustosDashboard> {
   const client = await getWarleinePool().connect();
   try {
-    const tabelasCodtbmm = filtros?.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
     const params: any[] = [];
     let paramIdx = 1;
 
@@ -544,22 +645,13 @@ async function buscarMetricasDoPostgresql(
       params.push(filtros.tipoprod);
       paramIdx++;
     }
-    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
+    if (filtros?.codtbmm) {
+      extraConditions.push(`B.codtbmm = $${paramIdx}`);
+      params.push(filtros.codtbmm);
+      paramIdx++;
+    }
 
-    const unionParts = tabelasCodtbmm.map((tbmm) => `
-      SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
-        A.custoatual AS custo_estoque,
-        CASE WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0) ELSE A.custoatual END AS custo_mult_fat,
-        B.valormm
-      FROM "PACIENTE".tabprod A
-      JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
-      WHERE B.codtbmm = '${tbmm}'
-        AND A.tipoprod IN ('M','T','O')
-        AND A.inativo IS NULL
-        ${extraWhere}
-    `);
-
-    const fullQuery = unionParts.join(" UNION ALL ");
+    const fullQuery = buildBaseQueryCorrigida(extraConditions);
 
     const [
       porTipoResult,
@@ -603,7 +695,7 @@ async function buscarMetricasDoPostgresql(
         total: parseInt(r.total, 10),
       })),
       porTabelaPreco: porTabelaResult.rows.map((r: any) => ({
-        nome: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        nome: `Tabela ${r.codtbmm}`,
         codigo: r.codtbmm,
         total: parseInt(r.total, 10),
       })),
@@ -633,7 +725,7 @@ async function buscarMetricasDoPostgresql(
 }
 
 // ============================================================
-// SINCRONIZAÇÃO: Warleine → Cache Local
+// SINCRONIZAÇÃO: Warleine → Cache Local (CORRIGIDA via cadplaco)
 // ============================================================
 
 export async function sincronizarCustosProdutos(
@@ -665,28 +757,8 @@ export async function sincronizarCustosProdutos(
     let totalRegistros = 0;
 
     try {
-      // Buscar todos os dados das 4 tabelas de preço
-      const query = `
-        SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
-          A.capacidade AS capacidade_estoque,
-          A.multcobr AS mult_estoque,
-          B.multcobr AS mult_faturas,
-          A.unidade AS unidade_estoque,
-          B.unidade AS unidade_faturas,
-          A.custoatual AS custo_estoque,
-          CASE 
-            WHEN A.tipoprod IN ('M','T','O') THEN A.custoatual / NULLIF(B.multcobr, 0)
-            ELSE A.custoatual
-          END AS custo_mult_fat,
-          B.valormm,
-          A.prevenbras,
-          A.prefabsimp
-        FROM "PACIENTE".tabprod A
-        JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
-        WHERE B.codtbmm IN ('50', '04', '07', '06')
-          AND A.tipoprod IN ('M','T','O')
-          AND A.inativo IS NULL
-      `;
+      // Query corrigida: usa cadplaco como ponte para associar cada produto ao convênio correto
+      const query = buildBaseQueryCorrigida();
 
       const result = await client.query(query);
       const rows = result.rows;
@@ -701,12 +773,10 @@ export async function sincronizarCustosProdutos(
         const batch = rows.slice(i, i + batchSize);
         await db.insert(custosProtudosCache).values(
           batch.map((r: any) => {
-            // Helper to safely convert numeric values to decimal(18,6) compatible strings
             const toDecimal = (val: any): string | null => {
               if (val == null || val === '' || val === undefined) return null;
               const num = parseFloat(String(val));
               if (isNaN(num)) return null;
-              // Truncate to 6 decimal places and max 12 integer digits to fit decimal(18,6)
               return num.toFixed(6);
             };
 
@@ -726,6 +796,9 @@ export async function sincronizarCustosProdutos(
               prevenbras: toDecimal(r.prevenbras),
               prefabsimp: toDecimal(r.prefabsimp),
               codtbmm: r.codtbmm?.trim() || "",
+              codplaco: r.codplaco?.trim() || null,
+              nomeConvenio: r.nome_convenio?.trim() || null,
+              nomePlano: r.nome_plano?.trim() || null,
             };
           })
         );
@@ -746,7 +819,7 @@ export async function sincronizarCustosProdutos(
 
     return {
       sucesso: true,
-      mensagem: `Sincronização concluída: ${totalRegistros.toLocaleString("pt-BR")} produtos importados em ${duracao}s`,
+      mensagem: `Sincronização concluída: ${totalRegistros.toLocaleString("pt-BR")} registros (produto x convênio) importados em ${duracao}s`,
       totalRegistros,
       duracaoSegundos: duracao,
     };
@@ -855,12 +928,13 @@ async function upsertSyncMeta(
 
 
 // ============================================================
-// COMPARAÇÃO: CUSTO HOSPITAL vs VALOR CONVÊNIO
+// COMPARAÇÃO: CUSTO HOSPITAL vs VALOR CONVÊNIO (CORRIGIDA)
 // ============================================================
 
 export interface FiltroComparacao {
   tipoprod?: string;
   codtbmm?: string;
+  convenio?: string;
   busca?: string;
   apenasComPrejuizo?: boolean;
   limit?: number;
@@ -875,6 +949,8 @@ export interface ComparacaoCustoConvenio {
     tipoprodDesc: string;
     codtbmm: string;
     tabelaPrecoDesc: string;
+    nomeConvenio: string;
+    codplaco: string;
     custoHospital: number;
     valorConvenio: number;
     margemReais: number;
@@ -894,10 +970,12 @@ export interface ComparacaoCustoConvenio {
     custoTotalHospital: number;
     valorTotalConvenio: number;
   };
-  topPrejuizo: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
-  topLucro: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
+  topPrejuizo: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; nomeConvenio: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
+  topLucro: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; nomeConvenio: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
   margemPorTipo: { tipo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
   margemPorTabela: { tabela: string; codigo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
+  margemPorConvenio: { convenio: string; codplaco: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
+  conveniosDisponiveis: { codplaco: string; nome: string }[];
   fonte: "cache_local" | "postgresql_direto";
 }
 
@@ -936,7 +1014,6 @@ async function buscarComparacaoDoCache(
   limit: number,
   offset: number
 ): Promise<ComparacaoCustoConvenio> {
-  // Condições base: apenas itens com custo > 0 e valor convênio > 0
   const conditions: any[] = [
     eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
     sql`${custosProtudosCache.custoEstoque} IS NOT NULL`,
@@ -951,6 +1028,9 @@ async function buscarComparacaoDoCache(
   if (filtros.codtbmm) {
     conditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
   }
+  if (filtros.convenio) {
+    conditions.push(eq(custosProtudosCache.codplaco, filtros.convenio));
+  }
   if (filtros.busca) {
     conditions.push(
       sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
@@ -962,7 +1042,6 @@ async function buscarComparacaoDoCache(
 
   const whereClause = and(...conditions);
 
-  // Buscar dados paginados
   const [totalResult, dados] = await Promise.all([
     db.select({ total: count() }).from(custosProtudosCache).where(whereClause),
     db
@@ -976,7 +1055,6 @@ async function buscarComparacaoDoCache(
 
   const total = totalResult[0]?.total || 0;
 
-  // Calcular itens com margem
   const itens = dados.map((d) => {
     const custoHospital = parseFloat(d.custoEstoque || "0");
     const valorConvenio = parseFloat(d.valormm || "0");
@@ -989,7 +1067,9 @@ async function buscarComparacaoDoCache(
       tipoprod: d.tipoprod || "",
       tipoprodDesc: TIPO_PROD_MAP[d.tipoprod || ""] || d.tipoprod || "?",
       codtbmm: d.codtbmm,
-      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      tabelaPrecoDesc: `Tabela ${d.codtbmm}`,
+      nomeConvenio: d.nomeConvenio || "",
+      codplaco: d.codplaco || "",
       custoHospital,
       valorConvenio,
       margemReais,
@@ -1008,6 +1088,7 @@ async function buscarComparacaoDoCache(
   ];
   if (filtros.tipoprod) baseConditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
   if (filtros.codtbmm) baseConditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
+  if (filtros.convenio) baseConditions.push(eq(custosProtudosCache.codplaco, filtros.convenio));
   if (filtros.busca) {
     baseConditions.push(
       sql`(${custosProtudosCache.descricao} LIKE ${"%" + filtros.busca + "%"} OR ${custosProtudosCache.codprod} LIKE ${"%" + filtros.busca + "%"})`
@@ -1015,7 +1096,7 @@ async function buscarComparacaoDoCache(
   }
   const baseWhere = and(...baseConditions);
 
-  const [resumoResult, topPrejuizoResult, topLucroResult, margemPorTipoResult, margemPorTabelaResult] = await Promise.all([
+  const [resumoResult, topPrejuizoResult, topLucroResult, margemPorTipoResult, margemPorTabelaResult, margemPorConvenioResult, conveniosResult] = await Promise.all([
     db.select({
       totalItens: count(),
       totalComLucro: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01 THEN 1 ELSE 0 END)`,
@@ -1024,21 +1105,18 @@ async function buscarComparacaoDoCache(
       valorTotalConvenio: sql<string>`SUM(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere),
 
-    // Top 15 com maior prejuízo
     db.select()
       .from(custosProtudosCache)
       .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) - 0.01`))
       .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) ASC`)
       .limit(15),
 
-    // Top 15 com maior lucro
     db.select()
       .from(custosProtudosCache)
       .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01`))
       .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) DESC`)
       .limit(15),
 
-    // Margem por tipo de produto
     db.select({
       tipoprod: custosProtudosCache.tipoprod,
       total: count(),
@@ -1046,13 +1124,30 @@ async function buscarComparacaoDoCache(
       avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.tipoprod),
 
-    // Margem por tabela de preço
     db.select({
       codtbmm: custosProtudosCache.codtbmm,
       total: count(),
       avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
       avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.codtbmm),
+
+    db.select({
+      codplaco: custosProtudosCache.codplaco,
+      nomeConvenio: custosProtudosCache.nomeConvenio,
+      total: count(),
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
+    }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.codplaco, custosProtudosCache.nomeConvenio),
+
+    db.selectDistinct({
+      codplaco: custosProtudosCache.codplaco,
+      nome: custosProtudosCache.nomeConvenio,
+    }).from(custosProtudosCache).where(
+      and(
+        eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
+        sql`${custosProtudosCache.codplaco} IS NOT NULL`
+      )
+    ).orderBy(custosProtudosCache.nomeConvenio),
   ]);
 
   const r = resumoResult[0];
@@ -1070,7 +1165,8 @@ async function buscarComparacaoDoCache(
       descricao: d.descricao || "",
       tipoprod: d.tipoprod || "",
       codtbmm: d.codtbmm,
-      tabelaPrecoDesc: TABELA_PRECO_MAP[d.codtbmm] || `Tabela ${d.codtbmm}`,
+      tabelaPrecoDesc: `Tabela ${d.codtbmm}`,
+      nomeConvenio: d.nomeConvenio || "",
       custoHospital: ch,
       valorConvenio: vc,
       margemReais: mr,
@@ -1110,7 +1206,7 @@ async function buscarComparacaoDoCache(
       const avgC = parseFloat(t.avgCusto || "0");
       const avgV = parseFloat(t.avgValor || "0");
       return {
-        tabela: TABELA_PRECO_MAP[t.codtbmm] || `Tabela ${t.codtbmm}`,
+        tabela: `Tabela ${t.codtbmm}`,
         codigo: t.codtbmm,
         margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0,
         custoMedio: avgC,
@@ -1118,6 +1214,26 @@ async function buscarComparacaoDoCache(
         total: t.total,
       };
     }),
+    margemPorConvenio: margemPorConvenioResult
+      .filter((c) => c.codplaco)
+      .map((c) => {
+        const avgC = parseFloat(c.avgCusto || "0");
+        const avgV = parseFloat(c.avgValor || "0");
+        return {
+          convenio: c.nomeConvenio || c.codplaco || "",
+          codplaco: c.codplaco || "",
+          margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0,
+          custoMedio: avgC,
+          valorMedio: avgV,
+          total: c.total,
+        };
+      }),
+    conveniosDisponiveis: conveniosResult
+      .filter((c) => c.codplaco)
+      .map((c) => ({
+        codplaco: c.codplaco!,
+        nome: c.nome || c.codplaco!,
+      })),
     fonte: "cache_local",
   };
 }
@@ -1129,7 +1245,6 @@ async function buscarComparacaoDoPostgresql(
 ): Promise<ComparacaoCustoConvenio> {
   const client = await getWarleinePool().connect();
   try {
-    const tabelasCodtbmm = filtros.codtbmm ? [filtros.codtbmm] : ["50", "04", "07", "06"];
     const params: any[] = [];
     let paramIdx = 1;
 
@@ -1144,35 +1259,54 @@ async function buscarComparacaoDoPostgresql(
       params.push(filtros.tipoprod);
       paramIdx++;
     }
+    if (filtros.codtbmm) {
+      extraConditions.push(`B.codtbmm = $${paramIdx}`);
+      params.push(filtros.codtbmm);
+      paramIdx++;
+    }
+    if (filtros.convenio) {
+      extraConditions.push(`PL.codplaco = $${paramIdx}`);
+      params.push(filtros.convenio);
+      paramIdx++;
+    }
     if (filtros.busca) {
       extraConditions.push(`(A.descricao ILIKE $${paramIdx} OR A.codprod ILIKE $${paramIdx})`);
       params.push(`%${filtros.busca}%`);
       paramIdx++;
     }
 
-    const extraWhere = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
-
-    const unionParts = tabelasCodtbmm.map((tbmm) => `
-      SELECT A.codprod, B.codtbmm, A.descricao, A.tipoprod,
+    const fullQuery = `
+      SELECT 
+        A.codprod, B.codtbmm, A.descricao, A.tipoprod,
         A.custoatual AS custo_hospital,
         B.valormm AS valor_convenio,
-        (B.valormm - A.custoatual) AS margem_reais
+        (B.valormm - A.custoatual) AS margem_reais,
+        PL.codplaco,
+        C.nomeconv AS nome_convenio
       FROM "PACIENTE".tabprod A
-      JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
-      WHERE B.codtbmm = '${tbmm}'
-        AND A.tipoprod IN ('M','T','O')
+      INNER JOIN "PACIENTE".tabmprop B ON A.codprod = B.codprod
+      INNER JOIN "PACIENTE".cadplaco PL ON PL.codtbmm = B.codtbmm AND PL.inativo IS NULL
+      INNER JOIN "PACIENTE".cadconv C ON C.codconv = PL.codconv
+      WHERE A.tipoprod IN ('M','T','O')
         AND A.inativo IS NULL
-        ${extraWhere}
-    `);
-
-    const fullQuery = unionParts.join(" UNION ALL ");
+        AND ${extraConditions.join(" AND ")}
+    `;
 
     let filteredQuery = fullQuery;
     if (filtros.apenasComPrejuizo) {
       filteredQuery = `SELECT * FROM (${fullQuery}) sub WHERE margem_reais < -0.01`;
     }
 
-    const [countResult, dataResult, resumoResult, topPrejResult, topLucroResult, porTipoResult, porTabelaResult] = await Promise.all([
+    // Buscar convênios disponíveis
+    const conveniosQuery = `
+      SELECT DISTINCT PL.codplaco, C.nomeconv
+      FROM "PACIENTE".cadplaco PL
+      INNER JOIN "PACIENTE".cadconv C ON C.codconv = PL.codconv
+      WHERE PL.inativo IS NULL AND PL.codtbmm IS NOT NULL AND TRIM(PL.codtbmm) != ''
+      ORDER BY C.nomeconv
+    `;
+
+    const [countResult, dataResult, resumoResult, topPrejResult, topLucroResult, porTipoResult, porTabelaResult, porConvenioResult, conveniosResult] = await Promise.all([
       client.query(`SELECT COUNT(*) as total FROM (${filteredQuery}) sub2`, params),
       client.query(`SELECT * FROM (${filteredQuery}) sub2 ORDER BY margem_reais ASC LIMIT ${limit} OFFSET ${offset}`, params),
       client.query(`SELECT COUNT(*) as total, SUM(CASE WHEN margem_reais > 0.01 THEN 1 ELSE 0 END) as lucro, SUM(CASE WHEN margem_reais < -0.01 THEN 1 ELSE 0 END) as prejuizo, SUM(custo_hospital) as custo_total, SUM(valor_convenio) as valor_total FROM (${fullQuery}) sub`, params),
@@ -1180,6 +1314,8 @@ async function buscarComparacaoDoPostgresql(
       client.query(`SELECT * FROM (${fullQuery}) sub WHERE margem_reais > 0.01 ORDER BY margem_reais DESC LIMIT 15`, params),
       client.query(`SELECT tipoprod, COUNT(*) as total, AVG(custo_hospital) as avg_custo, AVG(valor_convenio) as avg_valor FROM (${fullQuery}) sub GROUP BY tipoprod`, params),
       client.query(`SELECT codtbmm, COUNT(*) as total, AVG(custo_hospital) as avg_custo, AVG(valor_convenio) as avg_valor FROM (${fullQuery}) sub GROUP BY codtbmm`, params),
+      client.query(`SELECT nome_convenio, codplaco, COUNT(*) as total, AVG(custo_hospital) as avg_custo, AVG(valor_convenio) as avg_valor FROM (${fullQuery}) sub GROUP BY nome_convenio, codplaco ORDER BY nome_convenio`, params),
+      client.query(conveniosQuery),
     ]);
 
     const total = parseInt(countResult.rows[0]?.total || "0", 10);
@@ -1199,12 +1335,32 @@ async function buscarComparacaoDoPostgresql(
         tipoprod: r.tipoprod || "",
         tipoprodDesc: TIPO_PROD_MAP[r.tipoprod] || r.tipoprod,
         codtbmm: r.codtbmm,
-        tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`,
+        tabelaPrecoDesc: `Tabela ${r.codtbmm}`,
+        nomeConvenio: r.nome_convenio || "",
+        codplaco: r.codplaco || "",
         custoHospital: ch,
         valorConvenio: vc,
         margemReais: mr,
         margemPercent: ch > 0 ? (mr / ch) * 100 : 0,
         status: (mr > 0.01 ? "lucro" : mr < -0.01 ? "prejuizo" : "neutro") as "lucro" | "prejuizo" | "neutro",
+      };
+    };
+
+    const mapTopItem = (r: any) => {
+      const ch = parseFloat(r.custo_hospital || "0");
+      const vc = parseFloat(r.valor_convenio || "0");
+      const mr = vc - ch;
+      return {
+        codprod: r.codprod,
+        descricao: r.descricao || "",
+        tipoprod: r.tipoprod,
+        codtbmm: r.codtbmm,
+        tabelaPrecoDesc: `Tabela ${r.codtbmm}`,
+        nomeConvenio: r.nome_convenio || "",
+        custoHospital: ch,
+        valorConvenio: vc,
+        margemReais: mr,
+        margemPercent: ch > 0 ? (mr / ch) * 100 : 0,
       };
     };
 
@@ -1223,18 +1379,8 @@ async function buscarComparacaoDoPostgresql(
         custoTotalHospital: custoTotal,
         valorTotalConvenio: valorTotal,
       },
-      topPrejuizo: topPrejResult.rows.map((r: any) => {
-        const ch = parseFloat(r.custo_hospital || "0");
-        const vc = parseFloat(r.valor_convenio || "0");
-        const mr = vc - ch;
-        return { codprod: r.codprod, descricao: r.descricao || "", tipoprod: r.tipoprod, codtbmm: r.codtbmm, tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, custoHospital: ch, valorConvenio: vc, margemReais: mr, margemPercent: ch > 0 ? (mr / ch) * 100 : 0 };
-      }),
-      topLucro: topLucroResult.rows.map((r: any) => {
-        const ch = parseFloat(r.custo_hospital || "0");
-        const vc = parseFloat(r.valor_convenio || "0");
-        const mr = vc - ch;
-        return { codprod: r.codprod, descricao: r.descricao || "", tipoprod: r.tipoprod, codtbmm: r.codtbmm, tabelaPrecoDesc: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, custoHospital: ch, valorConvenio: vc, margemReais: mr, margemPercent: ch > 0 ? (mr / ch) * 100 : 0 };
-      }),
+      topPrejuizo: topPrejResult.rows.map(mapTopItem),
+      topLucro: topLucroResult.rows.map(mapTopItem),
       margemPorTipo: porTipoResult.rows.map((r: any) => {
         const avgC = parseFloat(r.avg_custo || "0");
         const avgV = parseFloat(r.avg_valor || "0");
@@ -1243,8 +1389,24 @@ async function buscarComparacaoDoPostgresql(
       margemPorTabela: porTabelaResult.rows.map((r: any) => {
         const avgC = parseFloat(r.avg_custo || "0");
         const avgV = parseFloat(r.avg_valor || "0");
-        return { tabela: TABELA_PRECO_MAP[r.codtbmm] || `Tabela ${r.codtbmm}`, codigo: r.codtbmm, margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0, custoMedio: avgC, valorMedio: avgV, total: parseInt(r.total, 10) };
+        return { tabela: `Tabela ${r.codtbmm}`, codigo: r.codtbmm, margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0, custoMedio: avgC, valorMedio: avgV, total: parseInt(r.total, 10) };
       }),
+      margemPorConvenio: porConvenioResult.rows.map((r: any) => {
+        const avgC = parseFloat(r.avg_custo || "0");
+        const avgV = parseFloat(r.avg_valor || "0");
+        return {
+          convenio: r.nome_convenio || "",
+          codplaco: r.codplaco || "",
+          margemMedia: avgC > 0 ? ((avgV - avgC) / avgC) * 100 : 0,
+          custoMedio: avgC,
+          valorMedio: avgV,
+          total: parseInt(r.total, 10),
+        };
+      }),
+      conveniosDisponiveis: conveniosResult.rows.map((r: any) => ({
+        codplaco: r.codplaco,
+        nome: r.nomeconv || r.codplaco,
+      })),
       fonte: "postgresql_direto",
     };
   } finally {
@@ -1268,34 +1430,34 @@ export interface FiltroCustoPorConvenio {
 export interface ItemDetalhadoConvenio {
   codprod: string;
   descricao: string;
-  tipoItem: string; // P, S, M, T, O
-  tipoItemLabel: string; // Medicamento, Taxa, etc.
+  tipoItem: string;
+  tipoItemLabel: string;
   convenio: string;
   codplaco: string;
-  unidade: string; // UND, AMP, BOL, etc.
+  unidade: string;
   quantidade: number;
-  custoUnitario: number; // custoatual da tabprod
-  custoTotal: number; // custoUnitario * quantidade
-  valorCobradoUnitario: number; // vlunitab do lancamen
-  valorCobradoTotal: number; // vltotreais do lancamen
-  vlcusto: number; // vlcusto do lancamen (custo na época)
-  margem: number; // valorCobradoTotal - custoTotal
+  custoUnitario: number;
+  custoTotal: number;
+  valorCobradoUnitario: number;
+  valorCobradoTotal: number;
+  vlcusto: number;
+  margem: number;
   resultado: "lucro" | "prejuizo" | "empate";
 }
 
 export interface ItemCustoConvenio {
   codprod: string;
   descricao: string;
-  tipoItem: string; // P ou S
-  custoEstoque: number; // custoatual da tabprod
+  tipoItem: string;
+  custoEstoque: number;
   convenios: {
     convenio: string;
     codplaco: string;
     quantidade: number;
-    valorCobrado: number; // vltotreais
-    vlcusto: number; // vlcusto do lancamen
-    custoTotal: number; // custoEstoque * quantidade
-    margem: number; // valorCobrado - custoTotal
+    valorCobrado: number;
+    vlcusto: number;
+    custoTotal: number;
+    margem: number;
     resultado: "lucro" | "prejuizo" | "empate";
   }[];
 }
@@ -1312,15 +1474,11 @@ export interface ResumoConvenio {
 }
 
 export interface CustoPorConvenioResult {
-  // Tabela detalhada: cada linha = 1 item + 1 convênio (estilo tabela de custos)
   itensDetalhados: ItemDetalhadoConvenio[];
   totalItensDetalhados: number;
-  // Tabela agrupada: cada item com valor por convênio
   itens: ItemCustoConvenio[];
   totalItens: number;
-  // Resumo por convênio
   resumoPorConvenio: ResumoConvenio[];
-  // KPIs simples
   kpis: {
     totalConvenios: number;
     totalItensAnalisados: number;
@@ -1330,7 +1488,6 @@ export interface CustoPorConvenioResult {
     margemTotal: number;
     margemMediaPercent: number;
   };
-  // Top itens com maior prejuízo
   topItensPrejuizo: {
     codprod: string;
     descricao: string;
@@ -1340,7 +1497,6 @@ export interface CustoPorConvenioResult {
     custoTotal: number;
     margem: number;
   }[];
-  // Top itens com maior lucro
   topItensLucro: {
     codprod: string;
     descricao: string;
@@ -1350,7 +1506,6 @@ export interface CustoPorConvenioResult {
     custoTotal: number;
     margem: number;
   }[];
-  // Listas de filtros
   conveniosDisponiveis: { codplaco: string; nome: string }[];
   competenciasDisponiveis: string[];
   fonte: string;
@@ -1373,7 +1528,6 @@ export async function buscarCustosPorConvenio(
     const params: any[] = [];
     let paramIdx = 1;
 
-    // Filtro de período: default últimos 12 meses
     if (filtros.competencia) {
       conditions.push(`TO_CHAR(L.data, 'YYYY-MM') = $${paramIdx}`);
       params.push(filtros.competencia);
@@ -1420,7 +1574,7 @@ export async function buscarCustosPorConvenio(
     );
     const competenciasDisponiveis = compResult.rows.map((r: any) => r.comp);
 
-    // ---- 3a. Query detalhada: cada linha = 1 item + 1 convênio (com dados unitários) ----
+    // ---- 3a. Query detalhada ----
     const detalhadoQuery = `
       SELECT
         TRIM(L.codprod) as codprod,
@@ -1448,7 +1602,7 @@ export async function buscarCustosPorConvenio(
     `;
     const detalhadoResult = await client.query(detalhadoQuery, params);
 
-    // ---- 3b. Query agrupada: itens por produto + convênio (para resumo) ----
+    // ---- 3b. Query agrupada ----
     const mainQuery = `
       SELECT
         TRIM(L.codprod) as codprod,
@@ -1536,8 +1690,6 @@ export async function buscarCustosPorConvenio(
     });
 
     // ---- Processar dados agrupados ----
-
-    // Agrupar itens por codprod (cada item mostra valor por convênio)
     const itensMap = new Map<string, ItemCustoConvenio>();
     let totalItensSemCusto = 0;
     let valorFaturadoTotal = 0;
@@ -1592,14 +1744,13 @@ export async function buscarCustosPorConvenio(
         const totalB = b.convenios.reduce((s, c) => s + c.valorCobrado, 0);
         return totalB - totalA;
       })
-      .slice(0, 200); // Limitar a 200 itens para performance
+      .slice(0, 200);
 
     // Resumo por convênio
     const resumoPorConvenio: ResumoConvenio[] = resumoResult.rows.map((r: any) => {
       const totalFaturado = parseFloat(r.total_faturado || "0");
       const totalCustoEstoque = parseFloat(r.total_custo_estoque || "0");
       const totalVlcusto = parseFloat(r.total_vlcusto || "0");
-      // Usar custo de estoque quando disponível, senão vlcusto do lançamento
       const totalCusto = totalCustoEstoque > 0 ? totalCustoEstoque : totalVlcusto;
       const margem = totalFaturado - totalCusto;
       return {
@@ -1614,7 +1765,7 @@ export async function buscarCustosPorConvenio(
       };
     });
 
-    // Top 20 itens com maior prejuízo por convênio
+    // Top 20 itens
     const todosItensConvenio: { codprod: string; descricao: string; convenio: string; quantidade: number; valorCobrado: number; custoTotal: number; margem: number }[] = [];
     for (const item of itensMap.values()) {
       for (const conv of item.convenios) {

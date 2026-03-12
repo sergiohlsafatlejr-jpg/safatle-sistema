@@ -24,6 +24,7 @@ interface ComparacaoData {
   topLucro: { codprod: string; descricao: string; tipoprod: string; codtbmm: string; tabelaPrecoDesc: string; custoHospital: number; valorConvenio: number; margemReais: number; margemPercent: number }[];
   margemPorTipo: { tipo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
   margemPorTabela: { tabela: string; codigo: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
+  margemPorConvenio?: { convenio: string; codplaco: string; margemMedia: number; custoMedio: number; valorMedio: number; total: number }[];
 }
 
 function formatCurrency(value: number): string {
@@ -38,7 +39,7 @@ const COLORS_LUCRO_PREJUIZO = ["#22c55e", "#ef4444", "#94a3b8"];
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899"];
 
 export default function ComparacaoCustoConvenio({ data }: { data: ComparacaoData }) {
-  const { resumo, topPrejuizo, topLucro, margemPorTipo, margemPorTabela } = data;
+  const { resumo, topPrejuizo, topLucro, margemPorTipo, margemPorTabela, margemPorConvenio } = data;
 
   // Dados para gráfico de pizza (distribuição lucro/prejuízo/neutro)
   const pieData = useMemo(() => [
@@ -95,6 +96,19 @@ export default function ComparacaoCustoConvenio({ data }: { data: ComparacaoData
       total: t.total,
     })),
     [margemPorTabela]
+  );
+
+  // Dados para gráfico comparativo por convênio
+  const comparativoPorConvenio = useMemo(() =>
+    (margemPorConvenio || []).map(c => ({
+      convenio: c.convenio.length > 20 ? c.convenio.substring(0, 20) + "..." : c.convenio,
+      convenioFull: c.convenio,
+      "Custo Hospital": c.custoMedio,
+      "Valor Convênio": c.valorMedio,
+      margem: c.margemMedia,
+      total: c.total,
+    })),
+    [margemPorConvenio]
   );
 
   const CustomTooltipCurrency = ({ active, payload, label }: any) => {
@@ -383,6 +397,67 @@ export default function ComparacaoCustoConvenio({ data }: { data: ComparacaoData
           </CardContent>
         </Card>
       </div>
+
+      {/* Gráfico comparativo por Convênio */}
+      {comparativoPorConvenio.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Custo Hospital vs Valor Convênio (Média por Convênio)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(280, comparativoPorConvenio.length * 35)}>
+              <BarChart data={comparativoPorConvenio} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="convenio" width={160} tick={{ fontSize: 10 }} />
+                <Tooltip content={<CustomTooltipCurrency />} />
+                <Legend />
+                <Bar dataKey="Custo Hospital" fill="#f97316" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="Valor Conv\u00eanio" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabela resumo margem por convênio */}
+      {(margemPorConvenio || []).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Resumo de Margem por Convênio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="pb-2 font-medium">Convênio</th>
+                    <th className="pb-2 font-medium text-right">Qtd Itens</th>
+                    <th className="pb-2 font-medium text-right">Custo Médio</th>
+                    <th className="pb-2 font-medium text-right">Valor Convênio Médio</th>
+                    <th className="pb-2 font-medium text-right">Margem Média</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(margemPorConvenio || []).map((c, i) => (
+                    <tr key={i} className="border-b border-border/50">
+                      <td className="py-2">{c.convenio}</td>
+                      <td className="py-2 text-right">{c.total.toLocaleString("pt-BR")}</td>
+                      <td className="py-2 text-right">{formatCurrency(c.custoMedio)}</td>
+                      <td className="py-2 text-right">{formatCurrency(c.valorMedio)}</td>
+                      <td className="py-2 text-right">
+                        <Badge variant={c.margemMedia >= 0 ? "default" : "destructive"} className="text-xs">
+                          {formatPercent(c.margemMedia)}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabela resumo margem por tabela de preço */}
       <Card>

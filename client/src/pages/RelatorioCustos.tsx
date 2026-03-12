@@ -52,6 +52,7 @@ export default function RelatorioCustos() {
   // Comparação filters
   const [compTipoprod, setCompTipoprod] = useState<string>("");
   const [compCodtbmm, setCompCodtbmm] = useState<string>("");
+  const [compConvenio, setCompConvenio] = useState<string>("");
   const [compBusca, setCompBusca] = useState("");
   const [compBuscaInput, setCompBuscaInput] = useState("");
   const [compApenasComPrejuizo, setCompApenasComPrejuizo] = useState(false);
@@ -61,6 +62,7 @@ export default function RelatorioCustos() {
   // Table filters
   const [tipoprod, setTipoprod] = useState<string>("");
   const [codtbmm, setCodtbmm] = useState<string>("");
+  const [tblConvenio, setTblConvenio] = useState<string>("");
   const [busca, setBusca] = useState("");
   const [buscaInput, setBuscaInput] = useState("");
   const [pagina, setPagina] = useState(1);
@@ -97,11 +99,12 @@ export default function RelatorioCustos() {
     estabelecimentoId,
     tipoprod: compTipoprod || undefined,
     codtbmm: compCodtbmm || undefined,
+    convenio: compConvenio || undefined,
     busca: compBusca || undefined,
     apenasComPrejuizo: compApenasComPrejuizo || undefined,
     limit: 50,
     offset: (compPagina - 1) * 50,
-  }), [estabelecimentoId, compTipoprod, compCodtbmm, compBusca, compApenasComPrejuizo, compPagina]);
+  }), [estabelecimentoId, compTipoprod, compCodtbmm, compConvenio, compBusca, compApenasComPrejuizo, compPagina]);
 
   const comparacaoData = trpc.relatorioCustos.comparacaoCustoConvenio.useQuery(
     compInput,
@@ -113,10 +116,11 @@ export default function RelatorioCustos() {
     estabelecimentoId,
     tipoprod: tipoprod || undefined,
     codtbmm: codtbmm || undefined,
+    convenio: tblConvenio || undefined,
     busca: busca || undefined,
     limit,
     offset: (pagina - 1) * limit,
-  }), [estabelecimentoId, tipoprod, codtbmm, busca, pagina]);
+  }), [estabelecimentoId, tipoprod, codtbmm, tblConvenio, busca, pagina]);
 
   const tableData = trpc.relatorioCustos.buscar.useQuery(
     tableInput,
@@ -170,6 +174,7 @@ export default function RelatorioCustos() {
   const handleClearFilters = () => {
     setTipoprod("");
     setCodtbmm("");
+    setTblConvenio("");
     setBusca("");
     setBuscaInput("");
     setPagina(1);
@@ -196,16 +201,17 @@ export default function RelatorioCustos() {
   const handleClearCompFilters = () => {
     setCompTipoprod("");
     setCompCodtbmm("");
+    setCompConvenio("");
     setCompBusca("");
     setCompBuscaInput("");
     setCompApenasComPrejuizo(false);
     setCompPagina(1);
   };
 
-  const compFilterCount = [compTipoprod, compCodtbmm, compBusca, compApenasComPrejuizo].filter(Boolean).length;
+  const compFilterCount = [compTipoprod, compCodtbmm, compConvenio, compBusca, compApenasComPrejuizo].filter(Boolean).length;
 
   const dashFilterCount = [dashTipoprod, dashCodtbmm].filter(Boolean).length;
-  const tableFilterCount = [tipoprod, codtbmm, busca].filter(Boolean).length;
+  const tableFilterCount = [tipoprod, codtbmm, tblConvenio, busca].filter(Boolean).length;
 
   const handleExportCSV = () => {
     if (!tableData.data?.dados?.length) {
@@ -416,6 +422,21 @@ export default function RelatorioCustos() {
                     </Select>
                   </div>
 
+                  <div className="w-56">
+                    <Label className="text-xs text-muted-foreground">Convênio</Label>
+                    <Select value={compConvenio} onValueChange={(v) => { setCompConvenio(v === "all" ? "" : v); setCompPagina(1); }}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {(opcoesFiltro.data?.convenios || comparacaoData.data?.conveniosDisponiveis || []).map((c: any) => (
+                          <SelectItem key={c.codplaco} value={c.codplaco}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="w-64">
                     <Label className="text-xs text-muted-foreground">Buscar Produto</Label>
                     <div className="flex gap-1">
@@ -498,6 +519,7 @@ export default function RelatorioCustos() {
                             <th className="pb-2 font-medium">Codigo</th>
                             <th className="pb-2 font-medium">Descricao</th>
                             <th className="pb-2 font-medium">Tipo</th>
+                            <th className="pb-2 font-medium">Convênio</th>
                             <th className="pb-2 font-medium">Tabela</th>
                             <th className="pb-2 font-medium text-right">Custo Hospital</th>
                             <th className="pb-2 font-medium text-right">Valor Convenio</th>
@@ -508,10 +530,11 @@ export default function RelatorioCustos() {
                         </thead>
                         <tbody>
                           {comparacaoData.data.itens.map((item, i) => (
-                            <tr key={`${item.codprod}-${item.codtbmm}-${i}`} className={`border-b border-border/30 ${item.status === "prejuizo" ? "bg-red-500/5" : item.status === "lucro" ? "bg-green-500/5" : ""}`}>
+                            <tr key={`${item.codprod}-${item.codtbmm}-${item.codplaco}-${i}`} className={`border-b border-border/30 ${item.status === "prejuizo" ? "bg-red-500/5" : item.status === "lucro" ? "bg-green-500/5" : ""}`}>
                               <td className="py-1.5 font-mono">{item.codprod}</td>
-                              <td className="py-1.5 max-w-[250px] truncate" title={item.descricao}>{item.descricao}</td>
+                              <td className="py-1.5 max-w-[200px] truncate" title={item.descricao}>{item.descricao}</td>
                               <td className="py-1.5">{item.tipoprodDesc}</td>
+                              <td className="py-1.5 max-w-[120px] truncate" title={item.nomeConvenio}>{item.nomeConvenio || "-"}</td>
                               <td className="py-1.5">{item.tabelaPrecoDesc}</td>
                               <td className="py-1.5 text-right font-mono">{formatCurrency(item.custoHospital)}</td>
                               <td className="py-1.5 text-right font-mono">{formatCurrency(item.valorConvenio)}</td>
@@ -533,7 +556,7 @@ export default function RelatorioCustos() {
                           ))}
                           {comparacaoData.data.itens.length === 0 && (
                             <tr>
-                              <td colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum item encontrado com os filtros selecionados</td>
+                              <td colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum item encontrado com os filtros selecionados</td>
                             </tr>
                           )}
                         </tbody>
@@ -632,6 +655,21 @@ export default function RelatorioCustos() {
                     </Select>
                   </div>
 
+                  <div className="w-56">
+                    <Label className="text-xs text-muted-foreground">Convênio</Label>
+                    <Select value={tblConvenio} onValueChange={(v) => { setTblConvenio(v === "all" ? "" : v); setPagina(1); }}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {(opcoesFiltro.data?.convenios || []).map((c: any) => (
+                          <SelectItem key={c.codplaco} value={c.codplaco}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="flex-1 min-w-[200px]">
                     <Label className="text-xs text-muted-foreground">Buscar</Label>
                     <div className="flex gap-2">
@@ -714,6 +752,7 @@ export default function RelatorioCustos() {
                             <TableHead className="w-[60px]">Tabela</TableHead>
                             <TableHead className="min-w-[200px]">Descricao</TableHead>
                             <TableHead className="w-[100px]">Tipo</TableHead>
+                            <TableHead className="w-[130px]">Convênio</TableHead>
                             <TableHead className="w-[80px] text-right">Mult. Est.</TableHead>
                             <TableHead className="w-[80px] text-right">Mult. Fat.</TableHead>
                             <TableHead className="w-[70px]">Un. Est.</TableHead>
@@ -727,12 +766,12 @@ export default function RelatorioCustos() {
                         </TableHeader>
                         <TableBody>
                           {tableData.data.dados.map((d: any, idx: number) => (
-                            <TableRow key={`${d.codprod}-${d.codtbmm}-${idx}`} className="text-sm">
+                            <TableRow key={`${d.codprod}-${d.codtbmm}-${d.codplaco || ''}-${idx}`} className="text-sm">
                               <TableCell className="font-mono text-xs">{d.codprod}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-xs">{d.codtbmm}</Badge>
                               </TableCell>
-                              <TableCell className="max-w-[300px] truncate" title={d.descricao}>
+                              <TableCell className="max-w-[250px] truncate" title={d.descricao}>
                                 {d.descricao}
                               </TableCell>
                               <TableCell>
@@ -746,6 +785,9 @@ export default function RelatorioCustos() {
                                 >
                                   {d.tipoprodDesc}
                                 </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs max-w-[130px] truncate" title={d.nomeConvenio || ''}>
+                                {d.nomeConvenio || "-"}
                               </TableCell>
                               <TableCell className="text-right font-mono text-xs">{formatNumber(d.multEstoque, 2)}</TableCell>
                               <TableCell className="text-right font-mono text-xs">{formatNumber(d.multFaturas, 2)}</TableCell>

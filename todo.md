@@ -2781,3 +2781,10 @@
 - [x] Integrar permissões no menu e nas rotas (filtrar relatórios visíveis por permissão do usuário)
 - [x] Bug: Módulos de relatório BI não estavam salvando - schema Zod do endpoint upsertPermissao não incluía os novos campos
 - [x] Criar perfis de permissão pré-definidos - Faturista (relatórios de faturamento), Recurso Glosa (previsão de glosa), Gestor (todos os relatórios), Admin (tudo)
+
+
+## Correção Lógica Custos por Convênio (cadplaco como ponte)
+- [x] Corrigir backend custosPorConvenioRouter: usar cadplaco como ponte (tabprod→tabmprop→cadplaco→cadconv)
+- [x] Remover códigos de tabela fixos e usar cadplaco.codtbmm dinâmico
+- [x] Atualizar frontend CustosPorConvenio.tsx para novos campos (nome_plano, tabela_preco)
+- [x] Atualizar testes unitários para a nova lógica corrigida

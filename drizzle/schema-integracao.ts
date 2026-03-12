@@ -745,8 +745,13 @@ export const custosProtudosCache = mysqlTable(
     unidadeEstoque: varchar("unidade_estoque", { length: 50 }),
     custoEstoque: decimal("custo_estoque", { precision: 18, scale: 6 }),
     
+    // Dados do convênio/plano (CADPLACO + CADCONV)
+    codplaco: varchar({ length: 50 }),
+    nomeConvenio: varchar("nome_convenio", { length: 255 }),
+    nomePlano: varchar("nome_plano", { length: 255 }),
+    
     // Dados da tabela de preço (TABMPROP)
-    codtbmm: varchar({ length: 20 }).notNull(), // 50, 04, 07, 06
+    codtbmm: varchar({ length: 20 }).notNull(), // tabela dinâmica via cadplaco.codtbmm
     multFaturas: decimal("mult_faturas", { precision: 18, scale: 6 }),
     unidadeFaturas: varchar("unidade_faturas", { length: 50 }),
     custoMultFat: decimal("custo_mult_fat", { precision: 18, scale: 6 }),
@@ -762,7 +767,9 @@ export const custosProtudosCache = mysqlTable(
     codprodIdx: index("idx_custos_cache_codprod").on(table.codprod),
     tipoprodIdx: index("idx_custos_cache_tipoprod").on(table.tipoprod),
     codtbmmIdx: index("idx_custos_cache_codtbmm").on(table.codtbmm),
-    codprodTbmmIdx: uniqueIndex("idx_custos_cache_codprod_tbmm").on(table.estabelecimentoId, table.codprod, table.codtbmm),
+    codprodTbmmIdx: uniqueIndex("idx_custos_cache_codprod_tbmm").on(table.estabelecimentoId, table.codprod, table.codtbmm, table.codplaco),
+    codplacoIdx: index("idx_custos_cache_codplaco").on(table.codplaco),
+    nomeConvenioIdx: index("idx_custos_cache_nome_convenio").on(table.nomeConvenio),
   })
 );
 
