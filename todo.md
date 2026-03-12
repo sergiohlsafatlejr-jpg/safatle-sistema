@@ -2769,3 +2769,5 @@
 - [x] Ajustar backend custosPorConvenio para retornar dados unitários detalhados (custo unit, valor cobrado unit, unidade)
 - [x] Refazer frontend CustosPorConvenio com tabela detalhada estilo tabela de custos existente + coluna lucro/prejuízo
 - [x] Manter visual simples com indicação clara de lucro (verde) e prejuízo (vermelho) - 36 testes passando
+- [x] Bug: Corrigir erro 'column l.unidade does not exist' - campo correto é L.unimatmed (lancamen) com fallback para TP.unidade (tabprod)
+- [ ] Otimizar performance da query custosPorConvenio (demora a abrir)

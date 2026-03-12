@@ -1428,7 +1428,7 @@ export async function buscarCustosPorConvenio(
         L.tipoitem,
         CP.codplaco,
         CP.nomeplaco as convenio,
-        L.unidade,
+        COALESCE(NULLIF(TRIM(L.unimatmed), ''), NULLIF(TRIM(TP.unidade), ''), 'UND') as unidade,
         SUM(L.quantidade::numeric) as total_quantidade,
         AVG(L.vlunitab::numeric) as vlunitab_medio,
         SUM(L.vltotreais::numeric) as total_cobrado,
@@ -1442,7 +1442,7 @@ export async function buscarCustosPorConvenio(
       WHERE ${whereClause}
         AND L.codprod IS NOT NULL
         AND TRIM(L.codprod) != ''
-      GROUP BY TRIM(L.codprod), L.descricao, L.tipoitem, CP.codplaco, CP.nomeplaco, L.unidade, TP.custoatual
+      GROUP BY TRIM(L.codprod), L.descricao, L.tipoitem, CP.codplaco, CP.nomeplaco, COALESCE(NULLIF(TRIM(L.unimatmed), ''), NULLIF(TRIM(TP.unidade), ''), 'UND'), TP.custoatual
       ORDER BY L.descricao ASC, CP.nomeplaco ASC
       LIMIT 1000
     `;
