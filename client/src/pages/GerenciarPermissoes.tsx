@@ -411,6 +411,14 @@ export default function GerenciarPermissoes() {
       acessoRecursos: "nao",
       acessoAtendimentos: "nao",
       acessoAtendimentosFaturar: "nao",
+      // Permissões granulares por relatório
+      acessoRelFaturadoRecebido: "nao",
+      acessoRelRecebimentoGeral: "nao",
+      acessoRelFaturamento: "nao",
+      acessoRelAtendimentos: "nao",
+      acessoRelCustos: "nao",
+      acessoRelNaoRecebidos: "nao",
+      acessoRelPrevisaoGlosa: "nao",
     };
 
     switch (grupo) {
@@ -427,18 +435,37 @@ export default function GerenciarPermissoes() {
         permissoesPadrao.acessoTabelasPreco = "sim";
         permissoesPadrao.acessoConvenios = "sim";
         permissoesPadrao.acessoRegrasNegocio = "sim";
+        // Relatórios de faturamento
+        permissoesPadrao.acessoRelatoriosBi = "sim";
+        permissoesPadrao.acessoRelFaturadoRecebido = "sim";
+        permissoesPadrao.acessoRelRecebimentoGeral = "sim";
+        permissoesPadrao.acessoRelFaturamento = "sim";
+        permissoesPadrao.acessoRelNaoRecebidos = "sim";
+        permissoesPadrao.acessoRelPrevisaoGlosa = "sim";
         break;
       case "recurso_glosa":
         permissoesPadrao.acessoDashboard = "sim";
         permissoesPadrao.acessoAnaliseGlosa = "sim";
         permissoesPadrao.acessoDicionarioGlosas = "sim";
         permissoesPadrao.acessoRecursosGlosa = "sim";
+        // Relatórios de glosa
+        permissoesPadrao.acessoRelatoriosBi = "sim";
+        permissoesPadrao.acessoRelPrevisaoGlosa = "sim";
         break;
       case "gestor":
         permissoesPadrao.acessoDashboard = "sim";
         permissoesPadrao.acessoFaturamento = "sim";
         permissoesPadrao.acessoAnaliseGlosa = "sim";
         permissoesPadrao.acessoProdutividade = "sim";
+        // Gestor vê todos os relatórios
+        permissoesPadrao.acessoRelatoriosBi = "sim";
+        permissoesPadrao.acessoRelFaturadoRecebido = "sim";
+        permissoesPadrao.acessoRelRecebimentoGeral = "sim";
+        permissoesPadrao.acessoRelFaturamento = "sim";
+        permissoesPadrao.acessoRelAtendimentos = "sim";
+        permissoesPadrao.acessoRelCustos = "sim";
+        permissoesPadrao.acessoRelNaoRecebidos = "sim";
+        permissoesPadrao.acessoRelPrevisaoGlosa = "sim";
         break;
       case "visualizador":
       default:

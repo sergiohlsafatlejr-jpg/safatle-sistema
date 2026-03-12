@@ -2779,3 +2779,5 @@
 - [x] Refatorar menu lateral com subpastas hierárquicas expansíveis (3 níveis)
 - [x] Implementar frontend - tela de gerenciamento de permissões por usuário/relatório (seção Relatórios BI em laranja)
 - [x] Integrar permissões no menu e nas rotas (filtrar relatórios visíveis por permissão do usuário)
+- [x] Bug: Módulos de relatório BI não estavam salvando - schema Zod do endpoint upsertPermissao não incluía os novos campos
+- [x] Criar perfis de permissão pré-definidos - Faturista (relatórios de faturamento), Recurso Glosa (previsão de glosa), Gestor (todos os relatórios), Admin (tudo)

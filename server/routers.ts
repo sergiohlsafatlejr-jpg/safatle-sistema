@@ -3945,6 +3945,13 @@ export const appRouter = router({
         acessoRecursos: z.enum(["sim", "nao"]).optional(),
         acessoAtendimentos: z.enum(["sim", "nao"]).optional(),
         acessoAtendimentosFaturar: z.enum(["sim", "nao"]).optional(),
+        acessoRelFaturadoRecebido: z.enum(["sim", "nao"]).optional(),
+        acessoRelRecebimentoGeral: z.enum(["sim", "nao"]).optional(),
+        acessoRelFaturamento: z.enum(["sim", "nao"]).optional(),
+        acessoRelAtendimentos: z.enum(["sim", "nao"]).optional(),
+        acessoRelCustos: z.enum(["sim", "nao"]).optional(),
+        acessoRelNaoRecebidos: z.enum(["sim", "nao"]).optional(),
+        acessoRelPrevisaoGlosa: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const podeGerenciar = await db.verificarPermissaoEstabelecimento(
