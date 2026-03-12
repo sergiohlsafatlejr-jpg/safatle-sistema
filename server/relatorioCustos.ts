@@ -1933,7 +1933,7 @@ export async function buscarCustosPorConta(
     }
 
     if (filtros.busca) {
-      conditions.push(`(C.numconta ILIKE $${paramIdx} OR C.nomepac ILIKE $${paramIdx})`);
+      conditions.push(`(C.numconta::text ILIKE $${paramIdx} OR PAC.nomepac ILIKE $${paramIdx})`);
       params.push(`%${filtros.busca}%`);
       paramIdx++;
     }
@@ -1962,7 +1962,7 @@ export async function buscarCustosPorConta(
     const mainQuery = `
       SELECT
         C.numconta,
-        C.nomepac as paciente,
+        PAC.nomepac as paciente,
         CP.nomeplaco as convenio,
         CP.codplaco,
         TO_CHAR(MIN(L.data), 'YYYY-MM-DD') as data_execucao,
@@ -1972,12 +1972,13 @@ export async function buscarCustosPorConta(
         SUM(COALESCE(TP.custoatual::numeric, 0) * L.quantidade::numeric) as total_custo_estoque
       FROM "PACIENTE".lancamen L
       JOIN "PACIENTE".contas C ON L.numconta = C.numconta
+      LEFT JOIN "PACIENTE".cadpac PAC ON C.prontuario = PAC.codpac
       LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
       LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
       WHERE ${whereClause}
         AND L.codprod IS NOT NULL
         AND TRIM(L.codprod) != ''
-      GROUP BY C.numconta, C.nomepac, CP.nomeplaco, CP.codplaco
+      GROUP BY C.numconta, PAC.nomepac, CP.nomeplaco, CP.codplaco
       ORDER BY total_cobrado DESC
       LIMIT 500
     `;
@@ -2079,8 +2080,9 @@ export async function buscarDetalheContaCusto(
 
     // Buscar dados da conta
     const contaResult = await client.query(
-      `SELECT C.numconta, C.nomepac, CP.nomeplaco, CP.codplaco, TO_CHAR(C.dataexec, 'YYYY-MM-DD') as data_execucao
+      `SELECT C.numconta, PAC.nomepac, CP.nomeplaco, CP.codplaco, TO_CHAR(C.datafech, 'YYYY-MM-DD') as data_execucao
        FROM "PACIENTE".contas C
+       LEFT JOIN "PACIENTE".cadpac PAC ON C.prontuario = PAC.codpac
        LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
        WHERE C.numconta = $1
        LIMIT 1`,

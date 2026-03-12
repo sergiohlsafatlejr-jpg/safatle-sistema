@@ -2808,3 +2808,6 @@
 - [x] Tela inicial: Conta | Paciente | Valor Custo Total | Valor Cobrado | Lucro/Prejuízo
 - [x] Drill-down: ao clicar na conta, abrir detalhes dos itens com custo vs cobrado por item
 - [x] Identificar itens que estão dando prejuízo na conta
+
+## Bug - Custos por Conta
+- [x] Corrigir erro 'column c.nomepac does not exist' na query de Custos por Conta (usar JOIN com cadpac via prontuario=codpac)
