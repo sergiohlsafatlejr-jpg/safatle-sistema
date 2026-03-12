@@ -16,8 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Download, ChevronLeft, ChevronRight, Users, Calendar, Filter, X,
   Activity, RefreshCw, Database, Cloud, CheckCircle2, AlertCircle, Clock, Loader2,
-  BarChart3, TableIcon,
+  BarChart3, TableIcon, UserCircle, Building2,
 } from "lucide-react";
+import PerfilPacienteTab from "@/components/dashboard/PerfilPacienteTab";
+import AnaliseOperacionalTab from "@/components/dashboard/AnaliseOperacionalTab";
 import { toast } from "sonner";
 
 function formatDate(dateStr: string | null) {
@@ -207,6 +209,18 @@ export default function RelatorioAtendimentos() {
   const { data: metricasAvancadas } = trpc.relatorioAtendimentos.metricasAvancadas.useQuery(
     metricasInput,
     { enabled: dashboardAtivo }
+  );
+
+  // Buscar métricas demográficas (perfil do paciente)
+  const { data: demograficas, isLoading: loadingDemograficas } = trpc.relatorioAtendimentos.analiticasDemograficas.useQuery(
+    metricasInput,
+    { enabled: dashboardAtivo && (abaAtiva === "perfil" || abaAtiva === "dashboard") }
+  );
+
+  // Buscar métricas operacionais (centro de custo, CBO, proveniência, especialidade)
+  const { data: operacionais, isLoading: loadingOperacionais } = trpc.relatorioAtendimentos.analiticasOperacionais.useQuery(
+    metricasInput,
+    { enabled: dashboardAtivo && (abaAtiva === "operacional" || abaAtiva === "dashboard") }
   );
 
   // ===== HANDLERS =====
@@ -416,10 +430,18 @@ export default function RelatorioAtendimentos() {
 
         {/* Tabs: Dashboard / Tabela */}
         <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="perfil" className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4" />
+              Perfil Paciente
+            </TabsTrigger>
+            <TabsTrigger value="operacional" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Análise Operacional
             </TabsTrigger>
             <TabsTrigger value="tabela" className="flex items-center gap-2">
               <TableIcon className="h-4 w-4" />
@@ -454,6 +476,50 @@ export default function RelatorioAtendimentos() {
               metricasAvancadas={metricasAvancadas}
               isLoading={loadingMetricas && dashboardAtivo}
             />
+          </TabsContent>
+
+          {/* ========== ABA PERFIL PACIENTE ========== */}
+          <TabsContent value="perfil" className="space-y-6 mt-4">
+            <DashboardFilters
+              filters={dashFilters}
+              onFiltersChange={(f) => {
+                setDashFilters(f);
+                setDashboardAtivo(false);
+              }}
+              tiposOptions={tiposOptions}
+              conveniosOptions={conveniosOptions}
+              medicosOptions={medicosOptions}
+              servicosOptions={servicosOptions}
+              cidsOptions={cidsOptions}
+              onApply={handleCarregarDashboard}
+              isLoading={loadingDemograficas}
+              onSync={handleSyncFromDashboard}
+              isSyncing={syncMutation.isPending}
+              syncStatus={syncStatusText}
+            />
+            <PerfilPacienteTab data={demograficas} isLoading={loadingDemograficas && dashboardAtivo} />
+          </TabsContent>
+
+          {/* ========== ABA ANÁLISE OPERACIONAL ========== */}
+          <TabsContent value="operacional" className="space-y-6 mt-4">
+            <DashboardFilters
+              filters={dashFilters}
+              onFiltersChange={(f) => {
+                setDashFilters(f);
+                setDashboardAtivo(false);
+              }}
+              tiposOptions={tiposOptions}
+              conveniosOptions={conveniosOptions}
+              medicosOptions={medicosOptions}
+              servicosOptions={servicosOptions}
+              cidsOptions={cidsOptions}
+              onApply={handleCarregarDashboard}
+              isLoading={loadingOperacionais}
+              onSync={handleSyncFromDashboard}
+              isSyncing={syncMutation.isPending}
+              syncStatus={syncStatusText}
+            />
+            <AnaliseOperacionalTab data={operacionais} isLoading={loadingOperacionais && dashboardAtivo} />
           </TabsContent>
 
           {/* ========== ABA TABELA ========== */}

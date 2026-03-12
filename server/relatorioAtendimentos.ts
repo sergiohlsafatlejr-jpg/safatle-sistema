@@ -1773,3 +1773,498 @@ async function buscarMetricasAvancadasDoPostgresql(
     client.release();
   }
 }
+
+
+// ============================================================
+// ANALÍTICAS DEMOGRÁFICAS E OPERACIONAIS
+// ============================================================
+
+export interface AnaliticasDemograficas {
+  // Distribuição por Sexo
+  porSexo: Array<{ sexo: string; total: number; percentual: number }>;
+  porSexoTipo: Array<{ sexo: string; tipo: string; total: number }>;
+
+  // Distribuição por CEP (Top 20)
+  porCep: Array<{ cep: string; total: number; percentual: number }>;
+  porCepTipo: Array<{ cep: string; tipo: string; total: number }>;
+
+  // Totais
+  totalComSexo: number;
+  totalComCep: number;
+  totalGeral: number;
+
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+export interface AnaliticasOperacionais {
+  // Distribuição por Centro de Custo
+  porCentroCusto: Array<{ codigo: string | null; nome: string; total: number; percentual: number }>;
+
+  // Distribuição por CBO (Ocupação Profissional)
+  porCbo: Array<{ codigo: string | null; nome: string; total: number; percentual: number }>;
+
+  // Distribuição por Proveniência
+  porProveniencia: Array<{ codigo: string | null; nome: string; total: number; percentual: number }>;
+  porProvenienciaTipo: Array<{ proveniencia: string; tipo: string; total: number }>;
+
+  // Distribuição por Especialidade
+  porEspecialidade: Array<{ codigo: string | null; nome: string; total: number; percentual: number }>;
+
+  // Totais
+  totalCentrosCusto: number;
+  totalCbos: number;
+  totalProveniencias: number;
+  totalEspecialidades: number;
+  totalGeral: number;
+
+  fonte: "cache_local" | "postgresql_direto";
+}
+
+// ===== DEMOGRÁFICAS =====
+
+export async function buscarAnaliticasDemograficas(
+  filtros: FiltrosDashboard
+): Promise<AnaliticasDemograficas> {
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(relatorioAtendimentosCache);
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarDemograficasDoCache(db, filtros);
+      }
+    }
+  } catch (e) {
+    console.warn("[AnaliticasDemograficas] Cache indisponível, usando PostgreSQL:", (e as Error).message);
+  }
+  return buscarDemograficasDoPostgresql(filtros);
+}
+
+async function buscarDemograficasDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  filtros: FiltrosDashboard
+): Promise<AnaliticasDemograficas> {
+  const inicio = new Date(filtros.dataInicio);
+  const fim = new Date(filtros.dataFim);
+
+  const baseConditions: any[] = [
+    gte(relatorioAtendimentosCache.dataAtendimento, inicio),
+    lte(relatorioAtendimentosCache.dataAtendimento, fim),
+  ];
+
+  if (filtros.tipoAtendimento) {
+    const tipoMap: Record<string, string> = {
+      "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
+    };
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento));
+  }
+  if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
+  if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
+  if (filtros.codServ) baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+
+  const whereClause = and(...baseConditions);
+
+  // Total geral
+  const [totalResult] = await db
+    .select({ total: count() })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause);
+  const totalGeral = totalResult?.total || 0;
+
+  // Por Sexo
+  const porSexoRaw = await db
+    .select({
+      sexo: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('sexo_paciente')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql`COALESCE(NULLIF(TRIM(${sql.raw('sexo_paciente')}), ''), 'Não informado')`)
+    .orderBy(desc(count()));
+
+  const totalComSexo = porSexoRaw.reduce((s, r) => s + (r.sexo !== "Não informado" ? r.total : 0), 0);
+
+  // Por Sexo × Tipo
+  const porSexoTipoRaw = await db
+    .select({
+      sexo: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('sexo_paciente')}), ''), 'Não informado')`,
+      tipo: sql<string>`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(
+      sql`COALESCE(NULLIF(TRIM(${sql.raw('sexo_paciente')}), ''), 'Não informado')`,
+      sql`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`
+    )
+    .orderBy(desc(count()));
+
+  // Por CEP (Top 20)
+  const porCepRaw = await db
+    .select({
+      cep: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('cep_paciente')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql`COALESCE(NULLIF(TRIM(${sql.raw('cep_paciente')}), ''), 'Não informado')`)
+    .orderBy(desc(count()))
+    .limit(20);
+
+  const totalComCep = porCepRaw.reduce((s, r) => s + (r.cep !== "Não informado" ? r.total : 0), 0);
+
+  // Por CEP × Tipo (Top 10 CEPs)
+  const topCeps = porCepRaw.slice(0, 10).map(r => r.cep).filter(c => c !== "Não informado");
+  let porCepTipoRaw: Array<{ cep: string; tipo: string; total: number }> = [];
+  if (topCeps.length > 0) {
+    porCepTipoRaw = await db
+      .select({
+        cep: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('cep_paciente')}), ''), 'Não informado')`,
+        tipo: sql<string>`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`,
+        total: count(),
+      })
+      .from(relatorioAtendimentosCache)
+      .where(and(
+        ...baseConditions,
+        sql`TRIM(${sql.raw('cep_paciente')}) IN (${sql.join(topCeps.map(c => sql`${c}`), sql`, `)})`
+      ))
+      .groupBy(
+        sql`COALESCE(NULLIF(TRIM(${sql.raw('cep_paciente')}), ''), 'Não informado')`,
+        sql`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`
+      )
+      .orderBy(desc(count()));
+  }
+
+  return {
+    porSexo: porSexoRaw.map(r => ({
+      sexo: r.sexo === "M" ? "Masculino" : r.sexo === "F" ? "Feminino" : r.sexo,
+      total: r.total,
+      percentual: totalGeral > 0 ? Math.round((r.total / totalGeral) * 1000) / 10 : 0,
+    })),
+    porSexoTipo: porSexoTipoRaw.map(r => ({
+      sexo: r.sexo === "M" ? "Masculino" : r.sexo === "F" ? "Feminino" : r.sexo,
+      tipo: r.tipo,
+      total: r.total,
+    })),
+    porCep: porCepRaw.map(r => ({
+      cep: r.cep,
+      total: r.total,
+      percentual: totalGeral > 0 ? Math.round((r.total / totalGeral) * 1000) / 10 : 0,
+    })),
+    porCepTipo: porCepTipoRaw.map(r => ({
+      cep: r.cep,
+      tipo: r.tipo,
+      total: r.total,
+    })),
+    totalComSexo,
+    totalComCep,
+    totalGeral,
+    fonte: "cache_local",
+  };
+}
+
+async function buscarDemograficasDoPostgresql(
+  filtros: FiltrosDashboard
+): Promise<AnaliticasDemograficas> {
+  const pool = getWarleinePool();
+  const client = await pool.connect();
+  try {
+    const params: any[] = [filtros.dataInicio];
+    let whereExtra = "";
+    let paramIdx = 2;
+
+    if (filtros.dataFim) {
+      whereExtra += ` AND a.datatend <= $${paramIdx}`;
+      params.push(filtros.dataFim);
+      paramIdx++;
+    }
+
+    // Por Sexo
+    const sexoResult = await client.query(
+      `SELECT COALESCE(NULLIF(TRIM(cpc.sexo), ''), 'Não informado') as sexo, COUNT(*) as total
+       FROM arqatend a LEFT JOIN cadpac cpc ON cpc.codpac=a.codpac
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY COALESCE(NULLIF(TRIM(cpc.sexo), ''), 'Não informado')
+       ORDER BY total DESC`,
+      params
+    );
+
+    // Total
+    const totalResult = await client.query(
+      `SELECT COUNT(*) as total FROM arqatend a WHERE a.datatend >= $1 ${whereExtra}`,
+      params
+    );
+    const totalGeral = parseInt(totalResult.rows[0]?.total || "0", 10);
+
+    // Por CEP (Top 20)
+    const cepResult = await client.query(
+      `SELECT COALESCE(NULLIF(TRIM(cpc.ceppac), ''), 'Não informado') as cep, COUNT(*) as total
+       FROM arqatend a LEFT JOIN cadpac cpc ON cpc.codpac=a.codpac
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY COALESCE(NULLIF(TRIM(cpc.ceppac), ''), 'Não informado')
+       ORDER BY total DESC LIMIT 20`,
+      params
+    );
+
+    const porSexo = sexoResult.rows.map((r: any) => ({
+      sexo: r.sexo === "M" ? "Masculino" : r.sexo === "F" ? "Feminino" : r.sexo,
+      total: parseInt(r.total, 10),
+      percentual: totalGeral > 0 ? Math.round((parseInt(r.total, 10) / totalGeral) * 1000) / 10 : 0,
+    }));
+
+    const porCep = cepResult.rows.map((r: any) => ({
+      cep: r.cep,
+      total: parseInt(r.total, 10),
+      percentual: totalGeral > 0 ? Math.round((parseInt(r.total, 10) / totalGeral) * 1000) / 10 : 0,
+    }));
+
+    return {
+      porSexo,
+      porSexoTipo: [],
+      porCep,
+      porCepTipo: [],
+      totalComSexo: porSexo.filter(s => s.sexo !== "Não informado").reduce((s, r) => s + r.total, 0),
+      totalComCep: porCep.filter(c => c.cep !== "Não informado").reduce((s, r) => s + r.total, 0),
+      totalGeral,
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}
+
+// ===== OPERACIONAIS =====
+
+export async function buscarAnaliticasOperacionais(
+  filtros: FiltrosDashboard
+): Promise<AnaliticasOperacionais> {
+  try {
+    const db = await getDb();
+    if (db) {
+      const cacheCount = await db
+        .select({ total: count() })
+        .from(relatorioAtendimentosCache);
+
+      if (cacheCount[0]?.total > 0) {
+        return buscarOperacionaisDoCache(db, filtros);
+      }
+    }
+  } catch (e) {
+    console.warn("[AnaliticasOperacionais] Cache indisponível, usando PostgreSQL:", (e as Error).message);
+  }
+  return buscarOperacionaisDoPostgresql(filtros);
+}
+
+async function buscarOperacionaisDoCache(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  filtros: FiltrosDashboard
+): Promise<AnaliticasOperacionais> {
+  const inicio = new Date(filtros.dataInicio);
+  const fim = new Date(filtros.dataFim);
+
+  const baseConditions: any[] = [
+    gte(relatorioAtendimentosCache.dataAtendimento, inicio),
+    lte(relatorioAtendimentosCache.dataAtendimento, fim),
+  ];
+
+  if (filtros.tipoAtendimento) {
+    const tipoMap: Record<string, string> = {
+      "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
+    };
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento));
+  }
+  if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
+  if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
+  if (filtros.codServ) baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+
+  const whereClause = and(...baseConditions);
+
+  // Total geral
+  const [totalResult] = await db
+    .select({ total: count() })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause);
+  const totalGeral = totalResult?.total || 0;
+
+  // Por Centro de Custo
+  const porCcRaw = await db
+    .select({
+      codigo: relatorioAtendimentosCache.codcc,
+      nome: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('nomecc')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql.raw('codcc'), sql`COALESCE(NULLIF(TRIM(${sql.raw('nomecc')}), ''), 'Não informado')`)
+    .orderBy(desc(count()))
+    .limit(20);
+
+  // Por CBO
+  const porCboRaw = await db
+    .select({
+      codigo: relatorioAtendimentosCache.codcbo,
+      nome: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('descricao_cbo')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql.raw('codcbo'), sql`COALESCE(NULLIF(TRIM(${sql.raw('descricao_cbo')}), ''), 'Não informado')`)
+    .orderBy(desc(count()))
+    .limit(20);
+
+  // Por Proveniência
+  const porProvRaw = await db
+    .select({
+      codigo: relatorioAtendimentosCache.codproven,
+      nome: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('nomeproven')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql.raw('codproven'), sql`COALESCE(NULLIF(TRIM(${sql.raw('nomeproven')}), ''), 'Não informado')`)
+    .orderBy(desc(count()))
+    .limit(20);
+
+  // Por Proveniência × Tipo
+  const porProvTipoRaw = await db
+    .select({
+      proveniencia: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('nomeproven')}), ''), 'Não informado')`,
+      tipo: sql<string>`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(
+      sql`COALESCE(NULLIF(TRIM(${sql.raw('nomeproven')}), ''), 'Não informado')`,
+      sql`COALESCE(${sql.raw('tipoatend_descricao')}, 'Outros')`
+    )
+    .orderBy(desc(count()));
+
+  // Por Especialidade
+  const porEspRaw = await db
+    .select({
+      codigo: relatorioAtendimentosCache.codesp,
+      nome: sql<string>`COALESCE(NULLIF(TRIM(${sql.raw('especialidade')}), ''), 'Não informado')`,
+      total: count(),
+    })
+    .from(relatorioAtendimentosCache)
+    .where(whereClause)
+    .groupBy(sql.raw('codesp'), sql`COALESCE(NULLIF(TRIM(${sql.raw('especialidade')}), ''), 'Não informado')`)
+    .orderBy(desc(count()))
+    .limit(20);
+
+  const mapResult = (arr: typeof porCcRaw) => arr.map(r => ({
+    codigo: r.codigo,
+    nome: r.nome,
+    total: r.total,
+    percentual: totalGeral > 0 ? Math.round((r.total / totalGeral) * 1000) / 10 : 0,
+  }));
+
+  return {
+    porCentroCusto: mapResult(porCcRaw),
+    porCbo: mapResult(porCboRaw),
+    porProveniencia: mapResult(porProvRaw),
+    porProvenienciaTipo: porProvTipoRaw.map(r => ({
+      proveniencia: r.proveniencia,
+      tipo: r.tipo,
+      total: r.total,
+    })),
+    porEspecialidade: mapResult(porEspRaw),
+    totalCentrosCusto: porCcRaw.length,
+    totalCbos: porCboRaw.length,
+    totalProveniencias: porProvRaw.length,
+    totalEspecialidades: porEspRaw.length,
+    totalGeral,
+    fonte: "cache_local",
+  };
+}
+
+async function buscarOperacionaisDoPostgresql(
+  filtros: FiltrosDashboard
+): Promise<AnaliticasOperacionais> {
+  const pool = getWarleinePool();
+  const client = await pool.connect();
+  try {
+    const params: any[] = [filtros.dataInicio];
+    let whereExtra = "";
+    let paramIdx = 2;
+
+    if (filtros.dataFim) {
+      whereExtra += ` AND a.datatend <= $${paramIdx}`;
+      params.push(filtros.dataFim);
+      paramIdx++;
+    }
+
+    // Por Centro de Custo
+    const ccResult = await client.query(
+      `SELECT a.codcc as codigo, COALESCE(NULLIF(TRIM(cd.nomecc), ''), 'Não informado') as nome, COUNT(*) as total
+       FROM arqatend a LEFT JOIN cadcc cd ON cd.codcc=a.codcc
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY a.codcc, COALESCE(NULLIF(TRIM(cd.nomecc), ''), 'Não informado')
+       ORDER BY total DESC LIMIT 20`,
+      params
+    );
+
+    // Por CBO
+    const cboResult = await client.query(
+      `SELECT a.codcbo as codigo, COALESCE(NULLIF(TRIM(tc.descricbo), ''), 'Não informado') as nome, COUNT(*) as total
+       FROM arqatend a LEFT JOIN tabcbo tc ON tc.codcbo=a.codcbo
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY a.codcbo, COALESCE(NULLIF(TRIM(tc.descricbo), ''), 'Não informado')
+       ORDER BY total DESC LIMIT 20`,
+      params
+    );
+
+    // Por Proveniência
+    const provResult = await client.query(
+      `SELECT a.codproven as codigo, COALESCE(NULLIF(TRIM(cpv.nomeproven), ''), 'Não informado') as nome, COUNT(*) as total
+       FROM arqatend a LEFT JOIN cdproven cpv ON cpv.codproven=a.codproven
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY a.codproven, COALESCE(NULLIF(TRIM(cpv.nomeproven), ''), 'Não informado')
+       ORDER BY total DESC LIMIT 20`,
+      params
+    );
+
+    // Por Especialidade
+    const espResult = await client.query(
+      `SELECT a.codesp as codigo, COALESCE(NULLIF(TRIM(ce.nomeesp), ''), 'Não informado') as nome, COUNT(*) as total
+       FROM arqatend a LEFT JOIN cadesp ce ON ce.codesp=a.codesp
+       WHERE a.datatend >= $1 ${whereExtra}
+       GROUP BY a.codesp, COALESCE(NULLIF(TRIM(ce.nomeesp), ''), 'Não informado')
+       ORDER BY total DESC LIMIT 20`,
+      params
+    );
+
+    // Total
+    const totalResult = await client.query(
+      `SELECT COUNT(*) as total FROM arqatend a WHERE a.datatend >= $1 ${whereExtra}`,
+      params
+    );
+    const totalGeral = parseInt(totalResult.rows[0]?.total || "0", 10);
+
+    const mapRows = (rows: any[]) => rows.map((r: any) => ({
+      codigo: r.codigo,
+      nome: r.nome,
+      total: parseInt(r.total, 10),
+      percentual: totalGeral > 0 ? Math.round((parseInt(r.total, 10) / totalGeral) * 1000) / 10 : 0,
+    }));
+
+    return {
+      porCentroCusto: mapRows(ccResult.rows),
+      porCbo: mapRows(cboResult.rows),
+      porProveniencia: mapRows(provResult.rows),
+      porProvenienciaTipo: [],
+      porEspecialidade: mapRows(espResult.rows),
+      totalCentrosCusto: ccResult.rows.length,
+      totalCbos: cboResult.rows.length,
+      totalProveniencias: provResult.rows.length,
+      totalEspecialidades: espResult.rows.length,
+      totalGeral,
+      fonte: "postgresql_direto",
+    };
+  } finally {
+    client.release();
+  }
+}

@@ -2828,3 +2828,10 @@
 
 ## Bug - Relatório Atendimentos não exibe dados após sincronização
 - [x] Corrigir relatório de Atendimentos que não carrega dados após sincronização - corrigido DATE_FORMAT SQL que gerava SQL inconsistente no Drizzle (sem prefixo de tabela no SELECT mas com prefixo no GROUP BY/ORDER BY)
+
+## Novas Abas Analíticas - Relatório de Atendimentos
+- [x] Backend: criar procedures tRPC analiticasDemograficas e analiticasOperacionais
+- [x] Frontend: criar aba "Perfil do Paciente" (distribuição por sexo, top CEPs, sexo x tipo atendimento)
+- [x] Frontend: criar aba "Análise Operacional" (top centros de custo, CBO, proveniência, especialidades radar)
+- [x] Integrar novas abas com filtros existentes do dashboard
+- [x] Corrigir sql.raw() para nomes de colunas em queries de analytics (mesmo bug do DATE_FORMAT)

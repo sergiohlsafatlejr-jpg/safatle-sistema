@@ -8,7 +8,18 @@ import {
   buscarMetricasDashboard,
   buscarComparacaoPeriodos,
   buscarMetricasAvancadas,
+  buscarAnaliticasDemograficas,
+  buscarAnaliticasOperacionais,
 } from "../relatorioAtendimentos";
+
+const filtrosDashboardSchema = z.object({
+  dataInicio: z.string(),
+  dataFim: z.string(),
+  tipoAtendimento: z.string().optional(),
+  codPlaco: z.string().optional(),
+  codPrest: z.string().optional(),
+  codServ: z.string().optional(),
+});
 
 export const relatorioAtendimentosRouter = router({
   buscar: protectedProcedure
@@ -55,16 +66,7 @@ export const relatorioAtendimentosRouter = router({
 
   // Métricas agregadas para dashboard
   metricasDashboard: protectedProcedure
-    .input(
-      z.object({
-        dataInicio: z.string(),
-        dataFim: z.string(),
-        tipoAtendimento: z.string().optional(),
-        codPlaco: z.string().optional(),
-        codPrest: z.string().optional(),
-        codServ: z.string().optional(),
-      })
-    )
+    .input(filtrosDashboardSchema)
     .query(async ({ input }) => {
       return buscarMetricasDashboard(input);
     }),
@@ -83,18 +85,23 @@ export const relatorioAtendimentosRouter = router({
 
   // Métricas avançadas (permanência, turno, conversão, caráter)
   metricasAvancadas: protectedProcedure
-    .input(
-      z.object({
-        dataInicio: z.string(),
-        dataFim: z.string(),
-        tipoAtendimento: z.string().optional(),
-        codPlaco: z.string().optional(),
-        codPrest: z.string().optional(),
-        codServ: z.string().optional(),
-      })
-    )
+    .input(filtrosDashboardSchema)
     .query(async ({ input }) => {
       return buscarMetricasAvancadas(input);
+    }),
+
+  // Analíticas demográficas (sexo, CEP)
+  analiticasDemograficas: protectedProcedure
+    .input(filtrosDashboardSchema)
+    .query(async ({ input }) => {
+      return buscarAnaliticasDemograficas(input);
+    }),
+
+  // Analíticas operacionais (centro de custo, CBO, proveniência, especialidade)
+  analiticasOperacionais: protectedProcedure
+    .input(filtrosDashboardSchema)
+    .query(async ({ input }) => {
+      return buscarAnaliticasOperacionais(input);
     }),
 
   // Obter status da última sincronização
