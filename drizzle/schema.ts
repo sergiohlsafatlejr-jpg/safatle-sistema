@@ -3693,6 +3693,9 @@ export const snapshotAuditoria = mysqlTable("snapshot_auditoria", {
     "reprovado",             // Correções insuficientes, precisa refazer
   ]).default("aguardando_correcao").notNull(),
   
+  // Data em que a correção foi realizada (preenchida quando status muda para reimportado/conferido/aprovado)
+  dataCorrecao: timestamp("dataCorrecao"),
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

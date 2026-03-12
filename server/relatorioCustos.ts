@@ -1820,3 +1820,355 @@ export async function buscarCustosPorConvenio(
     client.release();
   }
 }
+
+
+// ============================================================
+// CUSTOS POR CONTA - Dados diretos do PostgreSQL Warleine
+// Agrupa por numconta: paciente, convênio, custo total vs valor cobrado = lucro/prejuízo
+// ============================================================
+
+export interface FiltroCustoPorConta {
+  convenio?: string;
+  competencia?: string; // formato YYYY-MM
+  busca?: string; // busca por numconta ou paciente
+  numconta?: string; // drill-down em conta específica
+}
+
+export interface ContaCustoResumo {
+  numconta: string;
+  paciente: string;
+  convenio: string;
+  codplaco: string;
+  dataExecucao: string;
+  totalItens: number;
+  custoTotal: number;
+  valorCobrado: number;
+  margem: number;
+  margemPercent: number;
+  resultado: "lucro" | "prejuizo" | "empate";
+}
+
+export interface ItemContaCusto {
+  codprod: string;
+  descricao: string;
+  tipoItem: string;
+  tipoItemLabel: string;
+  unidade: string;
+  quantidade: number;
+  custoUnitario: number;
+  custoTotal: number;
+  valorCobradoUnitario: number;
+  valorCobradoTotal: number;
+  margem: number;
+  resultado: "lucro" | "prejuizo" | "empate";
+}
+
+export interface CustoPorContaResult {
+  contas: ContaCustoResumo[];
+  totalContas: number;
+  kpis: {
+    totalContas: number;
+    totalItens: number;
+    custoTotalGeral: number;
+    valorCobradoGeral: number;
+    margemGeral: number;
+    margemMediaPercent: number;
+    contasComLucro: number;
+    contasComPrejuizo: number;
+  };
+  topContasPrejuizo: ContaCustoResumo[];
+  topContasLucro: ContaCustoResumo[];
+  conveniosDisponiveis: { codplaco: string; nome: string }[];
+  competenciasDisponiveis: string[];
+  fonte: string;
+}
+
+export interface DetalheContaCusto {
+  numconta: string;
+  paciente: string;
+  convenio: string;
+  codplaco: string;
+  dataExecucao: string;
+  itens: ItemContaCusto[];
+  totalItens: number;
+  custoTotal: number;
+  valorCobrado: number;
+  margem: number;
+  margemPercent: number;
+  resultado: "lucro" | "prejuizo" | "empate";
+  itensPrejuizo: number;
+  itensLucro: number;
+  itensSemCusto: number;
+}
+
+export async function buscarCustosPorConta(
+  _estabelecimentoId: number,
+  filtros: FiltroCustoPorConta
+): Promise<CustoPorContaResult> {
+  const pool = getWarleinePool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("SET statement_timeout = '120s'");
+
+    // ---- Filtros dinâmicos ----
+    const conditions: string[] = [
+      `L.vltotreais::numeric > 0`,
+    ];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (filtros.competencia) {
+      conditions.push(`TO_CHAR(L.data, 'YYYY-MM') = $${paramIdx}`);
+      params.push(filtros.competencia);
+      paramIdx++;
+    } else {
+      conditions.push(`L.data >= NOW() - INTERVAL '12 months'`);
+    }
+
+    if (filtros.convenio) {
+      conditions.push(`CP.codplaco = $${paramIdx}`);
+      params.push(filtros.convenio);
+      paramIdx++;
+    }
+
+    if (filtros.busca) {
+      conditions.push(`(C.numconta ILIKE $${paramIdx} OR C.nomepac ILIKE $${paramIdx})`);
+      params.push(`%${filtros.busca}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    // ---- 1. Buscar convênios disponíveis ----
+    const conveniosResult = await client.query(
+      `SELECT codplaco, nomeplaco FROM "PACIENTE".cadplaco WHERE inativo IS NULL ORDER BY nomeplaco`
+    );
+    const conveniosDisponiveis = conveniosResult.rows.map((r: any) => ({
+      codplaco: r.codplaco,
+      nome: r.nomeplaco,
+    }));
+
+    // ---- 2. Buscar competências disponíveis ----
+    const compResult = await client.query(
+      `SELECT DISTINCT TO_CHAR(L.data, 'YYYY-MM') as comp
+       FROM "PACIENTE".lancamen L
+       WHERE L.data >= NOW() - INTERVAL '24 months'
+       ORDER BY comp DESC`
+    );
+    const competenciasDisponiveis = compResult.rows.map((r: any) => r.comp);
+
+    // ---- 3. Query principal: agrupar por conta ----
+    const mainQuery = `
+      SELECT
+        C.numconta,
+        C.nomepac as paciente,
+        CP.nomeplaco as convenio,
+        CP.codplaco,
+        TO_CHAR(MIN(L.data), 'YYYY-MM-DD') as data_execucao,
+        COUNT(*) as total_itens,
+        SUM(L.vltotreais::numeric) as total_cobrado,
+        SUM(L.vlcusto::numeric) as total_vlcusto,
+        SUM(COALESCE(TP.custoatual::numeric, 0) * L.quantidade::numeric) as total_custo_estoque
+      FROM "PACIENTE".lancamen L
+      JOIN "PACIENTE".contas C ON L.numconta = C.numconta
+      LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
+      LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
+      WHERE ${whereClause}
+        AND L.codprod IS NOT NULL
+        AND TRIM(L.codprod) != ''
+      GROUP BY C.numconta, C.nomepac, CP.nomeplaco, CP.codplaco
+      ORDER BY total_cobrado DESC
+      LIMIT 500
+    `;
+    const mainResult = await client.query(mainQuery, params);
+
+    // ---- Processar contas ----
+    let custoTotalGeral = 0;
+    let valorCobradoGeral = 0;
+    let contasComLucro = 0;
+    let contasComPrejuizo = 0;
+    let totalItensGeral = 0;
+
+    const contas: ContaCustoResumo[] = mainResult.rows.map((row: any) => {
+      const totalCobrado = parseFloat(row.total_cobrado || "0");
+      const totalCustoEstoque = parseFloat(row.total_custo_estoque || "0");
+      const totalVlcusto = parseFloat(row.total_vlcusto || "0");
+      const custoTotal = totalCustoEstoque > 0 ? totalCustoEstoque : totalVlcusto;
+      const margem = totalCobrado - custoTotal;
+      const totalItens = parseInt(row.total_itens || "0");
+
+      custoTotalGeral += custoTotal;
+      valorCobradoGeral += totalCobrado;
+      totalItensGeral += totalItens;
+      if (margem > 0.01) contasComLucro++;
+      if (margem < -0.01) contasComPrejuizo++;
+
+      return {
+        numconta: row.numconta,
+        paciente: (row.paciente || "").trim(),
+        convenio: row.convenio || "Sem Convênio",
+        codplaco: row.codplaco || "",
+        dataExecucao: row.data_execucao || "",
+        totalItens,
+        custoTotal: Math.round(custoTotal * 100) / 100,
+        valorCobrado: Math.round(totalCobrado * 100) / 100,
+        margem: Math.round(margem * 100) / 100,
+        margemPercent: custoTotal > 0 ? Math.round((margem / custoTotal) * 10000) / 100 : 0,
+        resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+      };
+    });
+
+    const margemGeral = valorCobradoGeral - custoTotalGeral;
+
+    const topContasPrejuizo = [...contas]
+      .filter(c => c.resultado === "prejuizo")
+      .sort((a, b) => a.margem - b.margem)
+      .slice(0, 20);
+
+    const topContasLucro = [...contas]
+      .filter(c => c.resultado === "lucro")
+      .sort((a, b) => b.margem - a.margem)
+      .slice(0, 20);
+
+    return {
+      contas,
+      totalContas: contas.length,
+      kpis: {
+        totalContas: contas.length,
+        totalItens: totalItensGeral,
+        custoTotalGeral: Math.round(custoTotalGeral * 100) / 100,
+        valorCobradoGeral: Math.round(valorCobradoGeral * 100) / 100,
+        margemGeral: Math.round(margemGeral * 100) / 100,
+        margemMediaPercent: custoTotalGeral > 0
+          ? Math.round((margemGeral / custoTotalGeral) * 10000) / 100
+          : 0,
+        contasComLucro,
+        contasComPrejuizo,
+      },
+      topContasPrejuizo,
+      topContasLucro,
+      conveniosDisponiveis,
+      competenciasDisponiveis,
+      fonte: "postgresql_warleine_direto",
+    };
+  } finally {
+    client.release();
+  }
+}
+
+export async function buscarDetalheContaCusto(
+  _estabelecimentoId: number,
+  numconta: string
+): Promise<DetalheContaCusto | null> {
+  const pool = getWarleinePool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("SET statement_timeout = '60s'");
+
+    const TIPO_ITEM_LABEL: Record<string, string> = {
+      M: "Medicamento",
+      T: "Taxa",
+      P: "Produto",
+      S: "Serviço",
+      O: "Outros",
+      H: "Honorário",
+      C: "Cirurgia",
+    };
+
+    // Buscar dados da conta
+    const contaResult = await client.query(
+      `SELECT C.numconta, C.nomepac, CP.nomeplaco, CP.codplaco, TO_CHAR(C.dataexec, 'YYYY-MM-DD') as data_execucao
+       FROM "PACIENTE".contas C
+       LEFT JOIN "PACIENTE".cadplaco CP ON C.codplaco = CP.codplaco
+       WHERE C.numconta = $1
+       LIMIT 1`,
+      [numconta]
+    );
+
+    if (contaResult.rows.length === 0) return null;
+
+    const contaInfo = contaResult.rows[0];
+
+    // Buscar itens da conta
+    const itensResult = await client.query(
+      `SELECT
+        TRIM(L.codprod) as codprod,
+        L.descricao,
+        L.tipoitem,
+        COALESCE(NULLIF(TRIM(L.unimatmed), ''), NULLIF(TRIM(TP.unidade), ''), 'UND') as unidade,
+        L.quantidade::numeric as quantidade,
+        L.vlunitab::numeric as vlunitab,
+        L.vltotreais::numeric as vltotreais,
+        L.vlcusto::numeric as vlcusto,
+        COALESCE(TP.custoatual::numeric, 0) as custo_estoque_unitario
+      FROM "PACIENTE".lancamen L
+      LEFT JOIN "PACIENTE".tabprod TP ON TRIM(L.codprod) = TRIM(TP.codprod)
+      WHERE L.numconta = $1
+        AND L.codprod IS NOT NULL
+        AND TRIM(L.codprod) != ''
+      ORDER BY L.descricao`,
+      [numconta]
+    );
+
+    let custoTotal = 0;
+    let valorCobrado = 0;
+    let itensPrejuizo = 0;
+    let itensLucro = 0;
+    let itensSemCusto = 0;
+
+    const itens: ItemContaCusto[] = itensResult.rows.map((row: any) => {
+      const quantidade = parseFloat(row.quantidade || "0");
+      const vlunitab = parseFloat(row.vlunitab || "0");
+      const vltotreais = parseFloat(row.vltotreais || "0");
+      const vlcusto = parseFloat(row.vlcusto || "0");
+      const custoEstoqueUnit = parseFloat(row.custo_estoque_unitario || "0");
+      const custoItem = custoEstoqueUnit > 0 ? custoEstoqueUnit * quantidade : vlcusto;
+      const margem = vltotreais - custoItem;
+
+      custoTotal += custoItem;
+      valorCobrado += vltotreais;
+      if (margem > 0.01) itensLucro++;
+      if (margem < -0.01) itensPrejuizo++;
+      if (custoEstoqueUnit === 0 && vlcusto === 0) itensSemCusto++;
+
+      return {
+        codprod: (row.codprod || "").trim(),
+        descricao: (row.descricao || "").trim(),
+        tipoItem: row.tipoitem || "P",
+        tipoItemLabel: TIPO_ITEM_LABEL[row.tipoitem] || row.tipoitem || "Outros",
+        unidade: (row.unidade || "UND").trim(),
+        quantidade: Math.round(quantidade * 100) / 100,
+        custoUnitario: Math.round(custoEstoqueUnit * 100) / 100,
+        custoTotal: Math.round(custoItem * 100) / 100,
+        valorCobradoUnitario: Math.round(vlunitab * 100) / 100,
+        valorCobradoTotal: Math.round(vltotreais * 100) / 100,
+        margem: Math.round(margem * 100) / 100,
+        resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+      };
+    });
+
+    const margem = valorCobrado - custoTotal;
+
+    return {
+      numconta,
+      paciente: (contaInfo.nomepac || "").trim(),
+      convenio: contaInfo.nomeplaco || "Sem Convênio",
+      codplaco: contaInfo.codplaco || "",
+      dataExecucao: contaInfo.data_execucao || "",
+      itens,
+      totalItens: itens.length,
+      custoTotal: Math.round(custoTotal * 100) / 100,
+      valorCobrado: Math.round(valorCobrado * 100) / 100,
+      margem: Math.round(margem * 100) / 100,
+      margemPercent: custoTotal > 0 ? Math.round((margem / custoTotal) * 10000) / 100 : 0,
+      resultado: margem > 0.01 ? "lucro" as const : margem < -0.01 ? "prejuizo" as const : "empate" as const,
+      itensPrejuizo,
+      itensLucro,
+      itensSemCusto,
+    };
+  } finally {
+    client.release();
+  }
+}

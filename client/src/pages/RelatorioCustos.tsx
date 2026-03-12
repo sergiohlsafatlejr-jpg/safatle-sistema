@@ -3,6 +3,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import DashboardCustos from "@/components/DashboardCustos";
 import ComparacaoCustoConvenio from "@/components/ComparacaoCustoConvenio";
 import CustosPorConvenio from "@/components/CustosPorConvenio";
+import CustosPorConta from "@/components/CustosPorConta";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -318,6 +319,10 @@ export default function RelatorioCustos() {
               <Scale className="h-4 w-4" />
               Custo vs Convenio
             </TabsTrigger>
+            <TabsTrigger value="custosConta" className="gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              Custos por Conta
+            </TabsTrigger>
             <TabsTrigger value="custosConvenio" className="gap-1.5">
               <Building2 className="h-4 w-4" />
               Custos por Convênio
@@ -606,6 +611,11 @@ export default function RelatorioCustos() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* ======== ABA CUSTOS POR CONTA ======== */}
+          <TabsContent value="custosConta" className="space-y-4 mt-4">
+            <CustosPorConta estabelecimentoId={estabelecimentoId} />
           </TabsContent>
 
                 {/* ======== ABA CUSTOS POR CONVÊNIO ======== */}

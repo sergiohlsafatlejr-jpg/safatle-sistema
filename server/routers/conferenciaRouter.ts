@@ -429,9 +429,9 @@ export const conferenciaRouter = router({
         }
       }
 
-      // 8. Atualizar status do snapshot
+      // 8. Atualizar status do snapshot e registrar data de correção
       await db.update(snapshotAuditoria)
-        .set({ status: "reimportado" })
+        .set({ status: "reimportado", dataCorrecao: new Date() })
         .where(eq(snapshotAuditoria.id, input.snapshotId));
 
       // 9. Calcular resumo
@@ -542,8 +542,18 @@ export const conferenciaRouter = router({
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
 
+      // Se está aprovando/conferindo e não tinha dataCorrecao, registrar agora
+      const setData: any = { status: input.status };
+      if (input.status === "aprovado" || input.status === "conferido") {
+        const existing = await db.select({ dataCorrecao: snapshotAuditoria.dataCorrecao })
+          .from(snapshotAuditoria)
+          .where(eq(snapshotAuditoria.id, input.snapshotId));
+        if (existing[0] && !existing[0].dataCorrecao) {
+          setData.dataCorrecao = new Date();
+        }
+      }
       await db.update(snapshotAuditoria)
-        .set({ status: input.status })
+        .set(setData)
         .where(eq(snapshotAuditoria.id, input.snapshotId));
 
       return { success: true };

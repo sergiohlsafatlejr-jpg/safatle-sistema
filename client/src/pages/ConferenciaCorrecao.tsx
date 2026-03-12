@@ -253,7 +253,9 @@ function DashboardView() {
                   <TableHead className="text-center">Ajustes</TableHead>
                   <TableHead>Auditor</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data Auditoria</TableHead>
+                  <TableHead>Data Correção</TableHead>
+                  <TableHead className="text-center">Tempo Correção</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -275,6 +277,15 @@ function DashboardView() {
                     <TableCell className="text-sm">{snap.auditorNome || "-"}</TableCell>
                     <TableCell><StatusBadge status={snap.status} /></TableCell>
                     <TableCell className="text-sm text-muted-foreground">{formatDate(snap.createdAt)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{snap.dataCorrecao ? formatDate(snap.dataCorrecao) : "-"}</TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        if (!snap.dataCorrecao) return <span className="text-muted-foreground text-xs">-</span>;
+                        const dias = Math.ceil((new Date(snap.dataCorrecao).getTime() - new Date(snap.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                        const cor = dias <= 1 ? "text-emerald-600" : dias <= 3 ? "text-amber-600" : "text-red-600";
+                        return <Badge variant="outline" className={`${cor} font-mono`}>{dias}d</Badge>;
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="outline" onClick={() => navigate(`/conferencia-correcao/${snap.id}`)}>
                         <Eye className="h-3.5 w-3.5 mr-1" />

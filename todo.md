@@ -2797,3 +2797,14 @@
 - [x] Bug: Dados de Conformes/Divergentes não persistem ao sair e voltar na conta (dados já persistiam, contas antigas precisam de reanálise)
 - [x] Adicionar botão "Reanalisar" na tela de detalhes da conta
 - [x] Exibir badge colorido de score de risco na listagem de contas (já existia)
+
+## Conferência Pós-Correção - Tempo de Correção
+- [x] Adicionar coluna "Tempo de Correção" na tabela de Conferência Pós-Correção
+- [x] Calcular dias entre Data Auditoria e Data Correção
+- [x] Exibir campo de Data Correção ao lado da Data Auditoria
+
+## Relatório de Custos - Custos por Conta
+- [x] Transformar aba "Custos por Convênio" em "Custos por Conta" (numconta)
+- [x] Tela inicial: Conta | Paciente | Valor Custo Total | Valor Cobrado | Lucro/Prejuízo
+- [x] Drill-down: ao clicar na conta, abrir detalhes dos itens com custo vs cobrado por item
+- [x] Identificar itens que estão dando prejuízo na conta

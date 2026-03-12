@@ -148,6 +148,13 @@
       "when": 1773321256991,
       "tag": "0077_mean_abomination",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "5",
+      "when": 1773329085441,
+      "tag": "0078_futuristic_taskmaster",
+      "breakpoints": true
     }
   ]
 }

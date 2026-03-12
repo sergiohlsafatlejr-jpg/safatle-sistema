@@ -1,0 +1,1 @@
+ALTER TABLE `snapshot_auditoria` ADD `dataCorrecao` timestamp;

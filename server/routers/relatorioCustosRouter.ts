@@ -8,6 +8,8 @@ import {
   buscarMetricasCustosDashboard,
   buscarComparacaoCustoConvenio,
   buscarCustosPorConvenio,
+  buscarCustosPorConta,
+  buscarDetalheContaCusto,
 } from "../relatorioCustos";
 
 export const relatorioCustosRouter = router({
@@ -106,5 +108,30 @@ export const relatorioCustosRouter = router({
     .query(async ({ input }) => {
       const { estabelecimentoId, ...filtros } = input;
       return buscarCustosPorConvenio(estabelecimentoId, filtros);
+    }),
+
+  custosPorConta: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        convenio: z.string().optional(),
+        competencia: z.string().optional(),
+        busca: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { estabelecimentoId, ...filtros } = input;
+      return buscarCustosPorConta(estabelecimentoId, filtros);
+    }),
+
+  detalheContaCusto: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        numconta: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarDetalheContaCusto(input.estabelecimentoId, input.numconta);
     }),
 });
