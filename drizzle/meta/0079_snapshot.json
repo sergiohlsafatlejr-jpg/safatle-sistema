@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "678b3fb4-b95d-4b1e-ad74-dc5d7399a0fe",
+  "id": "5fd1c5ae-b923-4006-81d9-9a48f67b12a8",
   "prevId": "c6a67fa4-44bc-4215-9d6f-3aaa75cfb088",
   "tables": {
     "ajustes_auditoria": {
@@ -16341,8 +16341,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "tipo_atendimento": {
-          "name": "tipo_atendimento",
+        "tipoatend": {
+          "name": "tipoatend",
           "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false,
@@ -16355,8 +16355,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "servico": {
-          "name": "servico",
+        "nomeserv": {
+          "name": "nomeserv",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -16369,8 +16369,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "plano_convenio": {
-          "name": "plano_convenio",
+        "nomeplaco": {
+          "name": "nomeplaco",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -16383,8 +16383,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "proveniente": {
-          "name": "proveniente",
+        "nomeproven": {
+          "name": "nomeproven",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -16418,8 +16418,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "centro_custo": {
-          "name": "centro_custo",
+        "nomecc": {
+          "name": "nomecc",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -16432,8 +16432,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "prestador": {
-          "name": "prestador",
+        "nomeprest": {
+          "name": "nomeprest",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
@@ -16446,13 +16446,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "procedimento_principal": {
-          "name": "procedimento_principal",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "cidprin": {
           "name": "cidprin",
           "type": "varchar(20)",
@@ -16460,15 +16453,15 @@
           "notNull": false,
           "autoincrement": false
         },
-        "diagnostico_cid": {
-          "name": "diagnostico_cid",
+        "descrcid": {
+          "name": "descrcid",
           "type": "varchar(500)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "carater_atendimento": {
-          "name": "carater_atendimento",
+        "carater": {
+          "name": "carater",
           "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false,
@@ -16481,12 +16474,57 @@
           "notNull": false,
           "autoincrement": false
         },
-        "paciente": {
-          "name": "paciente",
+        "nomepac": {
+          "name": "nomepac",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "dataSincronizacao": {
+          "name": "dataSincronizacao",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "origemSistema": {
+          "name": "origemSistema",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'WARLEINE'"
+        },
+        "tipoatend_descricao": {
+          "name": "tipoatend_descricao",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dsprocprin": {
+          "name": "dsprocprin",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "carater_descricao": {
+          "name": "carater_descricao",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "criadoEm": {
+          "name": "criadoEm",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(now())"
         },
         "codesp": {
           "name": "codesp",
@@ -16543,21 +16581,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "dsprocprin": {
-          "name": "dsprocprin",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "data_sincronizacao": {
-          "name": "data_sincronizacao",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "(now())"
         }
       },
       "indexes": {
@@ -16613,7 +16636,7 @@
         "idx_rel_atend_cache_tipo": {
           "name": "idx_rel_atend_cache_tipo",
           "columns": [
-            "tipo_atendimento"
+            "tipoatend"
           ],
           "isUnique": false
         },
@@ -16663,74 +16686,74 @@
           "autoincrement": false,
           "default": "'pendente'"
         },
-        "ultima_sincronizacao": {
-          "name": "ultima_sincronizacao",
+        "ultimaSincronizacao": {
+          "name": "ultimaSincronizacao",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "data_inicio_sync": {
-          "name": "data_inicio_sync",
+        "dataInicioPeriodo": {
+          "name": "dataInicioPeriodo",
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "data_fim_sync": {
-          "name": "data_fim_sync",
+        "dataFimPeriodo": {
+          "name": "dataFimPeriodo",
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "total_registros": {
-          "name": "total_registros",
+        "totalRegistros": {
+          "name": "totalRegistros",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": 0
         },
-        "duracao_segundos": {
-          "name": "duracao_segundos",
+        "duracaoSegundos": {
+          "name": "duracaoSegundos",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": 0
         },
-        "mensagem_erro": {
-          "name": "mensagem_erro",
+        "mensagemErro": {
+          "name": "mensagemErro",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "executado_por": {
-          "name": "executado_por",
+        "usuarioId": {
+          "name": "usuarioId",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "executado_por_nome": {
-          "name": "executado_por_nome",
+        "usuarioNome": {
+          "name": "usuarioNome",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "criado_em": {
-          "name": "criado_em",
+        "criadoEm": {
+          "name": "criadoEm",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(now())"
         },
-        "atualizado_em": {
-          "name": "atualizado_em",
+        "atualizadoEm": {
+          "name": "atualizadoEm",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,

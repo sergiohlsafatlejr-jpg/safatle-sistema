@@ -2822,3 +2822,6 @@
 - [x] Atualizar mapeamento do cache local com novos campos
 - [x] Atualizar tabela do frontend com novas colunas (Sexo, CEP, Especialidade, Censo, Desc. Proc., Operador Cad., CBO)
 - [x] Atualizar exportação CSV com todos os 31 campos incluindo códigos e descrições
+
+## Bug - Tabela relatorio_atendimentos_sync_meta
+- [x] Corrigir erro: tabela relatorio_atendimentos_sync_meta - schema Drizzle alinhado com colunas reais do banco (camelCase vs snake_case)

@@ -634,25 +634,27 @@ export const relatorioAtendimentosCache = mysqlTable(
   "relatorio_atendimentos_cache",
   {
     id: int().primaryKey().autoincrement(),
+    origemSistema: varchar({ length: 50 }).notNull().default("WARLEINE"),
     estabelecimentoId: int().notNull(),
 
     // Identificador do atendimento
     numatend: varchar({ length: 100 }).notNull(),
 
-    // Tipo de atendimento (já descritivo: Internação, Ambulatorial, etc.)
-    tipoAtendimento: varchar("tipo_atendimento", { length: 100 }),
+    // Tipo de atendimento
+    tipoAtendimento: varchar("tipoatend", { length: 10 }),
+    tipoAtendimentoDescricao: varchar("tipoatend_descricao", { length: 100 }),
 
     // Serviço
     codserv: varchar({ length: 50 }),
-    servico: varchar({ length: 255 }),
+    servico: varchar("nomeserv", { length: 255 }),
 
     // Plano/Convênio
     codplaco: varchar({ length: 50 }),
-    planoConvenio: varchar("plano_convenio", { length: 255 }),
+    planoConvenio: varchar("nomeplaco", { length: 255 }),
 
     // Proveniente
     codproven: varchar({ length: 50 }),
-    proveniente: varchar({ length: 255 }),
+    proveniente: varchar("nomeproven", { length: 255 }),
 
     // Datas
     dataAtendimento: timestamp("data_atendimento"),
@@ -663,26 +665,31 @@ export const relatorioAtendimentosCache = mysqlTable(
 
     // Centro de Custo
     codcc: varchar({ length: 50 }),
-    centroCusto: varchar("centro_custo", { length: 255 }),
+    centroCusto: varchar("nomecc", { length: 255 }),
 
     // Prestador
     codprest: varchar({ length: 50 }),
-    prestador: varchar({ length: 255 }),
+    prestador: varchar("nomeprest", { length: 255 }),
 
     // Procedimento Principal
     procprin: varchar({ length: 100 }),
-    procedimentoPrincipal: varchar("procedimento_principal", { length: 500 }),
+    dsprocprin: varchar({ length: 500 }),
 
     // CID
     cidprin: varchar({ length: 20 }),
-    diagnosticoCid: varchar("diagnostico_cid", { length: 500 }),
+    diagnosticoCid: varchar("descrcid", { length: 500 }),
 
     // Caráter
-    caraterAtendimento: varchar("carater_atendimento", { length: 100 }),
+    caraterAtendimento: varchar("carater", { length: 10 }),
+    caraterDescricao: varchar("carater_descricao", { length: 100 }),
 
     // Paciente
     codpac: varchar({ length: 50 }),
-    paciente: varchar({ length: 255 }),
+    paciente: varchar("nomepac", { length: 255 }),
+
+    // Metadados de sincronização
+    dataSincronizacao: timestamp().defaultNow(),
+    criadoEm: timestamp().defaultNow(),
 
     // Especialidade
     codesp: varchar({ length: 50 }),
@@ -699,10 +706,6 @@ export const relatorioAtendimentosCache = mysqlTable(
     // Dados do Paciente
     sexoPaciente: varchar("sexo_paciente", { length: 20 }),
     cepPaciente: varchar("cep_paciente", { length: 20 }),
-
-
-    // Metadados de sincronização
-    dataSincronizacao: timestamp("data_sincronizacao").defaultNow(),
   },
   (table) => ({
     estabelecimentoIdx: index("idx_rel_atend_cache_estab").on(table.estabelecimentoId),
@@ -725,17 +728,17 @@ export const relatorioAtendimentosSyncMeta = mysqlTable(
   {
     id: int().primaryKey().autoincrement(),
     estabelecimentoId: int().notNull(),
+    ultimaSincronizacao: timestamp(),
+    totalRegistros: int().default(0),
+    duracaoSegundos: int().default(0),
     status: varchar({ length: 50 }).notNull().default("pendente"), // pendente, em_andamento, sucesso, erro
-    ultimaSincronizacao: timestamp("ultima_sincronizacao"),
-    dataInicioSync: varchar("data_inicio_sync", { length: 20 }),
-    dataFimSync: varchar("data_fim_sync", { length: 20 }),
-    totalRegistros: int("total_registros").default(0),
-    duracaoSegundos: int("duracao_segundos").default(0),
-    mensagemErro: text("mensagem_erro"),
-    executadoPor: int("executado_por"),
-    executadoPorNome: varchar("executado_por_nome", { length: 255 }),
-    criadoEm: timestamp("criado_em").defaultNow(),
-    atualizadoEm: timestamp("atualizado_em").defaultNow(),
+    mensagemErro: text(),
+    dataInicioSync: varchar("dataInicioPeriodo", { length: 20 }),
+    dataFimSync: varchar("dataFimPeriodo", { length: 20 }),
+    executadoPor: int("usuarioId"),
+    executadoPorNome: varchar("usuarioNome", { length: 255 }),
+    criadoEm: timestamp().defaultNow(),
+    atualizadoEm: timestamp().defaultNow(),
   },
   (table) => ({
     estabelecimentoIdx: uniqueIndex("idx_rel_sync_meta_estab").on(table.estabelecimentoId),

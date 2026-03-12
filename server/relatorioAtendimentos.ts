@@ -136,7 +136,7 @@ async function buscarDoCache(
       "U": "Urgência",
     };
     const tipoDesc = tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento;
-    conditions.push(eq(relatorioAtendimentosCache.tipoAtendimento, tipoDesc));
+    conditions.push(eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, tipoDesc));
   }
 
   if (filtros.codServ) {
@@ -161,7 +161,7 @@ async function buscarDoCache(
       "EL": "Eletivo",
     };
     const caraterDesc = caraterMap[filtros.carater] || filtros.carater;
-    conditions.push(eq(relatorioAtendimentosCache.caraterAtendimento, caraterDesc));
+    conditions.push(eq(relatorioAtendimentosCache.caraterDescricao, caraterDesc));
   }
 
   const whereClause = and(...conditions);
@@ -186,7 +186,7 @@ async function buscarDoCache(
   // Mapear para o formato esperado
   const dadosMapeados: AtendimentoRelatorio[] = dados.map((d) => ({
     numatend: d.numatend,
-    tipo_atendimento: d.tipoAtendimento || "",
+    tipo_atendimento: d.tipoAtendimentoDescricao || d.tipoAtendimento || "",
     codserv: d.codserv || "",
     servico: d.servico,
     codplaco: d.codplaco || "",
@@ -201,13 +201,13 @@ async function buscarDoCache(
     codprest: d.codprest,
     prestador: d.prestador,
     procprin: d.procprin,
-    procedimento_principal: d.procedimentoPrincipal,
+    procedimento_principal: d.dsprocprin || null,
     cidprin: d.cidprin,
     diagnostico_cid: d.diagnosticoCid,
-    carater_atendimento: d.caraterAtendimento,
+    carater_atendimento: d.caraterDescricao || d.caraterAtendimento || null,
     codpac: d.codpac,
     paciente: d.paciente,
-    dsprocprin: null,
+    dsprocprin: d.dsprocprin || null,
     codesp: d.codesp || null,
     especialidade: d.especialidade || null,
     opecad: d.opecad || null,
@@ -610,7 +610,7 @@ export async function sincronizarRelatorioAtendimentos(
             batch.map((row: any) => ({
               estabelecimentoId,
               numatend: String(row.numatend || ""),
-              tipoAtendimento: row.tipo_atendimento || null,
+              tipoAtendimentoDescricao: row.tipo_atendimento || null,
               codserv: row.codserv ? String(row.codserv) : null,
               servico: row.servico || null,
               codplaco: row.codplaco ? String(row.codplaco) : null,
@@ -625,10 +625,10 @@ export async function sincronizarRelatorioAtendimentos(
               codprest: row.codprest ? String(row.codprest) : null,
               prestador: row.prestador || null,
               procprin: row.procprin ? String(row.procprin) : null,
-              procedimentoPrincipal: row.procedimento_principal || null,
+              dsprocprin: row.dsprocprin || row.procedimento_principal || null,
               cidprin: row.cidprin || null,
               diagnosticoCid: row.diagnostico_cid || null,
-              caraterAtendimento: row.carater_atendimento || null,
+              caraterDescricao: row.carater_atendimento || null,
               codpac: row.codpac ? String(row.codpac) : null,
               paciente: row.paciente || null,
               codesp: row.codesp ? String(row.codesp) : null,
@@ -862,7 +862,7 @@ async function buscarMetricasDoCache(
       "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
     };
     const tipoDesc = tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento;
-    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimento, tipoDesc));
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, tipoDesc));
   }
   if (filtros.codPlaco) {
     baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
@@ -905,12 +905,12 @@ async function buscarMetricasDoCache(
 
     // Por tipo
     db.select({
-      nome: relatorioAtendimentosCache.tipoAtendimento,
+      nome: relatorioAtendimentosCache.tipoAtendimentoDescricao,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
-      .where(and(dateCondition, sql`${relatorioAtendimentosCache.tipoAtendimento} IS NOT NULL`))
-      .groupBy(relatorioAtendimentosCache.tipoAtendimento)
+      .where(and(dateCondition, sql`${relatorioAtendimentosCache.tipoAtendimentoDescricao} IS NOT NULL`))
+      .groupBy(relatorioAtendimentosCache.tipoAtendimentoDescricao)
       .orderBy(desc(count())),
 
     // Por plano/convênio (top 20)
@@ -960,13 +960,13 @@ async function buscarMetricasDoCache(
 
     // Por procedimento (top 20)
     db.select({
-      nome: relatorioAtendimentosCache.procedimentoPrincipal,
+      nome: relatorioAtendimentosCache.dsprocprin,
       codigo: relatorioAtendimentosCache.procprin,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
       .where(and(dateCondition, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`))
-      .groupBy(relatorioAtendimentosCache.procedimentoPrincipal, relatorioAtendimentosCache.procprin)
+      .groupBy(relatorioAtendimentosCache.dsprocprin, relatorioAtendimentosCache.procprin)
       .orderBy(desc(count()))
       .limit(20),
   ]);
@@ -1302,7 +1302,7 @@ async function buscarMetricasAvancadasDoCache(
     const tipoMap: Record<string, string> = {
       "I": "Internação", "A": "Ambulatorial", "E": "Emergência", "U": "Urgência",
     };
-    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimento, tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento));
+    baseConditions.push(eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, tipoMap[filtros.tipoAtendimento] || filtros.tipoAtendimento));
   }
   if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
   if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
@@ -1363,7 +1363,7 @@ async function buscarMetricasAvancadasDoCache(
     })
       .from(relatorioAtendimentosCache)
       .where(and(whereClause, 
-        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"),
         sql`${relatorioAtendimentosCache.dataSaida} IS NOT NULL`
       )),
 
@@ -1390,13 +1390,13 @@ async function buscarMetricasAvancadasDoCache(
     // 6. Total emergências
     db.select({ total: count() })
       .from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Emergência"))),
 
     // 7. Internações com proveniente contendo "emerg"
     db.select({ total: count() })
       .from(relatorioAtendimentosCache)
       .where(and(whereClause, 
-        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"),
         like(relatorioAtendimentosCache.proveniente, "%merg%")
       )),
 
@@ -1406,7 +1406,7 @@ async function buscarMetricasAvancadasDoCache(
       total: count(),
     })
       .from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência")))
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Emergência")))
       .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
       .orderBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`),
 
@@ -1417,7 +1417,7 @@ async function buscarMetricasAvancadasDoCache(
     })
       .from(relatorioAtendimentosCache)
       .where(and(whereClause, 
-        eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"),
+        eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"),
         like(relatorioAtendimentosCache.proveniente, "%merg%")
       ))
       .groupBy(sql`DATE_FORMAT(${relatorioAtendimentosCache.dataAtendimento}, '%Y-%m')`)
@@ -1425,35 +1425,35 @@ async function buscarMetricasAvancadasDoCache(
 
     // 10. Por caráter
     db.select({
-      nome: relatorioAtendimentosCache.caraterAtendimento,
+      nome: relatorioAtendimentosCache.caraterDescricao,
       total: count(),
     })
       .from(relatorioAtendimentosCache)
-      .where(and(whereClause, sql`${relatorioAtendimentosCache.caraterAtendimento} IS NOT NULL AND ${relatorioAtendimentosCache.caraterAtendimento} != ''`))
-      .groupBy(relatorioAtendimentosCache.caraterAtendimento)
+      .where(and(whereClause, sql`${relatorioAtendimentosCache.caraterDescricao} IS NOT NULL AND ${relatorioAtendimentosCache.caraterDescricao} != ''`))
+      .groupBy(relatorioAtendimentosCache.caraterDescricao)
       .orderBy(desc(count())),
 
     // 11-15. Comparativo período atual
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"))),
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Ambulatorial"))),
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Ambulatorial"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Emergência"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimento, "Urgência"))),
+      .where(and(whereClause, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Urgência"))),
     db.select({ total: sql<number>`COUNT(DISTINCT ${relatorioAtendimentosCache.procprin})` }).from(relatorioAtendimentosCache)
       .where(and(whereClause, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`)),
 
     // 16-20. Comparativo período anterior
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Internação"))),
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Internação"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Ambulatorial"))),
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Ambulatorial"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Emergência"))),
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Emergência"))),
     db.select({ total: count() }).from(relatorioAtendimentosCache)
-      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimento, "Urgência"))),
+      .where(and(whereAnterior, eq(relatorioAtendimentosCache.tipoAtendimentoDescricao, "Urgência"))),
     db.select({ total: sql<number>`COUNT(DISTINCT ${relatorioAtendimentosCache.procprin})` }).from(relatorioAtendimentosCache)
       .where(and(whereAnterior, sql`${relatorioAtendimentosCache.procprin} IS NOT NULL`)),
   ]);
