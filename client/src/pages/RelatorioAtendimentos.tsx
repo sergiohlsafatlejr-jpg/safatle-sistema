@@ -261,26 +261,51 @@ export default function RelatorioAtendimentos() {
     }
 
     const headers = [
-      "N Atendimento", "Tipo", "Servico", "Plano/Convenio", "Proveniente",
-      "Data Atendimento", "Data Saida", "Centro de Custo", "Prestador",
-      "Procedimento Principal", "CID", "Diagnostico", "Carater", "Paciente"
+      "N Atendimento", "Tipo", "Cod Paciente", "Paciente", "Sexo", "CEP",
+      "Cod Plano", "Plano/Convenio", "Cod Servico", "Servico",
+      "Cod Especialidade", "Especialidade",
+      "Data Atendimento", "Data Saida", "Censo",
+      "Cod Centro Custo", "Centro de Custo",
+      "Cod Prestador", "Prestador",
+      "Cod Procedimento", "Desc Procedimento", "Procedimento Principal",
+      "CID", "Diagnostico", "Carater",
+      "Cod Operador", "Operador Cadastro",
+      "Cod CBO", "Descricao CBO",
+      "Cod Proveniente", "Proveniente"
     ];
 
     const rows = resultado.dados.map(a => [
       a.numatend,
       a.tipo_atendimento,
-      a.servico || a.codserv,
-      a.plano_convenio || a.codplaco,
-      a.proveniente || "-",
+      a.codpac || "-",
+      a.paciente || "-",
+      a.sexo_paciente || "-",
+      a.cep_paciente || "-",
+      a.codplaco || "-",
+      a.plano_convenio || "-",
+      a.codserv || "-",
+      a.servico || "-",
+      a.codesp || "-",
+      a.especialidade || "-",
       formatDateShort(a.data_atendimento),
       formatDateShort(a.data_saida),
-      a.centro_custo || a.codcc || "-",
-      a.prestador || a.codprest || "-",
-      a.procedimento_principal || a.procprin || "-",
+      a.censo || "-",
+      a.codcc || "-",
+      a.centro_custo || "-",
+      a.codprest || "-",
+      a.prestador || "-",
+      a.procprin || "-",
+      a.dsprocprin || "-",
+      a.procedimento_principal || "-",
       a.cidprin || "-",
       a.diagnostico_cid || "-",
       a.carater_atendimento || "-",
-      a.paciente || "-",
+      a.opecad || "-",
+      a.operador_cadastro || "-",
+      a.codcbo || "-",
+      a.descricao_cbo || "-",
+      a.codproven || "-",
+      a.proveniente || "-",
     ]);
 
     const csvContent = [
@@ -659,22 +684,29 @@ export default function RelatorioAtendimentos() {
                           <TableHead className="whitespace-nowrap font-semibold">N Atend.</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Tipo</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Paciente</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Sexo</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">CEP</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Plano/Convenio</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Servico</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Especialidade</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Data Atend.</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Data Saida</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Censo</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Centro Custo</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Prestador</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Procedimento</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Desc. Proc.</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">CID</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Carater</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Operador Cad.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">CBO</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Proveniente</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {resultado.dados.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                            <TableCell colSpan={20} className="text-center py-8 text-muted-foreground">
                               Nenhum atendimento encontrado para os filtros selecionados
                             </TableCell>
                           </TableRow>
@@ -688,13 +720,18 @@ export default function RelatorioAtendimentos() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="max-w-[200px] truncate" title={a.paciente || ""}>{a.paciente || "-"}</TableCell>
+                              <TableCell className="text-sm">{a.sexo_paciente || "-"}</TableCell>
+                              <TableCell className="text-sm font-mono">{a.cep_paciente || "-"}</TableCell>
                               <TableCell className="max-w-[150px] truncate" title={a.plano_convenio || ""}>{a.plano_convenio || a.codplaco}</TableCell>
                               <TableCell className="text-sm">{a.servico || a.codserv}</TableCell>
+                              <TableCell className="max-w-[150px] truncate text-sm" title={a.especialidade || ""}>{a.especialidade || a.codesp || "-"}</TableCell>
                               <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_atendimento)}</TableCell>
                               <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_saida)}</TableCell>
+                              <TableCell className="text-sm">{a.censo || "-"}</TableCell>
                               <TableCell className="max-w-[150px] truncate text-sm" title={a.centro_custo || ""}>{a.centro_custo || a.codcc || "-"}</TableCell>
                               <TableCell className="max-w-[180px] truncate text-sm" title={a.prestador || ""}>{a.prestador || a.codprest || "-"}</TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm" title={a.procedimento_principal || ""}>{a.procedimento_principal || a.procprin || "-"}</TableCell>
+                              <TableCell className="text-sm font-mono">{a.procprin || "-"}</TableCell>
+                              <TableCell className="max-w-[200px] truncate text-sm" title={a.procedimento_principal || ""}>{a.procedimento_principal || a.dsprocprin || "-"}</TableCell>
                               <TableCell className="text-xs">
                                 {a.cidprin ? (
                                   <span title={a.diagnostico_cid || ""} className="cursor-help">{a.cidprin}</span>
@@ -705,6 +742,8 @@ export default function RelatorioAtendimentos() {
                                   <Badge variant="outline" className="text-xs">{a.carater_atendimento}</Badge>
                                 ) : "-"}
                               </TableCell>
+                              <TableCell className="max-w-[150px] truncate text-sm" title={a.operador_cadastro || ""}>{a.operador_cadastro || a.opecad || "-"}</TableCell>
+                              <TableCell className="max-w-[150px] truncate text-sm" title={a.descricao_cbo || ""}>{a.descricao_cbo || a.codcbo || "-"}</TableCell>
                               <TableCell className="text-sm">{a.proveniente || "-"}</TableCell>
                             </TableRow>
                           ))

@@ -155,6 +155,20 @@
       "when": 1773329085441,
       "tag": "0078_futuristic_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1773334289371,
+      "tag": "0079_dapper_gravity",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
+      "when": 1773334313483,
+      "tag": "0080_watery_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

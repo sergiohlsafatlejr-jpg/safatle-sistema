@@ -1,0 +1,1 @@
+ALTER TABLE `relatorio_atendimentos_cache` DROP COLUMN `dsprocprin`;

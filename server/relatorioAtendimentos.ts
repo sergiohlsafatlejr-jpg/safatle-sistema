@@ -55,12 +55,21 @@ export interface AtendimentoRelatorio {
   codprest: string | null;
   prestador: string | null;
   procprin: string | null;
+  dsprocprin: string | null;
   procedimento_principal: string | null;
   cidprin: string | null;
   diagnostico_cid: string | null;
   carater_atendimento: string | null;
   codpac: string | null;
   paciente: string | null;
+  codesp: string | null;
+  especialidade: string | null;
+  opecad: string | null;
+  operador_cadastro: string | null;
+  codcbo: string | null;
+  descricao_cbo: string | null;
+  sexo_paciente: string | null;
+  cep_paciente: string | null;
 }
 
 export interface RelatorioAtendimentosResult {
@@ -198,6 +207,15 @@ async function buscarDoCache(
     carater_atendimento: d.caraterAtendimento,
     codpac: d.codpac,
     paciente: d.paciente,
+    dsprocprin: null,
+    codesp: d.codesp || null,
+    especialidade: d.especialidade || null,
+    opecad: d.opecad || null,
+    operador_cadastro: d.operadorCadastro || null,
+    codcbo: d.codcbo || null,
+    descricao_cbo: d.descricaoCbo || null,
+    sexo_paciente: d.sexoPaciente || null,
+    cep_paciente: d.cepPaciente || null,
   }));
 
   return {
@@ -305,6 +323,7 @@ async function buscarDoPostgresql(
         a.codprest,
         pr.nomeprest AS prestador,
         a.procprin,
+        a.dsprocprin,
         COALESCE(a.dsprocprin, fp.descrproc) AS procedimento_principal,
         a.cidprin,
         cid.descrcid AS diagnostico_cid,
@@ -314,7 +333,15 @@ async function buscarDoPostgresql(
           ELSE a.carater
         END AS carater_atendimento,
         a.codpac,
-        pac.nomepac AS paciente
+        pac.nomepac AS paciente,
+        a.codesp,
+        ce.nomeesp AS especialidade,
+        a.opecad,
+        co.nomeope AS operador_cadastro,
+        a.codcbo,
+        tc.descricbo AS descricao_cbo,
+        pac.sexo AS sexo_paciente,
+        pac.ceppac AS cep_paciente
       FROM "PACIENTE".arqatend a
       LEFT JOIN "PACIENTE".cadserv s ON s.codserv = a.codserv
       LEFT JOIN "PACIENTE".cadplaco p ON p.codplaco = a.codplaco
@@ -324,6 +351,9 @@ async function buscarDoPostgresql(
       LEFT JOIN "PACIENTE".filanpro fp ON fp.codproc = a.procprin
       LEFT JOIN "PACIENTE".tabcid cid ON cid.codcid = a.cidprin
       LEFT JOIN "PACIENTE".cadpac pac ON pac.codpac = a.codpac
+      LEFT JOIN "PACIENTE".cadesp ce ON ce.codesp = a.codesp
+      LEFT JOIN "PACIENTE".cadope co ON co.codope = a.opecad
+      LEFT JOIN "PACIENTE".tabcbo tc ON tc.codcbo = a.codcbo
       ${whereClause}
       ORDER BY a.datatend DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -522,6 +552,7 @@ export async function sincronizarRelatorioAtendimentos(
           a.codprest,
           pr.nomeprest AS prestador,
           a.procprin,
+          a.dsprocprin,
           COALESCE(a.dsprocprin, fp.descrproc) AS procedimento_principal,
           a.cidprin,
           cid.descrcid AS diagnostico_cid,
@@ -531,7 +562,15 @@ export async function sincronizarRelatorioAtendimentos(
             ELSE a.carater
           END AS carater_atendimento,
           a.codpac,
-          pac.nomepac AS paciente
+          pac.nomepac AS paciente,
+          a.codesp,
+          ce.nomeesp AS especialidade,
+          a.opecad,
+          co.nomeope AS operador_cadastro,
+          a.codcbo,
+          tc.descricbo AS descricao_cbo,
+          pac.sexo AS sexo_paciente,
+          pac.ceppac AS cep_paciente
         FROM "PACIENTE".arqatend a
         LEFT JOIN "PACIENTE".cadserv s ON s.codserv = a.codserv
         LEFT JOIN "PACIENTE".cadplaco p ON p.codplaco = a.codplaco
@@ -541,6 +580,9 @@ export async function sincronizarRelatorioAtendimentos(
         LEFT JOIN "PACIENTE".filanpro fp ON fp.codproc = a.procprin
         LEFT JOIN "PACIENTE".tabcid cid ON cid.codcid = a.cidprin
         LEFT JOIN "PACIENTE".cadpac pac ON pac.codpac = a.codpac
+        LEFT JOIN "PACIENTE".cadesp ce ON ce.codesp = a.codesp
+        LEFT JOIN "PACIENTE".cadope co ON co.codope = a.opecad
+        LEFT JOIN "PACIENTE".tabcbo tc ON tc.codcbo = a.codcbo
         WHERE a.datatend >= $1 AND a.datatend <= $2
         ORDER BY a.datatend DESC
       `;
@@ -589,6 +631,14 @@ export async function sincronizarRelatorioAtendimentos(
               caraterAtendimento: row.carater_atendimento || null,
               codpac: row.codpac ? String(row.codpac) : null,
               paciente: row.paciente || null,
+              codesp: row.codesp ? String(row.codesp) : null,
+              especialidade: row.especialidade || null,
+              opecad: row.opecad ? String(row.opecad) : null,
+              operadorCadastro: row.operador_cadastro || null,
+              codcbo: row.codcbo ? String(row.codcbo) : null,
+              descricaoCbo: row.descricao_cbo || null,
+              sexoPaciente: row.sexo_paciente || null,
+              cepPaciente: row.cep_paciente || null,
             }))
           );
         }

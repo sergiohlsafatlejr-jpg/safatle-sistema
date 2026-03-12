@@ -2814,3 +2814,11 @@
 
 ## Bug - Conferência Pós-Correção (React #310)
 - [x] Corrigir erro React #310 ao clicar em 'Ver' na Conferência Pós-Correção (separado em dois componentes de rota distintos)
+
+## Atualização Relatório de Atendimentos
+- [x] Atualizar query SQL do relatório de Atendimentos com novos campos (especialidade, operador, CBO, sexo, CEP, dsprocprin)
+- [x] Atualizar interface AtendimentoRelatorio com novos campos
+- [x] Atualizar query de sincronização (sync) com novos campos e JOINs (cadesp, cadope, tabcbo)
+- [x] Atualizar mapeamento do cache local com novos campos
+- [x] Atualizar tabela do frontend com novas colunas (Sexo, CEP, Especialidade, Censo, Desc. Proc., Operador Cad., CBO)
+- [x] Atualizar exportação CSV com todos os 31 campos incluindo códigos e descrições

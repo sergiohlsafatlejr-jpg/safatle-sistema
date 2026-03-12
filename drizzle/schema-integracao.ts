@@ -684,6 +684,23 @@ export const relatorioAtendimentosCache = mysqlTable(
     codpac: varchar({ length: 50 }),
     paciente: varchar({ length: 255 }),
 
+    // Especialidade
+    codesp: varchar({ length: 50 }),
+    especialidade: varchar({ length: 255 }),
+
+    // Operador Cadastro
+    opecad: varchar({ length: 50 }),
+    operadorCadastro: varchar("operador_cadastro", { length: 255 }),
+
+    // CBO
+    codcbo: varchar({ length: 50 }),
+    descricaoCbo: varchar("descricao_cbo", { length: 500 }),
+
+    // Dados do Paciente
+    sexoPaciente: varchar("sexo_paciente", { length: 20 }),
+    cepPaciente: varchar("cep_paciente", { length: 20 }),
+
+
     // Metadados de sincronização
     dataSincronizacao: timestamp("data_sincronizacao").defaultNow(),
   },
