@@ -2948,3 +2948,11 @@
 - [x] Fix: adicionado statement_timeout de 5 min no EasyVisionConnector
 - [x] Fix: adicionado timeout global de 5 min com Promise.race nas procedures executar e sincronizarTabela
 - [x] Canceladas sincronizações travadas (90002, 90003, 90004, 90005)
+
+## Sync Incremental por Mês - Evitar sobrecarga no banco do cliente
+- [x] Alterar query do Sync: Faturado para buscar dados a partir de 2024 (antes era 2025)
+- [x] Implementar importação completa em fatias por mês (ex: 2024/01, 2024/02, ..., 2026/03)
+- [x] Limpar tabela destino apenas na primeira fatia, inserir acumulando nas demais
+- [x] Atualizar log de sincronização com progresso por mês
+- [x] Feedback visual no frontend mostrando qual mês está sendo importado (via campo erroMensagem do log)
+- [x] Timeout de 5 min por fatia (não global)

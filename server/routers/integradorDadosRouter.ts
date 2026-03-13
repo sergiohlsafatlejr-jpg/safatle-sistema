@@ -2154,105 +2154,14 @@ export const integradorDadosRouter = router({
         });
 
         const inicio = Date.now();
-        const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos de timeout global
+        const FATIA_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos de timeout POR FATIA
 
-        // Wrapper com timeout global para evitar sincronizações travadas
-        const executarComTimeout = async () => {
-        try {
-          // Montar query - adicionar filtro incremental se aplicável
-          let queryFinal = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
-          
-          if (isIncremental && mapeamento.colunaControle && mapeamento.ultimoValorControle) {
-            // Envolver a query original em subquery e adicionar filtro WHERE
-            const colunaCtrl = mapeamento.colunaControle;
-            const ultimoValor = mapeamento.ultimoValorControle;
-            
-            // Verificar se a query já tem WHERE
-            // Usar subquery para garantir que o filtro funcione com qualquer query
-            queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq."${colunaCtrl}" > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq."${colunaCtrl}" ASC`;
-            
-            logger.info({
-              message: "Importação INCREMENTAL",
-              colunaControle: colunaCtrl,
-              ultimoValor,
-              mapeamentoId: input.id,
-            });
-          } else {
-            logger.info({
-              message: isIncremental ? "Importação incremental (primeira execução - completa)" : "Importação COMPLETA",
-              mapeamentoId: input.id,
-            });
-          }
-
-          // Conectar à origem e executar query
-          const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
-          let dadosOrigem: any[] = [];
-
-          if (conexao.tipo === "postgresql") {
-            const connector = new EasyVisionConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
-            });
-            const ok = await connector.conectar();
-            if (!ok) throw new Error("Falha ao conectar à origem");
-            dadosOrigem = await connector.executarQuery(queryFinal);
-            await connector.desconectar();
-          } else {
-            const connector = new WarleineConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
-            });
-            const ok = await connector.conectar();
-            if (!ok) throw new Error("Falha ao conectar à origem");
-            // Para MySQL/SQL Server, usar backticks em vez de aspas duplas
-            let queryMySQL = queryFinal;
-            if (isIncremental && mapeamento.colunaControle && mapeamento.ultimoValorControle) {
-              const colunaCtrl = mapeamento.colunaControle;
-              const ultimoValor = mapeamento.ultimoValorControle;
-              const queryBase = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
-              queryMySQL = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq.\`${colunaCtrl}\` > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq.\`${colunaCtrl}\` ASC`;
-            }
-            dadosOrigem = await connector.executarQuery(queryMySQL);
-            await connector.desconectar();
-          }
-
-          // Se incremental e sem dados novos, retornar sucesso sem inserir
-          if (dadosOrigem.length === 0) {
-            const duracao = Date.now() - inicio;
-            await dbIntegrador.atualizarSincronizacao(syncId, {
-              status: "sucesso",
-              registrosLidos: 0,
-              registrosInseridos: 0,
-              finalizadoEm: new Date(),
-              duracaoMs: duracao,
-            });
-            // Atualizar timestamp da última sincronização
-            await dbIntegrador.atualizarMapeamento(input.id, {
-              ultimaSincronizacao: new Date(),
-            } as any);
-            return {
-              sucesso: true,
-              mensagem: isIncremental 
-                ? `Importação incremental: nenhum registro novo encontrado desde ${mapeamento.ultimoValorControle}` 
-                : "Nenhum registro encontrado na origem",
-              registrosLidos: 0,
-              registrosInseridos: 0,
-              modoUsado: isIncremental ? "incremental" : "completa",
-            };
-          }
-
-          // Mapear campos
-          const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
-          const estabelecimentoIdMapeamento = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
-          const registrosMapeados = dadosOrigem.map(row => {
+        // Helper: mapear dados da origem para o formato destino
+        const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
+        const estabelecimentoIdMapeamento = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
+        const mapearDados = (dadosOrigem: any[]) => {
+          return dadosOrigem.map(row => {
             const registro: Record<string, any> = {};
-            // Incluir estabelecimento_id automaticamente
             if (estabelecimentoIdMapeamento) {
               registro.estabelecimento_id = estabelecimentoIdMapeamento;
             }
@@ -2260,7 +2169,6 @@ export const integradorDadosRouter = router({
               const nomeDestino = colunasMap.get(campo.colunaDestinoId);
               if (nomeDestino) {
                 let valor = row[campo.colunaOrigemNome];
-                // Aplicar transformação se houver
                 if (campo.transformacao) {
                   try {
                     if (campo.transformacao === "UPPER") valor = String(valor || "").toUpperCase();
@@ -2273,91 +2181,205 @@ export const integradorDadosRouter = router({
             }
             return registro;
           });
+        };
 
-          // Para importação completa, limpar tabela antes de inserir (se não for a primeira vez)
-          const nomeReal = `integ_${tabela.nome}`;
-          if (mapeamento.modoImportacao === "completa" || input.forcarCompleta) {
-            // Na importação completa, limpar dados antigos antes de inserir
-            try {
-              await dbIntegrador.limparDadosTabela(nomeReal);
-              logger.info({ message: "Tabela limpa para importação completa", tabela: nomeReal });
-            } catch (e) {
-              logger.warn({ message: "Erro ao limpar tabela (pode ser primeira execução)", error: String(e) });
-            }
+        // Helper: conectar e executar query na origem
+        const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+        const executarQueryOrigem = async (query: string): Promise<any[]> => {
+          if (conexao.tipo === "postgresql") {
+            const connector = new EasyVisionConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (!ok) throw new Error("Falha ao conectar à origem");
+            const dados = await connector.executarQuery(query);
+            await connector.desconectar();
+            return dados;
+          } else {
+            const connector = new WarleineConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            const ok = await connector.conectar();
+            if (!ok) throw new Error("Falha ao conectar à origem");
+            const dados = await connector.executarQuery(query);
+            await connector.desconectar();
+            return dados;
           }
+        };
 
-          // Inserir dados na tabela destino
-          const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
+        // Helper: executar query com timeout por fatia
+        const executarComTimeout = async (query: string, label: string): Promise<any[]> => {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Timeout na fatia ${label}: excedeu ${FATIA_TIMEOUT_MS / 1000}s`)), FATIA_TIMEOUT_MS);
+          });
+          return await Promise.race([executarQueryOrigem(query), timeoutPromise]);
+        };
 
-          // Atualizar contagem
-          const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
-          await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+        const nomeReal = `integ_${tabela.nome}`;
 
-          // Se incremental, atualizar o último valor de controle
-          let novoUltimoValor = mapeamento.ultimoValorControle;
-          if (mapeamento.modoImportacao === "incremental" && mapeamento.colunaControle && dadosOrigem.length > 0) {
-            // Pegar o maior valor da coluna de controle dos dados importados
-            const colunaCtrl = mapeamento.colunaControle;
+        try {
+          // ====== MODO INCREMENTAL ======
+          if (isIncremental) {
+            let queryFinal = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
+            const colunaCtrl = mapeamento.colunaControle!;
+            const ultimoValor = mapeamento.ultimoValorControle!;
+
+            if (conexao.tipo === "postgresql") {
+              queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq."${colunaCtrl}" > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq."${colunaCtrl}" ASC`;
+            } else {
+              queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq.\`${colunaCtrl}\` > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq.\`${colunaCtrl}\` ASC`;
+            }
+
+            logger.info({ message: "Importação INCREMENTAL", colunaControle: colunaCtrl, ultimoValor, mapeamentoId: input.id });
+
+            const dadosOrigem = await executarComTimeout(queryFinal, "incremental");
+
+            if (dadosOrigem.length === 0) {
+              const duracao = Date.now() - inicio;
+              await dbIntegrador.atualizarSincronizacao(syncId, { status: "sucesso", registrosLidos: 0, registrosInseridos: 0, finalizadoEm: new Date(), duracaoMs: duracao });
+              await dbIntegrador.atualizarMapeamento(input.id, { ultimaSincronizacao: new Date() } as any);
+              return { sucesso: true, mensagem: `Importação incremental: nenhum registro novo desde ${ultimoValor}`, registrosLidos: 0, registrosInseridos: 0, modoUsado: "incremental" };
+            }
+
+            const registrosMapeados = mapearDados(dadosOrigem);
+            const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
+
+            // Atualizar controle incremental
+            let novoUltimoValor = ultimoValor;
             const ultimoRegistro = dadosOrigem[dadosOrigem.length - 1];
             const valorControle = ultimoRegistro[colunaCtrl];
             if (valorControle !== null && valorControle !== undefined) {
-              novoUltimoValor = String(valorControle);
-              // Se for Date, converter para ISO
-              if (valorControle instanceof Date) {
-                novoUltimoValor = valorControle.toISOString();
-              }
+              novoUltimoValor = valorControle instanceof Date ? valorControle.toISOString() : String(valorControle);
+            }
+
+            const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
+            await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+            const totalAcumulado = (mapeamento.totalRegistrosImportados || 0) + resultado.inseridos;
+            await dbIntegrador.atualizarMapeamento(input.id, { ultimaSincronizacao: new Date(), ultimoValorControle: novoUltimoValor, totalRegistrosImportados: totalAcumulado } as any);
+
+            const duracao = Date.now() - inicio;
+            await dbIntegrador.atualizarSincronizacao(syncId, { status: "sucesso", registrosLidos: dadosOrigem.length, registrosInseridos: resultado.inseridos, finalizadoEm: new Date(), duracaoMs: duracao });
+
+            return { sucesso: true, mensagem: `Importação incremental concluída: ${resultado.inseridos} registros em ${(duracao / 1000).toFixed(1)}s`, registrosLidos: dadosOrigem.length, registrosInseridos: resultado.inseridos, modoUsado: "incremental", ultimoValorControle: novoUltimoValor };
+          }
+
+          // ====== MODO COMPLETA - PARTICIONADO POR MÊS ======
+          logger.info({ message: "Importação COMPLETA PARTICIONADA por mês", mapeamentoId: input.id });
+
+          // Gerar lista de meses: de jan/2024 até o mês atual + 1
+          const agora = new Date();
+          const anoInicio = 2024;
+          const mesInicio = 1;
+          const anoFim = agora.getFullYear();
+          const mesFim = agora.getMonth() + 1; // 1-12
+          const meses: { ano: number; mes: number; label: string }[] = [];
+          for (let a = anoInicio; a <= anoFim; a++) {
+            const mStart = a === anoInicio ? mesInicio : 1;
+            const mEnd = a === anoFim ? mesFim : 12;
+            for (let m = mStart; m <= mEnd; m++) {
+              const label = `${a}/${String(m).padStart(2, "0")}`;
+              meses.push({ ano: a, mes: m, label });
             }
           }
 
-          // Atualizar mapeamento com info da sincronização
-          const totalAcumulado = (mapeamento.totalRegistrosImportados || 0) + resultado.inseridos;
+          // Limpar tabela destino antes da primeira fatia
+          try {
+            await dbIntegrador.limparDadosTabela(nomeReal);
+            logger.info({ message: "Tabela limpa para importação completa particionada", tabela: nomeReal });
+          } catch (e) {
+            logger.warn({ message: "Erro ao limpar tabela", error: String(e) });
+          }
+
+          let totalLidos = 0;
+          let totalInseridos = 0;
+          const queryBase = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
+
+          for (let i = 0; i < meses.length; i++) {
+            const { ano, mes, label } = meses[i];
+            const mesProximo = mes === 12 ? 1 : mes + 1;
+            const anoProximo = mes === 12 ? ano + 1 : ano;
+            const dataInicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+            const dataFim = `${anoProximo}-${String(mesProximo).padStart(2, "0")}-01`;
+
+            // Envolver a query original em subquery e filtrar por mesprod do mês
+            // A query original já tem WHERE com data >= 2024, então usamos subquery
+            let queryFatia: string;
+            if (conexao.tipo === "postgresql") {
+              queryFatia = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq."mesprod" = '${label}'`;
+            } else {
+              queryFatia = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq.\`mesprod\` = '${label}'`;
+            }
+
+            logger.info({ message: `Importando fatia ${i + 1}/${meses.length}: ${label}`, mapeamentoId: input.id });
+
+            // Atualizar progresso no log de sincronização
+            await dbIntegrador.atualizarSincronizacao(syncId, {
+              erroMensagem: `Importando mês ${label} (${i + 1}/${meses.length})...`,
+              registrosLidos: totalLidos,
+              registrosInseridos: totalInseridos,
+            } as any);
+
+            try {
+              const dadosFatia = await executarComTimeout(queryFatia, label);
+
+              if (dadosFatia.length === 0) {
+                logger.info({ message: `Fatia ${label}: 0 registros, pulando` });
+                continue;
+              }
+
+              const registrosMapeados = mapearDados(dadosFatia);
+              const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
+
+              totalLidos += dadosFatia.length;
+              totalInseridos += resultado.inseridos;
+
+              logger.info({ message: `Fatia ${label} concluída: ${resultado.inseridos} registros inseridos`, totalAcumulado: totalInseridos });
+            } catch (fatiaError) {
+              const msg = fatiaError instanceof Error ? fatiaError.message : String(fatiaError);
+              logger.warn({ message: `Erro na fatia ${label}: ${msg}. Continuando com próximas fatias...` });
+              // Continuar com as próximas fatias em vez de abortar tudo
+            }
+          }
+
+          // Atualizar contagem final
+          const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
+          await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
+
+          // Atualizar mapeamento
           await dbIntegrador.atualizarMapeamento(input.id, {
             ultimaSincronizacao: new Date(),
-            ultimoValorControle: novoUltimoValor,
-            totalRegistrosImportados: totalAcumulado,
+            totalRegistrosImportados: totalInseridos,
           } as any);
 
-          // Atualizar log
+          // Finalizar log
           const duracao = Date.now() - inicio;
           await dbIntegrador.atualizarSincronizacao(syncId, {
-            status: "sucesso",
-            registrosLidos: dadosOrigem.length,
-            registrosInseridos: resultado.inseridos,
+            status: totalInseridos > 0 ? "sucesso" : "erro",
+            registrosLidos: totalLidos,
+            registrosInseridos: totalInseridos,
             finalizadoEm: new Date(),
             duracaoMs: duracao,
-          });
+            erroMensagem: totalInseridos > 0 ? null : "Nenhum registro importado em nenhuma fatia",
+          } as any);
 
-          const modoLabel = isIncremental ? "incremental" : "completa";
           return {
-            sucesso: true,
-            mensagem: `Importação ${modoLabel} concluída: ${resultado.inseridos} registros inseridos em ${(duracao / 1000).toFixed(1)}s`,
-            registrosLidos: dadosOrigem.length,
-            registrosInseridos: resultado.inseridos,
-            modoUsado: modoLabel,
-            ultimoValorControle: novoUltimoValor,
+            sucesso: totalInseridos > 0,
+            mensagem: `Importação completa particionada: ${totalInseridos} registros inseridos de ${meses.length} meses em ${(duracao / 1000).toFixed(1)}s`,
+            registrosLidos: totalLidos,
+            registrosInseridos: totalInseridos,
+            modoUsado: "completa (particionada)",
           };
         } catch (error) {
           const duracao = Date.now() - inicio;
           const msg = error instanceof Error ? error.message : "Erro desconhecido";
-          await dbIntegrador.atualizarSincronizacao(syncId, {
-            status: "erro",
-            erroMensagem: msg,
-            finalizadoEm: new Date(),
-            duracaoMs: duracao,
-          });
-          return { sucesso: false, mensagem: msg, registrosLidos: 0, registrosInseridos: 0, modoUsado: "erro" };
-        }
-        }; // fim executarComTimeout arrow function
-
-        // Executar com timeout global
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Timeout: sincronização excedeu ${SYNC_TIMEOUT_MS / 1000}s`)), SYNC_TIMEOUT_MS);
-          });
-          return await Promise.race([executarComTimeout(), timeoutPromise]);
-        } catch (error) {
-          const duracao = Date.now() - inicio;
-          const msg = error instanceof Error ? error.message : "Erro desconhecido (timeout)";
           await dbIntegrador.atualizarSincronizacao(syncId, {
             status: "erro",
             erroMensagem: msg,
