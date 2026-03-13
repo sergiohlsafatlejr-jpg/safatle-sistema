@@ -70,6 +70,8 @@ export class EasyVisionConnector {
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
+        statement_timeout: 300000, // 5 minutos de timeout para queries
+        query_timeout: 300000, // 5 minutos de timeout para queries
       });
 
       // Testa a conexão
@@ -114,8 +116,17 @@ export class EasyVisionConnector {
     }
 
     try {
-      const resultado = await this.pool.query(query, params);
-      return resultado.rows as T[];
+      // Definir statement_timeout na sessão antes de executar a query
+      const client = await this.pool.connect();
+      try {
+        await client.query('SET statement_timeout = 300000'); // 5 minutos
+        const resultado = await client.query(query, params);
+        client.release();
+        return resultado.rows as T[];
+      } catch (error) {
+        client.release(true); // release with destroy on error
+        throw error;
+      }
     } catch (error) {
       logger.error({
         message: "Erro ao executar query no EASYVISION",

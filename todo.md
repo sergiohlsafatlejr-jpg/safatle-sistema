@@ -2941,3 +2941,10 @@
 ## Fix Sidebar - Grandchild Navigation
 - [x] Corrigir renderização de itens grandchild na sidebar (Faturamento > Rel. Faturamento)
 - [x] Usar button em vez de SidebarMenuSubButton para CollapsibleTrigger de nível 3
+
+## Bug - Sincronização manual ficava travada indefinidamente
+- [x] Investigado: botão executa apenas o mapeamento correto (confirmado via logs do banco)
+- [x] Causa raiz: query ao PostgreSQL de origem não tinha timeout, travava indefinidamente
+- [x] Fix: adicionado statement_timeout de 5 min no EasyVisionConnector
+- [x] Fix: adicionado timeout global de 5 min com Promise.race nas procedures executar e sincronizarTabela
+- [x] Canceladas sincronizações travadas (90002, 90003, 90004, 90005)

@@ -1840,8 +1840,9 @@ export const integradorDadosRouter = router({
         });
 
         const inicio = Date.now();
+        const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos de timeout
 
-        try {
+        const executarSync = async () => {
           let rows: Record<string, any>[] = [];
 
           if (conexao.tipo === "postgresql") {
@@ -1966,6 +1967,13 @@ export const integradorDadosRouter = router({
             duracaoMs,
             modoEfetivo,
           };
+        }; // fim executarSync
+
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Timeout: sincronização excedeu ${SYNC_TIMEOUT_MS / 1000}s`)), SYNC_TIMEOUT_MS);
+          });
+          return await Promise.race([executarSync(), timeoutPromise]);
         } catch (error) {
           const duracaoMs = Date.now() - inicio;
           await dbIntegrador.atualizarSincronizacao(syncId, {
@@ -2146,7 +2154,10 @@ export const integradorDadosRouter = router({
         });
 
         const inicio = Date.now();
+        const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos de timeout global
 
+        // Wrapper com timeout global para evitar sincronizações travadas
+        const executarComTimeout = async () => {
         try {
           // Montar query - adicionar filtro incremental se aplicável
           let queryFinal = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
@@ -2328,6 +2339,25 @@ export const integradorDadosRouter = router({
         } catch (error) {
           const duracao = Date.now() - inicio;
           const msg = error instanceof Error ? error.message : "Erro desconhecido";
+          await dbIntegrador.atualizarSincronizacao(syncId, {
+            status: "erro",
+            erroMensagem: msg,
+            finalizadoEm: new Date(),
+            duracaoMs: duracao,
+          });
+          return { sucesso: false, mensagem: msg, registrosLidos: 0, registrosInseridos: 0, modoUsado: "erro" };
+        }
+        }; // fim executarComTimeout arrow function
+
+        // Executar com timeout global
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Timeout: sincronização excedeu ${SYNC_TIMEOUT_MS / 1000}s`)), SYNC_TIMEOUT_MS);
+          });
+          return await Promise.race([executarComTimeout(), timeoutPromise]);
+        } catch (error) {
+          const duracao = Date.now() - inicio;
+          const msg = error instanceof Error ? error.message : "Erro desconhecido (timeout)";
           await dbIntegrador.atualizarSincronizacao(syncId, {
             status: "erro",
             erroMensagem: msg,
