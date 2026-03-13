@@ -2915,3 +2915,12 @@
 - [x] Investigar erro no endpoint/query ao clicar em Carregar (sql_mode=only_full_group_by)
 - [x] Corrigir GROUP BY para usar expressões idênticas ao SELECT
 - [x] Validar carregamento dos dados no browser
+
+## Filtro por Convênio na Tabela Comparativa do Rel. Faturamento
+- [x] Backend: endpoint para listar convênios disponíveis no integ_faturado
+- [x] Backend: endpoint para dados mês a mês filtrado por convênio
+- [x] Frontend: seletor de convênio na aba Tabela Comparativa
+- [x] Frontend: tabela comparativa filtrada por convênio (ano atual vs anterior)
+- [x] Frontend: KPIs atualizados ao selecionar convênio
+- [x] Frontend: gráfico de evolução mensal filtrado por convênio
+- [x] Frontend: botão Limpar filtro e badge do convênio selecionado

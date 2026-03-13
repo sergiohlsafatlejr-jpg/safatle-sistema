@@ -17,7 +17,7 @@ import {
 import {
   DollarSign, TrendingUp, TrendingDown, Building2, Calendar,
   Stethoscope, Heart, BarChart3, TableIcon, Loader2,
-  ArrowUpRight, ArrowDownRight, Minus, FileText, Hash,
+  ArrowUpRight, ArrowDownRight, Minus, FileText, Hash, Filter, X,
 } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import ChartCard from "@/components/dashboard/ChartCard";
@@ -113,10 +113,28 @@ export default function RelatorioFaturamento() {
   const [anoAnterior, setAnoAnterior] = useState(anoCorrente - 1);
   const [carregado, setCarregado] = useState(false);
   const [queryParams, setQueryParams] = useState<{ estabelecimentoId: number; anoAtual: number; anoAnterior: number } | null>(null);
+  const [convenioSelecionado, setConvenioSelecionado] = useState<string>("");
 
   const { data, isLoading, error } = trpc.relatorioFaturamento.buscar.useQuery(
     queryParams ?? { estabelecimentoId: 0, anoAtual, anoAnterior },
     { enabled: !!queryParams && queryParams.estabelecimentoId > 0 }
+  );
+
+  // Lista de convênios disponíveis
+  const { data: conveniosDisponiveis } = trpc.relatorioFaturamento.listarConvenios.useQuery(
+    { estabelecimentoId },
+    { enabled: estabelecimentoId > 0 && carregado }
+  );
+
+  // Dados filtrados por convênio
+  const { data: dadosConvenio, isLoading: isLoadingConvenio } = trpc.relatorioFaturamento.buscarPorConvenio.useQuery(
+    {
+      estabelecimentoId,
+      anoAtual,
+      anoAnterior,
+      convenio: convenioSelecionado,
+    },
+    { enabled: estabelecimentoId > 0 && carregado && convenioSelecionado.length > 0 }
   );
 
   const handleCarregar = () => {
@@ -125,8 +143,34 @@ export default function RelatorioFaturamento() {
       return;
     }
     setCarregado(true);
+    setConvenioSelecionado("");
     setQueryParams({ estabelecimentoId, anoAtual, anoAnterior });
   };
+
+  // Dados efetivos da tabela comparativa (filtrado por convênio ou geral)
+  const tabelaEfetiva = useMemo(() => {
+    if (convenioSelecionado && dadosConvenio) {
+      return {
+        tabelaComparativa: dadosConvenio.tabelaComparativa,
+        totalFaturadoAtual: dadosConvenio.totalFaturadoAtual,
+        totalFaturadoAnterior: dadosConvenio.totalFaturadoAnterior,
+        variacaoPercentual: dadosConvenio.variacaoPercentual,
+        qtdContasAtual: dadosConvenio.qtdContasAtual,
+        qtdContasAnterior: dadosConvenio.qtdContasAnterior,
+      };
+    }
+    if (data) {
+      return {
+        tabelaComparativa: data.tabelaComparativa,
+        totalFaturadoAtual: data.acumulado.totalFaturadoAtual,
+        totalFaturadoAnterior: data.acumulado.totalFaturadoAnterior,
+        variacaoPercentual: data.acumulado.variacaoPercentual,
+        qtdContasAtual: data.acumulado.qtdContasAtual,
+        qtdContasAnterior: data.acumulado.qtdContasAnterior,
+      };
+    }
+    return null;
+  }, [convenioSelecionado, dadosConvenio, data]);
 
   // Prepare chart data: mês a mês comparison
   const chartMesComparativo = useMemo(() => {
@@ -581,48 +625,109 @@ export default function RelatorioFaturamento() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
               >
+                {/* Filtro por Convênio */}
+                <Card className="mb-6">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div className="space-y-1.5 flex-1 min-w-[250px] max-w-[400px]">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Filter className="h-3 w-3" />
+                          Filtrar por Convênio
+                        </label>
+                        <Select
+                          value={convenioSelecionado || "__todos__"}
+                          onValueChange={(v) => setConvenioSelecionado(v === "__todos__" ? "" : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos os convênios" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__todos__">Todos os convênios</SelectItem>
+                            {(conveniosDisponiveis || []).map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {convenioSelecionado && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setConvenioSelecionado("")}
+                          className="gap-1.5"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Limpar filtro
+                        </Button>
+                      )}
+                      {convenioSelecionado && (
+                        <Badge variant="secondary" className="gap-1.5 py-1.5 px-3">
+                          <Heart className="h-3.5 w-3.5" />
+                          {convenioSelecionado}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Loading convênio */}
+                {isLoadingConvenio && convenioSelecionado && (
+                  <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Carregando dados de {convenioSelecionado}...</span>
+                  </div>
+                )}
+
                 {/* KPIs resumo */}
+                {tabelaEfetiva && !isLoadingConvenio && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   <KpiCard
                     title={`Total ${anoAtual}`}
-                    value={formatCurrency(data.acumulado.totalFaturadoAtual)}
-                    subtitle="Acumulado"
+                    value={formatCurrency(tabelaEfetiva.totalFaturadoAtual)}
+                    subtitle={convenioSelecionado || "Acumulado"}
                     icon={DollarSign}
                     gradient="blue"
                     trend={{
-                      value: data.acumulado.variacaoPercentual,
+                      value: tabelaEfetiva.variacaoPercentual,
                       label: `vs ${anoAnterior}`,
                     }}
                   />
                   <KpiCard
                     title={`Total ${anoAnterior}`}
-                    value={formatCurrency(data.acumulado.totalFaturadoAnterior)}
-                    subtitle="Acumulado"
+                    value={formatCurrency(tabelaEfetiva.totalFaturadoAnterior)}
+                    subtitle={convenioSelecionado || "Acumulado"}
                     icon={DollarSign}
                     gradient="violet"
                   />
                   <KpiCard
                     title="Diferença"
-                    value={formatCurrency(data.acumulado.totalFaturadoAtual - data.acumulado.totalFaturadoAnterior)}
+                    value={formatCurrency(tabelaEfetiva.totalFaturadoAtual - tabelaEfetiva.totalFaturadoAnterior)}
                     subtitle={`${anoAtual} - ${anoAnterior}`}
-                    icon={data.acumulado.variacaoPercentual >= 0 ? TrendingUp : TrendingDown}
-                    gradient={data.acumulado.variacaoPercentual >= 0 ? "emerald" : "amber"}
+                    icon={tabelaEfetiva.variacaoPercentual >= 0 ? TrendingUp : TrendingDown}
+                    gradient={tabelaEfetiva.variacaoPercentual >= 0 ? "emerald" : "amber"}
                   />
                   <KpiCard
                     title="Variação"
-                    value={`${data.acumulado.variacaoPercentual > 0 ? "+" : ""}${data.acumulado.variacaoPercentual.toFixed(1)}%`}
+                    value={`${tabelaEfetiva.variacaoPercentual > 0 ? "+" : ""}${tabelaEfetiva.variacaoPercentual.toFixed(1)}%`}
                     subtitle="Percentual"
-                    icon={data.acumulado.variacaoPercentual >= 0 ? TrendingUp : TrendingDown}
-                    gradient={data.acumulado.variacaoPercentual >= 0 ? "emerald" : "amber"}
+                    icon={tabelaEfetiva.variacaoPercentual >= 0 ? TrendingUp : TrendingDown}
+                    gradient={tabelaEfetiva.variacaoPercentual >= 0 ? "emerald" : "amber"}
                   />
                 </div>
+                )}
 
                 {/* Tabela Mês a Mês */}
+                {tabelaEfetiva && !isLoadingConvenio && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-primary" />
                       Comparativo Mês a Mês
+                      {convenioSelecionado && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {convenioSelecionado}
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -639,7 +744,7 @@ export default function RelatorioFaturamento() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {data.tabelaComparativa.map((m, i) => {
+                          {tabelaEfetiva.tabelaComparativa.map((m, i) => {
                             const temDados = m.faturadoAtual > 0 || m.faturadoAnterior > 0;
                             return (
                               <TableRow
@@ -670,19 +775,19 @@ export default function RelatorioFaturamento() {
                           <TableRow className="border-t-2 border-primary/30 font-bold bg-muted/30">
                             <TableCell>TOTAL</TableCell>
                             <TableCell className="text-right">
-                              {formatCurrency(data.acumulado.totalFaturadoAtual)}
+                              {formatCurrency(tabelaEfetiva.totalFaturadoAtual)}
                             </TableCell>
                             <TableCell className="text-right">
-                              {formatCurrency(data.acumulado.totalFaturadoAnterior)}
+                              {formatCurrency(tabelaEfetiva.totalFaturadoAnterior)}
                             </TableCell>
                             <TableCell className="text-center">
-                              <VariacaoBadge valor={data.acumulado.variacaoPercentual} />
+                              <VariacaoBadge valor={tabelaEfetiva.variacaoPercentual} />
                             </TableCell>
                             <TableCell className="text-right">
-                              {formatNumber(data.acumulado.qtdContasAtual)}
+                              {formatNumber(tabelaEfetiva.qtdContasAtual)}
                             </TableCell>
                             <TableCell className="text-right">
-                              {formatNumber(data.acumulado.qtdContasAnterior)}
+                              {formatNumber(tabelaEfetiva.qtdContasAnterior)}
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -690,12 +795,22 @@ export default function RelatorioFaturamento() {
                     </div>
                   </CardContent>
                 </Card>
+                )}
 
                 {/* Gráfico de linha comparativo */}
-                <ChartCard title={`Evolução Mensal: ${anoAtual} vs ${anoAnterior}`} icon={TrendingUp}>
-                  {chartMesComparativo.length > 0 ? (
+                {tabelaEfetiva && !isLoadingConvenio && (
+                <ChartCard title={`Evolução Mensal${convenioSelecionado ? ` - ${convenioSelecionado}` : ""}: ${anoAtual} vs ${anoAnterior}`} icon={TrendingUp}>
+                  {(() => {
+                    const chartData = (tabelaEfetiva?.tabelaComparativa || [])
+                      .filter(m => m.faturadoAtual > 0 || m.faturadoAnterior > 0)
+                      .map(m => ({
+                        mes: m.mesNome.substring(0, 3),
+                        [`${anoAtual}`]: m.faturadoAtual,
+                        [`${anoAnterior}`]: m.faturadoAnterior,
+                      }));
+                    return chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={350}>
-                      <LineChart data={chartMesComparativo}>
+                      <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis
@@ -725,12 +840,14 @@ export default function RelatorioFaturamento() {
                         />
                       </LineChart>
                     </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[350px] text-muted-foreground">
-                      Sem dados para exibir
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex items-center justify-center h-[350px] text-muted-foreground">
+                        Sem dados para exibir
+                      </div>
+                    );
+                  })()}
                 </ChartCard>
+                )}
               </motion.div>
             </TabsContent>
           </Tabs>

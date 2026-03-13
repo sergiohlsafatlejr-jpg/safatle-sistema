@@ -133,6 +133,194 @@ function parseValor(val: any): number {
 // QUERIES
 // ============================================================
 
+// ============================================================
+// LISTAR CONVÊNIOS DISPONÍVEIS
+// ============================================================
+
+export async function listarConveniosDisponiveis(
+  estabelecimentoId: number
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const [rows] = await db.execute(
+    sql.raw(`
+      SELECT DISTINCT COALESCE(TRIM(nomeconv), 'Não informado') as convenio
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabelecimentoId}
+        AND nomeconv IS NOT NULL
+        AND TRIM(nomeconv) != ''
+      ORDER BY convenio ASC
+    `)
+  );
+
+  return (rows as unknown as any[]).map((r: any) => String(r.convenio || "").trim()).filter(Boolean);
+}
+
+// ============================================================
+// TABELA COMPARATIVA POR CONVÊNIO
+// ============================================================
+
+export interface FiltroTabelaPorConvenio {
+  estabelecimentoId: number;
+  anoAtual: number;
+  anoAnterior: number;
+  convenio: string;
+}
+
+export interface TabelaConvenioResult {
+  convenio: string;
+  anoAtual: number;
+  anoAnterior: number;
+  totalFaturadoAtual: number;
+  totalFaturadoAnterior: number;
+  variacaoPercentual: number;
+  qtdContasAtual: number;
+  qtdContasAnterior: number;
+  tabelaComparativa: TabelaComparativaMes[];
+}
+
+export async function buscarTabelaPorConvenio(
+  filtro: FiltroTabelaPorConvenio
+): Promise<TabelaConvenioResult> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const { estabelecimentoId: estabId, anoAtual, anoAnterior, convenio } = filtro;
+  const prefixoAtual = `${anoAtual}/`;
+  const prefixoAnterior = `${anoAnterior}/`;
+  const convenioEscaped = convenio.replace(/'/g, "''");
+
+  // Acumulado ano atual por convênio
+  const [acumAtualRows] = await db.execute(
+    sql.raw(`
+      SELECT 
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND mesprod LIKE '${prefixoAtual}%'
+        AND COALESCE(TRIM(nomeconv), 'Não informado') = '${convenioEscaped}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+    `)
+  );
+
+  // Acumulado ano anterior por convênio
+  const [acumAnteriorRows] = await db.execute(
+    sql.raw(`
+      SELECT 
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND mesprod LIKE '${prefixoAnterior}%'
+        AND COALESCE(TRIM(nomeconv), 'Não informado') = '${convenioEscaped}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+    `)
+  );
+
+  const totalAtual = parseValor((acumAtualRows as any)[0]?.total_faturado);
+  const totalAnterior = parseValor((acumAnteriorRows as any)[0]?.total_faturado);
+  const qtdContasAtual = Number((acumAtualRows as any)[0]?.qtd_contas) || 0;
+  const qtdContasAnterior = Number((acumAnteriorRows as any)[0]?.qtd_contas) || 0;
+  const variacaoPercentual = totalAnterior > 0
+    ? Math.round(((totalAtual - totalAnterior) / totalAnterior) * 10000) / 100
+    : (totalAtual > 0 ? 100 : 0);
+
+  // Mês a mês - ano atual
+  const [mesAtualRows] = await db.execute(
+    sql.raw(`
+      SELECT 
+        SUBSTRING(mesprod, 6, 2) as mes_num,
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND mesprod LIKE '${prefixoAtual}%'
+        AND COALESCE(TRIM(nomeconv), 'Não informado') = '${convenioEscaped}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+      GROUP BY SUBSTRING(mesprod, 6, 2)
+      ORDER BY mes_num ASC
+    `)
+  );
+
+  // Mês a mês - ano anterior
+  const [mesAnteriorRows] = await db.execute(
+    sql.raw(`
+      SELECT 
+        SUBSTRING(mesprod, 6, 2) as mes_num,
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND mesprod LIKE '${prefixoAnterior}%'
+        AND COALESCE(TRIM(nomeconv), 'Não informado') = '${convenioEscaped}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+      GROUP BY SUBSTRING(mesprod, 6, 2)
+      ORDER BY mes_num ASC
+    `)
+  );
+
+  // Montar mapa por mês
+  const mapAtual = new Map<string, { faturado: number; contas: number }>();
+  for (const r of mesAtualRows as unknown as any[]) {
+    const mesNum = String(r.mes_num || "").trim().padStart(2, "0");
+    mapAtual.set(mesNum, {
+      faturado: parseValor(r.total_faturado),
+      contas: Number(r.qtd_contas) || 0,
+    });
+  }
+
+  const mapAnterior = new Map<string, { faturado: number; contas: number }>();
+  for (const r of mesAnteriorRows as unknown as any[]) {
+    const mesNum = String(r.mes_num || "").trim().padStart(2, "0");
+    mapAnterior.set(mesNum, {
+      faturado: parseValor(r.total_faturado),
+      contas: Number(r.qtd_contas) || 0,
+    });
+  }
+
+  const tabelaComparativa: TabelaComparativaMes[] = [];
+  for (let i = 1; i <= 12; i++) {
+    const mesKey = String(i).padStart(2, "0");
+    const atual = mapAtual.get(mesKey) || { faturado: 0, contas: 0 };
+    const anterior = mapAnterior.get(mesKey) || { faturado: 0, contas: 0 };
+    const variacao = anterior.faturado > 0
+      ? Math.round(((atual.faturado - anterior.faturado) / anterior.faturado) * 10000) / 100
+      : (atual.faturado > 0 ? 100 : 0);
+
+    tabelaComparativa.push({
+      mes: mesKey,
+      mesNome: MESES_NOMES[mesKey] || mesKey,
+      faturadoAtual: atual.faturado,
+      faturadoAnterior: anterior.faturado,
+      qtdContasAtual: atual.contas,
+      qtdContasAnterior: anterior.contas,
+      variacao,
+    });
+  }
+
+  return {
+    convenio,
+    anoAtual,
+    anoAnterior,
+    totalFaturadoAtual: totalAtual,
+    totalFaturadoAnterior: totalAnterior,
+    variacaoPercentual,
+    qtdContasAtual,
+    qtdContasAnterior,
+    tabelaComparativa,
+  };
+}
+
+// ============================================================
+// RELATÓRIO GERAL
+// ============================================================
+
 export async function buscarRelatorioFaturamento(
   filtro: FiltroRelatorioFaturamento
 ): Promise<RelatorioFaturamentoResult> {

@@ -1,0 +1,10 @@
+Filtro por Convênio - Teste bem-sucedido (2026-03-13)
+
+1. Dropdown com 17 convênios listados (AFFEGO SAUDE, AMIL, ASSEFAZ, BRADESCO SAUDE, CAESAN, CASSI, GEAP, IPASGO, IPASGO-PP, PARTICULAR, SAUDE CAIXA, SAUDE ITAU, SUL AMERICA, UNIMED, UNIMED-PP, VIVACOM PLANOS DE SAUDE)
+2. Filtro por UNIMED selecionado com sucesso
+3. KPIs atualizados: TOTAL 2026 = R$ 498.925,38 (UNIMED), TOTAL 2025 = R$ 2.547.216,15 (UNIMED), Variação = -80.4%
+4. Tabela mês a mês filtrada por UNIMED com dados corretos
+5. Gráfico de evolução mensal atualizado para UNIMED: 2026 vs 2025
+6. Badge "UNIMED" visível ao lado do título "Comparativo Mês a Mês"
+7. Botão "Limpar filtro" funcional
+8. Todos os 12 meses exibidos com TOTAL na última linha
