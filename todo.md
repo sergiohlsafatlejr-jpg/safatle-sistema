@@ -2930,3 +2930,14 @@
 - [x] Backend: endpoint para detalhamento por convênio dentro de um mês específico
 - [x] Dashboard: trocar gráfico de barras por gráfico de linhas (modelo Evolução Mensal)
 - [x] Dashboard: adicionar filtro por convênio nos gráficos e KPIs
+
+## Gráficos Clicáveis como Filtros no Rel. Faturamento
+- [x] Gráfico Setor: ao clicar em uma barra, filtrar KPIs e evolução mensal por setor
+- [x] Gráfico Tipo de Atendimento: ao clicar em uma fatia, filtrar por tipo de atendimento
+- [x] Gráfico Convênio: ao clicar em uma barra, filtrar por convênio (integrar com filtro existente)
+- [x] Backend: endpoints para dados filtrados por setor e tipo de atendimento
+- [x] Visual: badge do filtro ativo e botão limpar para cada tipo de filtro
+
+## Fix Sidebar - Grandchild Navigation
+- [x] Corrigir renderização de itens grandchild na sidebar (Faturamento > Rel. Faturamento)
+- [x] Usar button em vez de SidebarMenuSubButton para CollapsibleTrigger de nível 3

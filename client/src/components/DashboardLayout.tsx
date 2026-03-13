@@ -577,16 +577,17 @@ function DashboardLayoutContent({
                                 if (child.children && child.children.length > 0) {
                                   const isSubChildActive = isAnyChildActive(child);
                                   return (
-                                    <Collapsible key={child.label} asChild defaultOpen={isSubChildActive}>
+                                    <Collapsible key={child.label} asChild defaultOpen={isSubChildActive} className="group/subfolder">
                                       <SidebarMenuSubItem>
                                         <CollapsibleTrigger asChild>
-                                          <SidebarMenuSubButton
-                                            className={`cursor-pointer font-medium ${isSubChildActive ? "text-primary" : "text-sidebar-foreground/70"}`}
+                                          <button
+                                            type="button"
+                                            className={`flex w-full items-center gap-2 rounded-md px-2 h-7 text-sm cursor-pointer font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${isSubChildActive ? "text-primary bg-sidebar-accent" : "text-sidebar-foreground/70"}`}
                                           >
-                                            <child.icon className={`h-3.5 w-3.5 ${isSubChildActive ? "text-primary" : ""}`} />
-                                            <span>{child.label}</span>
-                                            <ChevronRight className="ml-auto h-3 w-3 transition-transform duration-200 data-[state=open]:rotate-90" />
-                                          </SidebarMenuSubButton>
+                                            <child.icon className={`h-3.5 w-3.5 shrink-0 ${isSubChildActive ? "text-primary" : ""}`} />
+                                            <span className="truncate">{child.label}</span>
+                                            <ChevronRight className="ml-auto h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]/subfolder:rotate-90" />
+                                          </button>
                                         </CollapsibleTrigger>
                                         <CollapsibleContent>
                                           <SidebarMenuSub className="ml-2 border-l border-sidebar-border/50">

@@ -1,0 +1,13 @@
+Clickable Charts Test - 2026-03-13
+
+Dashboard loaded successfully with:
+1. KPIs: Faturado 2026 R$ 1.427.253,50 vs 2025 R$ 7.023.788,46 (-79.7%)
+2. Line chart: Evolução Mensal 2026 vs 2025
+3. Charts with clickable labels:
+   - "Faturamento por Setor (2026)" - shows "Clique em um setor para filtrar" with tooltip on hover (HEMODIALISE: R$ 13.903,76)
+   - "Faturamento por Tipo de Atendimento (2026)" - shows "Clique em uma fatia para filtrar" with doughnut chart (Internação 76.92%, Exame 11.65%, Ambulatorial)
+   - "Faturamento por Convênio - Top 12 (2026)" - shows "Clique em um convênio para filtrar" with horizontal bars (UNIMED, PARTICULAR, IPASGO, BRADESCO SAUDE, etc.)
+4. Rankings: Ranking de Setores and Ranking de Convênios tables visible below
+
+All three charts show "Clique em..." instructions, confirming the clickable filter feature is implemented.
+Need to test actual clicking on a bar/slice to verify filtering works.

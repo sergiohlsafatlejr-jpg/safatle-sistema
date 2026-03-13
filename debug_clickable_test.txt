@@ -1,0 +1,18 @@
+Clickable Charts Test Results - 2026-03-13
+===========================================
+
+1. Table row click on UNIMED in Ranking de Convênios: WORKS PERFECTLY
+   - Badge "FILTRO ATIVO: Convênio: UNIMED" appeared
+   - KPIs updated: Faturado 2026 R$ 498.925,38, Faturado 2025 R$ 2.547.216,15, -80.4%
+   - Contas: 311 (2026) vs 2.719 (2025)
+   - Gráfico evolução mensal updated: "Evolução Mensal - Convênio: UNIMED: 2026 vs 2025"
+   - Convênio bars: UNIMED highlighted in cyan, others dimmed (opacity 0.3)
+   - "Limpar todos" button visible
+
+2. Direct bar click on chart: NOT WORKING
+   - Clicking directly on the bar in the chart does not trigger the onClick handler
+   - The Recharts Bar onClick may need a different approach for horizontal bars
+   - Need to investigate if the issue is with the coordinate click or the Recharts event
+
+CONCLUSION: The filtering logic works perfectly (via table row clicks).
+The chart bar click needs fixing - may need to use onClick on BarChart level instead of Bar level.
