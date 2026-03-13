@@ -2898,3 +2898,15 @@
 - [x] Frontend: seção de hemodiálise na aba Análise Operacional com KPIs e tabela
 - [x] Correção de erro TypeScript nas queries de data (gte/lte com strings)
 - [x] Testes unitários para buscarPacientesHemodialise (5 testes passando)
+
+## Relatório de Faturamento (integ_faturado)
+- [x] Backend: queries na tabela integ_faturado para métricas de faturamento
+- [x] Backend: endpoint tRPC relatorioFaturamento com indicadores agregados
+- [x] Frontend: KPIs Acumulado Ano Atual vs Acumulado Ano Anterior
+- [x] Frontend: Gráfico/análise por Setor
+- [x] Frontend: Gráfico/análise por Mês
+- [x] Frontend: Gráfico/análise por Tipo de Atendimento
+- [x] Frontend: Gráfico/análise por Convênio
+- [x] Frontend: Tabela comparativa mês a mês (Mês, Faturado Atual, Faturado Ano Anterior, Qtd Contas)
+- [x] Integrar rota e navegação no App.tsx
+- [x] Testes unitários para queries de faturamento (7 testes passando)
