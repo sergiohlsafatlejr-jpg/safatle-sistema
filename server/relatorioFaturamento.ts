@@ -318,6 +318,127 @@ export async function buscarTabelaPorConvenio(
 }
 
 // ============================================================
+// DETALHAMENTO POR CONVÊNIO DENTRO DE UM MÊS
+// ============================================================
+
+export interface FiltroDetalheMesConvenio {
+  estabelecimentoId: number;
+  anoAtual: number;
+  anoAnterior: number;
+  mes: string; // "01", "02", etc.
+}
+
+export interface DetalheConvenioMes {
+  convenio: string;
+  faturadoAtual: number;
+  faturadoAnterior: number;
+  variacao: number;
+  qtdContasAtual: number;
+  qtdContasAnterior: number;
+}
+
+export interface DetalheMesConvenioResult {
+  mes: string;
+  mesNome: string;
+  convenios: DetalheConvenioMes[];
+}
+
+export async function buscarDetalheMesConvenio(
+  filtro: FiltroDetalheMesConvenio
+): Promise<DetalheMesConvenioResult> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const { estabelecimentoId: estabId, anoAtual, anoAnterior, mes } = filtro;
+  const mespadded = mes.padStart(2, "0");
+  const mesprodAtual = `${anoAtual}/${mespadded}`;
+  const mesprodAnterior = `${anoAnterior}/${mespadded}`;
+
+  // Buscar por convênio no mês atual
+  const [rowsAtual] = await db.execute(
+    sql.raw(`
+      SELECT 
+        COALESCE(TRIM(nomeconv), 'Não informado') as convenio,
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND TRIM(mesprod) = '${mesprodAtual}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+      GROUP BY COALESCE(TRIM(nomeconv), 'Não informado')
+      ORDER BY total_faturado DESC
+    `)
+  );
+
+  // Buscar por convênio no mês anterior
+  const [rowsAnterior] = await db.execute(
+    sql.raw(`
+      SELECT 
+        COALESCE(TRIM(nomeconv), 'Não informado') as convenio,
+        COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado,
+        COUNT(DISTINCT numconta) as qtd_contas
+      FROM integ_faturado
+      WHERE estabelecimento_id = ${estabId}
+        AND TRIM(mesprod) = '${mesprodAnterior}'
+        AND vl_faturado IS NOT NULL
+        AND vl_faturado != ''
+      GROUP BY COALESCE(TRIM(nomeconv), 'Não informado')
+      ORDER BY total_faturado DESC
+    `)
+  );
+
+  // Montar mapa de convênios
+  const mapAtual = new Map<string, { faturado: number; contas: number }>();
+  for (const r of rowsAtual as unknown as any[]) {
+    mapAtual.set(String(r.convenio || "").trim(), {
+      faturado: parseValor(r.total_faturado),
+      contas: Number(r.qtd_contas) || 0,
+    });
+  }
+
+  const mapAnterior = new Map<string, { faturado: number; contas: number }>();
+  for (const r of rowsAnterior as unknown as any[]) {
+    mapAnterior.set(String(r.convenio || "").trim(), {
+      faturado: parseValor(r.total_faturado),
+      contas: Number(r.qtd_contas) || 0,
+    });
+  }
+
+  // Unir todos os convênios
+  const todosConvenios = new Set<string>();
+  for (const k of mapAtual.keys()) todosConvenios.add(k);
+  for (const k of mapAnterior.keys()) todosConvenios.add(k);
+
+  const convenios: DetalheConvenioMes[] = [];
+  for (const conv of todosConvenios) {
+    const atual = mapAtual.get(conv) || { faturado: 0, contas: 0 };
+    const anterior = mapAnterior.get(conv) || { faturado: 0, contas: 0 };
+    const variacao = anterior.faturado > 0
+      ? Math.round(((atual.faturado - anterior.faturado) / anterior.faturado) * 10000) / 100
+      : (atual.faturado > 0 ? 100 : -100);
+
+    convenios.push({
+      convenio: conv,
+      faturadoAtual: atual.faturado,
+      faturadoAnterior: anterior.faturado,
+      variacao,
+      qtdContasAtual: atual.contas,
+      qtdContasAnterior: anterior.contas,
+    });
+  }
+
+  // Ordenar por faturado atual (maior primeiro)
+  convenios.sort((a, b) => b.faturadoAtual - a.faturadoAtual);
+
+  return {
+    mes: mespadded,
+    mesNome: MESES_NOMES[mespadded] || mespadded,
+    convenios,
+  };
+}
+
+// ============================================================
 // RELATÓRIO GERAL
 // ============================================================
 

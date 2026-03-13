@@ -1,0 +1,6 @@
+Dashboard loaded successfully:
+- KPIs: Faturado 2026 R$ 1.427.253,50 | Faturado 2025 R$ 7.023.788,46 | Contas 2026: 1.165 | Contas 2025: 9.455
+- Variação: -79.7% vs 2025
+- Gráfico Evolução Mensal: 2026 vs 2025 (LINE chart - SUCCESS, changed from bar to line)
+- Filtro por convênio: "Todos os convênios" dropdown visible (index 29)
+- Tabs: Dashboard | Tabela Comparativa

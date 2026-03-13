@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -18,6 +18,7 @@ import {
   DollarSign, TrendingUp, TrendingDown, Building2, Calendar,
   Stethoscope, Heart, BarChart3, TableIcon, Loader2,
   ArrowUpRight, ArrowDownRight, Minus, FileText, Hash, Filter, X,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import ChartCard from "@/components/dashboard/ChartCard";
@@ -104,6 +105,85 @@ function VariacaoBadge({ valor }: { valor: number }) {
   );
 }
 
+// ============================================================
+// Sub-componente: Linhas expandidas por convênio dentro de um mês
+// ============================================================
+function MesExpandido({
+  estabelecimentoId,
+  anoAtual,
+  anoAnterior,
+  mes,
+}: {
+  estabelecimentoId: number;
+  anoAtual: number;
+  anoAnterior: number;
+  mes: string;
+}) {
+  const { data, isLoading } = trpc.relatorioFaturamento.detalheMesConvenio.useQuery(
+    { estabelecimentoId, anoAtual, anoAnterior, mes },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell colSpan={7} className="bg-muted/20">
+          <div className="flex items-center gap-2 py-2 pl-8 text-muted-foreground text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Carregando convênios...
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  if (!data?.convenios?.length) {
+    return (
+      <TableRow>
+        <TableCell colSpan={7} className="bg-muted/20">
+          <div className="py-2 pl-8 text-muted-foreground text-sm">
+            Nenhum convênio encontrado neste mês
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <>
+      {data.convenios.map((c, i) => (
+        <TableRow key={i} className="bg-muted/10 border-l-2 border-l-primary/30">
+          <TableCell className="pl-10 text-sm text-muted-foreground">
+            <Badge variant="outline" className="text-xs font-normal">
+              {c.convenio}
+            </Badge>
+          </TableCell>
+          <TableCell className="text-right text-sm">
+            {c.faturadoAtual > 0 ? formatCurrency(c.faturadoAtual) : "-"}
+          </TableCell>
+          <TableCell className="text-right text-sm text-muted-foreground">
+            {c.faturadoAnterior > 0 ? formatCurrency(c.faturadoAnterior) : "-"}
+          </TableCell>
+          <TableCell className="text-center text-sm">
+            {(c.faturadoAtual > 0 || c.faturadoAnterior > 0) ? (
+              <VariacaoBadge valor={c.variacao} />
+            ) : "-"}
+          </TableCell>
+          <TableCell className="text-right text-sm">
+            {c.qtdContasAtual > 0 ? formatNumber(c.qtdContasAtual) : "-"}
+          </TableCell>
+          <TableCell className="text-right text-sm text-muted-foreground">
+            {c.qtdContasAnterior > 0 ? formatNumber(c.qtdContasAnterior) : "-"}
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
+// ============================================================
+// Componente principal
+// ============================================================
 export default function RelatorioFaturamento() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
@@ -114,6 +194,8 @@ export default function RelatorioFaturamento() {
   const [carregado, setCarregado] = useState(false);
   const [queryParams, setQueryParams] = useState<{ estabelecimentoId: number; anoAtual: number; anoAnterior: number } | null>(null);
   const [convenioSelecionado, setConvenioSelecionado] = useState<string>("");
+  const [convenioSelecionadoDash, setConvenioSelecionadoDash] = useState<string>("");
+  const [mesesExpandidos, setMesesExpandidos] = useState<Set<string>>(new Set());
 
   const { data, isLoading, error } = trpc.relatorioFaturamento.buscar.useQuery(
     queryParams ?? { estabelecimentoId: 0, anoAtual, anoAnterior },
@@ -126,7 +208,7 @@ export default function RelatorioFaturamento() {
     { enabled: estabelecimentoId > 0 && carregado }
   );
 
-  // Dados filtrados por convênio
+  // Dados filtrados por convênio (aba tabela)
   const { data: dadosConvenio, isLoading: isLoadingConvenio } = trpc.relatorioFaturamento.buscarPorConvenio.useQuery(
     {
       estabelecimentoId,
@@ -137,6 +219,17 @@ export default function RelatorioFaturamento() {
     { enabled: estabelecimentoId > 0 && carregado && convenioSelecionado.length > 0 }
   );
 
+  // Dados filtrados por convênio (aba dashboard)
+  const { data: dadosConvenioDash, isLoading: isLoadingConvenioDash } = trpc.relatorioFaturamento.buscarPorConvenio.useQuery(
+    {
+      estabelecimentoId,
+      anoAtual,
+      anoAnterior,
+      convenio: convenioSelecionadoDash,
+    },
+    { enabled: estabelecimentoId > 0 && carregado && convenioSelecionadoDash.length > 0 }
+  );
+
   const handleCarregar = () => {
     if (estabelecimentoId <= 0) {
       toast.error("Selecione um estabelecimento primeiro");
@@ -144,7 +237,21 @@ export default function RelatorioFaturamento() {
     }
     setCarregado(true);
     setConvenioSelecionado("");
+    setConvenioSelecionadoDash("");
+    setMesesExpandidos(new Set());
     setQueryParams({ estabelecimentoId, anoAtual, anoAnterior });
+  };
+
+  const toggleMesExpandido = (mes: string) => {
+    setMesesExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(mes)) {
+        next.delete(mes);
+      } else {
+        next.add(mes);
+      }
+      return next;
+    });
   };
 
   // Dados efetivos da tabela comparativa (filtrado por convênio ou geral)
@@ -172,17 +279,42 @@ export default function RelatorioFaturamento() {
     return null;
   }, [convenioSelecionado, dadosConvenio, data]);
 
-  // Prepare chart data: mês a mês comparison
+  // Dados efetivos do dashboard (filtrado por convênio ou geral)
+  const dashboardEfetivo = useMemo(() => {
+    if (convenioSelecionadoDash && dadosConvenioDash) {
+      return {
+        totalFaturadoAtual: dadosConvenioDash.totalFaturadoAtual,
+        totalFaturadoAnterior: dadosConvenioDash.totalFaturadoAnterior,
+        variacaoPercentual: dadosConvenioDash.variacaoPercentual,
+        qtdContasAtual: dadosConvenioDash.qtdContasAtual,
+        qtdContasAnterior: dadosConvenioDash.qtdContasAnterior,
+        tabelaComparativa: dadosConvenioDash.tabelaComparativa,
+      };
+    }
+    if (data) {
+      return {
+        totalFaturadoAtual: data.acumulado.totalFaturadoAtual,
+        totalFaturadoAnterior: data.acumulado.totalFaturadoAnterior,
+        variacaoPercentual: data.acumulado.variacaoPercentual,
+        qtdContasAtual: data.acumulado.qtdContasAtual,
+        qtdContasAnterior: data.acumulado.qtdContasAnterior,
+        tabelaComparativa: data.tabelaComparativa,
+      };
+    }
+    return null;
+  }, [convenioSelecionadoDash, dadosConvenioDash, data]);
+
+  // Prepare chart data: mês a mês comparison (LINHAS agora)
   const chartMesComparativo = useMemo(() => {
-    if (!data?.tabelaComparativa) return [];
-    return data.tabelaComparativa
+    if (!dashboardEfetivo?.tabelaComparativa) return [];
+    return dashboardEfetivo.tabelaComparativa
       .filter(m => m.faturadoAtual > 0 || m.faturadoAnterior > 0)
       .map(m => ({
         mes: m.mesNome.substring(0, 3),
         [`${anoAtual}`]: m.faturadoAtual,
         [`${anoAnterior}`]: m.faturadoAnterior,
       }));
-  }, [data?.tabelaComparativa, anoAtual, anoAnterior]);
+  }, [dashboardEfetivo?.tabelaComparativa, anoAtual, anoAnterior]);
 
   // Prepare setor data for horizontal bar chart
   const chartSetor = useMemo(() => {
@@ -355,7 +487,61 @@ export default function RelatorioFaturamento() {
 
             {/* ========== ABA DASHBOARD ========== */}
             <TabsContent value="dashboard" className="space-y-6">
+              {/* Filtro por Convênio no Dashboard */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex flex-wrap items-end gap-4">
+                    <div className="space-y-1.5 flex-1 min-w-[250px] max-w-[400px]">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Filter className="h-3 w-3" />
+                        Filtrar por Convênio
+                      </label>
+                      <Select
+                        value={convenioSelecionadoDash || "__todos__"}
+                        onValueChange={(v) => setConvenioSelecionadoDash(v === "__todos__" ? "" : v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Todos os convênios" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__todos__">Todos os convênios</SelectItem>
+                          {(conveniosDisponiveis || []).map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {convenioSelecionadoDash && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConvenioSelecionadoDash("")}
+                        className="gap-1.5"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Limpar filtro
+                      </Button>
+                    )}
+                    {convenioSelecionadoDash && (
+                      <Badge variant="secondary" className="gap-1.5 py-1.5 px-3">
+                        <Heart className="h-3.5 w-3.5" />
+                        {convenioSelecionadoDash}
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Loading convênio dashboard */}
+              {isLoadingConvenioDash && convenioSelecionadoDash && (
+                <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Carregando dados de {convenioSelecionadoDash}...</span>
+                </div>
+              )}
+
               {/* KPIs Acumulado */}
+              {dashboardEfetivo && !isLoadingConvenioDash && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -364,44 +550,49 @@ export default function RelatorioFaturamento() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KpiCard
                     title={`Faturado ${anoAtual}`}
-                    value={formatCurrency(data.acumulado.totalFaturadoAtual)}
-                    subtitle="Acumulado no ano"
+                    value={formatCurrency(dashboardEfetivo.totalFaturadoAtual)}
+                    subtitle={convenioSelecionadoDash || "Acumulado no ano"}
                     icon={DollarSign}
                     gradient="blue"
                     trend={{
-                      value: data.acumulado.variacaoPercentual,
+                      value: dashboardEfetivo.variacaoPercentual,
                       label: `vs ${anoAnterior}`,
                     }}
                   />
                   <KpiCard
                     title={`Faturado ${anoAnterior}`}
-                    value={formatCurrency(data.acumulado.totalFaturadoAnterior)}
-                    subtitle="Acumulado no ano"
+                    value={formatCurrency(dashboardEfetivo.totalFaturadoAnterior)}
+                    subtitle={convenioSelecionadoDash || "Acumulado no ano"}
                     icon={DollarSign}
                     gradient="violet"
                   />
                   <KpiCard
                     title={`Contas ${anoAtual}`}
-                    value={formatNumber(data.acumulado.qtdContasAtual)}
+                    value={formatNumber(dashboardEfetivo.qtdContasAtual)}
                     subtitle="Contas distintas"
                     icon={Hash}
                     gradient="emerald"
                   />
                   <KpiCard
                     title={`Contas ${anoAnterior}`}
-                    value={formatNumber(data.acumulado.qtdContasAnterior)}
+                    value={formatNumber(dashboardEfetivo.qtdContasAnterior)}
                     subtitle="Contas distintas"
                     icon={Hash}
                     gradient="amber"
                   />
                 </div>
               </motion.div>
+              )}
 
-              {/* Gráfico Comparativo Mês a Mês */}
-              <ChartCard title={`Faturamento Mensal: ${anoAtual} vs ${anoAnterior}`} icon={Calendar}>
+              {/* Gráfico Evolução Mensal - LINHAS (substituindo barras) */}
+              {dashboardEfetivo && !isLoadingConvenioDash && (
+              <ChartCard
+                title={`Evolução Mensal${convenioSelecionadoDash ? ` - ${convenioSelecionadoDash}` : ""}: ${anoAtual} vs ${anoAnterior}`}
+                icon={TrendingUp}
+              >
                 {chartMesComparativo.length > 0 ? (
                   <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={chartMesComparativo} barGap={2}>
+                    <LineChart data={chartMesComparativo}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                       <YAxis
@@ -410,20 +601,26 @@ export default function RelatorioFaturamento() {
                       />
                       <Tooltip content={<CustomTooltipContent />} />
                       <Legend />
-                      <Bar
+                      <Line
+                        type="monotone"
                         dataKey={String(anoAtual)}
                         name={String(anoAtual)}
-                        fill="#3b82f6"
-                        radius={[4, 4, 0, 0]}
+                        stroke="#3b82f6"
+                        strokeWidth={2.5}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
                       />
-                      <Bar
+                      <Line
+                        type="monotone"
                         dataKey={String(anoAnterior)}
                         name={String(anoAnterior)}
-                        fill="#8b5cf6"
-                        radius={[4, 4, 0, 0]}
-                        opacity={0.6}
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
                       />
-                    </BarChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-[350px] text-muted-foreground">
@@ -431,8 +628,10 @@ export default function RelatorioFaturamento() {
                   </div>
                 )}
               </ChartCard>
+              )}
 
-              {/* Gráficos: Por Setor e Por Tipo de Atendimento */}
+              {/* Gráficos: Por Setor e Por Tipo de Atendimento (só quando sem filtro de convênio) */}
+              {!convenioSelecionadoDash && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Por Setor */}
                 <ChartCard title={`Faturamento por Setor (${anoAtual})`} icon={Building2}>
@@ -496,8 +695,10 @@ export default function RelatorioFaturamento() {
                   )}
                 </ChartCard>
               </div>
+              )}
 
-              {/* Gráfico: Por Convênio */}
+              {/* Gráfico: Por Convênio (só quando sem filtro de convênio) */}
+              {!convenioSelecionadoDash && (
               <ChartCard title={`Faturamento por Convênio - Top 12 (${anoAtual})`} icon={Heart}>
                 {chartConvenio.length > 0 ? (
                   <ResponsiveContainer width="100%" height={Math.max(250, chartConvenio.length * 32)}>
@@ -527,8 +728,10 @@ export default function RelatorioFaturamento() {
                   </div>
                 )}
               </ChartCard>
+              )}
 
-              {/* Tabelas de ranking: Setor e Convênio */}
+              {/* Tabelas de ranking: Setor e Convênio (só quando sem filtro de convênio) */}
+              {!convenioSelecionadoDash && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Ranking Setores */}
                 <ChartCard title={`Ranking de Setores (${anoAtual})`} icon={Building2}>
@@ -586,8 +789,10 @@ export default function RelatorioFaturamento() {
                   </div>
                 </ChartCard>
               </div>
+              )}
 
-              {/* Ranking Tipo de Atendimento */}
+              {/* Ranking Tipo de Atendimento (só quando sem filtro de convênio) */}
+              {!convenioSelecionadoDash && (
               <ChartCard title={`Faturamento por Tipo de Atendimento (${anoAtual})`} icon={Stethoscope}>
                 <div className="overflow-x-auto">
                   <Table>
@@ -616,6 +821,7 @@ export default function RelatorioFaturamento() {
                   </Table>
                 </div>
               </ChartCard>
+              )}
             </TabsContent>
 
             {/* ========== ABA TABELA COMPARATIVA ========== */}
@@ -636,7 +842,10 @@ export default function RelatorioFaturamento() {
                         </label>
                         <Select
                           value={convenioSelecionado || "__todos__"}
-                          onValueChange={(v) => setConvenioSelecionado(v === "__todos__" ? "" : v)}
+                          onValueChange={(v) => {
+                            setConvenioSelecionado(v === "__todos__" ? "" : v);
+                            setMesesExpandidos(new Set());
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Todos os convênios" />
@@ -653,7 +862,7 @@ export default function RelatorioFaturamento() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setConvenioSelecionado("")}
+                          onClick={() => { setConvenioSelecionado(""); setMesesExpandidos(new Set()); }}
                           className="gap-1.5"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -716,7 +925,7 @@ export default function RelatorioFaturamento() {
                 </div>
                 )}
 
-                {/* Tabela Mês a Mês */}
+                {/* Tabela Mês a Mês com botão expandir por convênio */}
                 {tabelaEfetiva && !isLoadingConvenio && (
                 <Card>
                   <CardHeader>
@@ -727,6 +936,11 @@ export default function RelatorioFaturamento() {
                         <Badge variant="outline" className="ml-2 text-xs">
                           {convenioSelecionado}
                         </Badge>
+                      )}
+                      {!convenioSelecionado && (
+                        <span className="text-xs text-muted-foreground font-normal ml-2">
+                          Clique no mês para ver detalhamento por convênio
+                        </span>
                       )}
                     </CardTitle>
                   </CardHeader>
@@ -746,28 +960,54 @@ export default function RelatorioFaturamento() {
                         <TableBody>
                           {tabelaEfetiva.tabelaComparativa.map((m, i) => {
                             const temDados = m.faturadoAtual > 0 || m.faturadoAnterior > 0;
+                            const isExpandido = mesesExpandidos.has(m.mes);
+                            const podeExpandir = !convenioSelecionado && temDados;
                             return (
-                              <TableRow
-                                key={i}
-                                className={!temDados ? "opacity-40" : ""}
-                              >
-                                <TableCell className="font-medium">{m.mesNome}</TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {m.faturadoAtual > 0 ? formatCurrency(m.faturadoAtual) : "-"}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  {m.faturadoAnterior > 0 ? formatCurrency(m.faturadoAnterior) : "-"}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {temDados ? <VariacaoBadge valor={m.variacao} /> : "-"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {m.qtdContasAtual > 0 ? formatNumber(m.qtdContasAtual) : "-"}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  {m.qtdContasAnterior > 0 ? formatNumber(m.qtdContasAnterior) : "-"}
-                                </TableCell>
-                              </TableRow>
+                              <>
+                                <TableRow
+                                  key={`row-${i}`}
+                                  className={`${!temDados ? "opacity-40" : ""} ${podeExpandir ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
+                                  onClick={() => podeExpandir && toggleMesExpandido(m.mes)}
+                                >
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2">
+                                      {podeExpandir && (
+                                        isExpandido ? (
+                                          <ChevronDown className="h-4 w-4 text-primary" />
+                                        ) : (
+                                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                        )
+                                      )}
+                                      {m.mesNome}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {m.faturadoAtual > 0 ? formatCurrency(m.faturadoAtual) : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {m.faturadoAnterior > 0 ? formatCurrency(m.faturadoAnterior) : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {temDados ? <VariacaoBadge valor={m.variacao} /> : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {m.qtdContasAtual > 0 ? formatNumber(m.qtdContasAtual) : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {m.qtdContasAnterior > 0 ? formatNumber(m.qtdContasAnterior) : "-"}
+                                  </TableCell>
+                                </TableRow>
+                                {/* Linhas expandidas por convênio */}
+                                {isExpandido && (
+                                  <MesExpandido
+                                    key={`expand-${i}`}
+                                    estabelecimentoId={estabelecimentoId}
+                                    anoAtual={anoAtual}
+                                    anoAnterior={anoAnterior}
+                                    mes={m.mes}
+                                  />
+                                )}
+                              </>
                             );
                           })}
 

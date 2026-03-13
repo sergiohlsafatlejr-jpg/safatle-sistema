@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { buscarRelatorioFaturamento, listarConveniosDisponiveis, buscarTabelaPorConvenio } from "../relatorioFaturamento";
+import { buscarRelatorioFaturamento, listarConveniosDisponiveis, buscarTabelaPorConvenio, buscarDetalheMesConvenio } from "../relatorioFaturamento";
 
 export const relatorioFaturamentoRouter = router({
   buscar: protectedProcedure
@@ -36,5 +36,18 @@ export const relatorioFaturamentoRouter = router({
     )
     .query(async ({ input }) => {
       return buscarTabelaPorConvenio(input);
+    }),
+
+  detalheMesConvenio: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        anoAtual: z.number(),
+        anoAnterior: z.number(),
+        mes: z.string().min(1).max(2),
+      })
+    )
+    .query(async ({ input }) => {
+      return buscarDetalheMesConvenio(input);
     }),
 });

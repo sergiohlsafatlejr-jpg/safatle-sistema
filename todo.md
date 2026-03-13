@@ -2924,3 +2924,9 @@
 - [x] Frontend: KPIs atualizados ao selecionar convênio
 - [x] Frontend: gráfico de evolução mensal filtrado por convênio
 - [x] Frontend: botão Limpar filtro e badge do convênio selecionado
+
+## Melhorias Rel. Faturamento - Expansão por Convênio e Gráfico de Linhas
+- [x] Tabela: botão expandir em cada mês para ver detalhamento por convênio
+- [x] Backend: endpoint para detalhamento por convênio dentro de um mês específico
+- [x] Dashboard: trocar gráfico de barras por gráfico de linhas (modelo Evolução Mensal)
+- [x] Dashboard: adicionar filtro por convênio nos gráficos e KPIs

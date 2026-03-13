@@ -1,0 +1,13 @@
+Expand by convenio in Tabela Comparativa - SUCCESS!
+
+Clicking on Janeiro row expanded to show:
+- UNIMED: R$ 245.647,35 vs R$ 194.870,95 (+26.1%) | 115 vs 70
+- PARTICULAR: R$ 238.508,72 vs R$ 155.910,77 (+53.0%) | 124 vs 138
+- IPASGO: R$ 219.965,60 vs R$ 153.381,69 (+43.4%) | 325 vs 460
+- GEAP: R$ 3.662,98 vs R$ 1.782,84 (+105.5%) | 3 vs 1
+(more rows below viewport)
+
+All 3 features working:
+1. Line chart on Dashboard - OK
+2. Convenio filter on Dashboard - OK
+3. Expand by convenio in table - OK
