@@ -122,7 +122,8 @@ export const padroesCobrancaRouter = router({
 
       let whereClause = `WHERE estabelecimentoId = ${input.estabelecimentoId}
         AND codigoItem IS NOT NULL AND codigoItem != ''
-        AND convenio IS NOT NULL AND convenio != ''`;
+        AND convenio IS NOT NULL AND convenio != ''
+        AND tipoItem IN ('P', 'C', 'PROCEDIMENTO', 'O', '01', 'PROC', 'PROC/TAXA')`;
 
       if (input.convenio) {
         whereClause += ` AND convenio = ${escapeSql(input.convenio)}`;
@@ -602,7 +603,8 @@ export const padroesCobrancaRouter = router({
 
       let whereClause = `WHERE estabelecimentoId = ${input.estabelecimentoId}
         AND codigoItem IS NOT NULL AND codigoItem != ''
-        AND convenio IS NOT NULL AND convenio != ''`;
+        AND convenio IS NOT NULL AND convenio != ''
+        AND tipoItem IN ('P', 'C', 'PROCEDIMENTO', 'O', '01', 'PROC', 'PROC/TAXA')`;
 
       if (input.convenio) {
         whereClause += ` AND convenio = ${escapeSql(input.convenio)}`;
@@ -781,7 +783,8 @@ export const padroesCobrancaRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
 
       let whereClause = `WHERE estabelecimentoId = ${input.estabelecimentoId}
-        AND codigoItem IS NOT NULL AND codigoItem != ''`;
+        AND codigoItem IS NOT NULL AND codigoItem != ''
+        AND tipoItem IN ('P', 'C', 'PROCEDIMENTO', 'O', '01', 'PROC', 'PROC/TAXA')`;
 
       if (input.convenio) {
         whereClause += ` AND convenio = ${escapeSql(input.convenio)}`;

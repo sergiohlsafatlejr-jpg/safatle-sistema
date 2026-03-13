@@ -2863,3 +2863,8 @@
 
 ## Novo Setor em Notificações
 - [x] Adicionar setor "Controle de Contas" nas opções de notificação
+
+## Correção Padrões de Cobrança - Pronto Socorro Infantil
+- [x] Filtrar somente procedimentos nos padrões de cobrança (excluir materiais, medicamentos, exames)
+- [x] Igualar comportamento ao Hospital Urológico
+- [x] Testes unitários para filtro de tipoItem
