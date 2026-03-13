@@ -1,0 +1,13 @@
+Relatório de Faturamento - FUNCIONANDO!
+
+KPIs visíveis:
+- FATURADO 2026: R$ 1.427.253,50 (Acumulado no ano) - -79.7% vs 2025
+- FATURADO 2025: R$ 7.023.788,46 (Acumulado no ano)
+- CONTAS 2026: 1.165 (Contas distintas)
+- CONTAS 2025: 9.455 (Contas distintas)
+
+Gráfico de barras: Faturamento Mensal: 2026 vs 2025
+- Mostra Jan-Dez com barras azuis (2026) e roxas (2025)
+- 2025 tem dados em todos os meses, 2026 apenas Jan-Mar
+
+Tabs: Dashboard | Tabela Comparativa

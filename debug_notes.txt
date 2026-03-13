@@ -1,0 +1,10 @@
+Key findings for integ_faturado debug:
+- Total rows: 123,495
+- Only estabelecimento_id: 1260036 (Hospital Urologico)
+- mesprod format: "2025/01", "2026/03" etc
+- vl_faturado format: "109.5000" (string with decimal)
+- The data exists and the queries should work
+
+Problem: When user clicks "Carregar", nothing shows.
+The frontend uses estabelecimentoAtual?.id which comes from the estabelecimentos table.
+Need to check if estabelecimento_id 1260036 matches the Hospital Urologico id in the estabelecimentos table.

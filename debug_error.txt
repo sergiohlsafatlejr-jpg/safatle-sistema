@@ -1,0 +1,31 @@
+Error from RelatorioFaturamento page:
+
+Failed query: SELECT COALESCE(TRIM(nomecc), 'Não informado') as setor, COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) as total_faturado, COUNT(DISTINCT numconta) as qtd_contas FROM integ_faturado WHERE estabelecimento_id = 1260036 AND mesprod LIKE '2026/%' AND vl_faturado IS NOT NULL AND vl_faturado != '' GROUP BY TRIM(nomecc) ORDER BY total_faturado DESC LIMIT 20 params:
+
+Issue: Extra closing parenthesis in COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0)
+The COALESCE has an extra ) before , 0)
+Should be: COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0)
+Actually: the SUM returns one value, CAST wraps it, then COALESCE wraps that. Let me count:
+REPLACE(vl_faturado, ',', '.') - 1 open
+REPLACE(..., ' ', '') - 2 open
+CAST(... AS DECIMAL(14,2)) - 3 open (CAST + DECIMAL)
+SUM(...) - 4 open
+COALESCE(..., 0) - 5 open
+
+REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') = correct
+CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2)) = correct
+SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))) = correct
+COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0) = correct
+
+Wait - the error shows: COALESCE(SUM(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2))), 0)
+Count parens: COALESCE( SUM( CAST( REPLACE( REPLACE( = 5 opens
+Closes: vl_faturado, ',', '.') = close REPLACE inner
+, ' ', '') = close REPLACE outer  
+AS DECIMAL(14,2)) = close CAST + DECIMAL
+) = close SUM
+, 0) = close COALESCE
+
+That's: 5 opens, and closes: ) ) ) ) ) = 5 closes. Looks correct actually.
+
+The real error might be something else. Let me check the full error message more carefully.
+The error says "Failed query" which means the SQL itself failed. Could be a MySQL syntax issue.

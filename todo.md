@@ -2910,3 +2910,8 @@
 - [x] Frontend: Tabela comparativa mês a mês (Mês, Faturado Atual, Faturado Ano Anterior, Qtd Contas)
 - [x] Integrar rota e navegação no App.tsx
 - [x] Testes unitários para queries de faturamento (7 testes passando)
+
+## Bug Fix - Relatório de Faturamento não carrega dados
+- [x] Investigar erro no endpoint/query ao clicar em Carregar (sql_mode=only_full_group_by)
+- [x] Corrigir GROUP BY para usar expressões idênticas ao SELECT
+- [x] Validar carregamento dos dados no browser

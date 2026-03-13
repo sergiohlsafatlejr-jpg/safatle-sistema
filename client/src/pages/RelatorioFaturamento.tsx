@@ -112,23 +112,20 @@ export default function RelatorioFaturamento() {
   const [anoAtual, setAnoAtual] = useState(anoCorrente);
   const [anoAnterior, setAnoAnterior] = useState(anoCorrente - 1);
   const [carregado, setCarregado] = useState(false);
+  const [queryParams, setQueryParams] = useState<{ estabelecimentoId: number; anoAtual: number; anoAnterior: number } | null>(null);
 
-  const [queryInput] = useState(() => ({
-    estabelecimentoId,
-    anoAtual,
-    anoAnterior,
-  }));
-
-  const { data, isLoading, refetch } = trpc.relatorioFaturamento.buscar.useQuery(
-    { estabelecimentoId, anoAtual, anoAnterior },
-    { enabled: carregado && estabelecimentoId > 0 }
+  const { data, isLoading, error } = trpc.relatorioFaturamento.buscar.useQuery(
+    queryParams ?? { estabelecimentoId: 0, anoAtual, anoAnterior },
+    { enabled: !!queryParams && queryParams.estabelecimentoId > 0 }
   );
 
   const handleCarregar = () => {
-    setCarregado(true);
-    if (carregado) {
-      refetch();
+    if (estabelecimentoId <= 0) {
+      toast.error("Selecione um estabelecimento primeiro");
+      return;
     }
+    setCarregado(true);
+    setQueryParams({ estabelecimentoId, anoAtual, anoAnterior });
   };
 
   // Prepare chart data: mês a mês comparison
@@ -279,8 +276,29 @@ export default function RelatorioFaturamento() {
           </div>
         )}
 
+        {/* Error state */}
+        {error && carregado && !isLoading && (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <DollarSign className="h-16 w-16 mb-4 opacity-30 text-red-400" />
+            <p className="text-lg font-medium text-red-400">Erro ao carregar dados</p>
+            <p className="text-sm mt-1">{error.message}</p>
+            <Button variant="outline" className="mt-4" onClick={handleCarregar}>
+              Tentar novamente
+            </Button>
+          </div>
+        )}
+
+        {/* No data state */}
+        {carregado && !isLoading && !error && data && data.acumulado.totalFaturadoAtual === 0 && data.acumulado.totalFaturadoAnterior === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <DollarSign className="h-16 w-16 mb-4 opacity-30" />
+            <p className="text-lg font-medium">Nenhum dado encontrado</p>
+            <p className="text-sm mt-1">Não há registros de faturamento para o estabelecimento e período selecionados</p>
+          </div>
+        )}
+
         {/* Data loaded */}
-        {data && !isLoading && (
+        {data && !isLoading && !error && (data.acumulado.totalFaturadoAtual > 0 || data.acumulado.totalFaturadoAnterior > 0) && (
           <Tabs defaultValue="dashboard" className="space-y-6">
             <TabsList>
               <TabsTrigger value="dashboard" className="gap-2">

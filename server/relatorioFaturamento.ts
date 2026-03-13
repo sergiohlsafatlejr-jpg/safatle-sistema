@@ -195,7 +195,7 @@ export async function buscarRelatorioFaturamento(
         AND mesprod LIKE '${prefixoAtual}%'
         AND vl_faturado IS NOT NULL
         AND vl_faturado != ''
-      GROUP BY TRIM(nomecc)
+      GROUP BY COALESCE(TRIM(nomecc), 'Não informado')
       ORDER BY total_faturado DESC
       LIMIT 20
     `)
@@ -255,7 +255,7 @@ export async function buscarRelatorioFaturamento(
         AND mesprod LIKE '${prefixoAtual}%'
         AND vl_faturado IS NOT NULL
         AND vl_faturado != ''
-      GROUP BY TRIM(tipoatend)
+      GROUP BY COALESCE(TRIM(tipoatend), 'N/I')
       ORDER BY total_faturado DESC
     `)
   );
@@ -284,7 +284,7 @@ export async function buscarRelatorioFaturamento(
         AND mesprod LIKE '${prefixoAtual}%'
         AND vl_faturado IS NOT NULL
         AND vl_faturado != ''
-      GROUP BY TRIM(nomeconv)
+      GROUP BY COALESCE(TRIM(nomeconv), 'Não informado')
       ORDER BY total_faturado DESC
       LIMIT 15
     `)
