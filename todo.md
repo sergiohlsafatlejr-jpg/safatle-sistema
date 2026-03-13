@@ -2878,3 +2878,8 @@
 - [x] Adicionar índice por carteira+código nos recebimentos
 - [x] Atualizar detalhes do resultado com nova estratégia
 - [x] Testes unitários para Estratégia 5 (8 testes passando)
+
+## Bug: Mismatch de Competência na Conciliação Cruzada
+- [x] Investigar guia 17945033 - faturamento comp 11/2025, recebimento data_ref 12/2025
+- [x] Corrigir conciliação para não filtrar recebimentos pela mesma competência do faturamento
+- [x] Removido filtro de competência nos recebimentos (pagamento pode vir em mês posterior)

@@ -823,12 +823,11 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // PASSO 2: Buscar recebimentos_excel do mesmo estabelecimento/competência
+  // PASSO 2: Buscar recebimentos_excel do mesmo estabelecimento/convênio
+  // NÃO filtra por competência nos recebimentos, pois o pagamento pode
+  // vir em mês posterior ao faturamento (ex: faturado 11/2025, pago 01/2026)
   // -------------------------------------------------------
   let whereRec = `WHERE re.estabelecimentoId = ${params.estabelecimentoId}`;
-  if (params.competencia) {
-    whereRec += ` AND re.data_referencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
-  }
   if (params.convenioId) {
     whereRec += ` AND re.convenioId = ${params.convenioId}`;
   }
