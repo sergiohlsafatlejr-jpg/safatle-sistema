@@ -2883,3 +2883,11 @@
 - [x] Investigar guia 17945033 - faturamento comp 11/2025, recebimento data_ref 12/2025
 - [x] Corrigir conciliação para não filtrar recebimentos pela mesma competência do faturamento
 - [x] Removido filtro de competência nos recebimentos (pagamento pode vir em mês posterior)
+
+## Alta Administrativa na Conciliação Cruzada
+- [x] Investigar implementação de Alta Administrativa no Demonstrativo e Conta Convênio (já implementada)
+- [x] Replicar mesma estrutura na Conciliação Cruzada (já existente)
+- [x] Adicionar indicador visual (badge) para guias com múltiplos lotes (já existente)
+
+## Filtro PARIII em Pacientes Internados
+- [x] Excluir codplano = 'PARIII' da lista de pacientes internados (hemodiálise)

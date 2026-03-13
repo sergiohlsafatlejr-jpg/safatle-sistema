@@ -2590,7 +2590,8 @@ async function buscarInternadosDoCache(
     .where(
       and(
         sql`(${relatorioAtendimentosCache.tipoAtendimento} = 'I' OR ${relatorioAtendimentosCache.tipoAtendimentoDescricao} = 'Internação')`,
-        sql`${relatorioAtendimentosCache.dataSaida} IS NULL`
+        sql`${relatorioAtendimentosCache.dataSaida} IS NULL`,
+        sql`COALESCE(${relatorioAtendimentosCache.codplaco}, '') != 'PARIII'`
       )
     )
     .orderBy(relatorioAtendimentosCache.dataAtendimento);
@@ -2668,6 +2669,7 @@ async function buscarInternadosDoPostgresql(): Promise<DadosInternadosResult> {
       LEFT JOIN tabcid cid ON cid.codcid = a.cidprin
       WHERE a.tipoatend = 'I'
         AND a.datasai IS NULL
+        AND COALESCE(a.codplaco, '') != 'PARIII'
       ORDER BY a.datatend ASC
     `);
 
