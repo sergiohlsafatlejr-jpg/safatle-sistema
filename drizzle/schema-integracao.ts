@@ -234,8 +234,62 @@ export const atendimentos = mysqlTable(
     tipo_atendimento: varchar({ length: 50 }), // tipoatend
     descricao_atendimento: varchar({ length: 255 }), // tipoatendimentodescricao
     codigo_servico: varchar({ length: 100 }), // codserv
-    codigo_procedimento: varchar({ length: 100 }), // procprin
+    codigo_procedimento: varchar({ length: 500 }), // procprin
     destino_conta: varchar({ length: 100 }), // codcc_destino
+    
+    // Dados de categoria/plano
+    dsCategoria: varchar({ length: 255 }),
+    dsPlano: varchar({ length: 255 }),
+    
+    // Dados de competência/referência
+    competencia: varchar({ length: 20 }),
+    referencia: varchar({ length: 20 }),
+    
+    // Dados de protocolo
+    protTasy: varchar({ length: 50 }),
+    nomeProtocolo: varchar({ length: 255 }),
+    protConv: varchar({ length: 100 }),
+    dtEntrega: timestamp(),
+    protStatus: varchar({ length: 50 }),
+    
+    // Dados de título/vencimento
+    titulo: varchar({ length: 100 }),
+    dtTitulo: timestamp(),
+    dataVencimento: timestamp(),
+    
+    // Dados de setor
+    dsSetorEntrada: varchar({ length: 255 }),
+    dsSetorLeito: varchar({ length: 255 }),
+    
+    // Dados de etapa
+    etapaConta: varchar({ length: 255 }),
+    setorEtapa: varchar({ length: 255 }),
+    dtEtapa: timestamp(),
+    userEtapa: varchar({ length: 100 }),
+    motivoDevolucao: text(),
+    
+    // Dados financeiros
+    conta: varchar({ length: 50 }),
+    autorizacao: varchar({ length: 100 }),
+    valorConta: decimal({ precision: 15, scale: 2 }),
+    
+    // Dados do paciente
+    matricula: varchar({ length: 100 }),
+    sexo: varchar({ length: 10 }),
+    idade: varchar({ length: 50 }),
+    
+    // Dados médicos
+    medicoResp: varchar({ length: 255 }),
+    crm: varchar({ length: 50 }),
+    dsMotivoAlta: varchar({ length: 255 }),
+    
+    // Dados de período
+    dataInicio: varchar({ length: 20 }),
+    dataFim: varchar({ length: 20 }),
+    
+    // Dados de serviço adicionais
+    codServico: varchar({ length: 50 }),
+    centroCusto: varchar({ length: 100 }),
     
     // Metadados
     dataSincronizacao: timestamp().defaultNow(),

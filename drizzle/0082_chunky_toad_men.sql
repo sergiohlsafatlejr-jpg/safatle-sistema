@@ -1,0 +1,33 @@
+ALTER TABLE `atendimentos_unificados` MODIFY COLUMN `codigo_procedimento` varchar(500);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dsCategoria` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dsPlano` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `competencia` varchar(20);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `referencia` varchar(20);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `protTasy` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `nomeProtocolo` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `protConv` varchar(100);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dtEntrega` timestamp;--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `protStatus` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `titulo` varchar(100);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dtTitulo` timestamp;--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dataVencimento` timestamp;--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dsSetorEntrada` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dsSetorLeito` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `etapaConta` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `setorEtapa` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dtEtapa` timestamp;--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `userEtapa` varchar(100);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `motivoDevolucao` text;--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `conta` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `autorizacao` varchar(100);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `valorConta` decimal(15,2);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `matricula` varchar(100);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `sexo` varchar(10);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `idade` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `medicoResp` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `crm` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dsMotivoAlta` varchar(255);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dataInicio` varchar(20);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `dataFim` varchar(20);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `codServico` varchar(50);--> statement-breakpoint
+ALTER TABLE `atendimentos_unificados` ADD `centroCusto` varchar(100);

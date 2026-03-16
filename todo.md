@@ -2973,3 +2973,18 @@
 - [x] Analisar se configuração de atendimentos WARLEINE está rodando na frequência estabelecida
 - [x] Identificar em qual tabela a query de atendimentos está sendo salva
 - [x] Adicionar botões de edição na tela de Configurações do Integrador
+
+## Importação CSV TASY - Maternidade Ela
+- [x] Analisar estrutura do CSV tasyela-pendentes20252026.csv
+- [x] Analisar estrutura da tabela tasy_atendimentos_staging
+- [x] Mapear campos do CSV para a tabela
+- [x] Criar colunas faltantes na tabela
+- [x] Importar dados do CSV para tasy_atendimentos_staging
+- [x] Verificar importação e integridade dos dados
+- [x] Ajustar script de importação CSV TASY para buscar estabelecimentoId automaticamente pelo nome
+
+## Unificação Tasy -> atendimentos_unificados
+- [x] Adicionar colunas faltantes na tabela atendimentos_unificados (protocolo, financeiro, paciente, setor, médico, etapa)
+- [x] Criar processo de unificação Tasy -> atendimentos_unificados
+- [x] Atualizar tela de Atendimentos Parados para exibir todos os campos novos
+- [x] Testar e verificar dados unificados
