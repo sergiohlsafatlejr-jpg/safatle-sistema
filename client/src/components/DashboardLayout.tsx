@@ -173,6 +173,7 @@ const menuItems: MenuItem[] = [
   { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", children: [
     { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
     { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
+    { icon: Shield, label: "Atendimentos com Protocolo", path: "/atendimentos-com-protocolo", modulo: "atendimentos" },
   ]},
 
   // Módulo 6 - Conciliações

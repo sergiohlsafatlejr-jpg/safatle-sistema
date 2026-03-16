@@ -6634,13 +6634,22 @@ export const appRouter = router({
           const dbInstance = await getDb();
           if (dbInstance) {
             const { atendimentos: atendimentosUnificados } = await import("../drizzle/schema-integracao");
-            const { eq, and, notLike } = await import("drizzle-orm");
+            const { eq, and, notLike, or, isNull, sql } = await import("drizzle-orm");
             // Filtrar por estabelecimento e excluir os que são "A_FATURAR" (esses vão para outra tela)
             let conditions = [];
             if (estabId) {
               conditions.push(eq(atendimentosUnificados.estabelecimentoId, estabId));
             }
             conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));
+            // Para dados TASY: mostrar apenas os que NÃO têm protocolo (nomeProtocolo NULL ou vazio)
+            // Os que têm protocolo vão para a tela "Atendimentos Sem Protocolo"
+            conditions.push(
+              or(
+                sql`${atendimentosUnificados.origemSistema} != 'tasy'`,
+                isNull(atendimentosUnificados.nomeProtocolo),
+                eq(atendimentosUnificados.nomeProtocolo, '')
+              )!
+            );
             const dadosInternos = await dbInstance.select().from(atendimentosUnificados).where(and(...conditions));
             
             // Buscar motivos de notificação do MySQL interno
@@ -6725,6 +6734,103 @@ export const appRouter = router({
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `Erro ao buscar atendimentos: ${err.message}`,
+          });
+        }
+      }),
+
+    // Listar atendimentos TASY que TÊM protocolo preenchido (para tela Atendimentos Sem Protocolo)
+    listarComProtocolo: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        try {
+          const estabId = input?.estabelecimentoId;
+          const dbInstance = await getDb();
+          if (dbInstance) {
+            const { atendimentos: atendimentosUnificados } = await import("../drizzle/schema-integracao");
+            const { eq, and, notLike, isNotNull, ne } = await import("drizzle-orm");
+            let conditions = [];
+            if (estabId) {
+              conditions.push(eq(atendimentosUnificados.estabelecimentoId, estabId));
+            }
+            // Apenas TASY com nomeProtocolo preenchido
+            conditions.push(eq(atendimentosUnificados.origemSistema, 'tasy'));
+            conditions.push(isNotNull(atendimentosUnificados.nomeProtocolo));
+            conditions.push(ne(atendimentosUnificados.nomeProtocolo, ''));
+            conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));
+            const dadosInternos = await dbInstance.select().from(atendimentosUnificados).where(and(...conditions));
+            
+            // Buscar motivos de notificação
+            const numatends = dadosInternos.map(d => d.numero_atendimento || "").filter(n => n !== "");
+            let motivosMap: Record<string, string> = {};
+            try {
+              const notificacoesMySQL = await buscarNotificacoesAtendimento(numatends);
+              for (const [numatend, notif] of Object.entries(notificacoesMySQL)) {
+                motivosMap[numatend] = notif.motivo;
+              }
+            } catch (err) {
+              console.error("[atendimentos.listarComProtocolo] Erro ao buscar motivos:", err);
+            }
+            
+            return dadosInternos.map(d => ({
+              numatend: d.numero_atendimento || "",
+              nomeplaco: d.convenio || "",
+              nomepac: d.paciente || "",
+              carater: d.caracter_atendimento || "",
+              datatend: d.data_entrada ? new Date(d.data_entrada).toISOString() : "",
+              datasai: d.data_saida ? new Date(d.data_saida).toISOString() : null,
+              tipoatend: d.tipo_atendimento || "",
+              tipoatendimentodescricao: d.descricao_atendimento || "",
+              codserv: d.codigo_servico || "",
+              procprin: d.codigo_procedimento || "",
+              codcc_destino: d.destino_conta || "",
+              motivo: motivosMap[d.numero_atendimento || ""] || null,
+              diasParado: calcularDiasParadoUnificado(
+                d.data_entrada ? new Date(d.data_entrada).toISOString() : null,
+                d.data_saida ? new Date(d.data_saida).toISOString() : null,
+                d.origemSistema || '',
+                d.dtEntrega ? new Date(d.dtEntrega).toISOString() : null,
+                d.dtEtapa ? new Date(d.dtEtapa).toISOString() : null
+              ),
+              origemSistema: d.origemSistema,
+              dsCategoria: d.dsCategoria || "",
+              dsPlano: d.dsPlano || "",
+              competencia: d.competencia || "",
+              referencia: d.referencia || "",
+              protTasy: d.protTasy || "",
+              nomeProtocolo: d.nomeProtocolo || "",
+              protConv: d.protConv || "",
+              dtEntrega: d.dtEntrega ? new Date(d.dtEntrega).toISOString() : null,
+              protStatus: d.protStatus || "",
+              titulo: d.titulo || "",
+              dtTitulo: d.dtTitulo ? new Date(d.dtTitulo).toISOString() : null,
+              dataVencimento: d.dataVencimento ? new Date(d.dataVencimento).toISOString() : null,
+              dsSetorEntrada: d.dsSetorEntrada || "",
+              dsSetorLeito: d.dsSetorLeito || "",
+              etapaConta: d.etapaConta || "",
+              setorEtapa: d.setorEtapa || "",
+              dtEtapa: d.dtEtapa ? new Date(d.dtEtapa).toISOString() : null,
+              userEtapa: d.userEtapa || "",
+              motivoDevolucao: d.motivoDevolucao || "",
+              conta: d.conta || "",
+              autorizacao: d.autorizacao || "",
+              valorConta: d.valorConta ? String(d.valorConta) : "",
+              matricula: d.matricula || "",
+              sexo: d.sexo || "",
+              idade: d.idade || "",
+              medicoResp: d.medicoResp || "",
+              crm: d.crm || "",
+              dsMotivoAlta: d.dsMotivoAlta || "",
+              dataInicio: d.dataInicio || "",
+              dataFim: d.dataFim || "",
+              codServico: d.codServico || "",
+              centroCusto: d.centroCusto || "",
+            }));
+          }
+          return [];
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erro ao buscar atendimentos com protocolo: ${err.message}`,
           });
         }
       }),

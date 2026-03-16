@@ -3024,3 +3024,10 @@
 ## Filtro por Etapa Conta - TASY
 - [x] Criar seção de cards "Quantidade por Etapa Conta" no mesmo estilo dos cards de Plano (Convênio), posicionado abaixo
 - [x] Clicar no card filtra a tabela por aquela etapa conta
+
+## Tela Atendimentos Sem Protocolo - TASY
+- [x] Criar nova tela AtendimentosSemProtocolo com mesmo layout da tela de Atendimentos
+- [x] Nova tela mostra apenas dados TASY com nomeProtocolo preenchido (633 registros)
+- [x] Criar procedure backend para listar atendimentos TASY com nomeProtocolo preenchido
+- [x] Registrar rota no App.tsx e adicionar link no menu lateral
+- [x] Filtrar tela de Atendimentos para TASY mostrar apenas nomeProtocolo NULL (3.421 registros)
