@@ -2961,3 +2961,9 @@
 - [x] Criar coluna datainclu na tabela integ_faturado e no config de colunas
 - [x] Criar mapeamento de campo datainclu (origem -> destino)
 - [x] Resetar ultimoValorControle para NULL (primeira execução será completa particionada)
+
+## Sync: Faturado - Correções Aplicadas (16/03/2026)
+- [x] Corrigir schema da query: atualizar para usar "PACIENTE".* em vez de c33581562000206.*
+- [x] Desabilitar SSL na conexao PostgreSQL (servidor nao suporta)
+- [x] Resetar ultimoValorControle para NULL apos correcao
+- [ ] Testar Sync: Faturado com query corrigida e schema PACIENTE
