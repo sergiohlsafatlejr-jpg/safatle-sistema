@@ -525,7 +525,8 @@ function sanitizarValorSQL(v: any): string {
   
   // Truncar strings muito longas para evitar erros de VARCHAR(255)
   const truncated = str.length > 250 ? str.substring(0, 250) : str;
-  return `'${truncated.replace(/'/g, "''").replace(/\\/g, "\\\\")}'`;
+  const escaped = truncated.replace(/'/g, "''").replace(/\\/g, "\\\\");
+  return `'${escaped}'`;;
 }
 
 export async function inserirDadosTabela(nomeTabela: string, registros: Record<string, any>[], campoChave?: string) {
@@ -533,11 +534,19 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
     const db = await getDb();
     if (!db) throw new Error("Banco de dados não disponível");
 
-    if (registros.length === 0) return { inseridos: 0 };
+    if (registros.length === 0) {
+      console.log(`[inserirDadosTabela] Nenhum registro para inserir na tabela ${nomeTabela}`);
+      return { inseridos: 0 };
+    }
+
+    console.log(`[inserirDadosTabela] Iniciando inserção de ${registros.length} registros na tabela ${nomeTabela}`);
+    console.log(`[inserirDadosTabela] Primeiro registro:`, JSON.stringify(registros[0]).substring(0, 300));
+    console.log(`[inserirDadosTabela] Colunas:`, Object.keys(registros[0]));
 
     const nomeSeguro = nomeTabela.replace(/[^a-zA-Z0-9_]/g, "");
     const colunas = Object.keys(registros[0]);
     const colunasSQL = colunas.map(c => `\`${c.replace(/[^a-zA-Z0-9_]/g, "")}\``).join(", ");
+    console.log(`[inserirDadosTabela] Nome tabela seguro: ${nomeSeguro}, Colunas SQL: ${colunasSQL}`);
 
     let inseridos = 0;
     // Inserir em lotes de 100
@@ -550,6 +559,7 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       }).join(",\n");
 
       let insertSQL = `INSERT INTO \`${nomeSeguro}\` (${colunasSQL}) VALUES\n${valoresSQL}`;
+      console.log(`[inserirDadosTabela] Lote ${i}-${i + lote.length}: SQL length=${insertSQL.length}, primeiros 300 chars:`, insertSQL.substring(0, 300));
       
       // Se tem campo chave, usar ON DUPLICATE KEY UPDATE para upsert
       if (campoChave) {
@@ -568,6 +578,7 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       try {
         await db.execute(sql.raw(insertSQL));
         inseridos += lote.length;
+        console.log(`[inserirDadosTabela] Lote ${i}-${i + lote.length} inserido com sucesso. Total acumulado: ${inseridos}`);
       } catch (err: any) {
         console.error(`[inserirDadosTabela] Erro ao inserir lote ${i}-${i + lote.length} na tabela ${nomeSeguro}:`, err.message);
         // Tentar inserir registro por registro para identificar o problemático
@@ -584,6 +595,7 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       }
     }
 
+    console.log(`[inserirDadosTabela] Inserção concluída. Total de registros inseridos: ${inseridos}`);
     return { inseridos };
   });
 }

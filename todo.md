@@ -2966,4 +2966,10 @@
 - [x] Corrigir schema da query: atualizar para usar "PACIENTE".* em vez de c33581562000206.*
 - [x] Desabilitar SSL na conexao PostgreSQL (servidor nao suporta)
 - [x] Resetar ultimoValorControle para NULL apos correcao
-- [ ] Testar Sync: Faturado com query corrigida e schema PACIENTE
+- [x] Testar Sync: Faturado com query corrigida e schema PACIENTE
+
+- [x] Implementar sincronização particionada por camadas de 6 meses para Sync Faturado
+
+- [x] Analisar se configuração de atendimentos WARLEINE está rodando na frequência estabelecida
+- [x] Identificar em qual tabela a query de atendimentos está sendo salva
+- [x] Adicionar botões de edição na tela de Configurações do Integrador

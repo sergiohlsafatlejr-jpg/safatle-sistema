@@ -28,7 +28,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText, Download } from "lucide-react";
+import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText, Download, Pencil, Save, X, Eye, EyeOff } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QueryConfigForm } from "@/components/QueryConfigForm";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { trpc } from "@/lib/trpc";
@@ -61,6 +73,33 @@ const FREQUENCIA_LABELS: Record<string, string> = {
 export function IntegradorDados() {
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<number | null>(null);
+  const [editingConfig, setEditingConfig] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<{
+    querySql: string;
+    descricao: string;
+    sistema: string;
+    tipoDados: string;
+    frequencia: string;
+    conexaoHost: string;
+    conexaoPort: string;
+    conexaoDatabase: string;
+    conexaoUser: string;
+    conexaoPassword: string;
+    showPassword: boolean;
+  }>({
+    querySql: "",
+    descricao: "",
+    sistema: "",
+    tipoDados: "",
+    frequencia: "",
+    conexaoHost: "",
+    conexaoPort: "",
+    conexaoDatabase: "",
+    conexaoUser: "",
+    conexaoPassword: "",
+    showPassword: false,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 1;
 
@@ -281,6 +320,65 @@ export function IntegradorDados() {
       await limparSincronizacao.mutateAsync({ configId });
     } catch (e) {
       // Error already handled by onError callback
+    }
+  };
+
+  const editarConfiguracao = trpc.integradorDados.editarConfiguracao.useMutation({
+    onSuccess: (data) => {
+      if (data.sucesso) {
+        toast.success("Configuração atualizada com sucesso");
+        setEditingConfig(null);
+        listarConfiguracoes.refetch();
+      } else {
+        toast.error("Erro ao atualizar", { description: data.mensagem });
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar configuração", { description: error.message });
+    },
+  });
+
+  const handleOpenEdit = (config: any) => {
+    const conexao = config.conexaoConfig ? (typeof config.conexaoConfig === 'string' ? JSON.parse(config.conexaoConfig) : config.conexaoConfig) : {};
+    setEditForm({
+      querySql: config.querySql || "",
+      descricao: config.descricao || "",
+      sistema: config.sistema || "",
+      tipoDados: config.tipoDados || "",
+      frequencia: config.frequencia || "",
+      conexaoHost: conexao.host || "",
+      conexaoPort: String(conexao.port || ""),
+      conexaoDatabase: conexao.database || "",
+      conexaoUser: conexao.user || "",
+      conexaoPassword: conexao.password || "",
+      showPassword: false,
+    });
+    setEditingConfig(config);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingConfig) return;
+    setSavingEdit(true);
+    try {
+      await editarConfiguracao.mutateAsync({
+        configId: editingConfig.id,
+        querySql: editForm.querySql,
+        descricao: editForm.descricao,
+        sistema: editForm.sistema,
+        tipoDados: editForm.tipoDados,
+        frequencia: editForm.frequencia,
+        conexaoConfig: {
+          host: editForm.conexaoHost,
+          port: parseInt(editForm.conexaoPort) || 5432,
+          database: editForm.conexaoDatabase,
+          user: editForm.conexaoUser,
+          password: editForm.conexaoPassword,
+        },
+      });
+    } catch (e) {
+      // Error already handled by onError callback
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -565,6 +663,14 @@ export function IntegradorDados() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => handleOpenEdit(config)}
+                          title="Editar configuração"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => handleSincronizar(config.id)}
                           disabled={sincronizar.isPending}
                           title="Sincronizar agora"
@@ -713,6 +819,176 @@ export function IntegradorDados() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Edição de Configuração */}
+      <Dialog open={editingConfig !== null} onOpenChange={(open) => { if (!open) setEditingConfig(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Configuração #{editingConfig?.id}</DialogTitle>
+            <DialogDescription>
+              Edite os campos da configuração de sincronização
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Informações Gerais */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informações Gerais</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Sistema</Label>
+                  <Select value={editForm.sistema} onValueChange={(v) => setEditForm(prev => ({ ...prev, sistema: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o sistema" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="warleine">WARLEINE</SelectItem>
+                      <SelectItem value="tasy">TASY</SelectItem>
+                      <SelectItem value="omni">OMNI</SelectItem>
+                      <SelectItem value="gesthor">GESTHOR</SelectItem>
+                      <SelectItem value="easyvision">EASYVISION</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de Dados</Label>
+                  <Select value={editForm.tipoDados} onValueChange={(v) => setEditForm(prev => ({ ...prev, tipoDados: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="atendimentos">Atendimentos</SelectItem>
+                      <SelectItem value="faturamento">Faturamento</SelectItem>
+                      <SelectItem value="procedimentos">Procedimentos</SelectItem>
+                      <SelectItem value="pacientes">Pacientes</SelectItem>
+                      <SelectItem value="busca_conta">Busca Conta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Frequência</Label>
+                  <Select value={editForm.frequencia} onValueChange={(v) => setEditForm(prev => ({ ...prev, frequencia: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a frequência" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tempo_real">Tempo Real</SelectItem>
+                      <SelectItem value="1x_dia">1x ao Dia</SelectItem>
+                      <SelectItem value="1x_semana">1x por Semana</SelectItem>
+                      <SelectItem value="1x_mes">1x por Mês</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Input
+                    value={editForm.descricao}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, descricao: e.target.value }))}
+                    placeholder="Descrição da configuração"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Conexão */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Conexão</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Host</Label>
+                  <Input
+                    value={editForm.conexaoHost}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, conexaoHost: e.target.value }))}
+                    placeholder="localhost"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Porta</Label>
+                  <Input
+                    value={editForm.conexaoPort}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, conexaoPort: e.target.value }))}
+                    placeholder="5432"
+                    type="number"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Database</Label>
+                <Input
+                  value={editForm.conexaoDatabase}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, conexaoDatabase: e.target.value }))}
+                  placeholder="db1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Usuário</Label>
+                  <Input
+                    value={editForm.conexaoUser}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, conexaoUser: e.target.value }))}
+                    placeholder="TI"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Senha</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editForm.conexaoPassword}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, conexaoPassword: e.target.value }))}
+                      type={editForm.showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditForm(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                    >
+                      {editForm.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Query SQL */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Query SQL</h3>
+              <Textarea
+                value={editForm.querySql}
+                onChange={(e) => setEditForm(prev => ({ ...prev, querySql: e.target.value }))}
+                placeholder="SELECT * FROM ..."
+                className="font-mono text-sm min-h-[200px]"
+              />
+            </div>
+
+            {/* Info de última sincronização */}
+            {editingConfig?.ultimaSincronizacao && (
+              <div className="text-sm text-muted-foreground">
+                Última sincronização: {new Date(editingConfig.ultimaSincronizacao).toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingConfig(null)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit}>
+              {savingEdit ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -568,6 +568,126 @@ export const integradorDadosRouter = router({
     }),
 
   /**
+   * Edita uma configuração existente (query, descrição, sistema, tipoDados, frequência, conexão)
+   */
+  editarConfiguracao: protectedProcedure
+    .input(z.object({
+      configId: z.number(),
+      querySql: z.string().optional(),
+      descricao: z.string().optional(),
+      sistema: z.string().optional(),
+      tipoDados: z.string().optional(),
+      frequencia: z.string().optional(),
+      conexaoConfig: z.object({
+        host: z.string(),
+        port: z.number(),
+        database: z.string(),
+        user: z.string(),
+        password: z.string(),
+      }).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
+          return {
+            sucesso: false,
+            mensagem: "Apenas administradores podem editar configurações",
+          };
+        }
+
+        const db = await getDb();
+        if (!db) {
+          return {
+            sucesso: false,
+            mensagem: "Erro ao conectar ao banco de dados",
+          };
+        }
+
+        const updateData: any = { atualizadoEm: new Date() };
+        if (input.querySql !== undefined) updateData.querySql = input.querySql;
+        if (input.descricao !== undefined) updateData.descricao = input.descricao;
+        if (input.sistema !== undefined) updateData.sistema = input.sistema;
+        if (input.tipoDados !== undefined) updateData.tipoDados = input.tipoDados;
+        if (input.frequencia !== undefined) updateData.frequencia = input.frequencia;
+        if (input.conexaoConfig !== undefined) updateData.conexaoConfig = JSON.stringify(input.conexaoConfig);
+
+        await db
+          .update(queryConfiguracoes)
+          .set(updateData)
+          .where(eq(queryConfiguracoes.id, input.configId));
+
+        // Se frequência mudou, atualizar o scheduler
+        if (input.frequencia) {
+          try {
+            const { updateJobSchedule } = await import("../_core/jobScheduler");
+            await updateJobSchedule(input.configId, input.frequencia, true);
+          } catch (e) {
+            // Ignorar erro do scheduler
+          }
+        }
+
+        logger.info({
+          message: "Configuração editada",
+          configId: input.configId,
+        });
+
+        return {
+          sucesso: true,
+          mensagem: "Configuração atualizada com sucesso",
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao editar configuração",
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        return {
+          sucesso: false,
+          mensagem: error instanceof Error ? error.message : "Erro ao editar",
+        };
+      }
+    }),
+
+  /**
+   * Obtém uma configuração específica por ID
+   */
+  obterConfiguracao: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        if (!(await isAdminOrEstabAdmin(ctx))) {
+          return null;
+        }
+
+        const db = await getDb();
+        if (!db) return null;
+
+        const [config] = await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.id, input.configId));
+        if (!config) return null;
+
+        return {
+          id: config.id,
+          estabelecimentoId: config.estabelecimentoId,
+          sistema: config.sistema,
+          tipoDados: config.tipoDados,
+          querySql: config.querySql,
+          frequencia: config.frequencia,
+          descricao: config.descricao,
+          ativo: config.ativo,
+          conexaoConfig: config.conexaoConfig,
+          ultimaSincronizacao: config.ultimaSincronizacao,
+          totalRegistrosSincronizados: config.totalRegistrosSincronizados,
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao obter configuração",
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      }
+    }),
+
+  /**
    * Obtém estatísticas de sincronização
    */
   obterEstatisticas: protectedProcedure
@@ -1283,6 +1403,7 @@ export const integradorDadosRouter = router({
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
+              ssl: false, // Forçar SSL desabilitado
             });
             const ok = await connector.conectar();
             if (ok) {
@@ -1337,6 +1458,7 @@ export const integradorDadosRouter = router({
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
+              ssl: false, // Forçar SSL desabilitado
             });
             await connector.conectar();
             let queryLimitada = input.querySql.trim().replace(/;$/, "");
@@ -1548,6 +1670,7 @@ export const integradorDadosRouter = router({
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
+              ssl: false, // Forçar SSL desabilitado
             });
             await connector.conectar();
             let queryLimitada = input.querySql.trim().replace(/;$/, "");
@@ -1863,6 +1986,7 @@ export const integradorDadosRouter = router({
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
+              ssl: false, // Forçar SSL desabilitado
             });
             await connector.conectar();
             rows = (await connector.executarQuery(queryFinal)) || [];
@@ -2160,7 +2284,10 @@ export const integradorDadosRouter = router({
         const colunasMap = new Map(colunasDestino.map(c => [c.id, c.nome]));
         const estabelecimentoIdMapeamento = mapeamento.estabelecimentoId || tabela.estabelecimentoId;
         const mapearDados = (dadosOrigem: any[]) => {
-          return dadosOrigem.map(row => {
+          if (dadosOrigem.length > 0) {
+            logger.info({ message: `mapearDados: processando ${dadosOrigem.length} registros`, primeiroRegistro: JSON.stringify(dadosOrigem[0]).substring(0, 200), estabelecimentoIdMapeamento });
+          }
+          return dadosOrigem.map((row, idx) => {
             const registro: Record<string, any> = {};
             if (estabelecimentoIdMapeamento) {
               registro.estabelecimento_id = estabelecimentoIdMapeamento;
@@ -2178,6 +2305,9 @@ export const integradorDadosRouter = router({
                 }
                 registro[nomeDestino] = valor;
               }
+            }
+            if (idx === 0) {
+              logger.info({ message: `mapearDados: primeiro registro mapeado`, registro: JSON.stringify(registro).substring(0, 200) });
             }
             return registro;
           });
@@ -2206,6 +2336,7 @@ export const integradorDadosRouter = router({
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
+              ssl: false, // Forçar SSL desabilitado
             });
             const ok = await connector.conectar();
             if (!ok) throw new Error("Falha ao conectar à origem");
@@ -2219,13 +2350,14 @@ export const integradorDadosRouter = router({
         const executarComTimeout = async (query: string, label: string): Promise<any[]> => {
           if (conexao.tipo === "postgresql") {
             const pgLib = await import("pg");
+            console.log(`[EXEC] Fatia ${label}: conectando ao PostgreSQL ${conexao.host}:${conexao.porta}/${conexao.banco}`);
             const client = new pgLib.default.Client({
               host: conexao.host,
               port: conexao.porta,
               database: conexao.banco,
               user: conexao.usuario,
               password: Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8"),
-              ssl: conexao.ssl ? { rejectUnauthorized: false } : false,
+              ssl: false, // Forçar SSL desabilitado
               connectionTimeoutMillis: 10000,
               statement_timeout: FATIA_TIMEOUT_MS,
               query_timeout: FATIA_TIMEOUT_MS,
@@ -2234,20 +2366,25 @@ export const integradorDadosRouter = router({
             let timedOut = false;
             const timer = setTimeout(() => {
               timedOut = true;
+              console.log(`[EXEC] Fatia ${label}: TIMEOUT após ${FATIA_TIMEOUT_MS / 1000}s`);
               logger.warn({ message: `Timeout na fatia ${label}: forçando desconexão após ${FATIA_TIMEOUT_MS / 1000}s` });
               try { client.end().catch(() => {}); } catch {}
             }, FATIA_TIMEOUT_MS);
 
             try {
               await client.connect();
+              console.log(`[EXEC] Fatia ${label}: conectado, executando query`);
               await client.query(`SET statement_timeout = ${FATIA_TIMEOUT_MS}`);
               const result = await client.query(query);
+              console.log(`[EXEC] Fatia ${label}: query retornou ${result.rows.length} registros`);
               clearTimeout(timer);
               await client.end().catch(() => {});
               return result.rows;
             } catch (err) {
               clearTimeout(timer);
               try { await client.end().catch(() => {}); } catch {}
+              const errMsg = err instanceof Error ? err.message : String(err);
+              console.error(`[EXEC] Fatia ${label}: erro na execução:`, errMsg);
               if (timedOut) {
                 throw new Error(`Timeout na fatia ${label}: excedeu ${FATIA_TIMEOUT_MS / 1000}s`);
               }
@@ -2265,71 +2402,50 @@ export const integradorDadosRouter = router({
         const nomeReal = `integ_${tabela.nome}`;
 
         try {
-          // ====== MODO INCREMENTAL ======
-          if (isIncremental) {
-            let queryFinal = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
-            const colunaCtrl = mapeamento.colunaControle!;
-            const ultimoValor = mapeamento.ultimoValorControle!;
-
-            if (conexao.tipo === "postgresql") {
-              queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq."${colunaCtrl}" > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq."${colunaCtrl}" ASC`;
-            } else {
-              queryFinal = `SELECT * FROM (${queryFinal}) AS _subq WHERE _subq.\`${colunaCtrl}\` > '${ultimoValor.replace(/'/g, "''")}' ORDER BY _subq.\`${colunaCtrl}\` ASC`;
-            }
-
-            logger.info({ message: "Importação INCREMENTAL", colunaControle: colunaCtrl, ultimoValor, mapeamentoId: input.id });
-
-            const dadosOrigem = await executarComTimeout(queryFinal, "incremental");
-
-            if (dadosOrigem.length === 0) {
-              const duracao = Date.now() - inicio;
-              await dbIntegrador.atualizarSincronizacao(syncId, { status: "sucesso", registrosLidos: 0, registrosInseridos: 0, finalizadoEm: new Date(), duracaoMs: duracao });
-              await dbIntegrador.atualizarMapeamento(input.id, { ultimaSincronizacao: new Date() } as any);
-              return { sucesso: true, mensagem: `Importação incremental: nenhum registro novo desde ${ultimoValor}`, registrosLidos: 0, registrosInseridos: 0, modoUsado: "incremental" };
-            }
-
-            const registrosMapeados = mapearDados(dadosOrigem);
-            const resultado = await dbIntegrador.inserirDadosTabela(nomeReal, registrosMapeados);
-
-            // Atualizar controle incremental
-            let novoUltimoValor = ultimoValor;
-            const ultimoRegistro = dadosOrigem[dadosOrigem.length - 1];
-            const valorControle = ultimoRegistro[colunaCtrl];
-            if (valorControle !== null && valorControle !== undefined) {
-              novoUltimoValor = valorControle instanceof Date ? valorControle.toISOString() : String(valorControle);
-            }
-
-            const totalRegistros = await dbIntegrador.contarRegistrosTabela(nomeReal);
-            await dbIntegrador.atualizarTabela(tabela.id, { totalRegistros });
-            const totalAcumulado = (mapeamento.totalRegistrosImportados || 0) + resultado.inseridos;
-            await dbIntegrador.atualizarMapeamento(input.id, { ultimaSincronizacao: new Date(), ultimoValorControle: novoUltimoValor, totalRegistrosImportados: totalAcumulado } as any);
-
-            const duracao = Date.now() - inicio;
-            await dbIntegrador.atualizarSincronizacao(syncId, { status: "sucesso", registrosLidos: dadosOrigem.length, registrosInseridos: resultado.inseridos, finalizadoEm: new Date(), duracaoMs: duracao });
-
-            return { sucesso: true, mensagem: `Importação incremental concluída: ${resultado.inseridos} registros em ${(duracao / 1000).toFixed(1)}s`, registrosLidos: dadosOrigem.length, registrosInseridos: resultado.inseridos, modoUsado: "incremental", ultimoValorControle: novoUltimoValor };
-          }
-
-          // ====== MODO COMPLETA - PARTICIONADO POR MÊS ======
-          logger.info({ message: "Importação COMPLETA PARTICIONADA por mês", mapeamentoId: input.id });
-
-          // Gerar lista de meses: de jan/2024 até o mês atual + 1
+          // ====== MODO PARTICIONADO POR CAMADAS DE 6 MESES ======
+          // Gerar camadas de 6 meses: de jan/2024 até o mês atual
           const agora = new Date();
           const anoInicio = 2024;
           const mesInicio = 1;
           const anoFim = agora.getFullYear();
           const mesFim = agora.getMonth() + 1; // 1-12
-          const meses: { ano: number; mes: number; label: string }[] = [];
-          for (let a = anoInicio; a <= anoFim; a++) {
-            const mStart = a === anoInicio ? mesInicio : 1;
-            const mEnd = a === anoFim ? mesFim : 12;
-            for (let m = mStart; m <= mEnd; m++) {
-              const label = `${a}/${String(m).padStart(2, "0")}`;
-              meses.push({ ano: a, mes: m, label });
+
+          // Gerar camadas de 6 meses
+          const camadas: { dataInicio: string; dataFim: string; label: string }[] = [];
+          let curAno = anoInicio;
+          let curMes = mesInicio;
+          while (curAno < anoFim || (curAno === anoFim && curMes <= mesFim)) {
+            const inicioStr = `${curAno}-${String(curMes).padStart(2, "0")}-01`;
+            // Avançar 6 meses
+            let fimMes = curMes + 5;
+            let fimAno = curAno;
+            if (fimMes > 12) {
+              fimAno += Math.floor((fimMes - 1) / 12);
+              fimMes = ((fimMes - 1) % 12) + 1;
+            }
+            // Não ultrapassar o mês atual
+            if (fimAno > anoFim || (fimAno === anoFim && fimMes > mesFim)) {
+              fimAno = anoFim;
+              fimMes = mesFim;
+            }
+            // Último dia do mês final
+            const ultimoDia = new Date(fimAno, fimMes, 0).getDate();
+            const fimStr = `${fimAno}-${String(fimMes).padStart(2, "0")}-${ultimoDia}`;
+            const label = `${curAno}/${String(curMes).padStart(2, "0")} a ${fimAno}/${String(fimMes).padStart(2, "0")}`;
+            camadas.push({ dataInicio: inicioStr, dataFim: fimStr, label });
+
+            // Próxima camada: mês seguinte ao fim
+            curMes = fimMes + 1;
+            curAno = fimAno;
+            if (curMes > 12) {
+              curMes = 1;
+              curAno++;
             }
           }
 
-          // Limpar tabela destino antes da primeira fatia
+          logger.info({ message: `Importação PARTICIONADA por ${camadas.length} camadas de 6 meses`, mapeamentoId: input.id });
+
+          // Limpar tabela destino antes da importação
           try {
             await dbIntegrador.limparDadosTabela(nomeReal);
             logger.info({ message: "Tabela limpa para importação completa particionada", tabela: nomeReal });
@@ -2341,36 +2457,45 @@ export const integradorDadosRouter = router({
           let totalInseridos = 0;
           const queryBase = mapeamento.queryOrigem.trim().replace(/;\s*$/, "");
 
-          for (let i = 0; i < meses.length; i++) {
-            const { ano, mes, label } = meses[i];
-            const mesProximo = mes === 12 ? 1 : mes + 1;
-            const anoProximo = mes === 12 ? ano + 1 : ano;
-            const dataInicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-            const dataFim = `${anoProximo}-${String(mesProximo).padStart(2, "0")}-01`;
+          for (let i = 0; i < camadas.length; i++) {
+            const { dataInicio, dataFim, label } = camadas[i];
 
-            // Envolver a query original em subquery e filtrar por mesprod do mês
-            // A query original já tem WHERE com data >= 2024, então usamos subquery
-            let queryFatia: string;
-            if (conexao.tipo === "postgresql") {
-              queryFatia = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq."mesprod" = '${label}'`;
-            } else {
-              queryFatia = `SELECT * FROM (${queryBase}) AS _subq WHERE _subq.\`mesprod\` = '${label}'`;
-            }
+            // Substituir o filtro de data na query original
+            // A query usa: WHERE to_date(c.mesprod, 'YYYY-MM-DD') >= '2025-01-01'
+            // Vamos trocar para: WHERE to_date(c.mesprod, 'YYYY-MM-DD') BETWEEN 'dataInicio' AND 'dataFim'
+            let queryFatia = queryBase
+              .replace(
+                /WHERE\s+to_date\s*\(\s*c\.mesprod\s*,\s*'YYYY-MM-DD'\s*\)\s*>=\s*'[^']+'/i,
+                `WHERE to_date(c.mesprod, 'YYYY-MM-DD') BETWEEN '${dataInicio}' AND '${dataFim}'`
+              )
+              .replace(
+                /WHERE\s+to_date\s*\(\s*C\.mesprod\s*,\s*'YYYY-MM-DD'\s*\)\s*>=\s*'[^']+'/i,
+                `WHERE to_date(C.mesprod, 'YYYY-MM-DD') BETWEEN '${dataInicio}' AND '${dataFim}'`
+              )
+              .replace(
+                /WHERE\s+to_date\s*\(\s*c\.mesprod\s*,\s*'YYYY-MM-DD'\s*\)\s+BETWEEN\s+'[^']+' AND '[^']+'/i,
+                `WHERE to_date(c.mesprod, 'YYYY-MM-DD') BETWEEN '${dataInicio}' AND '${dataFim}'`
+              )
+              .replace(
+                /WHERE\s+to_date\s*\(\s*C\.mesprod\s*,\s*'YYYY-MM-DD'\s*\)\s+BETWEEN\s+'[^']+' AND '[^']+'/i,
+                `WHERE to_date(C.mesprod, 'YYYY-MM-DD') BETWEEN '${dataInicio}' AND '${dataFim}'`
+              );
 
-            logger.info({ message: `Importando fatia ${i + 1}/${meses.length}: ${label}`, mapeamentoId: input.id });
+            logger.info({ message: `Importando camada ${i + 1}/${camadas.length}: ${label}`, mapeamentoId: input.id });
 
-            // Atualizar progresso no log de sincronização
+            // Atualizar progresso
             await dbIntegrador.atualizarSincronizacao(syncId, {
-              erroMensagem: `Importando mês ${label} (${i + 1}/${meses.length})...`,
+              erroMensagem: `Importando camada ${label} (${i + 1}/${camadas.length})...`,
               registrosLidos: totalLidos,
               registrosInseridos: totalInseridos,
             } as any);
 
             try {
               const dadosFatia = await executarComTimeout(queryFatia, label);
+              console.log(`[SYNC] Camada ${label}: query retornou ${dadosFatia.length} registros`);
 
               if (dadosFatia.length === 0) {
-                logger.info({ message: `Fatia ${label}: 0 registros, pulando` });
+                logger.info({ message: `Camada ${label}: 0 registros, pulando` });
                 continue;
               }
 
@@ -2380,11 +2505,12 @@ export const integradorDadosRouter = router({
               totalLidos += dadosFatia.length;
               totalInseridos += resultado.inseridos;
 
-              logger.info({ message: `Fatia ${label} concluída: ${resultado.inseridos} registros inseridos`, totalAcumulado: totalInseridos });
+              logger.info({ message: `Camada ${label} concluída: ${resultado.inseridos} registros inseridos`, totalAcumulado: totalInseridos });
             } catch (fatiaError) {
               const msg = fatiaError instanceof Error ? fatiaError.message : String(fatiaError);
-              logger.warn({ message: `Erro na fatia ${label}: ${msg}. Continuando com próximas fatias...` });
-              // Continuar com as próximas fatias em vez de abortar tudo
+              console.error(`[SYNC] Erro na camada ${label}:`, msg);
+              logger.warn({ message: `Erro na camada ${label}: ${msg}. Continuando com próximas camadas...` });
+              // Continuar com as próximas camadas em vez de abortar
             }
           }
 
@@ -2406,16 +2532,17 @@ export const integradorDadosRouter = router({
             registrosInseridos: totalInseridos,
             finalizadoEm: new Date(),
             duracaoMs: duracao,
-            erroMensagem: totalInseridos > 0 ? null : "Nenhum registro importado em nenhuma fatia",
+            erroMensagem: totalInseridos > 0 ? null : "Nenhum registro importado em nenhuma camada",
           } as any);
 
           return {
             sucesso: totalInseridos > 0,
-            mensagem: `Importação completa particionada: ${totalInseridos} registros inseridos de ${meses.length} meses em ${(duracao / 1000).toFixed(1)}s`,
+            mensagem: `Importação particionada: ${totalInseridos} registros inseridos de ${camadas.length} camadas em ${(duracao / 1000).toFixed(1)}s`,
             registrosLidos: totalLidos,
             registrosInseridos: totalInseridos,
-            modoUsado: "completa (particionada)",
+            modoUsado: "completa (particionada por 6 meses)",
           };
+
         } catch (error) {
           const duracao = Date.now() - inicio;
           const msg = error instanceof Error ? error.message : "Erro desconhecido";
