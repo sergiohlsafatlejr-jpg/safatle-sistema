@@ -3010,3 +3010,10 @@
 - [x] Acrescentar coluna Setor Etapa
 - [x] Acrescentar coluna User Etapa
 - [x] Manter coluna Notificação e envio de email
+
+## Notificação e Email - TASY Atendimentos Parados
+- [x] Implementar geração de PDF de notificação para atendimentos TASY (mesmo padrão Warleine)
+- [x] Registrar notificação no banco de dados (histórico persistente)
+- [x] Implementar envio de email com PDF da notificação TASY
+- [x] Conectar botões da tabela TASY às procedures reais (notificação + email)
+- [x] Suporte a notificação em lote (selecionar múltiplos atendimentos)
