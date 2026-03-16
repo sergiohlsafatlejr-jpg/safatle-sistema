@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  ArrowUpDown, Download, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye
+  ArrowUpDown, Download, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye,
+  Users, Building2, Stethoscope, FlaskConical, Bell, Mail
 } from "lucide-react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
@@ -84,6 +85,7 @@ export default function AtendimentosParadosUnificados() {
   const [filtroServico, setFiltroServico] = useState<string>("");
   const [filtroEtapa, setFiltroEtapa] = useState<string>("");
   const [filtroOrigem, setFiltroOrigem] = useState<OrigemSistema>("all");
+  const [filtroProtocolo, setFiltroProtocolo] = useState<string>("all"); // "all" | "null" | "com_protocolo" | nome específico
   const [selectedRow, setSelectedRow] = useState<AtendimentoUnificado | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -99,6 +101,17 @@ export default function AtendimentosParadosUnificados() {
       filtered = filtered.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase());
     }
 
+    // Filtro por nome_protocolo
+    if (filtroProtocolo !== "all") {
+      if (filtroProtocolo === "null") {
+        filtered = filtered.filter(a => !(a as any).nomeProtocolo);
+      } else if (filtroProtocolo === "com_protocolo") {
+        filtered = filtered.filter(a => !!(a as any).nomeProtocolo);
+      } else {
+        filtered = filtered.filter(a => (a as any).nomeProtocolo === filtroProtocolo);
+      }
+    }
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(a =>
@@ -109,7 +122,10 @@ export default function AtendimentosParadosUnificados() {
         ((a as any).conta?.toLowerCase().includes(term)) ||
         ((a as any).medicoResp?.toLowerCase().includes(term)) ||
         ((a as any).descricao_atendimento?.toLowerCase().includes(term)) ||
-        ((a as any).codigo_servico?.toLowerCase().includes(term))
+        ((a as any).codigo_servico?.toLowerCase().includes(term)) ||
+        ((a as any).etapaConta?.toLowerCase().includes(term)) ||
+        ((a as any).setorEtapa?.toLowerCase().includes(term)) ||
+        ((a as any).userEtapa?.toLowerCase().includes(term))
       );
     }
 
@@ -122,7 +138,7 @@ export default function AtendimentosParadosUnificados() {
     }
 
     if (filtroServico) {
-      filtered = filtered.filter(a => a.codigo_servico === filtroServico);
+      filtered = filtered.filter(a => a.descricao_atendimento === filtroServico);
     }
 
     if (filtroEtapa) {
@@ -142,12 +158,11 @@ export default function AtendimentosParadosUnificados() {
     });
 
     return filtered;
-  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, sortColumn, sortOrder]);
+  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo, sortColumn, sortOrder]);
 
   // Detectar a origem predominante dos dados filtrados
   const origemDetectada = useMemo((): OrigemSistema => {
     if (filtroOrigem !== "all") return filtroOrigem;
-    // Se todos os registros são da mesma origem, usar essa origem
     const origens = new Set(filteredData.map(a => a.origemSistema?.toLowerCase()));
     if (origens.size === 1) {
       const unica = [...origens][0];
@@ -158,15 +173,18 @@ export default function AtendimentosParadosUnificados() {
     return "all";
   }, [filteredData, filtroOrigem]);
 
-  // Calcular quantidade de serviço (por descricao_atendimento) para Tasy
-  const quantidadePorServico = useMemo(() => {
+  // Calcular quantidade por descrição de atendimento para Tasy
+  const quantidadePorDescricao = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredData.forEach(a => {
+    const baseData = filtroOrigem === "tasy"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === "tasy")
+      : filteredData;
+    baseData.forEach(a => {
       const desc = (a as any).descricao_atendimento || "Sem descrição";
       map[desc] = (map[desc] || 0) + 1;
     });
     return map;
-  }, [filteredData]);
+  }, [atendimentos, filteredData, filtroOrigem]);
 
   // Paginação
   const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
@@ -176,7 +194,7 @@ export default function AtendimentosParadosUnificados() {
   }, [filteredData, currentPage]);
 
   // Reset page when filters change
-  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem]);
+  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -201,13 +219,14 @@ export default function AtendimentosParadosUnificados() {
           "Data Saída": a.data_saida ? formatDate(a.data_saida) : "-",
           "Dias Parado": a.diasParado,
           "Tipo Atend.": a.tipo_atendimento,
+          "Cód. Serviço": a.codigo_servico,
+          "Descrição Atendimento": a.descricao_atendimento,
           "Etapa Conta": a.etapaConta,
           "Setor Etapa": a.setorEtapa,
           "Data Etapa": a.dtEtapa ? formatDate(a.dtEtapa) : "-",
           "Usuário Etapa": a.userEtapa,
-          "Cód. Serviço": a.codigo_servico,
-          "Descrição Atendimento": a.descricao_atendimento,
-          "Qtd. Serviço": quantidadePorServico[a.descricao_atendimento || "Sem descrição"] || 0,
+          "Nome Protocolo": a.nomeProtocolo || "Sem protocolo",
+          "Qtd. Serviço": quantidadePorDescricao[a.descricao_atendimento || "Sem descrição"] || 0,
         };
       } else {
         return {
@@ -262,7 +281,7 @@ export default function AtendimentosParadosUnificados() {
     toast.success("Arquivo exportado com sucesso!");
   };
 
-  // Calcular quantidade por tipo
+  // Calcular quantidade por tipo de atendimento (usando campo tipo_atendimento da tabela)
   const getQuantidadePorTipo = () => {
     const baseData = filtroOrigem !== "all" 
       ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
@@ -307,6 +326,42 @@ export default function AtendimentosParadosUnificados() {
     })).sort((a, b) => b.quantidade - a.quantidade);
   };
 
+  // Calcular quantidade por nome_protocolo (para filtro TASY)
+  const getQuantidadePorProtocolo = useMemo(() => {
+    const baseData = filtroOrigem === "tasy"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === "tasy")
+      : atendimentos;
+    const protocolos: Record<string, number> = {};
+    let nullCount = 0;
+    let comProtocoloCount = 0;
+    baseData.forEach((a: any) => {
+      if (!a.nomeProtocolo) {
+        nullCount++;
+      } else {
+        comProtocoloCount++;
+        protocolos[a.nomeProtocolo] = (protocolos[a.nomeProtocolo] || 0) + 1;
+      }
+    });
+    return {
+      nullCount,
+      comProtocoloCount,
+      protocolos: Object.entries(protocolos).sort((a, b) => b[1] - a[1])
+    };
+  }, [atendimentos, filtroOrigem]);
+
+  // Calcular quantidade por descrição de atendimento (para seção "Quantidade por Serviço")
+  const getQuantidadePorDescricao = useMemo(() => {
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const descs: Record<string, number> = {};
+    baseData.forEach((a: any) => {
+      const desc = a.descricao_atendimento || "Sem descrição";
+      descs[desc] = (descs[desc] || 0) + 1;
+    });
+    return Object.entries(descs).sort((a, b) => b[1] - a[1]);
+  }, [atendimentos, filtroOrigem]);
+
   // Calcular valor total
   const valorTotal = useMemo(() => {
     return filteredData.reduce((sum, a: any) => sum + (parseFloat(a.valorConta) || 0), 0);
@@ -319,6 +374,15 @@ export default function AtendimentosParadosUnificados() {
     if (t.includes('AMBULATORIO') || t.includes('AMBULATÓRIO') || t.includes('AMBULATORIAL')) return 'bg-blue-500 hover:bg-blue-600';
     if (t.includes('PRONTO') || t.includes('SOCORRO')) return 'bg-red-500 hover:bg-red-600';
     return 'bg-slate-600 hover:bg-slate-700';
+  };
+
+  const getTypeIcon = (tipo?: string | null) => {
+    const t = tipo?.toUpperCase() || '';
+    if (t.includes('INTERNACAO') || t.includes('INTERNAÇÃO') || t.includes('INTERNADO')) return <Building2 className="w-5 h-5" />;
+    if (t.includes('EXAME')) return <FlaskConical className="w-5 h-5" />;
+    if (t.includes('AMBULATORIO') || t.includes('AMBULATÓRIO') || t.includes('AMBULATORIAL')) return <Stethoscope className="w-5 h-5" />;
+    if (t.includes('PRONTO') || t.includes('SOCORRO')) return <Users className="w-5 h-5" />;
+    return <Users className="w-5 h-5" />;
   };
 
   const getDiasParadoColor = (dias: number) => {
@@ -370,48 +434,66 @@ export default function AtendimentosParadosUnificados() {
   };
 
   // Layout Tasy só ativa quando o usuário seleciona explicitamente o filtro TASY
-  // Warleine e EasyVision mantêm o layout padrão
   const isTasyLayout = filtroOrigem === "tasy";
+
+  // Notificação placeholder
+  const handleNotificacao = (atendimento: any) => {
+    toast.info(`Notificação para atendimento ${atendimento.numero_atendimento} - Funcionalidade em breve`);
+  };
+
+  const handleEnviarEmail = (atendimento: any) => {
+    toast.info(`Email para atendimento ${atendimento.numero_atendimento} - Funcionalidade em breve`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-[1600px] mx-auto">
+      <div className="max-w-[1800px] mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Atendimentos Parados</h1>
           <p className="text-slate-400">Acompanhe atendimentos pendentes de faturamento</p>
         </div>
 
-        {/* KPIs */}
+        {/* KPIs por Tipo de Atendimento */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4">
-              <p className="text-slate-400 text-sm">Total Atendimentos</p>
-              <p className="text-3xl font-bold text-white">{filteredData.length}</p>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-slate-400 text-sm">Total de Atendimentos</p>
+                <p className="text-3xl font-bold text-white">
+                  {filtroOrigem !== "all"
+                    ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase()).length
+                    : atendimentos.length}
+                </p>
+              </div>
+              <div className="bg-teal-500/20 p-3 rounded-xl">
+                <Users className="w-6 h-6 text-teal-400" />
+              </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4">
-              <p className="text-slate-400 text-sm">Valor Total</p>
-              <p className="text-3xl font-bold text-emerald-400">{formatCurrency(valorTotal)}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4">
-              <p className="text-slate-400 text-sm">Média Dias Parado</p>
-              <p className="text-3xl font-bold text-amber-400">
-                {filteredData.length > 0 ? Math.round(filteredData.reduce((s, a) => s + a.diasParado, 0) / filteredData.length) : 0}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4">
-              <p className="text-slate-400 text-sm">Convênios</p>
-              <p className="text-3xl font-bold text-blue-400">
-                {new Set(filteredData.map(a => a.convenio).filter(Boolean)).size}
-              </p>
-            </CardContent>
-          </Card>
+          {getQuantidadePorTipo().slice(0, 3).map(({ tipo, quantidade }) => (
+            <Card key={tipo} className="bg-slate-800 border-slate-700">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-slate-400 text-sm">{tipo}</p>
+                  <p className={`text-3xl font-bold ${
+                    tipo?.toUpperCase().includes('INTERNADO') ? 'text-orange-400' :
+                    tipo?.toUpperCase().includes('PRONTO') ? 'text-red-400' :
+                    tipo?.toUpperCase().includes('AMBULAT') ? 'text-blue-400' :
+                    'text-purple-400'
+                  }`}>{quantidade}</p>
+                </div>
+                <div className={`p-3 rounded-xl ${
+                  tipo?.toUpperCase().includes('INTERNADO') ? 'bg-orange-500/20' :
+                  tipo?.toUpperCase().includes('PRONTO') ? 'bg-red-500/20' :
+                  tipo?.toUpperCase().includes('AMBULAT') ? 'bg-blue-500/20' :
+                  'bg-purple-500/20'
+                }`}>
+                  {getTypeIcon(tipo)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* Filtro por Sistema de Origem */}
@@ -422,7 +504,7 @@ export default function AtendimentosParadosUnificados() {
           <CardContent className="pt-0">
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setFiltroOrigem('all')}
+                onClick={() => { setFiltroOrigem('all'); setFiltroProtocolo('all'); }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   filtroOrigem === 'all'
                     ? 'bg-blue-600 text-white shadow-lg'
@@ -434,7 +516,7 @@ export default function AtendimentosParadosUnificados() {
               {getQuantidadePorOrigem().map(({ origem, quantidade }) => (
                 <button
                   key={origem}
-                  onClick={() => setFiltroOrigem(origem as OrigemSistema)}
+                  onClick={() => { setFiltroOrigem(origem as OrigemSistema); setFiltroProtocolo('all'); }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     filtroOrigem === origem
                       ? `${getOrigemColor(origem)} shadow-lg`
@@ -457,6 +539,62 @@ export default function AtendimentosParadosUnificados() {
             )}
           </CardContent>
         </Card>
+
+        {/* Filtro por Nome Protocolo (só aparece quando TASY está selecionado) */}
+        {isTasyLayout && (
+          <Card className="bg-slate-800 border-slate-700 mb-4">
+            <CardHeader className="py-3">
+              <CardTitle className="text-white text-sm">Nome Protocolo</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto">
+                <button
+                  onClick={() => setFiltroProtocolo('all')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    filtroProtocolo === 'all'
+                      ? 'bg-cyan-600 text-white shadow-lg'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => setFiltroProtocolo('null')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    filtroProtocolo === 'null'
+                      ? 'bg-red-600 text-white shadow-lg'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Sem Protocolo ({getQuantidadePorProtocolo.nullCount})
+                </button>
+                <button
+                  onClick={() => setFiltroProtocolo('com_protocolo')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    filtroProtocolo === 'com_protocolo'
+                      ? 'bg-green-600 text-white shadow-lg'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Com Protocolo ({getQuantidadePorProtocolo.comProtocoloCount})
+                </button>
+                {getQuantidadePorProtocolo.protocolos.map(([nome, qtd]) => (
+                  <button
+                    key={nome}
+                    onClick={() => setFiltroProtocolo(nome)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      filtroProtocolo === nome
+                        ? 'bg-cyan-600 text-white shadow-lg'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {nome} ({qtd})
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filtros por Tipo de Atendimento */}
         <Card className="bg-slate-800 border-slate-700 mb-4">
@@ -525,6 +663,33 @@ export default function AtendimentosParadosUnificados() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Quantidade por Descrição de Atendimento (em vez de código) */}
+        {isTasyLayout && getQuantidadePorDescricao.length > 0 && (
+          <Card className="bg-slate-800 border-slate-700 mb-4">
+            <CardHeader className="py-3">
+              <CardTitle className="text-white text-sm">Quantidade por Serviço (Descrição Atendimento)</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[300px] overflow-y-auto">
+                {getQuantidadePorDescricao.map(([desc, qtd]) => (
+                  <button
+                    key={desc}
+                    onClick={() => setFiltroServico(filtroServico === desc ? '' : desc)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                      filtroServico === desc
+                        ? 'bg-cyan-600 text-white shadow-lg'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <span className="truncate mr-2" title={desc}>{desc}</span>
+                    <span className="text-cyan-400 font-bold shrink-0">{qtd}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filtros por Etapa da Conta */}
         {getQuantidadePorEtapa().length > 0 && (
@@ -601,7 +766,7 @@ export default function AtendimentosParadosUnificados() {
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input
                   placeholder={isTasyLayout 
-                    ? "Buscar por N° Atend, Paciente, Plano, Serviço, Descrição..." 
+                    ? "Buscar por N° Atend, Paciente, Plano, Serviço, Descrição, Etapa, Setor, Usuário..." 
                     : "Buscar por N° Atend, Paciente, Plano, Matrícula, Conta ou Médico..."
                   }
                   value={searchTerm}
@@ -642,7 +807,13 @@ export default function AtendimentosParadosUnificados() {
                             <div className="flex items-center gap-1">Dias Parado <ArrowUpDown className="w-3 h-3" /></div>
                           </th>
                           <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("tipo_atendimento")}>
-                            <div className="flex items-center gap-1">Tipo Atend. <ArrowUpDown className="w-3 h-3" /></div>
+                            <div className="flex items-center gap-1">Tipo <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("codigo_servico")}>
+                            <div className="flex items-center gap-1">Serviço <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("descricao_atendimento")}>
+                            <div className="flex items-center gap-1">Descrição Atend. <ArrowUpDown className="w-3 h-3" /></div>
                           </th>
                           <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("etapaConta")}>
                             <div className="flex items-center gap-1">Etapa Conta <ArrowUpDown className="w-3 h-3" /></div>
@@ -650,19 +821,9 @@ export default function AtendimentosParadosUnificados() {
                           <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("setorEtapa")}>
                             <div className="flex items-center gap-1">Setor Etapa <ArrowUpDown className="w-3 h-3" /></div>
                           </th>
-                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("dtEtapa")}>
-                            <div className="flex items-center gap-1">Dt. Etapa <ArrowUpDown className="w-3 h-3" /></div>
-                          </th>
                           <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("userEtapa")}>
                             <div className="flex items-center gap-1">User Etapa <ArrowUpDown className="w-3 h-3" /></div>
                           </th>
-                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("codigo_servico")}>
-                            <div className="flex items-center gap-1">Cód. Serviço <ArrowUpDown className="w-3 h-3" /></div>
-                          </th>
-                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("descricao_atendimento")}>
-                            <div className="flex items-center gap-1">Descrição Atend. <ArrowUpDown className="w-3 h-3" /></div>
-                          </th>
-                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Qtd. Serviço</th>
                           <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Ações</th>
                         </>
                       ) : (
@@ -716,7 +877,7 @@ export default function AtendimentosParadosUnificados() {
                           <>
                             <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.numero_atendimento}</td>
                             <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
-                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
                             <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
                             <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
                             <td className="px-3 py-2.5">
@@ -726,29 +887,44 @@ export default function AtendimentosParadosUnificados() {
                             </td>
                             <td className="px-3 py-2.5">
                               <Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>
-                                {atendimento.tipo_atendimento}
+                                {atendimento.tipo_atendimento || '-'}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[140px] truncate" title={atendimento.etapaConta}>{atendimento.etapaConta || '-'}</td>
-                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.setorEtapa}>{atendimento.setorEtapa || '-'}</td>
-                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.dtEtapa)}</td>
-                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.userEtapa}>{atendimento.userEtapa || '-'}</td>
                             <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.codigo_servico || '-'}</td>
                             <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[200px] truncate" title={atendimento.descricao_atendimento}>{atendimento.descricao_atendimento || '-'}</td>
-                            <td className="px-3 py-2.5 text-center">
-                              <Badge className="bg-slate-600 text-white text-xs">
-                                {quantidadePorServico[atendimento.descricao_atendimento || "Sem descrição"] || 0}
-                              </Badge>
-                            </td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[140px] truncate" title={atendimento.etapaConta}>{atendimento.etapaConta || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.setorEtapa}>{atendimento.setorEtapa || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.userEtapa}>{atendimento.userEtapa || '-'}</td>
                             <td className="px-3 py-2.5">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-white"
-                                onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-white"
+                                  onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
+                                  title="Ver detalhes"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-amber-400 hover:text-amber-300"
+                                  onClick={() => handleNotificacao(atendimento)}
+                                  title="Gerar notificação"
+                                >
+                                  <Bell className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300"
+                                  onClick={() => handleEnviarEmail(atendimento)}
+                                  title="Enviar email"
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </td>
                           </>
                         ) : (
@@ -890,9 +1066,9 @@ export default function AtendimentosParadosUnificados() {
                     </div>
                     <DetailField label="Motivo Alta" value={selectedRow.dsMotivoAlta} />
                   </div>
-                  <DetailField label="Procedimento Principal" value={selectedRow.codigo_procedimento} />
-                  <DetailField label="Serviço" value={selectedRow.descricao_atendimento || selectedRow.codigo_servico} />
                   <DetailField label="Código Serviço" value={selectedRow.codigo_servico} mono />
+                  <DetailField label="Descrição Atendimento" value={selectedRow.descricao_atendimento} />
+                  <DetailField label="Procedimento Principal" value={selectedRow.codigo_procedimento} />
                 </div>
 
                 {/* Convênio */}

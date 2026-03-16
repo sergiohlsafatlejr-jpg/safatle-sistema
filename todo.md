@@ -2998,3 +2998,15 @@
 - [x] Fix: Query de atendimentos parados deve incluir TASY mesmo com data_saida preenchida (CSV já traz só contas paradas)
 - [x] Fix: Garantir layout TASY funcione na tela unificada de Atendimentos Parados
 - [x] Ajustar cálculo de Dias Parado para TASY usando campo dtEntrega (dias desde dtEntrega até hoje)
+
+## Correções Tela TASY - Atendimentos Parados
+- [x] Fix KPIs: usar campo tipo_atendimento da tabela para calcular Internação/Exame/Ambulatório
+- [x] Fix Quantidade por Serviço: mostrar descricao_atendimento em vez de código
+- [x] Adicionar filtro por nome_protocolo (para filtrar os que estão NULL)
+- [x] Fix coluna Tipo: usar campo tipo_atendimento da tabela
+- [x] Fix coluna Serviço: usar campo codigo_servico da tabela
+- [x] Acrescentar coluna Descrição Atendimento
+- [x] Acrescentar coluna Etapa Conta
+- [x] Acrescentar coluna Setor Etapa
+- [x] Acrescentar coluna User Etapa
+- [x] Manter coluna Notificação e envio de email
