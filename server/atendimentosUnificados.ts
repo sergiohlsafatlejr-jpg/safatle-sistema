@@ -1,9 +1,11 @@
 import { getDb } from "./db";
 import { atendimentos } from "../drizzle/schema-integracao";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or } from "drizzle-orm";
 
 /**
- * Busca todos os atendimentos parados (sem data de saída) da tabela unificada
+ * Busca todos os atendimentos parados da tabela unificada.
+ * Para TASY: todos os registros são considerados parados (CSV já traz só contas paradas, mesmo com data_saida preenchida).
+ * Para WARLEINE/EASYVISION: apenas registros sem data_saida.
  * @returns Lista de atendimentos parados
  */
 export async function getAtendimentosParadosUnificados() {
@@ -14,11 +16,17 @@ export async function getAtendimentosParadosUnificados() {
       return [];
     }
 
-    // Buscar todos os atendimentos que não têm data_saida (parados)
+    // TASY: todos os registros são parados (CSV já filtra)
+    // Outros sistemas: apenas sem data_saida
     const result = await db
       .select()
       .from(atendimentos)
-      .where(isNull(atendimentos.data_saida))
+      .where(
+        or(
+          eq(atendimentos.origemSistema, 'tasy'),
+          isNull(atendimentos.data_saida)
+        )
+      )
       .orderBy(atendimentos.data_entrada);
 
     return result;
@@ -41,14 +49,18 @@ export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId
       return [];
     }
 
-    // Buscar atendimentos que não têm data_saida (parados) para um estabelecimento específico
+    // TASY: todos os registros são parados (CSV já filtra)
+    // Outros sistemas: apenas sem data_saida
     const result = await db
       .select()
       .from(atendimentos)
       .where(
         and(
           eq(atendimentos.estabelecimentoId, estabelecimentoId),
-          isNull(atendimentos.data_saida)
+          or(
+            eq(atendimentos.origemSistema, 'tasy'),
+            isNull(atendimentos.data_saida)
+          )
         )
       )
       .orderBy(atendimentos.data_entrada);

@@ -2994,3 +2994,6 @@
 - [x] Manter layout atual para dados WARLEINE (sem alterações)
 - [x] Detectar sistema de origem e alternar colunas automaticamente
 - [x] Usar campo DESCRICAO_ATENDIMENTO para quantidade de serviço
+- [x] Bug: Layout TASY não está ativando na Maternidade Ela - colunas ficam iguais ao layout padrão
+- [x] Fix: Query de atendimentos parados deve incluir TASY mesmo com data_saida preenchida (CSV já traz só contas paradas)
+- [x] Fix: Garantir layout TASY funcione na tela unificada de Atendimentos Parados
