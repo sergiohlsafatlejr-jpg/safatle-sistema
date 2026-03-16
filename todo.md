@@ -2988,3 +2988,9 @@
 - [x] Criar processo de unificação Tasy -> atendimentos_unificados
 - [x] Atualizar tela de Atendimentos Parados para exibir todos os campos novos
 - [x] Testar e verificar dados unificados
+
+## Layout por Sistema de Origem - Atendimentos Parados
+- [x] Implementar template de colunas específico para dados TASY (N.ATEND, PACIENTE, PLANO, DATA ENTRADA, DATA SAIDA, DIAS PARADO, TIPOATEND, ETAPA_CONTA, SETOR_ETAPA, DT_ETAPA, USER_ETAPA, CODIGO_SERVICO, DESCRICAO_ATENDIMENTO, QUANTIDADE_SERVICO)
+- [x] Manter layout atual para dados WARLEINE (sem alterações)
+- [x] Detectar sistema de origem e alternar colunas automaticamente
+- [x] Usar campo DESCRICAO_ATENDIMENTO para quantidade de serviço

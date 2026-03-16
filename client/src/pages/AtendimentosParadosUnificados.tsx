@@ -13,7 +13,7 @@ import * as XLSX from "xlsx";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 
-type SortColumn = "numero_atendimento" | "paciente" | "convenio" | "data_entrada" | "data_saida" | "diasParado" | "descricao_atendimento" | "codigo_servico" | "valorConta" | "etapaConta" | "medicoResp" | "matricula";
+type SortColumn = "numero_atendimento" | "paciente" | "convenio" | "data_entrada" | "data_saida" | "diasParado" | "descricao_atendimento" | "codigo_servico" | "valorConta" | "etapaConta" | "medicoResp" | "matricula" | "setorEtapa" | "dtEtapa" | "userEtapa" | "tipo_atendimento";
 type SortOrder = "asc" | "desc";
 
 interface AtendimentoUnificado {
@@ -36,7 +36,6 @@ interface AtendimentoUnificado {
   diasParado: number;
   dataSincronizacao?: string | Date | null;
   atualizadoEm?: Date | null;
-  // Novos campos
   dsCategoria?: string | null;
   dsPlano?: string | null;
   competencia?: string | null;
@@ -73,6 +72,9 @@ interface AtendimentoUnificado {
 
 const PAGE_SIZE = 50;
 
+// Tipos de origem
+type OrigemSistema = "tasy" | "WARLEINE" | "EASYVISION" | "all";
+
 export default function AtendimentosParadosUnificados() {
   const [sortColumn, setSortColumn] = useState<SortColumn>("data_entrada");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
@@ -81,6 +83,7 @@ export default function AtendimentosParadosUnificados() {
   const [filtroConvenio, setFiltroConvenio] = useState<string>("");
   const [filtroServico, setFiltroServico] = useState<string>("");
   const [filtroEtapa, setFiltroEtapa] = useState<string>("");
+  const [filtroOrigem, setFiltroOrigem] = useState<OrigemSistema>("all");
   const [selectedRow, setSelectedRow] = useState<AtendimentoUnificado | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -91,6 +94,11 @@ export default function AtendimentosParadosUnificados() {
   const filteredData = useMemo(() => {
     let filtered = [...atendimentos];
 
+    // Filtro por origem do sistema
+    if (filtroOrigem !== "all") {
+      filtered = filtered.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase());
+    }
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(a =>
@@ -99,7 +107,9 @@ export default function AtendimentosParadosUnificados() {
         (a.convenio?.toLowerCase().includes(term)) ||
         ((a as any).matricula?.toLowerCase().includes(term)) ||
         ((a as any).conta?.toLowerCase().includes(term)) ||
-        ((a as any).medicoResp?.toLowerCase().includes(term))
+        ((a as any).medicoResp?.toLowerCase().includes(term)) ||
+        ((a as any).descricao_atendimento?.toLowerCase().includes(term)) ||
+        ((a as any).codigo_servico?.toLowerCase().includes(term))
       );
     }
 
@@ -132,7 +142,31 @@ export default function AtendimentosParadosUnificados() {
     });
 
     return filtered;
-  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, sortColumn, sortOrder]);
+  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, sortColumn, sortOrder]);
+
+  // Detectar a origem predominante dos dados filtrados
+  const origemDetectada = useMemo((): OrigemSistema => {
+    if (filtroOrigem !== "all") return filtroOrigem;
+    // Se todos os registros são da mesma origem, usar essa origem
+    const origens = new Set(filteredData.map(a => a.origemSistema?.toLowerCase()));
+    if (origens.size === 1) {
+      const unica = [...origens][0];
+      if (unica === "tasy") return "tasy";
+      if (unica === "warleine") return "WARLEINE";
+      if (unica === "easyvision") return "EASYVISION";
+    }
+    return "all";
+  }, [filteredData, filtroOrigem]);
+
+  // Calcular quantidade de serviço (por descricao_atendimento) para Tasy
+  const quantidadePorServico = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredData.forEach(a => {
+      const desc = (a as any).descricao_atendimento || "Sem descrição";
+      map[desc] = (map[desc] || 0) + 1;
+    });
+    return map;
+  }, [filteredData]);
 
   // Paginação
   const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
@@ -142,7 +176,7 @@ export default function AtendimentosParadosUnificados() {
   }, [filteredData, currentPage]);
 
   // Reset page when filters change
-  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa]);
+  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -153,91 +187,124 @@ export default function AtendimentosParadosUnificados() {
     }
   };
 
+  // Exportar Excel com colunas baseadas na origem
   const handleExportExcel = () => {
-    const data = filteredData.map((a: any) => ({
-      "N° Atend": a.numero_atendimento,
-      "Plano": a.convenio,
-      "Categoria": a.dsCategoria,
-      "Plano Detalhe": a.dsPlano,
-      "Paciente": a.paciente,
-      "Matrícula": a.matricula,
-      "Sexo": a.sexo,
-      "Idade": a.idade,
-      "Caráter": a.caracter_atendimento,
-      "Data Entrada": a.data_entrada,
-      "Data Saída": a.data_saida || "-",
-      "Dias Parado": a.diasParado,
-      "Tipo": a.tipo_atendimento,
-      "Serviço": a.descricao_atendimento,
-      "Proc. Principal": a.codigo_procedimento,
-      "Conta": a.conta,
-      "Autorização": a.autorizacao,
-      "Valor Conta": a.valorConta,
-      "Etapa Conta": a.etapaConta,
-      "Setor Etapa": a.setorEtapa,
-      "Data Etapa": a.dtEtapa,
-      "Usuário Etapa": a.userEtapa,
-      "Motivo Devolução": a.motivoDevolucao,
-      "Competência": a.competencia,
-      "Referência": a.referencia,
-      "Protocolo Tasy": a.protTasy,
-      "Nome Protocolo": a.nomeProtocolo,
-      "Protocolo Convênio": a.protConv,
-      "Status Protocolo": a.protStatus,
-      "Data Entrega": a.dtEntrega,
-      "Título": a.titulo,
-      "Data Título": a.dtTitulo,
-      "Data Vencimento": a.dataVencimento,
-      "Setor Entrada": a.dsSetorEntrada,
-      "Setor Leito": a.dsSetorLeito,
-      "Médico Resp.": a.medicoResp,
-      "CRM": a.crm,
-      "Motivo Alta": a.dsMotivoAlta,
-      "Centro Custo": a.centroCusto,
-      "Origem": a.origemSistema,
-    }));
+    const isTasy = filtroOrigem === "tasy";
+    
+    const data = filteredData.map((a: any) => {
+      if (isTasy) {
+        return {
+          "N° Atend": a.numero_atendimento,
+          "Paciente": a.paciente,
+          "Plano": a.convenio,
+          "Data Entrada": a.data_entrada ? formatDate(a.data_entrada) : "-",
+          "Data Saída": a.data_saida ? formatDate(a.data_saida) : "-",
+          "Dias Parado": a.diasParado,
+          "Tipo Atend.": a.tipo_atendimento,
+          "Etapa Conta": a.etapaConta,
+          "Setor Etapa": a.setorEtapa,
+          "Data Etapa": a.dtEtapa ? formatDate(a.dtEtapa) : "-",
+          "Usuário Etapa": a.userEtapa,
+          "Cód. Serviço": a.codigo_servico,
+          "Descrição Atendimento": a.descricao_atendimento,
+          "Qtd. Serviço": quantidadePorServico[a.descricao_atendimento || "Sem descrição"] || 0,
+        };
+      } else {
+        return {
+          "N° Atend": a.numero_atendimento,
+          "Plano": a.convenio,
+          "Categoria": a.dsCategoria,
+          "Plano Detalhe": a.dsPlano,
+          "Paciente": a.paciente,
+          "Matrícula": a.matricula,
+          "Sexo": a.sexo,
+          "Idade": a.idade,
+          "Caráter": a.caracter_atendimento,
+          "Data Entrada": a.data_entrada ? formatDate(a.data_entrada) : "-",
+          "Data Saída": a.data_saida ? formatDate(a.data_saida) : "-",
+          "Dias Parado": a.diasParado,
+          "Tipo": a.tipo_atendimento,
+          "Serviço": a.descricao_atendimento,
+          "Proc. Principal": a.codigo_procedimento,
+          "Conta": a.conta,
+          "Autorização": a.autorizacao,
+          "Valor Conta": a.valorConta,
+          "Etapa Conta": a.etapaConta,
+          "Setor Etapa": a.setorEtapa,
+          "Data Etapa": a.dtEtapa ? formatDate(a.dtEtapa) : "-",
+          "Usuário Etapa": a.userEtapa,
+          "Motivo Devolução": a.motivoDevolucao,
+          "Competência": a.competencia,
+          "Referência": a.referencia,
+          "Protocolo Tasy": a.protTasy,
+          "Nome Protocolo": a.nomeProtocolo,
+          "Protocolo Convênio": a.protConv,
+          "Status Protocolo": a.protStatus,
+          "Data Entrega": a.dtEntrega ? formatDate(a.dtEntrega) : "-",
+          "Título": a.titulo,
+          "Data Título": a.dtTitulo ? formatDate(a.dtTitulo) : "-",
+          "Data Vencimento": a.dataVencimento ? formatDate(a.dataVencimento) : "-",
+          "Setor Entrada": a.dsSetorEntrada,
+          "Setor Leito": a.dsSetorLeito,
+          "Médico Resp.": a.medicoResp,
+          "CRM": a.crm,
+          "Motivo Alta": a.dsMotivoAlta,
+          "Centro Custo": a.centroCusto,
+          "Origem": a.origemSistema,
+        };
+      }
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
-    XLSX.writeFile(wb, "atendimentos-parados.xlsx");
+    XLSX.writeFile(wb, `atendimentos-parados${isTasy ? '-tasy' : ''}.xlsx`);
     toast.success("Arquivo exportado com sucesso!");
   };
 
   // Calcular quantidade por tipo
   const getQuantidadePorTipo = () => {
-    const tipos = [...new Set(atendimentos.map(a => a.tipo_atendimento).filter(Boolean))];
+    const baseData = filtroOrigem !== "all" 
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const tipos = [...new Set(baseData.map(a => a.tipo_atendimento).filter(Boolean))];
     return tipos.map(tipo => ({
       tipo,
-      quantidade: atendimentos.filter(a => a.tipo_atendimento === tipo).length
+      quantidade: baseData.filter(a => a.tipo_atendimento === tipo).length
     })).sort((a, b) => b.quantidade - a.quantidade);
   };
 
   // Calcular quantidade por plano
   const getQuantidadePorPlano = () => {
-    const planos = [...new Set(atendimentos.map(a => a.convenio).filter(Boolean))];
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const planos = [...new Set(baseData.map(a => a.convenio).filter(Boolean))];
     return planos.map(plano => ({
       plano,
-      quantidade: atendimentos.filter(a => a.convenio === plano).length
-    })).sort((a, b) => b.quantidade - a.quantidade);
-  };
-
-  // Calcular quantidade por serviço
-  const getQuantidadePorServico = () => {
-    const servicos = [...new Set(atendimentos.map(a => a.codigo_servico).filter(Boolean))];
-    return servicos.map(servico => ({
-      servico,
-      quantidade: atendimentos.filter(a => a.codigo_servico === servico).length
+      quantidade: baseData.filter(a => a.convenio === plano).length
     })).sort((a, b) => b.quantidade - a.quantidade);
   };
 
   // Calcular quantidade por etapa
   const getQuantidadePorEtapa = () => {
-    const etapas = [...new Set(atendimentos.map((a: any) => a.etapaConta).filter(Boolean))];
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const etapas = [...new Set(baseData.map((a: any) => a.etapaConta).filter(Boolean))];
     return etapas.map(etapa => ({
       etapa,
-      quantidade: atendimentos.filter((a: any) => a.etapaConta === etapa).length
+      quantidade: baseData.filter((a: any) => a.etapaConta === etapa).length
     })).sort((a: any, b: any) => b.quantidade - a.quantidade);
+  };
+
+  // Calcular quantidade por origem
+  const getQuantidadePorOrigem = () => {
+    const origens = [...new Set(atendimentos.map(a => a.origemSistema).filter(Boolean))];
+    return origens.map(origem => ({
+      origem,
+      quantidade: atendimentos.filter(a => a.origemSistema === origem).length
+    })).sort((a, b) => b.quantidade - a.quantidade);
   };
 
   // Calcular valor total
@@ -269,6 +336,22 @@ export default function AtendimentosParadosUnificados() {
     return "bg-gray-100 text-gray-800";
   };
 
+  const getOrigemColor = (origem?: string) => {
+    const o = origem?.toLowerCase() || '';
+    if (o === 'tasy') return 'bg-teal-600 text-white';
+    if (o === 'warleine') return 'bg-indigo-600 text-white';
+    if (o === 'easyvision') return 'bg-amber-600 text-white';
+    return 'bg-slate-600 text-white';
+  };
+
+  const getOrigemLabel = (origem?: string) => {
+    const o = origem?.toLowerCase() || '';
+    if (o === 'tasy') return 'TASY';
+    if (o === 'warleine') return 'WARLEINE';
+    if (o === 'easyvision') return 'EASYVISION';
+    return origem?.toUpperCase() || 'DESCONHECIDO';
+  };
+
   const formatDate = (date: string | Date | null | undefined): string => {
     if (!date) return "-";
     try {
@@ -285,6 +368,10 @@ export default function AtendimentosParadosUnificados() {
     if (isNaN(num)) return "-";
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
+
+  // Layout Tasy só ativa quando o usuário seleciona explicitamente o filtro TASY
+  // Warleine e EasyVision mantêm o layout padrão
+  const isTasyLayout = filtroOrigem === "tasy";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
@@ -327,6 +414,50 @@ export default function AtendimentosParadosUnificados() {
           </Card>
         </div>
 
+        {/* Filtro por Sistema de Origem */}
+        <Card className="bg-slate-800 border-slate-700 mb-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-white text-sm">Sistema de Origem</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFiltroOrigem('all')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  filtroOrigem === 'all'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                Todos ({atendimentos.length})
+              </button>
+              {getQuantidadePorOrigem().map(({ origem, quantidade }) => (
+                <button
+                  key={origem}
+                  onClick={() => setFiltroOrigem(origem as OrigemSistema)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    filtroOrigem === origem
+                      ? `${getOrigemColor(origem)} shadow-lg`
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {getOrigemLabel(origem)} ({quantidade})
+                </button>
+              ))}
+            </div>
+            {filtroOrigem !== 'all' && (
+              <div className="mt-2 flex items-center gap-2">
+                <Badge className={getOrigemColor(filtroOrigem)}>
+                  Layout: {getOrigemLabel(filtroOrigem)}
+                </Badge>
+                <span className="text-slate-400 text-xs">
+                  Colunas adaptadas para o sistema {getOrigemLabel(filtroOrigem)}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Filtros por Tipo de Atendimento */}
         <Card className="bg-slate-800 border-slate-700 mb-4">
           <CardHeader className="py-3">
@@ -342,7 +473,7 @@ export default function AtendimentosParadosUnificados() {
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
               >
-                Todos ({atendimentos.length})
+                Todos ({filtroOrigem !== "all" ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase()).length : atendimentos.length})
               </button>
               {getQuantidadePorTipo().map(({ tipo, quantidade }) => (
                 <button
@@ -436,7 +567,14 @@ export default function AtendimentosParadosUnificados() {
           <CardHeader>
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white">Atendimentos</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-white">Atendimentos</CardTitle>
+                  {filtroOrigem !== 'all' && (
+                    <Badge className={getOrigemColor(filtroOrigem)}>
+                      {getOrigemLabel(filtroOrigem)}
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => refetch()}
@@ -462,7 +600,10 @@ export default function AtendimentosParadosUnificados() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input
-                  placeholder="Buscar por N° Atend, Paciente, Plano, Matrícula, Conta ou Médico..."
+                  placeholder={isTasyLayout 
+                    ? "Buscar por N° Atend, Paciente, Plano, Serviço, Descrição..." 
+                    : "Buscar por N° Atend, Paciente, Plano, Matrícula, Conta ou Médico..."
+                  }
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
@@ -481,36 +622,87 @@ export default function AtendimentosParadosUnificados() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-700">
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("numero_atendimento")}>
-                        <div className="flex items-center gap-1">N° Atend <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("convenio")}>
-                        <div className="flex items-center gap-1">Plano <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("paciente")}>
-                        <div className="flex items-center gap-1">Paciente <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("matricula")}>
-                        <div className="flex items-center gap-1">Matrícula <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("data_entrada")}>
-                        <div className="flex items-center gap-1">Entrada <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Saída</th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("diasParado")}>
-                        <div className="flex items-center gap-1">Dias <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Tipo</th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("valorConta")}>
-                        <div className="flex items-center gap-1">Valor <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("etapaConta")}>
-                        <div className="flex items-center gap-1">Etapa <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("medicoResp")}>
-                        <div className="flex items-center gap-1">Médico <ArrowUpDown className="w-3 h-3" /></div>
-                      </th>
-                      <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Ações</th>
+                      {isTasyLayout ? (
+                        /* ===== COLUNAS TASY ===== */
+                        <>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("numero_atendimento")}>
+                            <div className="flex items-center gap-1">N.Atend <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("paciente")}>
+                            <div className="flex items-center gap-1">Paciente <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("convenio")}>
+                            <div className="flex items-center gap-1">Plano <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("data_entrada")}>
+                            <div className="flex items-center gap-1">Data Entrada <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Data Saída</th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("diasParado")}>
+                            <div className="flex items-center gap-1">Dias Parado <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("tipo_atendimento")}>
+                            <div className="flex items-center gap-1">Tipo Atend. <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("etapaConta")}>
+                            <div className="flex items-center gap-1">Etapa Conta <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("setorEtapa")}>
+                            <div className="flex items-center gap-1">Setor Etapa <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("dtEtapa")}>
+                            <div className="flex items-center gap-1">Dt. Etapa <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("userEtapa")}>
+                            <div className="flex items-center gap-1">User Etapa <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("codigo_servico")}>
+                            <div className="flex items-center gap-1">Cód. Serviço <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("descricao_atendimento")}>
+                            <div className="flex items-center gap-1">Descrição Atend. <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Qtd. Serviço</th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Ações</th>
+                        </>
+                      ) : (
+                        /* ===== COLUNAS WARLEINE / EASYVISION / MISTO ===== */
+                        <>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("numero_atendimento")}>
+                            <div className="flex items-center gap-1">N° Atend <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("convenio")}>
+                            <div className="flex items-center gap-1">Plano <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("paciente")}>
+                            <div className="flex items-center gap-1">Paciente <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("matricula")}>
+                            <div className="flex items-center gap-1">Matrícula <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("data_entrada")}>
+                            <div className="flex items-center gap-1">Entrada <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Saída</th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("diasParado")}>
+                            <div className="flex items-center gap-1">Dias <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Tipo</th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("valorConta")}>
+                            <div className="flex items-center gap-1">Valor <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("etapaConta")}>
+                            <div className="flex items-center gap-1">Etapa <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white whitespace-nowrap" onClick={() => handleSort("medicoResp")}>
+                            <div className="flex items-center gap-1">Médico <ArrowUpDown className="w-3 h-3" /></div>
+                          </th>
+                          {origemDetectada === "all" && (
+                            <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Origem</th>
+                          )}
+                          <th className="px-3 py-3 text-left text-slate-300 font-semibold whitespace-nowrap">Ações</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -519,35 +711,87 @@ export default function AtendimentosParadosUnificados() {
                         key={atendimento.id || idx}
                         className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors"
                       >
-                        <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.numero_atendimento}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
-                        <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.matricula || '-'}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
-                        <td className="px-3 py-2.5">
-                          <Badge className={`${getDiasParadoColor(atendimento.diasParado)} text-xs`}>
-                            {atendimento.diasParado}d
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>
-                            {atendimento.tipo_atendimento}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2.5 text-emerald-400 font-mono text-xs whitespace-nowrap">{formatCurrency(atendimento.valorConta)}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.etapaConta}>{atendimento.etapaConta || '-'}</td>
-                        <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.medicoResp}>{atendimento.medicoResp || '-'}</td>
-                        <td className="px-3 py-2.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-slate-400 hover:text-white"
-                            onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </td>
+                        {isTasyLayout ? (
+                          /* ===== LINHAS TASY ===== */
+                          <>
+                            <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.numero_atendimento}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
+                            <td className="px-3 py-2.5">
+                              <Badge className={`${getDiasParadoColor(atendimento.diasParado)} text-xs`}>
+                                {atendimento.diasParado}d
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>
+                                {atendimento.tipo_atendimento}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[140px] truncate" title={atendimento.etapaConta}>{atendimento.etapaConta || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.setorEtapa}>{atendimento.setorEtapa || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.dtEtapa)}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.userEtapa}>{atendimento.userEtapa || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.codigo_servico || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[200px] truncate" title={atendimento.descricao_atendimento}>{atendimento.descricao_atendimento || '-'}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <Badge className="bg-slate-600 text-white text-xs">
+                                {quantidadePorServico[atendimento.descricao_atendimento || "Sem descrição"] || 0}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-white"
+                                onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </>
+                        ) : (
+                          /* ===== LINHAS WARLEINE / EASYVISION / MISTO ===== */
+                          <>
+                            <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.numero_atendimento}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
+                            <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.matricula || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
+                            <td className="px-3 py-2.5">
+                              <Badge className={`${getDiasParadoColor(atendimento.diasParado)} text-xs`}>
+                                {atendimento.diasParado}d
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>
+                                {atendimento.tipo_atendimento}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-emerald-400 font-mono text-xs whitespace-nowrap">{formatCurrency(atendimento.valorConta)}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.etapaConta}>{atendimento.etapaConta || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.medicoResp}>{atendimento.medicoResp || '-'}</td>
+                            {origemDetectada === "all" && (
+                              <td className="px-3 py-2.5">
+                                <Badge className={`${getOrigemColor(atendimento.origemSistema)} text-xs`}>
+                                  {getOrigemLabel(atendimento.origemSistema)}
+                                </Badge>
+                              </td>
+                            )}
+                            <td className="px-3 py-2.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-white"
+                                onClick={() => setSelectedRow(atendimento as AtendimentoUnificado)}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -588,7 +832,12 @@ export default function AtendimentosParadosUnificados() {
           <div className="fixed inset-0 bg-black/60 flex justify-end z-50" onClick={() => setSelectedRow(null)}>
             <div className="bg-slate-800 w-full md:w-[480px] h-screen shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between p-5 border-b border-slate-700">
-                <h2 className="text-lg font-bold text-white">Detalhes do Atendimento</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-white">Detalhes do Atendimento</h2>
+                  <Badge className={getOrigemColor(selectedRow.origemSistema)}>
+                    {getOrigemLabel(selectedRow.origemSistema)}
+                  </Badge>
+                </div>
                 <button
                   onClick={() => setSelectedRow(null)}
                   className="text-slate-400 hover:text-white"
@@ -605,7 +854,7 @@ export default function AtendimentosParadosUnificados() {
                     <DetailField label="N° Atendimento" value={selectedRow.numero_atendimento} mono />
                     <DetailField label="Conta" value={selectedRow.conta} mono />
                     <DetailField label="Autorização" value={selectedRow.autorizacao} mono />
-                    <DetailField label="Origem" value={selectedRow.origemSistema} />
+                    <DetailField label="Origem" value={getOrigemLabel(selectedRow.origemSistema)} />
                   </div>
                 </div>
 
@@ -643,6 +892,7 @@ export default function AtendimentosParadosUnificados() {
                   </div>
                   <DetailField label="Procedimento Principal" value={selectedRow.codigo_procedimento} />
                   <DetailField label="Serviço" value={selectedRow.descricao_atendimento || selectedRow.codigo_servico} />
+                  <DetailField label="Código Serviço" value={selectedRow.codigo_servico} mono />
                 </div>
 
                 {/* Convênio */}
