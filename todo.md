@@ -2997,3 +2997,4 @@
 - [x] Bug: Layout TASY não está ativando na Maternidade Ela - colunas ficam iguais ao layout padrão
 - [x] Fix: Query de atendimentos parados deve incluir TASY mesmo com data_saida preenchida (CSV já traz só contas paradas)
 - [x] Fix: Garantir layout TASY funcione na tela unificada de Atendimentos Parados
+- [x] Ajustar cálculo de Dias Parado para TASY usando campo dtEntrega (dias desde dtEntrega até hoje)

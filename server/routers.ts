@@ -6903,7 +6903,7 @@ export const appRouter = router({
           const dados = await getAtendimentosParadosUnificados();
           return dados.map(d => ({
             ...d,
-            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida),
+            diasParado: calcularDiasParadoUnificado(d.data_entrada, d.data_saida, d.origemSistema, d.dtEntrega, d.dtEtapa),
           }));
         } catch (err: any) {
           throw new TRPCError({

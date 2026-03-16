@@ -73,20 +73,36 @@ export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId
 }
 
 /**
- * Calcula dias parado para atendimentos unificados
- * @param dataEntrada - Data de entrada do atendimento
- * @param dataSaida - Data de saída (null se parado)
+ * Calcula dias parado para atendimentos unificados.
+ * Para TASY: usa dtEntrega (ou dtEtapa como fallback) até hoje, pois o CSV já traz só contas paradas.
+ * Para outros sistemas: usa data_entrada até data_saida (ou hoje se sem saída).
+ * @param params - Parâmetros do atendimento
  * @returns Número de dias parado
  */
-export function calcularDiasParadoUnificado(dataEntrada?: string | Date | null, dataSaida?: string | Date | null): number {
-  if (!dataEntrada) return 0;
+export function calcularDiasParadoUnificado(
+  dataEntrada?: string | Date | null,
+  dataSaida?: string | Date | null,
+  origemSistema?: string | null,
+  dtEntrega?: string | Date | null,
+  dtEtapa?: string | Date | null
+): number {
+  // Para TASY: calcular dias desde dtEntrega (ou dtEtapa) até hoje
+  if (origemSistema?.toLowerCase() === 'tasy') {
+    const dataRef = dtEntrega || dtEtapa;
+    if (!dataRef) return 0;
+    const ref = new Date(dataRef);
+    const hoje = new Date();
+    const diffMs = hoje.getTime() - ref.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  }
 
+  // Para outros sistemas: data_entrada até data_saida (ou hoje)
+  if (!dataEntrada) return 0;
   const entrada = new Date(dataEntrada);
   const saida = dataSaida ? new Date(dataSaida) : new Date();
-
   const diffMs = saida.getTime() - entrada.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
   return Math.max(0, diffDays);
 }
 
@@ -113,7 +129,7 @@ export async function getEstatisticasAtendimentosParadosUnificados(estabelecimen
     }
 
     const diasParadoTotal = atendimentosParados.reduce((sum, a) => {
-      return sum + calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined);
+      return sum + calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined, a.origemSistema, a.dtEntrega, a.dtEtapa);
     }, 0);
 
     const mediaDias = Math.round(diasParadoTotal / atendimentosParados.length);
@@ -123,7 +139,7 @@ export async function getEstatisticasAtendimentosParadosUnificados(estabelecimen
     const porOrigem: Record<string, number> = {};
 
     atendimentosParados.forEach(a => {
-      const dias = calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined);
+      const dias = calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined, a.origemSistema, a.dtEntrega, a.dtEtapa);
       if (a.tipo_atendimento) {
         porTipo[a.tipo_atendimento] = (porTipo[a.tipo_atendimento] || 0) + 1;
       }
@@ -289,7 +305,7 @@ export async function getAtendimentosParadosComFiltros(
 
     if (filtros?.diasMinimoParado) {
       atendimentosParados = atendimentosParados.filter(a => {
-        const dias = calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined);
+        const dias = calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined, a.origemSistema, a.dtEntrega, a.dtEtapa);
         return dias >= filtros.diasMinimoParado!;
       });
     }
