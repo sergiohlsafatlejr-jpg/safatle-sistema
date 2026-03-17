@@ -3069,3 +3069,5 @@
 - [x] Verificar exibição dos dados Hemolabor na tela de atendimentos (badge TASY HEMOLABOR verde-esmeralda)
 
 - [x] Criar filtro por mês/ano na tela de atendimentos (campos separados para Ano e Mês, formato MM/AAAA)
+
+- [x] Bug: Tela de atendimentos do Hemolabor não segue o mesmo layout TASY da Maternidade Ela - corrigir para que tasy_hemolabor use o mesmo modelo/layout TASY

@@ -81,7 +81,7 @@ interface AtendimentoUnificado {
 const PAGE_SIZE = 50;
 
 // Tipos de origem
-type OrigemSistema = "tasy" | "WARLEINE" | "EASYVISION" | "all";
+type OrigemSistema = "tasy" | "tasy_hemolabor" | "WARLEINE" | "EASYVISION" | "all";
 
 // Opções de motivo
 const MOTIVOS_OPTIONS = [
@@ -503,6 +503,7 @@ export default function AtendimentosParadosUnificados() {
     if (origens.size === 1) {
       const unica = [...origens][0];
       if (unica === "tasy") return "tasy";
+      if (unica === "tasy_hemolabor") return "tasy_hemolabor";
       if (unica === "warleine") return "WARLEINE";
       if (unica === "easyvision") return "EASYVISION";
     }
@@ -511,8 +512,8 @@ export default function AtendimentosParadosUnificados() {
 
   const quantidadePorDescricao = useMemo(() => {
     const map: Record<string, number> = {};
-    const baseData = filtroOrigem === "tasy"
-      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === "tasy")
+    const baseData = (filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor")
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
       : filteredData;
     baseData.forEach(a => {
       const desc = (a as any).descricao_atendimento || "Sem descrição";
@@ -642,7 +643,7 @@ export default function AtendimentosParadosUnificados() {
 
   // Exportar Excel com colunas baseadas na origem
   const handleExportExcel = () => {
-    const isTasy = filtroOrigem === "tasy";
+    const isTasy = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor";
     const data = filteredData.map((a: any) => {
       if (isTasy) {
         return {
@@ -787,8 +788,8 @@ export default function AtendimentosParadosUnificados() {
   };
 
   const getQuantidadePorProtocolo = useMemo(() => {
-    const baseData = filtroOrigem === "tasy"
-      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === "tasy")
+    const baseData = (filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor")
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
       : atendimentos;
     const protocolos: Record<string, number> = {};
     let nullCount = 0;
@@ -882,7 +883,7 @@ export default function AtendimentosParadosUnificados() {
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const isTasyLayout = filtroOrigem === "tasy";
+  const isTasyLayout = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor";
 
   // Componente de linhas de notificação reutilizável
   const NotificacaoLinhasEditor = ({ linhas, setLinhas }: { linhas: NotificacaoLinha[]; setLinhas: React.Dispatch<React.SetStateAction<NotificacaoLinha[]>> }) => (
