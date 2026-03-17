@@ -3040,3 +3040,4 @@
 - [x] Incluir Valor Conta e status Notificado na exportação Excel TASY
 - [x] 14 testes vitest passando para as novas funcionalidades
 - [x] Filtrar atendimentos TASY para exibir apenas registros com valorConta acima de R$ 0,10 (remover contas zeradas)
+- [x] BUG: Permissões de Relatórios BI não estão funcionando - relatórios desativados continuam aparecendo para o usuário (corrigido defaults || "sim" para || "nao" em 3 arquivos)

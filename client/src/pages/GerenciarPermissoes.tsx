@@ -231,13 +231,13 @@ export default function GerenciarPermissoes() {
     acessoRecursos: "nao" as "sim" | "nao",
     acessoAtendimentos: "nao" as "sim" | "nao",
     acessoAtendimentosFaturar: "nao" as "sim" | "nao",
-    acessoRelFaturadoRecebido: "sim" as "sim" | "nao",
-    acessoRelRecebimentoGeral: "sim" as "sim" | "nao",
-    acessoRelFaturamento: "sim" as "sim" | "nao",
-    acessoRelAtendimentos: "sim" as "sim" | "nao",
-    acessoRelCustos: "sim" as "sim" | "nao",
-    acessoRelNaoRecebidos: "sim" as "sim" | "nao",
-    acessoRelPrevisaoGlosa: "sim" as "sim" | "nao",
+    acessoRelFaturadoRecebido: "nao" as "sim" | "nao",
+    acessoRelRecebimentoGeral: "nao" as "sim" | "nao",
+    acessoRelFaturamento: "nao" as "sim" | "nao",
+    acessoRelAtendimentos: "nao" as "sim" | "nao",
+    acessoRelCustos: "nao" as "sim" | "nao",
+    acessoRelNaoRecebidos: "nao" as "sim" | "nao",
+    acessoRelPrevisaoGlosa: "nao" as "sim" | "nao",
   });
 
   // Verificar se é gestor
@@ -548,13 +548,13 @@ export default function GerenciarPermissoes() {
       acessoRecursos: user.acessoRecursos || "nao",
       acessoAtendimentos: user.acessoAtendimentos || "nao",
       acessoAtendimentosFaturar: user.acessoAtendimentosFaturar || "nao",
-      acessoRelFaturadoRecebido: user.acessoRelFaturadoRecebido || "sim",
-      acessoRelRecebimentoGeral: user.acessoRelRecebimentoGeral || "sim",
-      acessoRelFaturamento: user.acessoRelFaturamento || "sim",
-      acessoRelAtendimentos: user.acessoRelAtendimentos || "sim",
-      acessoRelCustos: user.acessoRelCustos || "sim",
-      acessoRelNaoRecebidos: user.acessoRelNaoRecebidos || "sim",
-      acessoRelPrevisaoGlosa: user.acessoRelPrevisaoGlosa || "sim",
+      acessoRelFaturadoRecebido: user.acessoRelFaturadoRecebido || "nao",
+      acessoRelRecebimentoGeral: user.acessoRelRecebimentoGeral || "nao",
+      acessoRelFaturamento: user.acessoRelFaturamento || "nao",
+      acessoRelAtendimentos: user.acessoRelAtendimentos || "nao",
+      acessoRelCustos: user.acessoRelCustos || "nao",
+      acessoRelNaoRecebidos: user.acessoRelNaoRecebidos || "nao",
+      acessoRelPrevisaoGlosa: user.acessoRelPrevisaoGlosa || "nao",
     });
     setShowEditDialog(true);
   };
