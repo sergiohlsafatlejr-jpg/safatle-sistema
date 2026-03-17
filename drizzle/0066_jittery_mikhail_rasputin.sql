@@ -1,1 +1,0 @@
-ALTER TABLE `padroesCobranca` ADD `setor` varchar(255);

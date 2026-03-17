@@ -1,1 +1,0 @@
-ALTER TABLE `contas_convenio_resumo` ADD `divergenciasGerais` json;

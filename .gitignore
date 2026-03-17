@@ -138,3 +138,6 @@ MIGRATION*.md
 MOTOR*.md
 ROADMAP*.md
 debug_*.ts
+
+# Manus logs
+.manus-logs/
