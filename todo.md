@@ -3039,3 +3039,4 @@
 - [x] Aplicar mesmas melhorias na tela AtendimentosSemProtocolo (Atendimentos com Protocolo)
 - [x] Incluir Valor Conta e status Notificado na exportação Excel TASY
 - [x] 14 testes vitest passando para as novas funcionalidades
+- [x] Filtrar atendimentos TASY para exibir apenas registros com valorConta acima de R$ 0,10 (remover contas zeradas)

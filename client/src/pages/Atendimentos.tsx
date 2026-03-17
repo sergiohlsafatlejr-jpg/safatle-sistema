@@ -415,7 +415,7 @@ export default function Atendimentos() {
   // Contar TASY sem protocolo
   const tasyTotalSemProtocolo = useMemo(() => {
     if (!atendimentos) return 0;
-    return atendimentos.filter(d => d.origemSistema === "tasy" && (!d.nomeProtocolo || d.nomeProtocolo.trim() === "")).length;
+    return atendimentos.filter(d => d.origemSistema === "tasy" && (!d.nomeProtocolo || d.nomeProtocolo.trim() === "") && (parseFloat(String(d.valorConta)) || 0) > 0.1).length;
   }, [atendimentos]);
 
   const registrarNotificacao = trpc.atendimentos.registrarNotificacao.useMutation({
@@ -525,6 +525,8 @@ export default function Atendimentos() {
     if (!atendimentos) return { total: 0, internacao: 0, exame: 0, ambulatorio: 0, prontoSocorro: 0 };
     // Filtrar por origem se necessário
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") {
       dados = dados.filter(d => d.origemSistema === filtroOrigem);
     }
@@ -573,6 +575,8 @@ export default function Atendimentos() {
   const valorTotal = useMemo(() => {
     if (!atendimentos) return 0;
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -597,6 +601,8 @@ export default function Atendimentos() {
   const planosContagem = useMemo(() => {
     if (!atendimentos) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -617,6 +623,8 @@ export default function Atendimentos() {
   const servicosContagem = useMemo(() => {
     if (!atendimentos) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -640,6 +648,8 @@ export default function Atendimentos() {
   const etapaContagem = useMemo(() => {
     if (!atendimentos || !isTasyLayout) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -660,6 +670,8 @@ export default function Atendimentos() {
   const dadosFiltrados = useMemo(() => {
     if (!atendimentos) return [];
     let filtrados = [...atendimentos] as AtendimentoData[];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    filtrados = filtrados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
 
     // Filtro por origem
     if (filtroOrigem !== "todos") {

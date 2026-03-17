@@ -209,6 +209,98 @@ describe("Atendimentos - Valor Total e Notificação", () => {
     });
   });
 
+  describe("Filtro valorConta > 0.1 (remover contas zeradas)", () => {
+    const mockComZerados = [
+      ...mockAtendimentos,
+      {
+        numatend: "1005",
+        nomepac: "Carlos Lima",
+        nomeplaco: "SulAmérica",
+        datatend: "2025-04-01T00:00:00.000Z",
+        datasai: null,
+        diasParado: 1,
+        tipoatendimentodescricao: "Exame",
+        codserv: "401",
+        codcc_destino: "EXM-01",
+        motivo: null,
+        origemSistema: "tasy",
+        tipoatend: "Exame",
+        valorConta: "0.00",
+        nomeProtocolo: null,
+        etapaConta: "Auditoria",
+      },
+      {
+        numatend: "1006",
+        nomepac: "Lucia Ferreira",
+        nomeplaco: "Unimed",
+        datatend: "2025-04-05T00:00:00.000Z",
+        datasai: null,
+        diasParado: 3,
+        tipoatendimentodescricao: "Internação",
+        codserv: "101",
+        codcc_destino: "UTI-03",
+        motivo: null,
+        origemSistema: "tasy",
+        tipoatend: "Internado",
+        valorConta: "0.05",
+        nomeProtocolo: null,
+        etapaConta: "Faturamento",
+      },
+    ];
+
+    it("deve remover atendimentos com valorConta = 0.00", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      expect(filtrados.find(d => d.numatend === "1005")).toBeUndefined();
+    });
+
+    it("deve remover atendimentos com valorConta = 0.05 (abaixo de 0.1)", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      expect(filtrados.find(d => d.numatend === "1006")).toBeUndefined();
+    });
+
+    it("deve manter atendimentos com valorConta acima de 0.1", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      // 1001 (15000.50), 1002 (8500.00), 1004 (25000.75) devem permanecer
+      expect(filtrados.find(d => d.numatend === "1001")).toBeDefined();
+      expect(filtrados.find(d => d.numatend === "1002")).toBeDefined();
+      expect(filtrados.find(d => d.numatend === "1004")).toBeDefined();
+    });
+
+    it("deve remover atendimentos com valorConta vazio", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      // 1003 tem valorConta = "" -> parseFloat("") = NaN -> 0 -> não passa
+      expect(filtrados.find(d => d.numatend === "1003")).toBeUndefined();
+    });
+
+    it("deve retornar a quantidade correta após filtro", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      // Dos 6 atendimentos, apenas 3 têm valorConta > 0.1: 1001, 1002, 1004
+      expect(filtrados).toHaveLength(3);
+    });
+
+    it("deve calcular valor total corretamente após filtro", () => {
+      const filtrados = mockComZerados.filter(
+        d => (parseFloat(String(d.valorConta)) || 0) > 0.1
+      );
+      const valorTotal = filtrados.reduce((acc, d) => {
+        const val = d.valorConta ? parseFloat(String(d.valorConta)) : 0;
+        return acc + (isNaN(val) ? 0 : val);
+      }, 0);
+      // 15000.50 + 8500.00 + 25000.75 = 48501.25
+      expect(valorTotal).toBeCloseTo(48501.25, 2);
+    });
+  });
+
   describe("Exportação Excel com Valor Conta e Notificado", () => {
     it("deve incluir Valor Conta e Notificado na exportação TASY", () => {
       const notificadosSet = new Set(

@@ -522,6 +522,8 @@ export default function AtendimentosSemProtocolo() {
     if (!atendimentos) return { total: 0, internacao: 0, exame: 0, ambulatorio: 0, prontoSocorro: 0 };
     // Filtrar por origem se necessário
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") {
       dados = dados.filter(d => d.origemSistema === filtroOrigem);
     }
@@ -570,6 +572,8 @@ export default function AtendimentosSemProtocolo() {
   const valorTotal = useMemo(() => {
     if (!atendimentos) return 0;
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -594,6 +598,8 @@ export default function AtendimentosSemProtocolo() {
   const planosContagem = useMemo(() => {
     if (!atendimentos) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -614,6 +620,8 @@ export default function AtendimentosSemProtocolo() {
   const servicosContagem = useMemo(() => {
     if (!atendimentos) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -637,6 +645,8 @@ export default function AtendimentosSemProtocolo() {
   const etapaContagem = useMemo(() => {
     if (!atendimentos || !isTasyLayout) return [];
     let dados = [...atendimentos];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    dados = dados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
     if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
     if (filtroProtocolo !== "todos") {
       if (filtroProtocolo === "__sem_protocolo__") {
@@ -657,6 +667,8 @@ export default function AtendimentosSemProtocolo() {
   const dadosFiltrados = useMemo(() => {
     if (!atendimentos) return [];
     let filtrados = [...atendimentos] as AtendimentoData[];
+    // Filtrar contas com valorConta > 0.1 (remover zeradas)
+    filtrados = filtrados.filter(d => (parseFloat(String(d.valorConta)) || 0) > 0.1);
 
     // Filtro por origem
     if (filtroOrigem !== "todos") {
