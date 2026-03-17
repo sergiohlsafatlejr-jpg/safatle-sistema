@@ -3073,3 +3073,5 @@
 - [x] Bug: Tela de atendimentos do Hemolabor não segue o mesmo layout TASY da Maternidade Ela - corrigir para que tasy_hemolabor use o mesmo modelo/layout TASY
 
 - [x] Implementar paginação server-side na tela de atendimentos para todos os estabelecimentos (LIMIT/OFFSET no banco, filtros server-side, agregações para KPIs)
+
+- [x] Bug: Tela de atendimentos do Hemolabor mostra layout genérico em vez do layout TASY (falta Cód. Serviço, Descrição Atendimento, Etapa Conta, Setor Etapa, Usuário Etapa, Nome Protocolo) - corrigido em Atendimentos.tsx e AtendimentosParadosUnificados.tsx

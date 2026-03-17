@@ -608,7 +608,7 @@ export default function AtendimentosParadosUnificados() {
 
   // Exportar Excel com colunas baseadas na origem
   const handleExportExcel = () => {
-    const isTasy = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor";
+    const isTasy = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor" || origemDetectada === "tasy" || origemDetectada === "tasy_hemolabor";
     const data = filteredData.map((a: any) => {
       if (isTasy) {
         return {
@@ -785,7 +785,7 @@ export default function AtendimentosParadosUnificados() {
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const isTasyLayout = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor";
+  const isTasyLayout = filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor" || origemDetectada === "tasy" || origemDetectada === "tasy_hemolabor";
 
   // Componente de linhas de notificação reutilizável
   const NotificacaoLinhasEditor = ({ linhas, setLinhas }: { linhas: NotificacaoLinha[]; setLinhas: React.Dispatch<React.SetStateAction<NotificacaoLinha[]>> }) => (

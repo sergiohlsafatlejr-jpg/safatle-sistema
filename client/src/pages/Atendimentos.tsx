@@ -381,11 +381,11 @@ export default function Atendimentos() {
 
   // ===== Detectar se é layout TASY =====
   const isTasyLayout = useMemo(() => {
-    if (filtroOrigem === "tasy") return true;
+    if (filtroOrigem === "tasy" || filtroOrigem === "tasy_hemolabor") return true;
     if (filtroOrigem !== "todos") return false;
-    // Se todos os dados são TASY, ativar layout TASY
+    // Se todos os dados são TASY ou TASY_HEMOLABOR, ativar layout TASY
     if (atendimentos && atendimentos.length > 0) {
-      return atendimentos.every(d => d.origemSistema === "tasy");
+      return atendimentos.every(d => d.origemSistema === "tasy" || d.origemSistema === "tasy_hemolabor");
     }
     return false;
   }, [filtroOrigem, atendimentos]);
@@ -402,7 +402,7 @@ export default function Atendimentos() {
     if (!atendimentos) return [];
     const protocolos = new Set<string>();
     atendimentos
-      .filter(d => d.origemSistema === "tasy")
+      .filter(d => d.origemSistema === "tasy" || d.origemSistema === "tasy_hemolabor")
       .forEach(d => {
         const prot = d.nomeProtocolo;
         if (prot && prot.trim() !== "") {
@@ -415,7 +415,7 @@ export default function Atendimentos() {
   // Contar TASY sem protocolo
   const tasyTotalSemProtocolo = useMemo(() => {
     if (!atendimentos) return 0;
-    return atendimentos.filter(d => d.origemSistema === "tasy" && (!d.nomeProtocolo || d.nomeProtocolo.trim() === "") && (parseFloat(String(d.valorConta)) || 0) > 0.1).length;
+    return atendimentos.filter(d => (d.origemSistema === "tasy" || d.origemSistema === "tasy_hemolabor") && (!d.nomeProtocolo || d.nomeProtocolo.trim() === "") && (parseFloat(String(d.valorConta)) || 0) > 0.1).length;
   }, [atendimentos]);
 
   const registrarNotificacao = trpc.atendimentos.registrarNotificacao.useMutation({
@@ -1103,7 +1103,7 @@ export default function Atendimentos() {
                   variant={filtroOrigem === origem ? "default" : "outline"}
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => { setFiltroOrigem(origem); if (origem !== "tasy") setFiltroProtocolo("todos"); }}
+                  onClick={() => { setFiltroOrigem(origem); if (origem !== "tasy" && origem !== "tasy_hemolabor") setFiltroProtocolo("todos"); }}
                 >
                   {origem.toUpperCase()}
                 </Button>
