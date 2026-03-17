@@ -266,7 +266,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
     }
 
     return {
-      acessoDashboard: permissao.acessoDashboard || "sim",
+      acessoDashboard: permissao.acessoDashboard || "nao",
       acessoArquivos: permissao.acessoArquivos || "nao",
       acessoComparacoes: permissao.acessoComparacoes || "nao",
       acessoFaturamento: permissao.acessoFaturamento || "nao",

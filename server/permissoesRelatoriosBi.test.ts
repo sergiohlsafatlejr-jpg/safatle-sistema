@@ -183,6 +183,7 @@ describe("Permissões Relatórios BI - Formulário de Edição", () => {
   // Simular handleEditPermissao com os defaults corrigidos
   function handleEditPermissao(user: Record<string, any>) {
     return {
+      acessoDashboard: user.acessoDashboard || "nao",
       acessoRelFaturadoRecebido: user.acessoRelFaturadoRecebido || "nao",
       acessoRelRecebimentoGeral: user.acessoRelRecebimentoGeral || "nao",
       acessoRelFaturamento: user.acessoRelFaturamento || "nao",
@@ -205,6 +206,7 @@ describe("Permissões Relatórios BI - Formulário de Edição", () => {
   it("deve carregar toggles corretamente quando usuário tem permissões mistas", () => {
     const user = {
       userName: "aragraciotte",
+      acessoDashboard: "nao",
       acessoRelFaturamento: "sim",
       acessoRelAtendimentos: "sim",
       acessoRelCustos: "sim",
@@ -215,6 +217,7 @@ describe("Permissões Relatórios BI - Formulário de Edição", () => {
     };
     const form = handleEditPermissao(user);
 
+    expect(form.acessoDashboard).toBe("nao");
     expect(form.acessoRelFaturamento).toBe("sim");
     expect(form.acessoRelAtendimentos).toBe("sim");
     expect(form.acessoRelCustos).toBe("sim");
@@ -222,5 +225,72 @@ describe("Permissões Relatórios BI - Formulário de Edição", () => {
     expect(form.acessoRelRecebimentoGeral).toBe("nao");
     expect(form.acessoRelNaoRecebidos).toBe("nao");
     expect(form.acessoRelPrevisaoGlosa).toBe("nao");
+  });
+
+  it("acessoDashboard default deve ser 'nao' (não 'sim')", () => {
+    const user = { userName: "aragraciotte" };
+    const form = handleEditPermissao(user);
+    expect(form.acessoDashboard).toBe("nao");
+  });
+});
+
+describe("SettingsMenu - Filtragem por Permissão", () => {
+  // Simular a lógica de filtragem do SettingsMenu
+  type SettingsMenuItem = {
+    label: string;
+    adminOnly?: boolean;
+    modulo?: string;
+  };
+
+  const settingsMenuItems: SettingsMenuItem[] = [
+    { label: "Estabelecimentos", modulo: "estabelecimentos" },
+    { label: "Convênios", modulo: "convenios" },
+    { label: "Tabelas de Preço", modulo: "tabelasPreco" },
+    { label: "Usuários e Permissões", modulo: "permissoes" },
+    { label: "Integrador de Dados", adminOnly: true },
+    { label: "Mapeamento Convênios", adminOnly: true },
+    { label: "Regras de IA", adminOnly: true },
+    { label: "Dicionário de Glosas", modulo: "dicionarioGlosas" },
+    { label: "Avisos Internos", adminOnly: true },
+    { label: "Notificações" },
+    { label: "Backup e Dados", adminOnly: true },
+  ];
+
+  function filterSettingsItems(
+    items: SettingsMenuItem[],
+    isGestor: boolean,
+    temAcesso: (modulo: string) => boolean
+  ) {
+    return items.filter(item => {
+      if (item.adminOnly) return isGestor;
+      if (item.modulo) return temAcesso(item.modulo);
+      return true;
+    });
+  }
+
+  it("deve mostrar apenas Notificações para usuário sem permissões", () => {
+    const filtered = filterSettingsItems(settingsMenuItems, false, () => false);
+    expect(filtered.map(i => i.label)).toEqual(["Notificações"]);
+  });
+
+  it("deve mostrar todos os itens para gestor", () => {
+    const filtered = filterSettingsItems(settingsMenuItems, true, () => true);
+    expect(filtered.length).toBe(settingsMenuItems.length);
+  });
+
+  it("deve mostrar apenas itens com módulo permitido para usuário com permissões parciais", () => {
+    const permissoes = new Set(["estabelecimentos", "convenios"]);
+    const filtered = filterSettingsItems(
+      settingsMenuItems,
+      false,
+      (modulo) => permissoes.has(modulo)
+    );
+    const labels = filtered.map(i => i.label);
+    expect(labels).toContain("Estabelecimentos");
+    expect(labels).toContain("Convênios");
+    expect(labels).toContain("Notificações");
+    expect(labels).not.toContain("Tabelas de Preço");
+    expect(labels).not.toContain("Integrador de Dados");
+    expect(labels).not.toContain("Backup e Dados");
   });
 });

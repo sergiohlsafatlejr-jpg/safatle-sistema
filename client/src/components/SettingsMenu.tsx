@@ -30,6 +30,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
+import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 
 type SettingsMenuItem = {
   icon: any;
@@ -38,6 +40,7 @@ type SettingsMenuItem = {
   description?: string;
   section?: string;
   adminOnly?: boolean;
+  modulo?: ModuloPermissao; // Permissão de módulo necessária
 };
 
 const settingsMenuItems: SettingsMenuItem[] = [
@@ -48,6 +51,7 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/estabelecimentos",
     description: "Gerenciar unidades e filiais",
     section: "Cadastros",
+    modulo: "estabelecimentos",
   },
   {
     icon: FileText,
@@ -55,6 +59,7 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/convenios",
     description: "Gerenciar convênios e planos",
     section: "Cadastros",
+    modulo: "convenios",
   },
   {
     icon: DollarSign,
@@ -62,6 +67,7 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/tabelas-preco",
     description: "Gerenciar tabelas de preços",
     section: "Cadastros",
+    modulo: "tabelasPreco",
   },
   // Acesso
   {
@@ -70,6 +76,7 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/gerenciar-permissoes",
     description: "Gerenciar usuários, roles e permissões",
     section: "Acesso",
+    modulo: "permissoes",
   },
   // Integrações
   {
@@ -103,6 +110,7 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/dicionario-glosas",
     description: "Gerenciar dicionário de glosas",
     section: "IA e Regras",
+    modulo: "dicionarioGlosas",
   },
   // Comunicação
   {
@@ -127,25 +135,41 @@ const settingsMenuItems: SettingsMenuItem[] = [
     path: "/configuracoes/backup",
     description: "Exportar, importar, limpar",
     section: "Sistema",
+    adminOnly: true,
   },
 ];
 
 // Agrupar itens por seção
-const sections = [
-  { label: "Cadastros", items: settingsMenuItems.filter(i => i.section === "Cadastros") },
-  { label: "Acesso", items: settingsMenuItems.filter(i => i.section === "Acesso") },
-  { label: "Integrações", items: settingsMenuItems.filter(i => i.section === "Integrações") },
-  { label: "IA e Regras", items: settingsMenuItems.filter(i => i.section === "IA e Regras") },
-  { label: "Comunicação", items: settingsMenuItems.filter(i => i.section === "Comunicação") },
-  { label: "Sistema", items: settingsMenuItems.filter(i => i.section === "Sistema") },
-];
+const sectionNames = ["Cadastros", "Acesso", "Integrações", "IA e Regras", "Comunicação", "Sistema"];
 
 export function SettingsMenu() {
   const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { isGestor, temAcessoModulo } = useEstabelecimento();
+
+  // Filtrar itens por permissão
+  const filteredItems = settingsMenuItems.filter(item => {
+    // Se é adminOnly, verificar se é gestor
+    if (item.adminOnly) return isGestor;
+    // Se tem módulo, verificar permissão
+    if (item.modulo) return temAcessoModulo(item.modulo);
+    // Sem restrição, sempre mostra
+    return true;
+  });
+
+  // Se não há itens visíveis, não renderizar o menu de configurações
+  if (filteredItems.length === 0) return null;
+
+  // Agrupar itens filtrados por seção
+  const sections = sectionNames
+    .map(label => ({
+      label,
+      items: filteredItems.filter(i => i.section === label),
+    }))
+    .filter(section => section.items.length > 0); // Remover seções vazias
 
   // Verificar se alguma rota de configurações está ativa
-  const allPaths = settingsMenuItems.map(i => i.path);
+  const allPaths = filteredItems.map(i => i.path);
   const isSettingsActive = allPaths.some(p => location === p || location.startsWith("/configuracoes"));
 
   return (
