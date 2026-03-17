@@ -767,6 +767,7 @@ export default function AtendimentosParadosUnificados() {
   const getOrigemColor = (origem?: string) => {
     const o = origem?.toLowerCase() || '';
     if (o === 'tasy') return 'bg-teal-600 text-white';
+    if (o === 'tasy_hemolabor') return 'bg-emerald-600 text-white';
     if (o === 'warleine') return 'bg-indigo-600 text-white';
     if (o === 'easyvision') return 'bg-amber-600 text-white';
     return 'bg-slate-600 text-white';
@@ -775,6 +776,7 @@ export default function AtendimentosParadosUnificados() {
   const getOrigemLabel = (origem?: string) => {
     const o = origem?.toLowerCase() || '';
     if (o === 'tasy') return 'TASY';
+    if (o === 'tasy_hemolabor') return 'TASY HEMOLABOR';
     if (o === 'warleine') return 'WARLEINE';
     if (o === 'easyvision') return 'EASYVISION';
     return origem?.toUpperCase() || 'DESCONHECIDO';

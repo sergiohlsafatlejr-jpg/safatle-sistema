@@ -8,6 +8,13 @@
       "when": 1773676686799,
       "tag": "0082_chunky_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "5",
+      "when": 1773769384364,
+      "tag": "0083_gifted_wraith",
+      "breakpoints": true
     }
   ]
 }

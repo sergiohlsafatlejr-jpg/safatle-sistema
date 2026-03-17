@@ -6645,7 +6645,7 @@ export const appRouter = router({
             // Os que têm protocolo vão para a tela "Atendimentos Sem Protocolo"
             conditions.push(
               or(
-                sql`${atendimentosUnificados.origemSistema} != 'tasy'`,
+                sql`${atendimentosUnificados.origemSistema} NOT IN ('tasy', 'tasy_hemolabor')`,
                 isNull(atendimentosUnificados.nomeProtocolo),
                 eq(atendimentosUnificados.nomeProtocolo, '')
               )!
@@ -6683,7 +6683,7 @@ export const appRouter = router({
               procprin: d.codigo_procedimento || "",
               codcc_destino: d.destino_conta || "",
               motivo: motivosMap[d.numero_atendimento || ""] || null,
-              diasParado: d.origemSistema === 'tasy'
+              diasParado: (d.origemSistema === 'tasy' || d.origemSistema === 'tasy_hemolabor')
                 ? calcularDiasParadoUnificado(
                     d.data_entrada ? new Date(d.data_entrada).toISOString() : null,
                     d.data_saida ? new Date(d.data_saida).toISOString() : null,
@@ -6747,13 +6747,13 @@ export const appRouter = router({
           const dbInstance = await getDb();
           if (dbInstance) {
             const { atendimentos: atendimentosUnificados } = await import("../drizzle/schema-integracao");
-            const { eq, and, notLike, isNotNull, ne } = await import("drizzle-orm");
+            const { eq, and, notLike, isNotNull, ne, or } = await import("drizzle-orm");
             let conditions = [];
             if (estabId) {
               conditions.push(eq(atendimentosUnificados.estabelecimentoId, estabId));
             }
             // Apenas TASY com nomeProtocolo preenchido
-            conditions.push(eq(atendimentosUnificados.origemSistema, 'tasy'));
+            conditions.push(or(eq(atendimentosUnificados.origemSistema, 'tasy'), eq(atendimentosUnificados.origemSistema, 'tasy_hemolabor'))!);
             conditions.push(isNotNull(atendimentosUnificados.nomeProtocolo));
             conditions.push(ne(atendimentosUnificados.nomeProtocolo, ''));
             conditions.push(notLike(atendimentosUnificados.descricao_atendimento, '%A_FATURAR%'));

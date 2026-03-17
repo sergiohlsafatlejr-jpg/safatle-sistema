@@ -24,6 +24,7 @@ export async function getAtendimentosParadosUnificados() {
       .where(
         or(
           eq(atendimentos.origemSistema, 'tasy'),
+          eq(atendimentos.origemSistema, 'tasy_hemolabor'),
           isNull(atendimentos.data_saida)
         )
       )
@@ -59,6 +60,7 @@ export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId
           eq(atendimentos.estabelecimentoId, estabelecimentoId),
           or(
             eq(atendimentos.origemSistema, 'tasy'),
+            eq(atendimentos.origemSistema, 'tasy_hemolabor'),
             isNull(atendimentos.data_saida)
           )
         )
@@ -87,7 +89,7 @@ export function calcularDiasParadoUnificado(
   dtEtapa?: string | Date | null
 ): number {
   // Para TASY: calcular dias desde dtEntrega (ou dtEtapa) até hoje
-  if (origemSistema?.toLowerCase() === 'tasy') {
+  if (origemSistema?.toLowerCase() === 'tasy' || origemSistema?.toLowerCase() === 'tasy_hemolabor') {
     const dataRef = dtEntrega || dtEtapa;
     if (!dataRef) return 0;
     const ref = new Date(dataRef);

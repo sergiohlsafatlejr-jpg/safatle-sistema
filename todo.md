@@ -3061,3 +3061,9 @@
 - [x] Limpar dados antigos e importar novos dados do CSV PENDENTES20252026.csv
 - [x] Atualizar dados na tabela atendimentos_unificados com origem tasy
 - [x] Atualizar referências no schema e scripts de importação
+
+- [x] Criar tabela TASY_hemolabor_atendimentos_stagion no schema
+- [x] Criar script de importação Excel para Hemolabor
+- [x] Importar dados do HemolaborAtend2025-2026.xlsx na tabela staging (250.885 registros)
+- [x] Unificar dados Hemolabor na tabela atendimentos_unificados (250.885 registros, origemSistema=tasy_hemolabor)
+- [x] Verificar exibição dos dados Hemolabor na tela de atendimentos (badge TASY HEMOLABOR verde-esmeralda)
