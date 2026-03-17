@@ -14,7 +14,7 @@ import {
   Users, Building2, Stethoscope, FlaskConical,
   ArrowUpDown, Download, Plus, X, RefreshCw,
   Search, Bell, AlertTriangle, Clock, Timer, ArrowLeft, Shield,
-  CheckSquare, FileText, Mail, Send, Activity
+  CheckSquare, FileText, Mail, Send, Activity, DollarSign, CircleCheck
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -569,6 +569,30 @@ export default function Atendimentos() {
     };
   }, [atendimentos, isTasyLayout, filtroOrigem, filtroProtocolo]);
 
+  // KPI: Valor Total (soma do valorConta dos atendimentos filtrados)
+  const valorTotal = useMemo(() => {
+    if (!atendimentos) return 0;
+    let dados = [...atendimentos];
+    if (filtroOrigem !== "todos") dados = dados.filter(d => d.origemSistema === filtroOrigem);
+    if (filtroProtocolo !== "todos") {
+      if (filtroProtocolo === "__sem_protocolo__") {
+        dados = dados.filter(d => !d.nomeProtocolo || d.nomeProtocolo.trim() === "");
+      } else {
+        dados = dados.filter(d => d.nomeProtocolo === filtroProtocolo);
+      }
+    }
+    return dados.reduce((acc, d) => {
+      const val = d.valorConta ? parseFloat(String(d.valorConta)) : 0;
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [atendimentos, filtroOrigem, filtroProtocolo]);
+
+  // Set de numatends notificados (motivo não-nulo)
+  const notificadosSet = useMemo(() => {
+    if (!atendimentos) return new Set<string>();
+    return new Set(atendimentos.filter(d => d.motivo).map(d => d.numatend));
+  }, [atendimentos]);
+
   // KPIs por plano
   const planosContagem = useMemo(() => {
     if (!atendimentos) return [];
@@ -870,6 +894,8 @@ export default function Atendimentos() {
         "User Etapa": d.userEtapa || "-",
         "Cód. Serviço": d.codServico || d.codserv || "-",
         "Descrição Atend.": d.tipoatendimentodescricao || "-",
+        "Valor Conta": d.valorConta ? parseFloat(String(d.valorConta)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-",
+        "Notificado": notificadosSet.has(d.numatend) ? "Sim" : "Não",
         "Nome Protocolo": d.nomeProtocolo || "-",
       }));
     } else {
@@ -923,6 +949,7 @@ export default function Atendimentos() {
     { col: "userEtapa", label: "User Etapa" },
     { col: "codServico", label: "Cód. Serviço" },
     { col: "tipoatendimentodescricao", label: "Descrição Atend." },
+    { col: "valorConta", label: "Valor Conta" },
   ];
 
   const defaultColumns = [
@@ -997,6 +1024,15 @@ export default function Atendimentos() {
         return <span className="whitespace-nowrap text-xs">{d.dtEtapa ? new Date(d.dtEtapa).toLocaleDateString("pt-BR") : "-"}</span>;
       case "userEtapa":
         return <span className="text-xs max-w-[120px] truncate block" title={d.userEtapa}>{d.userEtapa || "-"}</span>;
+      case "valorConta": {
+        const val = d.valorConta ? parseFloat(String(d.valorConta)) : 0;
+        if (!val || isNaN(val)) return <span className="text-muted-foreground">-</span>;
+        return (
+          <span className="font-mono text-xs font-medium text-emerald-400 whitespace-nowrap">
+            {val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          </span>
+        );
+      }
       default:
         return <span>{d[col] || "-"}</span>;
     }
@@ -1100,7 +1136,7 @@ export default function Atendimentos() {
 
         <TabsContent value="atendimentos" className="space-y-6 mt-4">
           {/* KPIs */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isTasyLayout ? "lg:grid-cols-4" : "lg:grid-cols-4"} gap-4`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isTasyLayout ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-4`}>
             <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFiltroTipo("todos")}>
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
@@ -1152,6 +1188,21 @@ export default function Atendimentos() {
                       </div>
                       <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
                         <Stethoscope className="w-6 h-6 text-blue-500" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="hover:border-emerald-500/50 transition-colors">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Valor Total</p>
+                        <p className="text-2xl font-bold mt-1 text-emerald-400">
+                          {valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                        <DollarSign className="w-6 h-6 text-emerald-400" />
                       </div>
                     </div>
                   </CardContent>
@@ -1449,10 +1500,12 @@ export default function Atendimentos() {
                       </td>
                     </tr>
                   ) : (
-                    dadosFiltrados.map((d, idx) => (
+                    dadosFiltrados.map((d, idx) => {
+                      const isNotificado = notificadosSet.has(d.numatend);
+                      return (
                       <tr
                         key={`${d.numatend}-${idx}`}
-                        className={`border-b hover:bg-muted/20 transition-colors ${selecionados.has(d.numatend) ? "bg-primary/5" : ""}`}
+                        className={`border-b hover:bg-muted/20 transition-colors ${selecionados.has(d.numatend) ? "bg-primary/5" : ""} ${isNotificado ? "bg-emerald-500/5" : ""}`}
                       >
                         <td className="px-3 py-3">
                           <Checkbox
@@ -1468,6 +1521,11 @@ export default function Atendimentos() {
                         ))}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
+                            {isNotificado && (
+                              <Badge className="gap-1 h-6 text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30">
+                                <CircleCheck className="w-3 h-3" /> Notificado
+                              </Badge>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -1479,7 +1537,8 @@ export default function Atendimentos() {
                           </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

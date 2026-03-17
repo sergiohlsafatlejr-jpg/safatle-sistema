@@ -3031,3 +3031,11 @@
 - [x] Criar procedure backend para listar atendimentos TASY com nomeProtocolo preenchido
 - [x] Registrar rota no App.tsx e adicionar link no menu lateral
 - [x] Filtrar tela de Atendimentos para TASY mostrar apenas nomeProtocolo NULL (3.421 registros)
+
+## Melhorias Tela TASY - KPI Valor, Coluna Valor e Tag Notificação
+- [x] Adicionar KPI "Valor Total" com soma do campo valorConta dos atendimentos filtrados
+- [x] Adicionar coluna "Valor Conta" na tabela TASY com formatação R$
+- [x] Adicionar tag/badge "Notificado" (verde) nas linhas que já foram notificadas
+- [x] Aplicar mesmas melhorias na tela AtendimentosSemProtocolo (Atendimentos com Protocolo)
+- [x] Incluir Valor Conta e status Notificado na exportação Excel TASY
+- [x] 14 testes vitest passando para as novas funcionalidades
