@@ -3042,3 +3042,4 @@
 - [x] Filtrar atendimentos TASY para exibir apenas registros com valorConta acima de R$ 0,10 (remover contas zeradas)
 - [x] BUG: Permissões de Relatórios BI não estão funcionando - relatórios desativados continuam aparecendo para o usuário (corrigido defaults || "sim" para || "nao" em 3 arquivos)
 - [x] BUG: Menu lateral mostra todos os módulos mesmo quando usuário tem apenas permissão de Relatórios BI - corrigido: defaults acessoDashboard "sim"->"nao", SettingsMenu agora filtra por permissão
+
