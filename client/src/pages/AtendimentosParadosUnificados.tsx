@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowUpDown, Download, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye,
   Users, Building2, Stethoscope, FlaskConical, Bell, Mail, Plus, Trash2, FileText,
-  CheckSquare, Square
+  CheckSquare, Square, Calendar
 } from "lucide-react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
@@ -309,6 +309,8 @@ export default function AtendimentosParadosUnificados() {
   const [filtroEtapa, setFiltroEtapa] = useState<string>("");
   const [filtroOrigem, setFiltroOrigem] = useState<OrigemSistema>("all");
   const [filtroProtocolo, setFiltroProtocolo] = useState<string>("all");
+  const [filtroAno, setFiltroAno] = useState<string>("");
+  const [filtroMes, setFiltroMes] = useState<string>("");
   const [selectedRow, setSelectedRow] = useState<AtendimentoUnificado | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -462,6 +464,28 @@ export default function AtendimentosParadosUnificados() {
     if (filtroServico) { filtered = filtered.filter(a => a.descricao_atendimento === filtroServico); }
     if (filtroEtapa) { filtered = filtered.filter(a => (a as any).etapaConta === filtroEtapa); }
 
+    // Filtro por Ano/Mês (competência ou data_entrada como fallback)
+    if (filtroAno || filtroMes) {
+      filtered = filtered.filter(a => {
+        let ano = "", mes = "";
+        const comp = (a as any).competencia;
+        if (comp && comp !== "NULL" && comp.includes("/")) {
+          const parts = comp.split("/");
+          ano = parts[0];
+          mes = parts[1];
+        } else if (a.data_entrada) {
+          const d = new Date(a.data_entrada);
+          if (!isNaN(d.getTime())) {
+            ano = String(d.getFullYear());
+            mes = String(d.getMonth() + 1).padStart(2, "0");
+          }
+        }
+        if (filtroAno && ano !== filtroAno) return false;
+        if (filtroMes && mes !== filtroMes) return false;
+        return true;
+      });
+    }
+
     filtered.sort((a: any, b: any) => {
       let aVal = a[sortColumn];
       let bVal = b[sortColumn];
@@ -471,7 +495,7 @@ export default function AtendimentosParadosUnificados() {
     });
 
     return filtered;
-  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo, sortColumn, sortOrder]);
+  }, [atendimentos, searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo, filtroAno, filtroMes, sortColumn, sortOrder]);
 
   const origemDetectada = useMemo((): OrigemSistema => {
     if (filtroOrigem !== "all") return filtroOrigem;
@@ -503,7 +527,7 @@ export default function AtendimentosParadosUnificados() {
     return filteredData.slice(start, start + PAGE_SIZE);
   }, [filteredData, currentPage]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo]);
+  useMemo(() => { setCurrentPage(1); }, [searchTerm, filtroTipo, filtroConvenio, filtroServico, filtroEtapa, filtroOrigem, filtroProtocolo, filtroAno, filtroMes]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) { setSortOrder(sortOrder === "asc" ? "desc" : "asc"); }
@@ -693,6 +717,67 @@ export default function AtendimentosParadosUnificados() {
       etapa, quantidade: baseData.filter((a: any) => a.etapaConta === etapa).length
     })).sort((a: any, b: any) => b.quantidade - a.quantidade);
   };
+
+  // Helper para extrair ano/mês de um atendimento
+  const extrairAnoMes = (a: any): { ano: string; mes: string } | null => {
+    const comp = a.competencia;
+    if (comp && comp !== "NULL" && comp.includes("/")) {
+      const parts = comp.split("/");
+      return { ano: parts[0], mes: parts[1] };
+    } else if (a.data_entrada) {
+      const d = new Date(a.data_entrada);
+      if (!isNaN(d.getTime())) {
+        return { ano: String(d.getFullYear()), mes: String(d.getMonth() + 1).padStart(2, "0") };
+      }
+    }
+    return null;
+  };
+
+  const anosDisponiveis = useMemo(() => {
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const anos = new Set<string>();
+    baseData.forEach(a => {
+      const am = extrairAnoMes(a);
+      if (am) anos.add(am.ano);
+    });
+    return [...anos].filter(a => a.length === 4 && !isNaN(Number(a))).sort().reverse();
+  }, [atendimentos, filtroOrigem]);
+
+  const mesesDisponiveis = useMemo(() => {
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const mesesSet = new Set<string>();
+    baseData.forEach(a => {
+      const am = extrairAnoMes(a);
+      if (am && (!filtroAno || am.ano === filtroAno)) {
+        mesesSet.add(am.mes);
+      }
+    });
+    return [...mesesSet].sort();
+  }, [atendimentos, filtroOrigem, filtroAno]);
+
+  const MESES_NOMES: Record<string, string> = {
+    "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
+    "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
+    "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro"
+  };
+
+  const getQuantidadePorMes = useMemo(() => {
+    const baseData = filtroOrigem !== "all"
+      ? atendimentos.filter(a => a.origemSistema?.toLowerCase() === filtroOrigem.toLowerCase())
+      : atendimentos;
+    const contagem: Record<string, number> = {};
+    baseData.forEach(a => {
+      const am = extrairAnoMes(a);
+      if (am && (!filtroAno || am.ano === filtroAno)) {
+        contagem[am.mes] = (contagem[am.mes] || 0) + 1;
+      }
+    });
+    return contagem;
+  }, [atendimentos, filtroOrigem, filtroAno]);
 
   const getQuantidadePorOrigem = () => {
     const origens = [...new Set(atendimentos.map(a => a.origemSistema).filter(Boolean))];
@@ -1014,6 +1099,79 @@ export default function AtendimentosParadosUnificados() {
                   <div className="mt-2 flex items-center gap-2">
                     <Badge className={getOrigemColor(filtroOrigem)}>Layout: {getOrigemLabel(filtroOrigem)}</Badge>
                     <span className="text-slate-400 text-xs">Colunas adaptadas para o sistema {getOrigemLabel(filtroOrigem)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Filtro por Competência (Ano/Mês) */}
+            <Card className="bg-slate-800 border-slate-700 mb-4">
+              <CardHeader className="py-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-white text-sm flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-orange-400" /> Competência (Mês/Ano)
+                  </CardTitle>
+                  {(filtroAno || filtroMes) && (
+                    <button
+                      onClick={() => { setFiltroAno(""); setFiltroMes(""); }}
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Limpar
+                    </button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                {/* Seletor de Ano */}
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Ano</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => { setFiltroAno(""); setFiltroMes(""); }}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${!filtroAno ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                    >
+                      Todos
+                    </button>
+                    {anosDisponiveis.map(ano => (
+                      <button
+                        key={ano}
+                        onClick={() => { setFiltroAno(ano); setFiltroMes(""); }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filtroAno === ano ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                      >
+                        {ano}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Seletor de Mês (só aparece quando ano está selecionado) */}
+                {filtroAno && (
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">Mês</label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setFiltroMes("")}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${!filtroMes ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                      >
+                        Todos
+                      </button>
+                      {mesesDisponiveis.map(mes => (
+                        <button
+                          key={mes}
+                          onClick={() => setFiltroMes(mes)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filtroMes === mes ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                        >
+                          {MESES_NOMES[mes] || mes} ({getQuantidadePorMes[mes] || 0})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(filtroAno || filtroMes) && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-orange-600/20 text-orange-300 border-orange-600/30">
+                      {filtroMes ? `${MESES_NOMES[filtroMes] || filtroMes}/${filtroAno}` : `Ano ${filtroAno}`}
+                    </Badge>
+                    <span className="text-slate-400 text-xs">{filteredData.length} registros</span>
                   </div>
                 )}
               </CardContent>

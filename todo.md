@@ -3067,3 +3067,5 @@
 - [x] Importar dados do HemolaborAtend2025-2026.xlsx na tabela staging (250.885 registros)
 - [x] Unificar dados Hemolabor na tabela atendimentos_unificados (250.885 registros, origemSistema=tasy_hemolabor)
 - [x] Verificar exibição dos dados Hemolabor na tela de atendimentos (badge TASY HEMOLABOR verde-esmeralda)
+
+- [x] Criar filtro por mês/ano na tela de atendimentos (campos separados para Ano e Mês, formato MM/AAAA)
