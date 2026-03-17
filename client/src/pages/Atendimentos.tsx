@@ -14,7 +14,8 @@ import {
   Users, Building2, Stethoscope, FlaskConical,
   ArrowUpDown, Download, Plus, X, RefreshCw,
   Search, Bell, AlertTriangle, Clock, Timer, ArrowLeft, Shield,
-  CheckSquare, FileText, Mail, Send, Activity, DollarSign, CircleCheck
+  CheckSquare, FileText, Mail, Send, Activity, DollarSign, CircleCheck,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
@@ -302,6 +303,14 @@ export default function Atendimentos() {
   const [filtroProtocolo, setFiltroProtocolo] = useState<string>("todos");
   // Filtro por etapa conta (TASY)
   const [filtroEtapa, setFiltroEtapa] = useState<string | null>(null);
+
+  // Paginação client-side
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const ITENS_POR_PAGINA = 50;
+
+  // Expandir seção de descrições
+  const [descricaoExpandida, setDescricaoExpandida] = useState(false);
+  const TOP_DESCRICOES = 10;
 
   // Seleção múltipla
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -749,6 +758,18 @@ export default function Atendimentos() {
 
     return filtrados;
   }, [atendimentos, pesquisa, sortColumn, sortOrder, filtroTipo, filtroServico, filtroPlano, filtroOrigem, filtroProtocolo, filtroEtapa, isTasyLayout]);
+
+  // Reset página quando filtros mudam
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [pesquisa, filtroTipo, filtroServico, filtroPlano, filtroOrigem, filtroProtocolo, filtroEtapa]);
+
+  // Dados paginados para a tabela
+  const totalPaginas = Math.ceil(dadosFiltrados.length / ITENS_POR_PAGINA);
+  const dadosPaginados = useMemo(() => {
+    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+    return dadosFiltrados.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [dadosFiltrados, paginaAtual, ITENS_POR_PAGINA]);
 
   function handleSort(col: SortColumn) {
     if (sortColumn === col) {
@@ -1321,15 +1342,34 @@ export default function Atendimentos() {
             </Card>
           )}
 
-          {/* Quantidade por Serviço / Descrição */}
+          {/* Quantidade por Serviço / Descrição - Top 10 com expandir */}
           {servicosContagem.length > 0 && (
             <Card>
               <CardContent className="p-5">
-                <h2 className="text-sm font-semibold text-muted-foreground mb-3">
-                  {isTasyLayout ? "Quantidade por Descrição de Atendimento" : "Quantidade por Serviço"}
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {servicosContagem.map(([servico, qtd]) => (
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-muted-foreground">
+                    {isTasyLayout ? "Quantidade por Descrição de Atendimento" : "Quantidade por Serviço"}
+                    <span className="text-xs font-normal text-muted-foreground/70 ml-2">
+                      ({servicosContagem.length} {servicosContagem.length === 1 ? "item" : "itens"})
+                    </span>
+                  </h2>
+                  {servicosContagem.length > TOP_DESCRICOES && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => setDescricaoExpandida(prev => !prev)}
+                    >
+                      {descricaoExpandida ? (
+                        <><ChevronUp className="w-3.5 h-3.5" /> Mostrar menos</>
+                      ) : (
+                        <><ChevronDown className="w-3.5 h-3.5" /> Ver todos ({servicosContagem.length})</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {(descricaoExpandida ? servicosContagem : servicosContagem.slice(0, TOP_DESCRICOES)).map(([servico, qtd], idx) => (
                     <div
                       key={servico}
                       className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5 ${
@@ -1339,11 +1379,25 @@ export default function Atendimentos() {
                       }`}
                       onClick={() => setFiltroServico(prev => prev === servico ? null : servico)}
                     >
-                      <span className={`truncate mr-2 text-xs ${filtroServico === servico ? "text-primary font-medium" : "text-muted-foreground"}`}>{servico}</span>
-                      <span className="font-bold text-primary">{qtd}</span>
+                      <div className="flex items-center gap-1.5 min-w-0 mr-2">
+                        <span className="text-[10px] font-mono text-muted-foreground/50 shrink-0">#{idx + 1}</span>
+                        <span className={`truncate text-xs ${filtroServico === servico ? "text-primary font-medium" : "text-muted-foreground"}`} title={servico}>{servico}</span>
+                      </div>
+                      <span className="font-bold text-primary shrink-0">{qtd}</span>
                     </div>
                   ))}
                 </div>
+                {!descricaoExpandida && servicosContagem.length > TOP_DESCRICOES && filtroServico && !servicosContagem.slice(0, TOP_DESCRICOES).some(([s]) => s === filtroServico) && (
+                  <div className="mt-2 px-3 py-2 rounded-lg border bg-primary/10 border-primary ring-1 ring-primary/30 text-sm flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0 mr-2">
+                      <span className="text-[10px] font-mono text-muted-foreground/50 shrink-0">Filtro ativo:</span>
+                      <span className="truncate text-xs text-primary font-medium" title={filtroServico}>{filtroServico}</span>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setFiltroServico(null)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1505,14 +1559,14 @@ export default function Atendimentos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dadosFiltrados.length === 0 ? (
+                  {dadosPaginados.length === 0 ? (
                     <tr>
                       <td colSpan={columns.length + 2} className="px-4 py-12 text-center text-muted-foreground">
                         Nenhum atendimento encontrado
                       </td>
                     </tr>
                   ) : (
-                    dadosFiltrados.map((d, idx) => {
+                    dadosPaginados.map((d, idx) => {
                       const isNotificado = notificadosSet.has(d.numatend);
                       return (
                       <tr
@@ -1556,10 +1610,53 @@ export default function Atendimentos() {
               </table>
             </div>
             <div className="px-4 py-3 border-t text-sm text-muted-foreground flex items-center justify-between">
-              <span>Exibindo {dadosFiltrados.length} de {kpis.total} atendimentos</span>
-              {selecionados.size > 0 && (
-                <span className="text-primary font-medium">{selecionados.size} selecionado{selecionados.size > 1 ? "s" : ""}</span>
-              )}
+              <span>
+                Exibindo {((paginaAtual - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaAtual * ITENS_POR_PAGINA, dadosFiltrados.length)} de {dadosFiltrados.length} atendimentos
+                {selecionados.size > 0 && (
+                  <span className="text-primary font-medium ml-3">{selecionados.size} selecionado{selecionados.size > 1 ? "s" : ""}</span>
+                )}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={paginaAtual <= 1}
+                  onClick={() => setPaginaAtual(1)}
+                >
+                  <ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-2" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={paginaAtual <= 1}
+                  onClick={() => setPaginaAtual(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-xs font-medium px-2">
+                  Página {paginaAtual} de {totalPaginas || 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={paginaAtual >= totalPaginas}
+                  onClick={() => setPaginaAtual(p => Math.min(totalPaginas, p + 1))}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={paginaAtual >= totalPaginas}
+                  onClick={() => setPaginaAtual(totalPaginas)}
+                >
+                  <ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-2" />
+                </Button>
+              </div>
             </div>
           </Card>
         </TabsContent>

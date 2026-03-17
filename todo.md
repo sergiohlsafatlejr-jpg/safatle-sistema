@@ -3075,3 +3075,6 @@
 - [x] Implementar paginação server-side na tela de atendimentos para todos os estabelecimentos (LIMIT/OFFSET no banco, filtros server-side, agregações para KPIs)
 
 - [x] Bug: Tela de atendimentos do Hemolabor mostra layout genérico em vez do layout TASY (falta Cód. Serviço, Descrição Atendimento, Etapa Conta, Setor Etapa, Usuário Etapa, Nome Protocolo) - corrigido em Atendimentos.tsx e AtendimentosParadosUnificados.tsx
+
+- [x] Otimizar performance da tela de atendimentos TASY Hemolabor (250k+ registros pesados para carregar) - paginação client-side 50 itens/página
+- [x] Redesenhar KPI 'Quantidade por Descrição de Atendimento' - mostrar Top 10 com opção de expandir em vez de listar centenas de itens

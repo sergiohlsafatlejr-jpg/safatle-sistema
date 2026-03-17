@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowUpDown, Download, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye,
   Users, Building2, Stethoscope, FlaskConical, Bell, Mail, Plus, Trash2, FileText,
-  CheckSquare, Square, Calendar
+  CheckSquare, Square, Calendar, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
@@ -306,6 +306,8 @@ export default function AtendimentosParadosUnificados() {
   const [filtroTipo, setFiltroTipo] = useState<string>("");
   const [filtroConvenio, setFiltroConvenio] = useState<string>("");
   const [filtroServico, setFiltroServico] = useState<string>("");
+  const [descricaoExpandida, setDescricaoExpandida] = useState(false);
+  const TOP_DESCRICOES = 10;
   const [filtroEtapa, setFiltroEtapa] = useState<string>("");
   const [filtroOrigem, setFiltroOrigem] = useState<OrigemSistema>("all");
   const [filtroProtocolo, setFiltroProtocolo] = useState<string>("all");
@@ -1131,19 +1133,52 @@ export default function AtendimentosParadosUnificados() {
               </CardContent>
             </Card>
 
-            {/* Quantidade por Descrição de Atendimento */}
+            {/* Quantidade por Descrição de Atendimento - Top 10 com expandir */}
             {isTasyLayout && getQuantidadePorDescricao.length > 0 && (
               <Card className="bg-slate-800 border-slate-700 mb-4">
-                <CardHeader className="py-3"><CardTitle className="text-white text-sm">Quantidade por Serviço (Descrição Atendimento)</CardTitle></CardHeader>
+                <CardHeader className="py-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-white text-sm">
+                    Quantidade por Serviço (Descrição Atendimento)
+                    <span className="text-xs font-normal text-slate-400 ml-2">
+                      ({getQuantidadePorDescricao.length} {getQuantidadePorDescricao.length === 1 ? 'item' : 'itens'})
+                    </span>
+                  </CardTitle>
+                  {getQuantidadePorDescricao.length > TOP_DESCRICOES && (
+                    <button
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+                      onClick={() => setDescricaoExpandida(prev => !prev)}
+                    >
+                      {descricaoExpandida ? (
+                        <><ChevronUp className="w-3.5 h-3.5" /> Mostrar menos</>
+                      ) : (
+                        <><ChevronDown className="w-3.5 h-3.5" /> Ver todos ({getQuantidadePorDescricao.length})</>
+                      )}
+                    </button>
+                  )}
+                </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[300px] overflow-y-auto">
-                    {getQuantidadePorDescricao.map(([desc, qtd]) => (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {(descricaoExpandida ? getQuantidadePorDescricao : getQuantidadePorDescricao.slice(0, TOP_DESCRICOES)).map(([desc, qtd], idx) => (
                       <button key={desc} onClick={() => setFiltroServico(filtroServico === desc ? '' : desc)} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${filtroServico === desc ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}>
-                        <span className="truncate mr-2" title={desc}>{desc}</span>
+                        <div className="flex items-center gap-1.5 min-w-0 mr-2">
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">#{idx + 1}</span>
+                          <span className="truncate" title={desc}>{desc}</span>
+                        </div>
                         <span className="text-cyan-400 font-bold shrink-0">{qtd}</span>
                       </button>
                     ))}
                   </div>
+                  {!descricaoExpandida && getQuantidadePorDescricao.length > TOP_DESCRICOES && filtroServico && !getQuantidadePorDescricao.slice(0, TOP_DESCRICOES).some(([s]) => s === filtroServico) && (
+                    <div className="mt-2 px-3 py-2 rounded-lg bg-cyan-600 text-white text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0 mr-2">
+                        <span className="text-[10px] font-mono text-cyan-200 shrink-0">Filtro ativo:</span>
+                        <span className="truncate" title={filtroServico}>{filtroServico}</span>
+                      </div>
+                      <button className="text-cyan-200 hover:text-white" onClick={() => setFiltroServico('')}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
