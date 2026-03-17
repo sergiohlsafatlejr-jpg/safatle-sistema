@@ -3052,3 +3052,12 @@
 - [x] 17 testes vitest para permissões de Relatórios BI
 - [x] Criar nova aba "Custos por Setor" no Relatório de Custos com análise de custos agrupados por setor hospitalar (backend + frontend + 14 testes)
 - [x] Otimizar tamanho do projeto para reduzir tempo de publicação: 31MB → 21MB (-32%), removidos 25 snapshots drizzle antigos + 25 SQL migrations
+- [x] Substituir dados da tabela tasy_atendimentos_stagion com novo CSV PENDENTES20252026.csv da Maternidade Ela
+- [x] Renomear tabela tasy_atendimentos_stagion para Tasy_maternidadeela_atendimentos_stagion
+- [x] Atualizar referências no código para o novo nome da tabela
+
+- [x] Renomear tabela tasy_atendimentos_staging para Tasy_maternidadeela_atendimentos_stagion
+- [x] Atualizar mapeamento CSV para novas colunas do PENDENTES20252026.csv (CONVENIO, ATENDIMENTO, DS_PROC_PRINCIPAL)
+- [x] Limpar dados antigos e importar novos dados do CSV PENDENTES20252026.csv
+- [x] Atualizar dados na tabela atendimentos_unificados com origem tasy
+- [x] Atualizar referências no schema e scripts de importação

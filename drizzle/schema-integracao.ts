@@ -148,25 +148,69 @@ export const faturamentoGeral = mysqlTable(
   })
 );
 
-// TASY - Atendimentos (Staging)
-export const tasyAtendimentosStaging = mysqlTable(
-  "tasy_atendimentos_staging",
+// TASY - Maternidade Ela - Atendimentos (Staging)
+export const tasyMaternidadeElaAtendimentosStaging = mysqlTable(
+  "Tasy_maternidadeela_atendimentos_stagion",
   {
     id: int().primaryKey().autoincrement(),
     estabelecimentoId: int().notNull(),
-    configuracaoId: int().notNull(),
-    dadosBrutos: json().notNull(),
-    atendimentoId: varchar({ length: 100 }),
-    pacienteId: varchar({ length: 100 }),
-    dataSincronizacao: timestamp().defaultNow(),
-    dataAtendimento: timestamp(),
+    configId: int(),
+    numeroAtendimento: varchar({ length: 50 }),
+    tipoSaida: varchar({ length: 100 }),
+    local: varchar({ length: 255 }),
+    paciente: varchar({ length: 255 }),
+    carater: varchar({ length: 50 }),
+    dataAdmissao: timestamp(),
+    dataAlta: timestamp(),
+    tipoAtendimento: varchar({ length: 100 }),
+    servico: varchar({ length: 255 }),
+    procedimentoPrincipal: varchar({ length: 255 }),
+    centroCusto: varchar({ length: 100 }),
+    dadosBrutos: json(),
     criadoEm: timestamp().defaultNow(),
+    atualizadoEm: timestamp().defaultNow(),
+    convenio: varchar({ length: 255 }),
+    dsCategoria: varchar({ length: 255 }),
+    dsPlano: varchar({ length: 255 }),
+    competencia: varchar({ length: 20 }),
+    referencia: varchar({ length: 20 }),
+    protTasy: varchar({ length: 50 }),
+    nomeProtocolo: varchar({ length: 255 }),
+    protConv: varchar({ length: 100 }),
+    dtEntrega: timestamp(),
+    protStatus: varchar({ length: 50 }),
+    titulo: varchar({ length: 100 }),
+    dtTitulo: timestamp(),
+    dataVencimento: timestamp(),
+    dsSetorEntrada: varchar({ length: 255 }),
+    dsSetorLeito: varchar({ length: 255 }),
+    etapaConta: varchar({ length: 255 }),
+    setorEtapa: varchar({ length: 255 }),
+    dtEtapa: timestamp(),
+    userEtapa: varchar({ length: 100 }),
+    motivoDevolucao: text(),
+    conta: varchar({ length: 50 }),
+    autorizacao: varchar({ length: 100 }),
+    matricula: varchar({ length: 100 }),
+    sexo: varchar({ length: 10 }),
+    idade: varchar({ length: 50 }),
+    codServico: varchar({ length: 50 }),
+    procedimentoPrincipal2: varchar({ length: 500 }),
+    dataInicio: varchar({ length: 20 }),
+    dataFim: varchar({ length: 20 }),
+    dsMotivoAlta: varchar({ length: 255 }),
+    medicoResp: varchar({ length: 255 }),
+    crm: varchar({ length: 50 }),
+    valorConta: decimal({ precision: 15, scale: 2 }),
   },
   (table) => ({
-    estabelecimentoIdx: index("idx_tasy_atend_estab").on(table.estabelecimentoId),
-    configuracaoIdx: index("idx_tasy_atend_config").on(table.configuracaoId),
+    estabelecimentoIdx: index("idx_tasy_matela_estab").on(table.estabelecimentoId),
+    configIdx: index("idx_tasy_matela_config").on(table.configId),
   })
 );
+
+// Alias para compatibilidade
+export const tasyAtendimentosStaging = tasyMaternidadeElaAtendimentosStaging;
 
 // OMNI - Atendimentos (Staging)
 export const omniAtendimentosStaging = mysqlTable(
