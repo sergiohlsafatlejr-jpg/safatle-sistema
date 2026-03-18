@@ -54,7 +54,15 @@ export type ModuloPermissao =
   | "relCustos"
   | "relNaoRecebidos"
   | "relPrevisaoGlosa"
-  | "faturamentoExterno";
+  | "faturamentoExterno"
+  // Módulos Safatle
+  | "painelExecutivo"
+  | "visaoGeral"
+  | "financeiro"
+  | "contratos"
+  | "propostas"
+  | "atendimentosConsolidados"
+  | "nfseConsolidado";
 
 interface PermissoesModulo {
   acessoDashboard: "sim" | "nao";
@@ -91,6 +99,14 @@ interface PermissoesModulo {
   acessoRelNaoRecebidos: "sim" | "nao";
   acessoRelPrevisaoGlosa: "sim" | "nao";
   acessoFaturamentoExterno: "sim" | "nao";
+  // Módulos Safatle
+  acessoPainelExecutivo: "sim" | "nao";
+  acessoVisaoGeral: "sim" | "nao";
+  acessoFinanceiro: "sim" | "nao";
+  acessoContratos: "sim" | "nao";
+  acessoPropostas: "sim" | "nao";
+  acessoAtendimentosConsolidados: "sim" | "nao";
+  acessoNfseConsolidado: "sim" | "nao";
   grupoServico: string | null;
 }
 
@@ -148,6 +164,14 @@ const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
   relNaoRecebidos: "acessoRelNaoRecebidos",
   relPrevisaoGlosa: "acessoRelPrevisaoGlosa",
   faturamentoExterno: "acessoFaturamentoExterno",
+  // Módulos Safatle
+  painelExecutivo: "acessoPainelExecutivo",
+  visaoGeral: "acessoVisaoGeral",
+  financeiro: "acessoFinanceiro",
+  contratos: "acessoContratos",
+  propostas: "acessoPropostas",
+  atendimentosConsolidados: "acessoAtendimentosConsolidados",
+  nfseConsolidado: "acessoNfseConsolidado",
 };
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
@@ -215,6 +239,14 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoRelNaoRecebidos: "sim",
           acessoRelPrevisaoGlosa: "sim",
           acessoFaturamentoExterno: "sim",
+          // Módulos Safatle
+          acessoPainelExecutivo: "sim",
+          acessoVisaoGeral: "sim",
+          acessoFinanceiro: "sim",
+          acessoContratos: "sim",
+          acessoPropostas: "sim",
+          acessoAtendimentosConsolidados: "sim",
+          acessoNfseConsolidado: "sim",
           grupoServico: "administrador",
         };
       }
@@ -264,6 +296,14 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoRelNaoRecebidos: "sim",
           acessoRelPrevisaoGlosa: "sim",
           acessoFaturamentoExterno: "sim",
+          // Módulos Safatle
+          acessoPainelExecutivo: "sim",
+          acessoVisaoGeral: "sim",
+          acessoFinanceiro: "sim",
+          acessoContratos: "sim",
+          acessoPropostas: "sim",
+          acessoAtendimentosConsolidados: "sim",
+          acessoNfseConsolidado: "sim",
           grupoServico: "administrador",
         };
       }
@@ -304,6 +344,14 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       acessoRelNaoRecebidos: (permissao as any).acessoRelNaoRecebidos || "nao",
       acessoRelPrevisaoGlosa: (permissao as any).acessoRelPrevisaoGlosa || "nao",
       acessoFaturamentoExterno: (permissao as any).acessoFaturamentoExterno || "sim",
+      // Módulos Safatle
+      acessoPainelExecutivo: (permissao as any).acessoPainelExecutivo || "nao",
+      acessoVisaoGeral: (permissao as any).acessoVisaoGeral || "nao",
+      acessoFinanceiro: (permissao as any).acessoFinanceiro || "nao",
+      acessoContratos: (permissao as any).acessoContratos || "nao",
+      acessoPropostas: (permissao as any).acessoPropostas || "nao",
+      acessoAtendimentosConsolidados: (permissao as any).acessoAtendimentosConsolidados || "nao",
+      acessoNfseConsolidado: (permissao as any).acessoNfseConsolidado || "nao",
       grupoServico: permissao.grupoServico || null,
     };
   })();

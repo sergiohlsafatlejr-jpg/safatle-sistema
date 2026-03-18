@@ -3156,3 +3156,14 @@
 - [x] Painel Executivo: Implementar KPI Recursado Total com dados reais de recursos de glosa (procedure recursadoConsolidado)
 
 - [x] Painel Executivo: Integrar KPI Recursado Total com dados reais de recursos de glosa de todos os estabelecimentos (colunas Recursado/Recuperado na tabela comparativa)
+
+- [x] REIMPLEMENTAR Módulo Financeiro fiel ao finance-buddy-70 (Dashboard Analytics completo, Contas Pagar/Receber com filtros avançados, Custos fixos/variáveis, Extratos Bancários com conciliação, DRE detalhado, Relatórios comparativos, API Banco Inter)
+- [x] REIMPLEMENTAR Módulo Contratos fiel ao hospital-billing-contracts (formulário completo com 16 serviços, seções ativáveis SLA/sigilo/reajuste, visualizador formatado, exportação DOCX)
+- [x] REIMPLEMENTAR Módulo Propostas fiel ao contract-proposal-hub (KPIs, pipeline por status, tabela detalhada, painel lateral)
+- [x] Mover Painel Executivo para dentro do cadastro do estabelecimento Safatle (visão consolidada do grupo)
+- [x] Restringir módulos Financeiro, Contratos, Propostas e Painel Executivo apenas ao admin geral
+- [x] Criar tabela de permissões por módulo do Safatle (colunas adicionadas na permissoesEstabelecimento)
+- [x] Criar router de gerenciamento de permissões Safatle (listar, atualizar, verificar)
+- [x] Criar tela de gerenciamento de permissões dentro do Painel Executivo Safatle (aba Permissões)
+- [x] Aplicar verificação de permissão por módulo no frontend (PainelExecutivo.tsx)
+- [x] Testes vitest para permissões granulares (25 testes passando)

@@ -90,6 +90,7 @@ import { MotorRegrasNotificationBell } from "./MotorRegrasNotificationBell";
 import { SettingsMenu } from "./SettingsMenu";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
+import { SAFATLE_ESTABELECIMENTO_ID } from "@shared/const";
 
 type MenuItem = {
   icon: any;
@@ -185,17 +186,17 @@ const menuItems: MenuItem[] = [
   // Módulo 8 - NFS-e
   { icon: Receipt, label: "NFS-e", path: "/nfse", modulo: "faturamento" },
 
-  // Módulo 9 - Financeiro
-  { icon: DollarSign, label: "Financeiro", path: "/financeiro" },
+  // Painel Executivo Safatle (admin only, só aparece quando Safatle está selecionado)
+  { icon: LayoutGrid, label: "Painel Executivo", path: "/painel-executivo", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
 
-  // Módulo 10 - Contratos
-  { icon: FileText, label: "Contratos", path: "/contratos" },
+  // Módulo 9 - Financeiro (admin only, só via Safatle)
+  { icon: DollarSign, label: "Financeiro", path: "/financeiro", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
 
-  // Módulo 11 - Propostas
-  { icon: FileSpreadsheet, label: "Propostas", path: "/propostas" },
+  // Módulo 10 - Contratos (admin only, só via Safatle)
+  { icon: FileText, label: "Contratos", path: "/contratos", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
 
-  // Painel Executivo (admin only)
-  { icon: LayoutGrid, label: "Painel Executivo", path: "/painel-executivo", adminOnly: true },
+  // Módulo 11 - Propostas (admin only, só via Safatle)
+  { icon: FileSpreadsheet, label: "Propostas", path: "/propostas", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
 
 ];
 

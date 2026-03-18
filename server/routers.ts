@@ -3964,6 +3964,14 @@ export const appRouter = router({
         acessoRelCustos: z.enum(["sim", "nao"]).optional(),
         acessoRelNaoRecebidos: z.enum(["sim", "nao"]).optional(),
         acessoRelPrevisaoGlosa: z.enum(["sim", "nao"]).optional(),
+        // Módulos Safatle
+        acessoPainelExecutivo: z.enum(["sim", "nao"]).optional(),
+        acessoVisaoGeral: z.enum(["sim", "nao"]).optional(),
+        acessoFinanceiro: z.enum(["sim", "nao"]).optional(),
+        acessoContratos: z.enum(["sim", "nao"]).optional(),
+        acessoPropostas: z.enum(["sim", "nao"]).optional(),
+        acessoAtendimentosConsolidados: z.enum(["sim", "nao"]).optional(),
+        acessoNfseConsolidado: z.enum(["sim", "nao"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const podeGerenciar = await db.verificarPermissaoEstabelecimento(

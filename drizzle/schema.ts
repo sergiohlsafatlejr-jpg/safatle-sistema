@@ -958,6 +958,15 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoRelPrevisaoGlosa: mysqlEnum("acessoRelPrevisaoGlosa", ["sim", "nao"]).default("nao").notNull(),
   acessoFaturamentoExterno: mysqlEnum("acessoFaturamentoExterno", ["sim", "nao"]).default("sim").notNull(),
   
+  // Módulos do Painel Executivo Safatle
+  acessoPainelExecutivo: mysqlEnum("acessoPainelExecutivo", ["sim", "nao"]).default("nao").notNull(),
+  acessoVisaoGeral: mysqlEnum("acessoVisaoGeral", ["sim", "nao"]).default("nao").notNull(),
+  acessoFinanceiro: mysqlEnum("acessoFinanceiro", ["sim", "nao"]).default("nao").notNull(),
+  acessoContratos: mysqlEnum("acessoContratos", ["sim", "nao"]).default("nao").notNull(),
+  acessoPropostas: mysqlEnum("acessoPropostas", ["sim", "nao"]).default("nao").notNull(),
+  acessoAtendimentosConsolidados: mysqlEnum("acessoAtendimentosConsolidados", ["sim", "nao"]).default("nao").notNull(),
+  acessoNfseConsolidado: mysqlEnum("acessoNfseConsolidado", ["sim", "nao"]).default("nao").notNull(),
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

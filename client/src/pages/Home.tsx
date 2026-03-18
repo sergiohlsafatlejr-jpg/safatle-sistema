@@ -16,17 +16,28 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
-
+import { SAFATLE_ESTABELECIMENTO_ID } from "@shared/const";
+import { useEffect } from "react";
 export default function Home() {
   const [, setLocation] = useLocation();
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id && estabelecimentoAtual.id > 0 ? estabelecimentoAtual.id : undefined;
+
+  // Redirecionar para Painel Executivo quando Safatle está selecionado
+  useEffect(() => {
+    if (estabelecimentoAtual?.id === SAFATLE_ESTABELECIMENTO_ID) {
+      setLocation("/painel-executivo");
+    }
+  }, [estabelecimentoAtual?.id, setLocation]);
   
   const { data: resumo, isLoading } = trpc.dashboard.resumo.useQuery({ estabelecimentoId });
   const { data: ultimasComparacoes } = trpc.dashboard.ultimasComparacoes.useQuery({ limit: 5, estabelecimentoId });
   const { data: ultimosArquivos } = trpc.dashboard.ultimosArquivos.useQuery({ limit: 5, estabelecimentoId });
 
-
+  // Se Safatle está selecionado, não renderizar o dashboard normal
+  if (estabelecimentoAtual?.id === SAFATLE_ESTABELECIMENTO_ID) {
+    return null;
+  }
 
   return (
     <DashboardLayout>

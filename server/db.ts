@@ -6440,6 +6440,14 @@ export async function getPermissoesUsuario(userId: number) {
       acessoRelNaoRecebidos: permissoesEstabelecimento.acessoRelNaoRecebidos,
       acessoRelPrevisaoGlosa: permissoesEstabelecimento.acessoRelPrevisaoGlosa,
       acessoFaturamentoExterno: permissoesEstabelecimento.acessoFaturamentoExterno,
+      // Módulos Safatle
+      acessoPainelExecutivo: permissoesEstabelecimento.acessoPainelExecutivo,
+      acessoVisaoGeral: permissoesEstabelecimento.acessoVisaoGeral,
+      acessoFinanceiro: permissoesEstabelecimento.acessoFinanceiro,
+      acessoContratos: permissoesEstabelecimento.acessoContratos,
+      acessoPropostas: permissoesEstabelecimento.acessoPropostas,
+      acessoAtendimentosConsolidados: permissoesEstabelecimento.acessoAtendimentosConsolidados,
+      acessoNfseConsolidado: permissoesEstabelecimento.acessoNfseConsolidado,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -6592,6 +6600,14 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
         acessoRelNaoRecebidos: data.acessoRelNaoRecebidos,
         acessoRelPrevisaoGlosa: data.acessoRelPrevisaoGlosa,
         acessoFaturamentoExterno: data.acessoFaturamentoExterno,
+        // Módulos Safatle
+        acessoPainelExecutivo: data.acessoPainelExecutivo,
+        acessoVisaoGeral: data.acessoVisaoGeral,
+        acessoFinanceiro: data.acessoFinanceiro,
+        acessoContratos: data.acessoContratos,
+        acessoPropostas: data.acessoPropostas,
+        acessoAtendimentosConsolidados: data.acessoAtendimentosConsolidados,
+        acessoNfseConsolidado: data.acessoNfseConsolidado,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
