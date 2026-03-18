@@ -15,6 +15,20 @@
       "when": 1773769384364,
       "tag": "0083_gifted_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "5",
+      "when": 1773844524356,
+      "tag": "0084_cynical_vindicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "5",
+      "when": 1773845089538,
+      "tag": "0085_loving_klaw",
+      "breakpoints": true
     }
   ]
 }

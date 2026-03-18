@@ -10,6 +10,7 @@
  */
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
+import { buscarTotaisFaturamentoExterno, buscarTotaisPorConvenioExterno } from "./faturamentoExterno";
 
 // ============================================================
 // INTERFACES
@@ -154,6 +155,31 @@ export async function listarConveniosDisponiveis(
     `)
   );
 
+  const convenios = (rows as unknown as any[]).map((r: any) => String(r.convenio || "").trim()).filter(Boolean);
+
+  // Incluir convênios de faturamento externo
+  try {
+    const extConvenios = await listarConveniosExternosInterno(estabelecimentoId);
+    for (const c of extConvenios) {
+      if (!convenios.includes(c)) convenios.push(c);
+    }
+    convenios.sort();
+  } catch { /* sem dados externos */ }
+
+  return convenios;
+}
+
+async function listarConveniosExternosInterno(estabelecimentoId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql.raw(`
+      SELECT DISTINCT convenio
+      FROM faturamento_externo
+      WHERE estabelecimento_id = ${estabelecimentoId}
+      ORDER BY convenio ASC
+    `)
+  );
   return (rows as unknown as any[]).map((r: any) => String(r.convenio || "").trim()).filter(Boolean);
 }
 
@@ -404,6 +430,46 @@ export async function buscarDetalheMesConvenio(
       contas: Number(r.qtd_contas) || 0,
     });
   }
+
+  // Incluir dados de faturamento externo no detalhe por convênio/mês
+  try {
+    const [extAtualRows] = await db.execute(
+      sql.raw(`
+        SELECT convenio, valor_faturado
+        FROM faturamento_externo
+        WHERE estabelecimento_id = ${estabId}
+          AND mes_ano = '${mesprodAtual}'
+      `)
+    );
+    for (const r of extAtualRows as unknown as any[]) {
+      const conv = String(r.convenio || "").trim();
+      const val = parseFloat(r.valor_faturado) || 0;
+      const existing = mapAtual.get(conv);
+      if (existing) {
+        existing.faturado += val;
+      } else {
+        mapAtual.set(conv, { faturado: val, contas: 0 });
+      }
+    }
+    const [extAnteriorRows] = await db.execute(
+      sql.raw(`
+        SELECT convenio, valor_faturado
+        FROM faturamento_externo
+        WHERE estabelecimento_id = ${estabId}
+          AND mes_ano = '${mesprodAnterior}'
+      `)
+    );
+    for (const r of extAnteriorRows as unknown as any[]) {
+      const conv = String(r.convenio || "").trim();
+      const val = parseFloat(r.valor_faturado) || 0;
+      const existing = mapAnterior.get(conv);
+      if (existing) {
+        existing.faturado += val;
+      } else {
+        mapAnterior.set(conv, { faturado: val, contas: 0 });
+      }
+    }
+  } catch { /* sem dados externos */ }
 
   // Unir todos os convênios
   const todosConvenios = new Set<string>();
@@ -880,6 +946,26 @@ export async function buscarRelatorioFaturamento(
     };
   });
 
+  // ===== 6.5 INCLUIR CONVÊNIOS EXTERNOS (faturamento_externo) =====
+  let externoConveniosAtual: { convenio: string; totalFaturado: number; totalRecebido: number }[] = [];
+  try {
+    externoConveniosAtual = await buscarTotaisPorConvenioExterno(estabId, anoAtual);
+  } catch { /* sem dados externos */ }
+
+  for (const ext of externoConveniosAtual) {
+    const existing = porConvenio.find(c => c.convenio === ext.convenio);
+    if (existing) {
+      existing.totalFaturado += ext.totalFaturado;
+    } else {
+      porConvenio.push({
+        convenio: ext.convenio,
+        totalFaturado: ext.totalFaturado,
+        qtdContas: 0,
+        percentual: 0,
+      });
+    }
+  }
+
   // ===== 7. TABELA COMPARATIVA MÊS A MÊS =====
   // Ano atual
   const [mesAtualRows] = await db.execute(
@@ -934,6 +1020,34 @@ export async function buscarRelatorioFaturamento(
     });
   }
 
+  // ===== 7.5 INCLUIR DADOS EXTERNOS NA TABELA COMPARATIVA =====
+  let externoMesesAtual: { mesAno: string; mesNum: string; totalFaturado: number; totalRecebido: number; convenios: number }[] = [];
+  let externoMesesAnterior: { mesAno: string; mesNum: string; totalFaturado: number; totalRecebido: number; convenios: number }[] = [];
+  try {
+    externoMesesAtual = await buscarTotaisFaturamentoExterno(estabId, anoAtual);
+    externoMesesAnterior = await buscarTotaisFaturamentoExterno(estabId, anoAnterior);
+  } catch { /* sem dados externos */ }
+
+  for (const ext of externoMesesAtual) {
+    const mesNum = ext.mesNum;
+    const existing = mapAtual.get(mesNum);
+    if (existing) {
+      existing.faturado += ext.totalFaturado;
+    } else {
+      mapAtual.set(mesNum, { faturado: ext.totalFaturado, contas: 0 });
+    }
+  }
+
+  for (const ext of externoMesesAnterior) {
+    const mesNum = ext.mesNum;
+    const existing = mapAnterior.get(mesNum);
+    if (existing) {
+      existing.faturado += ext.totalFaturado;
+    } else {
+      mapAnterior.set(mesNum, { faturado: ext.totalFaturado, contas: 0 });
+    }
+  }
+
   // Gerar tabela para todos os 12 meses
   const tabelaComparativa: TabelaComparativaMes[] = [];
   for (let i = 1; i <= 12; i++) {
@@ -955,13 +1069,34 @@ export async function buscarRelatorioFaturamento(
     });
   }
 
+  // Recalcular totais incluindo dados externos
+  const totalExternoAtual = externoMesesAtual.reduce((acc, e) => acc + e.totalFaturado, 0);
+  const totalExternoAnterior = externoMesesAnterior.reduce((acc, e) => acc + e.totalFaturado, 0);
+  const totalFinalAtual = totalAtual + totalExternoAtual;
+  const totalFinalAnterior = totalAnterior + totalExternoAnterior;
+  const variacaoFinal = totalFinalAnterior > 0
+    ? Math.round(((totalFinalAtual - totalFinalAnterior) / totalFinalAnterior) * 10000) / 100
+    : (totalFinalAtual > 0 ? 100 : 0);
+
+  // Recalcular percentuais de convênio com total atualizado
+  for (const c of porConvenio) {
+    c.percentual = totalFinalAtual > 0 ? Math.round((c.totalFaturado / totalFinalAtual) * 10000) / 100 : 0;
+  }
+  // Re-sort por faturado
+  porConvenio.sort((a, b) => b.totalFaturado - a.totalFaturado);
+
+  // Recalcular percentuais de setor com total atualizado
+  for (const s of porSetor) {
+    s.percentual = totalFinalAtual > 0 ? Math.round((s.totalFaturado / totalFinalAtual) * 10000) / 100 : 0;
+  }
+
   return {
     acumulado: {
       anoAtual,
       anoAnterior,
-      totalFaturadoAtual: totalAtual,
-      totalFaturadoAnterior: totalAnterior,
-      variacaoPercentual,
+      totalFaturadoAtual: totalFinalAtual,
+      totalFaturadoAnterior: totalFinalAnterior,
+      variacaoPercentual: variacaoFinal,
       qtdContasAtual,
       qtdContasAnterior,
     },

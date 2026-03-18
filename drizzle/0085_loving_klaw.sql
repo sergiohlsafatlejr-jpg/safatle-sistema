@@ -1,0 +1,1 @@
+ALTER TABLE `permissoesEstabelecimento` ADD `acessoFaturamentoExterno` enum('sim','nao') DEFAULT 'sim' NOT NULL;

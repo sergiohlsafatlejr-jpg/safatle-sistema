@@ -998,3 +998,42 @@ export const geocodingCache = mysqlTable(
     cepIdx: uniqueIndex("idx_geocoding_cache_cep").on(table.cep),
   })
 );
+
+
+/**
+ * FATURAMENTO EXTERNO (importado via Excel)
+ * Armazena dados de faturamento/recebimento de estabelecimentos que não possuem
+ * integração direta com o banco de dados (ex: Hospital Urológico - SUS/FMS).
+ * Esses dados são importados manualmente via planilha Excel e integrados
+ * ao Relatório de Faturamento junto com os dados do integ_faturado (TASY).
+ */
+export const faturamentoExterno = mysqlTable(
+  "faturamento_externo",
+  {
+    id: int().primaryKey().autoincrement(),
+    estabelecimentoId: int("estabelecimento_id").notNull(),
+    
+    // Dados do convênio
+    convenio: varchar({ length: 255 }).notNull(),
+    
+    // Competência (mês/ano de referência)
+    mesAno: varchar("mes_ano", { length: 10 }).notNull(), // formato: "YYYY/MM" (ex: "2025/01")
+    
+    // Valores financeiros
+    valorFaturado: decimal("valor_faturado", { precision: 14, scale: 2 }).default("0"),
+    valorRecebido: decimal("valor_recebido", { precision: 14, scale: 2 }).default("0"),
+    
+    // Metadados de importação
+    arquivoOrigem: varchar("arquivo_origem", { length: 500 }),
+    importadoPor: int("importado_por"),
+    importadoPorNome: varchar("importado_por_nome", { length: 255 }),
+    criadoEm: timestamp("criado_em").defaultNow(),
+    atualizadoEm: timestamp("atualizado_em").defaultNow(),
+  },
+  (table) => ({
+    estabelecimentoIdx: index("idx_fat_ext_estab").on(table.estabelecimentoId),
+    convenioIdx: index("idx_fat_ext_convenio").on(table.convenio),
+    mesAnoIdx: index("idx_fat_ext_mes_ano").on(table.mesAno),
+    uniqueIdx: uniqueIndex("idx_fat_ext_unique").on(table.estabelecimentoId, table.convenio, table.mesAno),
+  })
+);

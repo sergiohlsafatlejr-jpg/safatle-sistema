@@ -53,7 +53,8 @@ export type ModuloPermissao =
   | "relAtendimentos"
   | "relCustos"
   | "relNaoRecebidos"
-  | "relPrevisaoGlosa";
+  | "relPrevisaoGlosa"
+  | "faturamentoExterno";
 
 interface PermissoesModulo {
   acessoDashboard: "sim" | "nao";
@@ -89,6 +90,7 @@ interface PermissoesModulo {
   acessoRelCustos: "sim" | "nao";
   acessoRelNaoRecebidos: "sim" | "nao";
   acessoRelPrevisaoGlosa: "sim" | "nao";
+  acessoFaturamentoExterno: "sim" | "nao";
   grupoServico: string | null;
 }
 
@@ -145,6 +147,7 @@ const moduloParaCampo: Record<ModuloPermissao, keyof PermissoesModulo> = {
   relCustos: "acessoRelCustos",
   relNaoRecebidos: "acessoRelNaoRecebidos",
   relPrevisaoGlosa: "acessoRelPrevisaoGlosa",
+  faturamentoExterno: "acessoFaturamentoExterno",
 };
 
 export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
@@ -211,6 +214,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoRelCustos: "sim",
           acessoRelNaoRecebidos: "sim",
           acessoRelPrevisaoGlosa: "sim",
+          acessoFaturamentoExterno: "sim",
           grupoServico: "administrador",
         };
       }
@@ -259,6 +263,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
           acessoRelCustos: "sim",
           acessoRelNaoRecebidos: "sim",
           acessoRelPrevisaoGlosa: "sim",
+          acessoFaturamentoExterno: "sim",
           grupoServico: "administrador",
         };
       }
@@ -298,6 +303,7 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
       acessoRelCustos: (permissao as any).acessoRelCustos || "nao",
       acessoRelNaoRecebidos: (permissao as any).acessoRelNaoRecebidos || "nao",
       acessoRelPrevisaoGlosa: (permissao as any).acessoRelPrevisaoGlosa || "nao",
+      acessoFaturamentoExterno: (permissao as any).acessoFaturamentoExterno || "sim",
       grupoServico: permissao.grupoServico || null,
     };
   })();

@@ -3089,3 +3089,9 @@
 - [x] Corrigir telas de Atendimentos que usam Warleine (Atendimentos Parados, Atendimentos Não Faturados) - não retornam dados para Instituto do Rim e outros estabelecimentos
 - [x] Corrigir filtro valorConta > 0.1 que eliminava todos os registros WARLEINE/EASYVISION (aplicar apenas para TASY)
 - [x] Remover filtro data_saida IS NULL para sistemas não-TASY (WARLEINE/EASYVISION mostram todos os registros)
+
+- [x] Criar tabela faturamento_externo no banco para armazenar dados de faturamento/recebimento importados via Excel (Hospital Urológico SUS)
+- [x] Criar procedure de importação de Excel com valores faturados/recebidos
+- [x] Criar tela de upload de planilha Excel para importação de dados de faturamento externo
+- [x] Integrar dados importados no Relatório de Faturamento (Rel.Faturamento)
+- [x] Importar dados iniciais da planilha UrologicoSUS2025.xlsx (12 meses, 2 convênios)

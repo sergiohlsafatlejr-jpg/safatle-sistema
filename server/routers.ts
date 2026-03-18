@@ -28,6 +28,7 @@ import { conferenciaRouter } from "./routers/conferenciaRouter";
 import { relatorioAtendimentosRouter } from "./routers/relatorioAtendimentosRouter";
 import { relatorioCustosRouter } from "./routers/relatorioCustosRouter";
 import { relatorioFaturamentoRouter } from "./routers/relatorioFaturamentoRouter";
+import { faturamentoExternoRouter } from "./routers/faturamentoExternoRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 
@@ -91,6 +92,7 @@ export const appRouter = router({
   relatorioAtendimentos: relatorioAtendimentosRouter,
   relatorioCustos: relatorioCustosRouter,
   relatorioFaturamento: relatorioFaturamentoRouter,
+  faturamentoExterno: faturamentoExternoRouter,
   
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),

@@ -6439,6 +6439,7 @@ export async function getPermissoesUsuario(userId: number) {
       acessoRelCustos: permissoesEstabelecimento.acessoRelCustos,
       acessoRelNaoRecebidos: permissoesEstabelecimento.acessoRelNaoRecebidos,
       acessoRelPrevisaoGlosa: permissoesEstabelecimento.acessoRelPrevisaoGlosa,
+      acessoFaturamentoExterno: permissoesEstabelecimento.acessoFaturamentoExterno,
       estabelecimentoNome: estabelecimentos.nome,
     })
     .from(permissoesEstabelecimento)
@@ -6590,6 +6591,7 @@ export async function upsertPermissaoEstabelecimento(data: InsertPermissaoEstabe
         acessoRelCustos: data.acessoRelCustos,
         acessoRelNaoRecebidos: data.acessoRelNaoRecebidos,
         acessoRelPrevisaoGlosa: data.acessoRelPrevisaoGlosa,
+        acessoFaturamentoExterno: data.acessoFaturamentoExterno,
       })
       .where(eq(permissoesEstabelecimento.id, existente.id));
     return { id: existente.id, updated: true };
@@ -6717,6 +6719,7 @@ export async function getUsuariosEstabelecimento(estabelecimentoId: number) {
       acessoRelCustos: permissoesEstabelecimento.acessoRelCustos,
       acessoRelNaoRecebidos: permissoesEstabelecimento.acessoRelNaoRecebidos,
       acessoRelPrevisaoGlosa: permissoesEstabelecimento.acessoRelPrevisaoGlosa,
+      acessoFaturamentoExterno: permissoesEstabelecimento.acessoFaturamentoExterno,
       userName: users.name,
       userEmail: users.email,
       userRole: users.role,
@@ -7676,6 +7679,7 @@ export async function verificarAcessoModulo(
     relCustos: "acessoRelCustos",
     relNaoRecebidos: "acessoRelNaoRecebidos",
     relPrevisaoGlosa: "acessoRelPrevisaoGlosa",
+    faturamentoExterno: "acessoFaturamentoExterno",
   };
 
   const campo = moduloMap[modulo];
@@ -7720,6 +7724,7 @@ export function getModulosPermitidosPorGrupo(grupoServico: string): Record<strin
     acessoRelCustos: "nao" as const,
     acessoRelNaoRecebidos: "nao" as const,
     acessoRelPrevisaoGlosa: "nao" as const,
+    acessoFaturamentoExterno: "nao" as const,
   };
 
   switch (grupoServico) {
@@ -7799,6 +7804,7 @@ export function getModulosTasyUser(): Record<string, "sim" | "nao"> {
     acessoRelCustos: "sim",
     acessoRelNaoRecebidos: "sim",
     acessoRelPrevisaoGlosa: "sim",
+    acessoFaturamentoExterno: "sim",
   };
 }
 

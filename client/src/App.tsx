@@ -76,6 +76,7 @@ const ConferenciaCorrecaoDetalhes = lazy(() => import("./pages/ConferenciaCorrec
 const RelatorioAtendimentos = lazy(() => import("./pages/RelatorioAtendimentos"));
 const RelatorioCustos = lazy(() => import("./pages/RelatorioCustos"));
 const RelatorioFaturamento = lazy(() => import("./pages/RelatorioFaturamento"));
+const FaturamentoExterno = lazy(() => import("./pages/FaturamentoExterno"));
 
 function PageLoader() {
   return (
@@ -172,6 +173,7 @@ function Router() {
         <Route path={"/conferencia-correcao"} component={ConferenciaCorrecao} />
         <Route path={"/conferencia-correcao/:snapshotId"} component={ConferenciaCorrecaoDetalhes} />
         <Route path={"/relatorio-faturamento"} component={RelatorioFaturamento} />
+        <Route path={"/faturamento-externo"} component={FaturamentoExterno} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
         <Route path={"/relatorio-custos"} component={RelatorioCustos} />
         <Route path={"/404"} component={NotFound} />
