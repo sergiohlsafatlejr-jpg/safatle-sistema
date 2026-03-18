@@ -3080,3 +3080,8 @@
 - [x] Redesenhar KPI 'Quantidade por Descrição de Atendimento' - mostrar Top 10 com opção de expandir em vez de listar centenas de itens
 
 - [x] Alterar seção 'Quantidade por Descrição de Atendimento' para usar campo dsSetorEntrada (Setor de Entrada) em vez da descrição do atendimento
+
+- [x] Investigar e corrigir sincronização de custos que travou (status "em_andamento" desde 17/03)
+- [x] Implementar timeout na query de sincronização para evitar travamento
+- [x] Implementar recovery automático de status "em_andamento" travado (detectar timeout)
+- [x] Melhorar feedback ao usuário durante sincronização (progresso, timeout, erro)

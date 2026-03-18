@@ -757,19 +757,27 @@ export async function sincronizarCustosProdutos(
     let totalRegistros = 0;
 
     try {
+      // Definir timeout de 5 minutos para a query no PostgreSQL
+      await client.query("SET statement_timeout = '300s'");
+
       // Query corrigida: usa cadplaco como ponte para associar cada produto ao convênio correto
       const query = buildBaseQueryCorrigida();
 
+      console.log("[RelatorioCustos] Sincronização: buscando dados do PostgreSQL...");
       const result = await client.query(query);
       const rows = result.rows;
       totalRegistros = rows.length;
+      console.log(`[RelatorioCustos] Sincronização: ${totalRegistros} registros obtidos do PostgreSQL`);
 
       // Limpar cache anterior deste estabelecimento
       await db.delete(custosProtudosCache).where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
+      console.log("[RelatorioCustos] Sincronização: cache anterior limpo");
 
       // Inserir em lotes de 500
       const batchSize = 500;
+      const totalBatches = Math.ceil(rows.length / batchSize);
       for (let i = 0; i < rows.length; i += batchSize) {
+        const batchNum = Math.floor(i / batchSize) + 1;
         const batch = rows.slice(i, i + batchSize);
         await db.insert(custosProtudosCache).values(
           batch.map((r: any) => {
@@ -802,6 +810,10 @@ export async function sincronizarCustosProdutos(
             };
           })
         );
+        // Log progresso a cada 10 lotes
+        if (batchNum % 10 === 0 || batchNum === totalBatches) {
+          console.log(`[RelatorioCustos] Sincronização: lote ${batchNum}/${totalBatches} inserido`);
+        }
       }
     } finally {
       client.release();
@@ -875,6 +887,28 @@ export async function obterStatusSincronizacaoCustos(estabelecimentoId: number) 
     }
 
     const m = meta[0];
+
+    // Recovery automático: se status "em_andamento" há mais de 10 minutos, considerar como travado
+    if (m.status === "em_andamento" && m.atualizadoEm) {
+      const atualizadoEm = new Date(m.atualizadoEm).getTime();
+      const agora = Date.now();
+      const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
+      if (agora - atualizadoEm > TIMEOUT_MS) {
+        console.warn(`[RelatorioCustos] Sincronização travada detectada (estabelecimento ${estabelecimentoId}). Resetando status para 'erro'.`);
+        await upsertSyncMeta(db, estabelecimentoId, {
+          status: "erro",
+          mensagemErro: "Sincronização travou (timeout de 10 minutos). Tente novamente.",
+        });
+        return {
+          status: "erro",
+          ultimaSincronizacao: m.ultimaSincronizacao,
+          totalRegistrosCache,
+          duracaoSegundos: m.duracaoSegundos || 0,
+          mensagemErro: "Sincronização travou (timeout de 10 minutos). Tente novamente.",
+        };
+      }
+    }
+
     return {
       status: m.status,
       ultimaSincronizacao: m.ultimaSincronizacao,

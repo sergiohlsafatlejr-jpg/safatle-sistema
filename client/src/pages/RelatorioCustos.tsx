@@ -70,11 +70,17 @@ export default function RelatorioCustos() {
   const [pagina, setPagina] = useState(1);
   const limit = 50;
 
-  // Sync status
+  // Sync status - refetch a cada 5s quando em_andamento
   const statusSyncInput = useMemo(() => ({ estabelecimentoId }), [estabelecimentoId]);
   const statusSync = trpc.relatorioCustos.statusSincronizacao.useQuery(
     statusSyncInput,
-    { enabled: estabelecimentoId > 0 }
+    {
+      enabled: estabelecimentoId > 0,
+      refetchInterval: (query) => {
+        const data = query.state.data;
+        return data?.status === "em_andamento" ? 5000 : false;
+      },
+    }
   );
 
   // Filter options
@@ -276,13 +282,19 @@ export default function RelatorioCustos() {
                 {statusSync.data.status === "erro" && (
                   <>
                     <AlertCircle className="h-3.5 w-3.5 text-red-500" />
-                    <span>Erro na ultima sincronizacao</span>
+                    <span title={statusSync.data.mensagemErro || undefined}>
+                      {statusSync.data.mensagemErro
+                        ? statusSync.data.mensagemErro.length > 60
+                          ? statusSync.data.mensagemErro.substring(0, 60) + "..."
+                          : statusSync.data.mensagemErro
+                        : "Erro na ultima sincronizacao"}
+                    </span>
                   </>
                 )}
                 {statusSync.data.status === "em_andamento" && (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                    <span>Sincronizando...</span>
+                    <span>Sincronizando... (aguarde)</span>
                   </>
                 )}
                 {statusSync.data.status === "nunca" && (
@@ -297,14 +309,14 @@ export default function RelatorioCustos() {
               variant="outline"
               size="sm"
               onClick={handleSync}
-              disabled={syncMutation.isPending || estabelecimentoId <= 0}
+              disabled={syncMutation.isPending || estabelecimentoId <= 0 || statusSync.data?.status === "em_andamento"}
             >
-              {syncMutation.isPending ? (
+              {syncMutation.isPending || statusSync.data?.status === "em_andamento" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-1" />
               )}
-              Sincronizar
+              {statusSync.data?.status === "em_andamento" ? "Sincronizando..." : "Sincronizar"}
             </Button>
           </div>
         </div>

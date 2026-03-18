@@ -131,6 +131,26 @@ describe("relatorioCustos", () => {
       expect(["nunca", "em_andamento", "sucesso", "erro"]).toContain(result.status);
       expect(typeof result.totalRegistrosCache).toBe("number");
     });
+
+    it("retorna campo mensagemErro quando status eh erro", async () => {
+      const result = await caller.relatorioCustos.statusSincronizacao({
+        estabelecimentoId: 1,
+      });
+
+      // Deve ter o campo mensagemErro (pode ser null se não houver erro)
+      expect(result).toHaveProperty("mensagemErro");
+      expect(result).toHaveProperty("duracaoSegundos");
+      expect(typeof result.duracaoSegundos).toBe("number");
+    });
+
+    it("retorna status nunca para estabelecimento inexistente", async () => {
+      const result = await caller.relatorioCustos.statusSincronizacao({
+        estabelecimentoId: 999999,
+      });
+
+      expect(result.status).toBe("nunca");
+      expect(result.totalRegistrosCache).toBe(0);
+    });
   });
 
   describe("metricasDashboard", () => {
