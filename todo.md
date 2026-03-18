@@ -3078,3 +3078,5 @@
 
 - [x] Otimizar performance da tela de atendimentos TASY Hemolabor (250k+ registros pesados para carregar) - paginação client-side 50 itens/página
 - [x] Redesenhar KPI 'Quantidade por Descrição de Atendimento' - mostrar Top 10 com opção de expandir em vez de listar centenas de itens
+
+- [x] Alterar seção 'Quantidade por Descrição de Atendimento' para usar campo dsSetorEntrada (Setor de Entrada) em vez da descrição do atendimento

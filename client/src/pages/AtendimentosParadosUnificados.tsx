@@ -708,10 +708,10 @@ export default function AtendimentosParadosUnificados() {
   }, [aggregations]);
 
   const getQuantidadePorDescricao = useMemo(() => {
-    // Usar dados da página atual para descrições (não temos agregação server-side para isso)
+    // Usar dsSetorEntrada (Setor de Entrada) em vez de descricao_atendimento
     const descs: Record<string, number> = {};
     atendimentos.forEach((a: any) => {
-      const desc = a.descricao_atendimento || "Sem descrição";
+      const desc = a.ds_setor_entrada || "Sem Setor";
       descs[desc] = (descs[desc] || 0) + 1;
     });
     return Object.entries(descs).sort((a, b) => b[1] - a[1]);
@@ -1133,12 +1133,12 @@ export default function AtendimentosParadosUnificados() {
               </CardContent>
             </Card>
 
-            {/* Quantidade por Descrição de Atendimento - Top 10 com expandir */}
+            {/* Quantidade por Setor de Entrada - Top 10 com expandir */}
             {isTasyLayout && getQuantidadePorDescricao.length > 0 && (
               <Card className="bg-slate-800 border-slate-700 mb-4">
                 <CardHeader className="py-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-white text-sm">
-                    Quantidade por Serviço (Descrição Atendimento)
+                    Quantidade por Setor de Entrada
                     <span className="text-xs font-normal text-slate-400 ml-2">
                       ({getQuantidadePorDescricao.length} {getQuantidadePorDescricao.length === 1 ? 'item' : 'itens'})
                     </span>

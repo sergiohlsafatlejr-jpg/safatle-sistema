@@ -7089,7 +7089,7 @@ export const appRouter = router({
             filterConditions.push(eq(atendimentosUnificados.etapaConta, input.etapa));
           }
           if (input.descricao) {
-            filterConditions.push(eq(atendimentosUnificados.descricao_atendimento, input.descricao));
+            filterConditions.push(eq(atendimentosUnificados.dsSetorEntrada, input.descricao));
           }
           if (input.protocolo && input.protocolo !== 'all') {
             if (input.protocolo === 'null') {

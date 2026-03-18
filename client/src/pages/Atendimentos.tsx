@@ -109,6 +109,7 @@ interface AtendimentoData {
   userEtapa?: string;
   codServico?: string;
   nomeProtocolo?: string | null;
+  dsSetorEntrada?: string;
   [key: string]: any;
 }
 
@@ -644,9 +645,9 @@ export default function Atendimentos() {
     }
     const contagem: Record<string, number> = {};
     dados.forEach(d => {
-      // Para TASY: usar descricao_atendimento; para outros: usar codserv
+      // Para TASY: usar dsSetorEntrada (Setor de Entrada); para outros: usar codserv
       const servico = isTasyLayout
-        ? (d.tipoatendimentodescricao || "Sem Descrição")
+        ? (d.dsSetorEntrada || "Sem Setor")
         : (d.codserv || "Sem Serviço");
       contagem[servico] = (contagem[servico] || 0) + 1;
     });
@@ -706,7 +707,7 @@ export default function Atendimentos() {
     }
     if (filtroServico) {
       if (isTasyLayout) {
-        filtrados = filtrados.filter(d => (d.tipoatendimentodescricao || "Sem Descrição") === filtroServico);
+        filtrados = filtrados.filter(d => (d.dsSetorEntrada || "Sem Setor") === filtroServico);
       } else {
         filtrados = filtrados.filter(d => (d.codserv || "Sem Serviço") === filtroServico);
       }
@@ -1348,7 +1349,7 @@ export default function Atendimentos() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold text-muted-foreground">
-                    {isTasyLayout ? "Quantidade por Descrição de Atendimento" : "Quantidade por Serviço"}
+                    {isTasyLayout ? "Quantidade por Setor de Entrada" : "Quantidade por Serviço"}
                     <span className="text-xs font-normal text-muted-foreground/70 ml-2">
                       ({servicosContagem.length} {servicosContagem.length === 1 ? "item" : "itens"})
                     </span>
@@ -1513,7 +1514,7 @@ export default function Atendimentos() {
               )}
               {filtroServico && (
                 <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => setFiltroServico(null)}>
-                  {isTasyLayout ? "Descrição" : "Serviço"}: {filtroServico} <X className="w-3 h-3" />
+                  {isTasyLayout ? "Setor" : "Serviço"}: {filtroServico} <X className="w-3 h-3" />
                 </Badge>
               )}
               {filtroPlano && (
