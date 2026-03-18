@@ -77,6 +77,7 @@ const RelatorioAtendimentos = lazy(() => import("./pages/RelatorioAtendimentos")
 const RelatorioCustos = lazy(() => import("./pages/RelatorioCustos"));
 const RelatorioFaturamento = lazy(() => import("./pages/RelatorioFaturamento"));
 const FaturamentoExterno = lazy(() => import("./pages/FaturamentoExterno"));
+const NfseModule = lazy(() => import("./pages/NfseModule"));
 
 function PageLoader() {
   return (
@@ -176,6 +177,7 @@ function Router() {
         <Route path={"/faturamento-externo"} component={FaturamentoExterno} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
         <Route path={"/relatorio-custos"} component={RelatorioCustos} />
+        <Route path={"/nfse"} component={NfseModule} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

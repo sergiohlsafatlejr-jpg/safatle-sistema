@@ -182,6 +182,8 @@ const menuItems: MenuItem[] = [
     { icon: Link2, label: "Conciliação Cruzada", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas" },
   ]},
 
+  // Módulo 8 - NFS-e
+  { icon: Receipt, label: "NFS-e", path: "/nfse", modulo: "faturamento" },
 
 ];
 

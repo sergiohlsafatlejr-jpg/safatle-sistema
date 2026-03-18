@@ -3818,3 +3818,78 @@ export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
 
 export type LogAnaliseComparacao = typeof logAnaliseComparacao.$inferSelect;
 export type InsertLogAnaliseComparacao = typeof logAnaliseComparacao.$inferInsert;
+
+
+// ============================================================
+// MÓDULO NFS-e - Gestão de Notas Fiscais de Serviço
+// ============================================================
+
+/**
+ * Configuração de hospitais para emissão de NFS-e
+ * Armazena credenciais de acesso ao portal de NFS-e de cada hospital/unidade
+ */
+export const nfseHospitais = mysqlTable("nfse_hospitais", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId"), // Vincula ao estabelecimento do sistema
+  nome: varchar("nome", { length: 255 }).notNull(),
+  cnpj: varchar("cnpj", { length: 20 }),
+  cpfNf: varchar("cpfNf", { length: 20 }), // CPF para acesso ao portal NFS-e
+  senhaNf: varchar("senhaNf", { length: 255 }), // Senha do portal NFS-e
+  endereco: text("endereco"),
+  telefone: varchar("telefone", { length: 20 }),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  estabelecimentoIdx: index("idx_nfse_hosp_estab").on(table.estabelecimentoId),
+}));
+
+export type NfseHospital = typeof nfseHospitais.$inferSelect;
+export type InsertNfseHospital = typeof nfseHospitais.$inferInsert;
+
+/**
+ * Convênios para NFS-e
+ * Separado dos convênios de faturamento para flexibilidade
+ */
+export const nfseConvenios = mysqlTable("nfse_convenios", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  codigo: varchar("codigo", { length: 50 }),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NfseConvenio = typeof nfseConvenios.$inferSelect;
+export type InsertNfseConvenio = typeof nfseConvenios.$inferInsert;
+
+/**
+ * Notas Fiscais de Serviço (NFS-e)
+ * Registro completo de cada nota fiscal emitida
+ */
+export const nfseNotas = mysqlTable("nfse_notas", {
+  id: int("id").autoincrement().primaryKey(),
+  hospitalId: int("hospitalId").notNull(), // FK para nfse_hospitais
+  convenioId: int("convenioId"), // FK para nfse_convenios (opcional)
+  numeroNf: varchar("numeroNf", { length: 50 }).notNull(),
+  dataEmissao: date("dataEmissao").notNull(),
+  dataFaturamento: date("dataFaturamento"),
+  valorBruto: decimal("valorBruto", { precision: 15, scale: 2 }).default("0").notNull(),
+  valorLiquido: decimal("valorLiquido", { precision: 15, scale: 2 }).default("0").notNull(),
+  xmlDemonstrativoEmitido: mysqlEnum("xmlDemonstrativoEmitido", ["sim", "nao"]).default("nao").notNull(),
+  nfEmitida: mysqlEnum("nfEmitida", ["sim", "nao"]).default("nao").notNull(),
+  observacoes: text("observacoes"),
+  pdfUrl: text("pdfUrl"), // URL do PDF no S3
+  pdfKey: varchar("pdfKey", { length: 512 }), // Chave do PDF no S3
+  userId: int("userId"), // Quem criou o registro
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  hospitalIdx: index("idx_nfse_nota_hospital").on(table.hospitalId),
+  convenioIdx: index("idx_nfse_nota_convenio").on(table.convenioId),
+  dataEmissaoIdx: index("idx_nfse_nota_emissao").on(table.dataEmissao),
+  nfEmitidaIdx: index("idx_nfse_nota_emitida").on(table.nfEmitida),
+}));
+
+export type NfseNota = typeof nfseNotas.$inferSelect;
+export type InsertNfseNota = typeof nfseNotas.$inferInsert;

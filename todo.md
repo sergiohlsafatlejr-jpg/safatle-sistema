@@ -3108,3 +3108,15 @@
 - [x] Corrigir valores inflados na aba Custos por Conta - usar custoMultFat ao invés de custoEstoque (LATERAL JOIN fallback com TMP_FALLBACK)
 - [x] Corrigir valores inflados na aba Custos por Setor - usar custoMultFat ao invés de custoEstoque (LATERAL JOIN fallback com TMP_FALLBACK)
 - [x] Adicionar coluna Unidade de Fatura nas abas Custos por Convênio, Custos por Conta e Custos por Setor
+
+- [x] Módulo NFS-e: Schema Drizzle (nfse_hospitais, nfse_convenios, nfse_notas)
+- [x] Módulo NFS-e: Procedures tRPC (CRUD hospitais, convênios, notas fiscais)
+- [x] Módulo NFS-e: Página Dashboard NFS-e
+- [x] Módulo NFS-e: Página CRUD Notas Fiscais com upload PDF
+- [x] Módulo NFS-e: Página Configuração de Hospitais (CPF/senha portal)
+- [x] Módulo NFS-e: Página Cadastro de Convênios NFS-e
+- [x] Módulo NFS-e: Painel de Pendentes com alertas de urgência
+- [x] Módulo NFS-e: Acompanhamento de Envios (visão mensal)
+- [x] Módulo NFS-e: Importação de PDF com IA (OCR via invokeLLM)
+- [x] Módulo NFS-e: Integração no menu lateral e rotas App.tsx
+- [x] Módulo NFS-e: Testes vitest para procedures (21 testes passando)
