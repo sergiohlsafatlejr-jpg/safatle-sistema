@@ -3153,4 +3153,6 @@
 - [x] Testes vitest para procedures dos 3 módulos (15 testes passando)
 
 - [x] Painel Executivo: Implementar aba Atendimentos consolidados com dados reais de todos os estabelecimentos (tabela atendimentos_unificados)
-- [ ] Painel Executivo: Implementar KPI Recursado Total com dados reais de recursos de glosa (pendente - precisa de dados de recurso)
+- [x] Painel Executivo: Implementar KPI Recursado Total com dados reais de recursos de glosa (procedure recursadoConsolidado)
+
+- [x] Painel Executivo: Integrar KPI Recursado Total com dados reais de recursos de glosa de todos os estabelecimentos (colunas Recursado/Recuperado na tabela comparativa)

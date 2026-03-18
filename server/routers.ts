@@ -4437,6 +4437,147 @@ export const appRouter = router({
         return comparativo;
       }),
 
+    // Buscar dados de recursos de glosa consolidados de todos os estabelecimentos
+    recursadoConsolidado: protectedProcedure
+      .input(z.object({
+        dataInicio: z.string().optional(),
+        dataFim: z.string().optional(),
+      }).optional())
+      .query(async ({ ctx }) => {
+        const database = await getDb();
+        if (!database) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Banco de dados não disponível' });
+
+        const { recursosGlosa, lotesRecurso, convenios, estabelecimentos } = await import("../drizzle/schema");
+        const { sql, eq, and, gte, lte, inArray, isNotNull, count, sum } = await import("drizzle-orm");
+
+        // Buscar todos os estabelecimentos que o usuário tem acesso
+        const estabList = await db.getEstabelecimentos();
+        const estabMap = new Map(estabList.map(e => [e.id, e.nome]));
+        const estabIds = estabList.map(e => e.id);
+
+        // KPIs gerais de recursos de glosa
+        const [kpisResult] = await database
+          .select({
+            totalRecursos: count(),
+            valorTotalGlosado: sum(recursosGlosa.valorGlosado),
+            valorTotalRecursado: sum(recursosGlosa.valorCobrado),
+            valorTotalRecuperado: sum(recursosGlosa.valorRecuperado),
+            valorTotalRecebido: sum(recursosGlosa.valorRecebido),
+          })
+          .from(recursosGlosa)
+          .where(estabIds.length > 0 ? inArray(recursosGlosa.estabelecimentoId, estabIds) : sql`1=1`);
+
+        // KPIs por status
+        const statusCounts = await database
+          .select({
+            status: recursosGlosa.status,
+            quantidade: count(),
+            valorGlosado: sum(recursosGlosa.valorGlosado),
+            valorRecuperado: sum(recursosGlosa.valorRecuperado),
+          })
+          .from(recursosGlosa)
+          .where(estabIds.length > 0 ? inArray(recursosGlosa.estabelecimentoId, estabIds) : sql`1=1`)
+          .groupBy(recursosGlosa.status);
+
+        // Agrupar por estabelecimento
+        const porEstab = await database
+          .select({
+            estabelecimentoId: recursosGlosa.estabelecimentoId,
+            totalRecursos: count(),
+            valorGlosado: sum(recursosGlosa.valorGlosado),
+            valorRecuperado: sum(recursosGlosa.valorRecuperado),
+            valorRecebido: sum(recursosGlosa.valorRecebido),
+          })
+          .from(recursosGlosa)
+          .where(and(
+            estabIds.length > 0 ? inArray(recursosGlosa.estabelecimentoId, estabIds) : sql`1=1`,
+            isNotNull(recursosGlosa.estabelecimentoId)
+          ))
+          .groupBy(recursosGlosa.estabelecimentoId);
+
+        // Agrupar por convênio (top 10)
+        const porConvenio = await database
+          .select({
+            convenioId: recursosGlosa.convenioId,
+            totalRecursos: count(),
+            valorGlosado: sum(recursosGlosa.valorGlosado),
+            valorRecuperado: sum(recursosGlosa.valorRecuperado),
+          })
+          .from(recursosGlosa)
+          .where(estabIds.length > 0 ? inArray(recursosGlosa.estabelecimentoId, estabIds) : sql`1=1`)
+          .groupBy(recursosGlosa.convenioId)
+          .orderBy(sql`SUM(${recursosGlosa.valorGlosado}) DESC`)
+          .limit(10);
+
+        // Buscar nomes dos convênios
+        const convIds = porConvenio.map(c => c.convenioId).filter(Boolean);
+        let convMap = new Map<number, string>();
+        if (convIds.length > 0) {
+          const convList = await database
+            .select({ id: convenios.id, nome: convenios.nome })
+            .from(convenios)
+            .where(inArray(convenios.id, convIds));
+          convMap = new Map(convList.map(c => [c.id, c.nome]));
+        }
+
+        // Lotes de recurso - resumo
+        const [lotesKpis] = await database
+          .select({
+            totalLotes: count(),
+            valorTotalGlosado: sum(lotesRecurso.valorTotalGlosado),
+            valorTotalRecursado: sum(lotesRecurso.valorTotalRecursado),
+            valorTotalRecuperado: sum(lotesRecurso.valorTotalRecuperado),
+            valorTotalRecebido: sum(lotesRecurso.valorTotalRecebido),
+          })
+          .from(lotesRecurso)
+          .where(estabIds.length > 0 ? inArray(lotesRecurso.estabelecimentoId, estabIds) : sql`1=1`);
+
+        const valorGlosado = Number(kpisResult?.valorTotalGlosado || 0);
+        const valorRecuperado = Number(kpisResult?.valorTotalRecuperado || 0);
+        const valorRecebido = Number(kpisResult?.valorTotalRecebido || 0);
+        const taxaRecuperacao = valorGlosado > 0 ? ((valorRecuperado / valorGlosado) * 100) : 0;
+
+        return {
+          kpis: {
+            totalRecursos: Number(kpisResult?.totalRecursos || 0),
+            valorTotalGlosado: valorGlosado,
+            valorTotalRecursado: Number(kpisResult?.valorTotalRecursado || 0),
+            valorTotalRecuperado: valorRecuperado,
+            valorTotalRecebido: valorRecebido,
+            taxaRecuperacao: Math.round(taxaRecuperacao * 100) / 100,
+          },
+          porStatus: statusCounts.map(s => ({
+            status: s.status,
+            quantidade: Number(s.quantidade),
+            valorGlosado: Number(s.valorGlosado || 0),
+            valorRecuperado: Number(s.valorRecuperado || 0),
+          })),
+          porEstabelecimento: porEstab.map(e => ({
+            id: e.estabelecimentoId,
+            nome: estabMap.get(e.estabelecimentoId!) || `Estab. ${e.estabelecimentoId}`,
+            totalRecursos: Number(e.totalRecursos),
+            valorGlosado: Number(e.valorGlosado || 0),
+            valorRecuperado: Number(e.valorRecuperado || 0),
+            valorRecebido: Number(e.valorRecebido || 0),
+            taxaRecuperacao: Number(e.valorGlosado || 0) > 0 ? Math.round((Number(e.valorRecuperado || 0) / Number(e.valorGlosado || 0)) * 10000) / 100 : 0,
+          })),
+          porConvenio: porConvenio.map(c => ({
+            convenioId: c.convenioId,
+            convenioNome: convMap.get(c.convenioId) || `Convênio ${c.convenioId}`,
+            totalRecursos: Number(c.totalRecursos),
+            valorGlosado: Number(c.valorGlosado || 0),
+            valorRecuperado: Number(c.valorRecuperado || 0),
+          })),
+          lotes: {
+            totalLotes: Number(lotesKpis?.totalLotes || 0),
+            valorTotalGlosado: Number(lotesKpis?.valorTotalGlosado || 0),
+            valorTotalRecursado: Number(lotesKpis?.valorTotalRecursado || 0),
+            valorTotalRecuperado: Number(lotesKpis?.valorTotalRecuperado || 0),
+            valorTotalRecebido: Number(lotesKpis?.valorTotalRecebido || 0),
+          },
+        };
+      }),
+
     // Buscar atendimentos consolidados de todos os estabelecimentos
     atendimentosConsolidados: protectedProcedure.query(async ({ ctx }) => {
       const { getAtendimentosParadosUnificados, calcularDiasParadoUnificado } = await import("./atendimentosUnificados");
