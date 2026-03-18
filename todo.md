@@ -3151,3 +3151,6 @@
 - [x] Painel Executivo: Alertas inteligentes
 - [x] Integração: Menu lateral + rotas App.tsx para todos os módulos
 - [x] Testes vitest para procedures dos 3 módulos (15 testes passando)
+
+- [x] Painel Executivo: Implementar aba Atendimentos consolidados com dados reais de todos os estabelecimentos (tabela atendimentos_unificados)
+- [ ] Painel Executivo: Implementar KPI Recursado Total com dados reais de recursos de glosa (pendente - precisa de dados de recurso)

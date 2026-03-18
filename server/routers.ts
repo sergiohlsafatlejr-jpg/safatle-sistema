@@ -4436,6 +4436,66 @@ export const appRouter = router({
         }
         return comparativo;
       }),
+
+    // Buscar atendimentos consolidados de todos os estabelecimentos
+    atendimentosConsolidados: protectedProcedure.query(async ({ ctx }) => {
+      const { getAtendimentosParadosUnificados, calcularDiasParadoUnificado } = await import("./atendimentosUnificados");
+      const estabelecimentosList = await db.getEstabelecimentos();
+      const estabMap = new Map(estabelecimentosList.map(e => [e.id, e.nome]));
+
+      const todos = await getAtendimentosParadosUnificados();
+
+      // KPIs gerais
+      const total = todos.length;
+      const totalDias = todos.reduce((sum, a) => sum + calcularDiasParadoUnificado(a.data_entrada, a.data_saida || undefined, a.origemSistema, a.dtEntrega, a.dtEtapa), 0);
+      const mediaDias = total > 0 ? Math.round(totalDias / total) : 0;
+      const valorTotal = todos.reduce((sum, a) => sum + Number(a.valorConta || 0), 0);
+
+      // Agrupar por estabelecimento
+      const porEstab: Record<number, { nome: string; total: number; valorTotal: number; semConta: number; aFaturar: number; internacao: number; ambulatorio: number; exame: number; outros: number }> = {};
+      todos.forEach(a => {
+        const eid = a.estabelecimentoId;
+        if (!porEstab[eid]) {
+          porEstab[eid] = { nome: estabMap.get(eid) || `Estab. ${eid}`, total: 0, valorTotal: 0, semConta: 0, aFaturar: 0, internacao: 0, ambulatorio: 0, exame: 0, outros: 0 };
+        }
+        const e = porEstab[eid];
+        e.total++;
+        e.valorTotal += Number(a.valorConta || 0);
+        const desc = (a.descricao_atendimento || '').toLowerCase();
+        if (desc.includes('sem_conta') || desc.includes('sem conta')) e.semConta++;
+        else e.aFaturar++;
+        const tipo = (a.tipo_atendimento || '').toLowerCase();
+        if (tipo.includes('internac')) e.internacao++;
+        else if (tipo.includes('ambulat')) e.ambulatorio++;
+        else if (tipo.includes('exame')) e.exame++;
+        else e.outros++;
+      });
+
+      // Agrupar por convênio (top 15)
+      const porConvenio: Record<string, number> = {};
+      todos.forEach(a => {
+        const conv = a.convenio || 'Sem Convênio';
+        porConvenio[conv] = (porConvenio[conv] || 0) + 1;
+      });
+      const topConvenios = Object.entries(porConvenio)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([convenio, quantidade]) => ({ convenio, quantidade }));
+
+      // Agrupar por sistema de origem
+      const porOrigem: Record<string, number> = {};
+      todos.forEach(a => {
+        const orig = a.origemSistema || 'Desconhecido';
+        porOrigem[orig] = (porOrigem[orig] || 0) + 1;
+      });
+
+      return {
+        kpis: { total, mediaDias, valorTotal },
+        porEstabelecimento: Object.entries(porEstab).map(([id, data]) => ({ id: Number(id), ...data })),
+        topConvenios,
+        porOrigem: Object.entries(porOrigem).map(([origem, quantidade]) => ({ origem, quantidade })),
+      };
+    }),
   }),
 
   // ============ MOTIVOS DE GLOSA ============

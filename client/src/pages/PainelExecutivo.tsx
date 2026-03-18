@@ -152,18 +152,133 @@ function VisaoGeral() {
 
 // ========== ATENDIMENTOS CONSOLIDADOS ==========
 function AtendimentosConsolidados() {
+  const { data, isLoading } = trpc.dashboardConsolidado.atendimentosConsolidados.useQuery(undefined);
+
+  if (isLoading) return <div className="text-muted-foreground p-8">Carregando atendimentos de todos os estabelecimentos...</div>;
+  if (!data) return <div className="text-muted-foreground p-8">Sem dados disponíveis.</div>;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <h2 className="text-xl font-bold flex items-center gap-2"><Users className="h-5 w-5" /> Atendimentos - Todos os Locais</h2>
+
+      {/* KPIs Gerais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4 text-center">
-            <Users className="h-8 w-8 mx-auto text-blue-500 mb-2" />
-            <div className="text-sm text-muted-foreground">Funcionalidade em desenvolvimento</div>
-            <p className="text-xs text-muted-foreground mt-2">Os atendimentos de todos os estabelecimentos serão consolidados aqui com indicadores de parados e sem faturar.</p>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><Users className="h-4 w-4" /> Total de Atendimentos</div>
+            <div className="text-3xl font-bold text-blue-500">{data.kpis.total.toLocaleString("pt-BR")}</div>
+            <p className="text-xs text-muted-foreground mt-1">Todos os estabelecimentos</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><Clock className="h-4 w-4" /> Média Dias Parado</div>
+            <div className="text-3xl font-bold text-amber-500">{data.kpis.mediaDias} dias</div>
+            <p className="text-xs text-muted-foreground mt-1">Média geral</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><DollarSign className="h-4 w-4" /> Valor Total em Contas</div>
+            <div className="text-3xl font-bold text-green-500">{formatCurrency(data.kpis.valorTotal)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Soma de todos os atendimentos</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Tabela por Estabelecimento */}
+      {data.porEstabelecimento.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-5 w-5" /> Atendimentos por Estabelecimento</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Estabelecimento</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Sem Conta</TableHead>
+                  <TableHead className="text-right">A Faturar</TableHead>
+                  <TableHead className="text-right">Internação</TableHead>
+                  <TableHead className="text-right">Ambulatório</TableHead>
+                  <TableHead className="text-right">Exame</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.porEstabelecimento.map((est: any) => (
+                  <TableRow key={est.id}>
+                    <TableCell className="font-medium">{est.nome}</TableCell>
+                    <TableCell className="text-right font-bold">{est.total}</TableCell>
+                    <TableCell className="text-right text-red-500">{est.semConta}</TableCell>
+                    <TableCell className="text-right text-amber-500">{est.aFaturar}</TableCell>
+                    <TableCell className="text-right">{est.internacao}</TableCell>
+                    <TableCell className="text-right">{est.ambulatorio}</TableCell>
+                    <TableCell className="text-right">{est.exame}</TableCell>
+                    <TableCell className="text-right text-green-500">{formatCurrency(est.valorTotal)}</TableCell>
+                  </TableRow>
+                ))}
+                {/* Linha Total */}
+                <TableRow className="bg-muted/50 font-bold">
+                  <TableCell>TOTAL</TableCell>
+                  <TableCell className="text-right">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.total, 0)}</TableCell>
+                  <TableCell className="text-right text-red-500">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.semConta, 0)}</TableCell>
+                  <TableCell className="text-right text-amber-500">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.aFaturar, 0)}</TableCell>
+                  <TableCell className="text-right">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.internacao, 0)}</TableCell>
+                  <TableCell className="text-right">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.ambulatorio, 0)}</TableCell>
+                  <TableCell className="text-right">{data.porEstabelecimento.reduce((s: number, e: any) => s + e.exame, 0)}</TableCell>
+                  <TableCell className="text-right text-green-500">{formatCurrency(data.porEstabelecimento.reduce((s: number, e: any) => s + e.valorTotal, 0))}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top Convênios */}
+      {data.topConvenios.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Top 15 Convênios com Atendimentos Parados</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Convênio</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead className="text-right">% do Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.topConvenios.map((c: any) => (
+                  <TableRow key={c.convenio}>
+                    <TableCell className="font-medium">{c.convenio}</TableCell>
+                    <TableCell className="text-right">{c.quantidade}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline">{data.kpis.total > 0 ? formatPercent((c.quantidade / data.kpis.total) * 100) : "0%"}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Por Sistema de Origem */}
+      {data.porOrigem.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Por Sistema de Origem</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {data.porOrigem.map((o: any) => (
+                <div key={o.origem} className="text-center p-3 bg-muted/30 rounded-lg">
+                  <div className="text-2xl font-bold">{o.quantidade}</div>
+                  <div className="text-sm text-muted-foreground">{o.origem}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
