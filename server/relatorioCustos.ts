@@ -773,24 +773,25 @@ export async function sincronizarCustosProdutos(
       await db.delete(custosProtudosCache).where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
       console.log("[RelatorioCustos] Sincronização: cache anterior limpo");
 
-      // Inserir em lotes de 50 (TiDB/MySQL tem limite de params por prepared statement)
-      // Batch de 20 registros - cada registro tem ~19 colunas = ~380 params por batch
-      // TiDB/MySQL tem limite de prepared statement params, 20 é seguro
-      const batchSize = 20;
+      // Batch de 5 registros - ultra conservador para TiDB/MySQL
+      // 5 registros x 18 params = 90 params por batch (bem dentro do limite)
+      const batchSize = 5;
       const totalBatches = Math.ceil(rows.length / batchSize);
+      let insertedCount = 0;
+
+      const toDecimal = (val: any): string | null => {
+        if (val == null || val === '' || val === undefined) return null;
+        const num = parseFloat(String(val));
+        if (isNaN(num)) return null;
+        return num.toFixed(6);
+      };
+
       for (let i = 0; i < rows.length; i += batchSize) {
         const batchNum = Math.floor(i / batchSize) + 1;
         const batch = rows.slice(i, i + batchSize);
-        await db.insert(custosProtudosCache).values(
-          batch.map((r: any) => {
-            const toDecimal = (val: any): string | null => {
-              if (val == null || val === '' || val === undefined) return null;
-              const num = parseFloat(String(val));
-              if (isNaN(num)) return null;
-              return num.toFixed(6);
-            };
-
-            return {
+        try {
+          await db.insert(custosProtudosCache).values(
+            batch.map((r: any) => ({
               estabelecimentoId,
               codprod: r.codprod?.trim() || "",
               descricao: r.descricao?.trim() || null,
@@ -809,14 +810,70 @@ export async function sincronizarCustosProdutos(
               codplaco: r.codplaco?.trim() || null,
               nomeConvenio: r.nome_convenio?.trim() || null,
               nomePlano: r.nome_plano?.trim() || null,
-            };
-          })
-        );
-        // Log progresso a cada 5 lotes
-        if (batchNum % 5 === 0 || batchNum === 1 || batchNum === totalBatches) {
-          console.log(`[RelatorioCustos] Sincronização: lote ${batchNum}/${totalBatches} inserido (${Math.min(i + batchSize, rows.length)}/${rows.length} registros)`);
+            }))
+          ).onDuplicateKeyUpdate({
+            set: {
+              descricao: sql`VALUES(descricao)`,
+              custoEstoque: sql`VALUES(custo_estoque)`,
+              custoMultFat: sql`VALUES(custo_mult_fat)`,
+              valormm: sql`VALUES(valormm)`,
+              multFaturas: sql`VALUES(mult_faturas)`,
+              multEstoque: sql`VALUES(mult_estoque)`,
+              capacidadeEstoque: sql`VALUES(capacidade_estoque)`,
+              prevenbras: sql`VALUES(prevenbras)`,
+              prefabsimp: sql`VALUES(prefabsimp)`,
+              sincronizadoEm: sql`NOW()`,
+            },
+          });
+          insertedCount += batch.length;
+        } catch (batchErr: any) {
+          // Capturar erro real do MySQL (code, errno, sqlState)
+          const mysqlCode = batchErr.code || batchErr.errno || '';
+          const mysqlState = batchErr.sqlState || '';
+          console.error(`[RelatorioCustos] Erro no lote ${batchNum}/${totalBatches}: code=${mysqlCode} state=${mysqlState} msg=${String(batchErr.message || batchErr).substring(0, 200)}`);
+          // Se falhou no batch, tentar inserir um por um
+          for (const r of batch) {
+            try {
+              await db.insert(custosProtudosCache).values({
+                estabelecimentoId,
+                codprod: r.codprod?.trim() || "",
+                descricao: r.descricao?.trim() || null,
+                tipoprod: r.tipoprod?.trim() || null,
+                capacidadeEstoque: toDecimal(r.capacidade_estoque),
+                multEstoque: toDecimal(r.mult_estoque),
+                multFaturas: toDecimal(r.mult_faturas),
+                unidadeEstoque: r.unidade_estoque?.trim() || null,
+                unidadeFaturas: r.unidade_faturas?.trim() || null,
+                custoEstoque: toDecimal(r.custo_estoque),
+                custoMultFat: toDecimal(r.custo_mult_fat),
+                valormm: toDecimal(r.valormm),
+                prevenbras: toDecimal(r.prevenbras),
+                prefabsimp: toDecimal(r.prefabsimp),
+                codtbmm: r.codtbmm?.trim() || "",
+                codplaco: r.codplaco?.trim() || null,
+                nomeConvenio: r.nome_convenio?.trim() || null,
+                nomePlano: r.nome_plano?.trim() || null,
+              }).onDuplicateKeyUpdate({
+                set: {
+                  descricao: sql`VALUES(descricao)`,
+                  custoEstoque: sql`VALUES(custo_estoque)`,
+                  custoMultFat: sql`VALUES(custo_mult_fat)`,
+                  valormm: sql`VALUES(valormm)`,
+                  sincronizadoEm: sql`NOW()`,
+                },
+              });
+              insertedCount++;
+            } catch (singleErr: any) {
+              console.error(`[RelatorioCustos] Erro ao inserir registro individual codprod=${r.codprod}: ${String(singleErr.message || singleErr).substring(0, 200)}`);
+            }
+          }
+        }
+        // Log progresso a cada 20 lotes ou no primeiro/último
+        if (batchNum % 20 === 0 || batchNum === 1 || batchNum === totalBatches) {
+          console.log(`[RelatorioCustos] Sincronização: lote ${batchNum}/${totalBatches} - ${insertedCount}/${rows.length} registros inseridos`);
         }
       }
+      console.log(`[RelatorioCustos] Sincronização: total inserido = ${insertedCount}/${rows.length}`);
     } finally {
       client.release();
     }
@@ -837,20 +894,24 @@ export async function sincronizarCustosProdutos(
       totalRegistros,
       duracaoSegundos: duracao,
     };
-  } catch (e) {
+  } catch (e: any) {
     const duracao = Math.round((Date.now() - inicio) / 1000);
-    const errorMsg = (e as Error).message;
-    const errorStack = (e as Error).stack;
-    // Truncar mensagem de erro para evitar que o UPDATE também falhe
-    const truncatedError = errorMsg.length > 500 ? errorMsg.substring(0, 500) + '... [truncado]' : errorMsg;
-    console.error(`[RelatorioCustos] Erro na sincronização (${duracao}s):`, truncatedError);
-    if (errorStack) console.error(`[RelatorioCustos] Stack:`, errorStack.substring(0, 1000));
+    // Capturar erro real do MySQL (code, errno, sqlState) separadamente da query
+    const mysqlCode = e.code || e.errno || '';
+    const mysqlState = e.sqlState || '';
+    const rawMsg = String(e.message || e);
+    // Extrair apenas a parte relevante do erro, sem a query SQL completa
+    const errorSummary = mysqlCode 
+      ? `MySQL Error ${mysqlCode} (${mysqlState}): ${rawMsg.split('\n')[0].substring(0, 300)}`
+      : rawMsg.substring(0, 400);
+    console.error(`[RelatorioCustos] Erro na sincronização (${duracao}s): ${errorSummary}`);
+    if (e.stack) console.error(`[RelatorioCustos] Stack:`, String(e.stack).substring(0, 500));
 
     try {
       await upsertSyncMeta(db, estabelecimentoId, {
         status: "erro",
         duracaoSegundos: duracao,
-        mensagemErro: truncatedError,
+        mensagemErro: errorSummary,
       });
     } catch (metaErr) {
       console.error(`[RelatorioCustos] Erro ao salvar meta de erro:`, (metaErr as Error).message);
@@ -858,7 +919,7 @@ export async function sincronizarCustosProdutos(
 
     return {
       sucesso: false,
-      mensagem: `Erro na sincronização: ${errorMsg}`,
+      mensagem: `Erro na sincronização: ${errorSummary}`,
       totalRegistros: 0,
       duracaoSegundos: duracao,
     };

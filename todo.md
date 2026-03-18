@@ -3098,5 +3098,5 @@
 
 - [x] Adicionar filtros de mês/ano na tela de Atendimentos (Atendimentos Parados) para facilitar busca e filtragem
 
-- [x] Corrigir sincronização de custos que falha na inserção no MySQL (batch insert error) - batch reduzido para 20
+- [x] Corrigir sincronização de custos que falha na inserção no MySQL - batch de 5 + onDuplicateKeyUpdate (5130 registros, 4896 únicos)
 - [x] Resolver valores inflados no relatório de custos - usar custoMultFat (custo/multFaturas) ao invés de custoEstoque para comparação justa com valormm
