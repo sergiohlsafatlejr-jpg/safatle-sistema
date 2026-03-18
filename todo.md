@@ -3085,3 +3085,5 @@
 - [x] Implementar timeout na query de sincronização para evitar travamento
 - [x] Implementar recovery automático de status "em_andamento" travado (detectar timeout)
 - [x] Melhorar feedback ao usuário durante sincronização (progresso, timeout, erro)
+
+- [x] Corrigir telas de Atendimentos que usam Warleine (Atendimentos Parados, Atendimentos Não Faturados) - não retornam dados para Instituto do Rim e outros estabelecimentos

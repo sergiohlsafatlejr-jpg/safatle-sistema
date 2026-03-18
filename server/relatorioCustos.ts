@@ -773,8 +773,8 @@ export async function sincronizarCustosProdutos(
       await db.delete(custosProtudosCache).where(eq(custosProtudosCache.estabelecimentoId, estabelecimentoId));
       console.log("[RelatorioCustos] Sincronização: cache anterior limpo");
 
-      // Inserir em lotes de 500
-      const batchSize = 500;
+      // Inserir em lotes de 50 (TiDB/MySQL tem limite de params por prepared statement)
+      const batchSize = 50;
       const totalBatches = Math.ceil(rows.length / batchSize);
       for (let i = 0; i < rows.length; i += batchSize) {
         const batchNum = Math.floor(i / batchSize) + 1;
@@ -810,9 +810,9 @@ export async function sincronizarCustosProdutos(
             };
           })
         );
-        // Log progresso a cada 10 lotes
-        if (batchNum % 10 === 0 || batchNum === totalBatches) {
-          console.log(`[RelatorioCustos] Sincronização: lote ${batchNum}/${totalBatches} inserido`);
+        // Log progresso a cada 5 lotes
+        if (batchNum % 5 === 0 || batchNum === 1 || batchNum === totalBatches) {
+          console.log(`[RelatorioCustos] Sincronização: lote ${batchNum}/${totalBatches} inserido (${Math.min(i + batchSize, rows.length)}/${rows.length} registros)`);
         }
       }
     } finally {
@@ -838,12 +838,21 @@ export async function sincronizarCustosProdutos(
   } catch (e) {
     const duracao = Math.round((Date.now() - inicio) / 1000);
     const errorMsg = (e as Error).message;
+    const errorStack = (e as Error).stack;
+    // Truncar mensagem de erro para evitar que o UPDATE também falhe
+    const truncatedError = errorMsg.length > 500 ? errorMsg.substring(0, 500) + '... [truncado]' : errorMsg;
+    console.error(`[RelatorioCustos] Erro na sincronização (${duracao}s):`, truncatedError);
+    if (errorStack) console.error(`[RelatorioCustos] Stack:`, errorStack.substring(0, 1000));
 
-    await upsertSyncMeta(db, estabelecimentoId, {
-      status: "erro",
-      duracaoSegundos: duracao,
-      mensagemErro: errorMsg,
-    });
+    try {
+      await upsertSyncMeta(db, estabelecimentoId, {
+        status: "erro",
+        duracaoSegundos: duracao,
+        mensagemErro: truncatedError,
+      });
+    } catch (metaErr) {
+      console.error(`[RelatorioCustos] Erro ao salvar meta de erro:`, (metaErr as Error).message);
+    }
 
     return {
       sucesso: false,

@@ -4,8 +4,9 @@ import { eq, and, isNull, or } from "drizzle-orm";
 
 /**
  * Busca todos os atendimentos parados da tabela unificada.
- * Para TASY: todos os registros são considerados parados (CSV já traz só contas paradas, mesmo com data_saida preenchida).
- * Para WARLEINE/EASYVISION: apenas registros sem data_saida.
+ * Mostra todos os registros de todos os sistemas.
+ * O filtro de data_saida IS NULL é aplicado apenas para TASY na tela listarPaginado.
+ * Para WARLEINE/EASYVISION: mostra todos os registros (a query externa já traz apenas os relevantes).
  * @returns Lista de atendimentos parados
  */
 export async function getAtendimentosParadosUnificados() {
@@ -16,18 +17,12 @@ export async function getAtendimentosParadosUnificados() {
       return [];
     }
 
-    // TASY: todos os registros são parados (CSV já filtra)
-    // Outros sistemas: apenas sem data_saida
+    // Buscar todos os registros - sem filtro de data_saida
+    // Para TASY: CSV já traz só contas paradas
+    // Para WARLEINE/EASYVISION: a query externa já traz apenas os atendimentos relevantes
     const result = await db
       .select()
       .from(atendimentos)
-      .where(
-        or(
-          eq(atendimentos.origemSistema, 'tasy'),
-          eq(atendimentos.origemSistema, 'tasy_hemolabor'),
-          isNull(atendimentos.data_saida)
-        )
-      )
       .orderBy(atendimentos.data_entrada);
 
     return result;
@@ -38,7 +33,7 @@ export async function getAtendimentosParadosUnificados() {
 }
 
 /**
- * Busca atendimentos parados (sem data de saída) da tabela unificada por estabelecimento
+ * Busca atendimentos parados da tabela unificada por estabelecimento
  * @param estabelecimentoId - ID do estabelecimento
  * @returns Lista de atendimentos parados
  */
@@ -50,20 +45,14 @@ export async function getAtendimentosParadosPorEstabelecimento(estabelecimentoId
       return [];
     }
 
-    // TASY: todos os registros são parados (CSV já filtra)
-    // Outros sistemas: apenas sem data_saida
+    // Buscar todos os registros do estabelecimento - sem filtro de data_saida
+    // Para TASY: CSV já traz só contas paradas
+    // Para WARLEINE/EASYVISION: a query externa já traz apenas os atendimentos relevantes
     const result = await db
       .select()
       .from(atendimentos)
       .where(
-        and(
-          eq(atendimentos.estabelecimentoId, estabelecimentoId),
-          or(
-            eq(atendimentos.origemSistema, 'tasy'),
-            eq(atendimentos.origemSistema, 'tasy_hemolabor'),
-            isNull(atendimentos.data_saida)
-          )
-        )
+        eq(atendimentos.estabelecimentoId, estabelecimentoId)
       )
       .orderBy(atendimentos.data_entrada);
 

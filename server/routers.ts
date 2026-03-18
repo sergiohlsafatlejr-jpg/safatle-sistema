@@ -7066,13 +7066,8 @@ export const appRouter = router({
               eq(atendimentosUnificados.nomeProtocolo, '')
             )!
           );
-          baseConditions.push(
-            or(
-              eq(atendimentosUnificados.origemSistema, 'tasy'),
-              eq(atendimentosUnificados.origemSistema, 'tasy_hemolabor'),
-              isNull(atendimentosUnificados.data_saida)
-            )!
-          );
+          // Não filtrar por data_saida IS NULL - para WARLEINE/EASYVISION a query externa já traz apenas os atendimentos relevantes
+          // Para TASY o CSV já traz só contas paradas
 
           // Condições de filtro
           const filterConditions: any[] = [...baseConditions];
