@@ -774,7 +774,9 @@ export async function sincronizarCustosProdutos(
       console.log("[RelatorioCustos] Sincronização: cache anterior limpo");
 
       // Inserir em lotes de 50 (TiDB/MySQL tem limite de params por prepared statement)
-      const batchSize = 50;
+      // Batch de 20 registros - cada registro tem ~19 colunas = ~380 params por batch
+      // TiDB/MySQL tem limite de prepared statement params, 20 é seguro
+      const batchSize = 20;
       const totalBatches = Math.ceil(rows.length / batchSize);
       for (let i = 0; i < rows.length; i += batchSize) {
         const batchNum = Math.floor(i / batchSize) + 1;
@@ -1057,12 +1059,15 @@ async function buscarComparacaoDoCache(
   limit: number,
   offset: number
 ): Promise<ComparacaoCustoConvenio> {
+  // Usar custoMultFat (custo ajustado pelo multiplicador de fatura) para comparação justa com valormm
+  // custoEstoque = custo do frasco/embalagem inteira
+  // custoMultFat = custoEstoque / multFaturas = custo por unidade de fatura (mesma base que valormm)
   const conditions: any[] = [
     eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
-    sql`${custosProtudosCache.custoEstoque} IS NOT NULL`,
-    sql`${custosProtudosCache.custoEstoque} > 0`,
+    sql`${custosProtudosCache.custoMultFat} IS NOT NULL`,
+    sql`CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) > 0`,
     sql`${custosProtudosCache.valormm} IS NOT NULL`,
-    sql`${custosProtudosCache.valormm} > 0`,
+    sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > 0`,
   ];
 
   if (filtros.tipoprod) {
@@ -1080,7 +1085,7 @@ async function buscarComparacaoDoCache(
     );
   }
   if (filtros.apenasComPrejuizo) {
-    conditions.push(sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))`);
+    conditions.push(sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6))`);
   }
 
   const whereClause = and(...conditions);
@@ -1091,7 +1096,7 @@ async function buscarComparacaoDoCache(
       .select()
       .from(custosProtudosCache)
       .where(whereClause)
-      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) ASC`)
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6))) ASC`)
       .limit(limit)
       .offset(offset),
   ]);
@@ -1099,7 +1104,8 @@ async function buscarComparacaoDoCache(
   const total = totalResult[0]?.total || 0;
 
   const itens = dados.map((d) => {
-    const custoHospital = parseFloat(d.custoEstoque || "0");
+    // Usar custoMultFat para comparação justa (mesma unidade que valormm)
+    const custoHospital = parseFloat(d.custoMultFat || "0");
     const valorConvenio = parseFloat(d.valormm || "0");
     const margemReais = valorConvenio - custoHospital;
     const margemPercent = custoHospital > 0 ? ((margemReais / custoHospital) * 100) : 0;
@@ -1124,10 +1130,10 @@ async function buscarComparacaoDoCache(
   // Resumo geral (sem paginação)
   const baseConditions: any[] = [
     eq(custosProtudosCache.estabelecimentoId, estabelecimentoId),
-    sql`${custosProtudosCache.custoEstoque} IS NOT NULL`,
-    sql`${custosProtudosCache.custoEstoque} > 0`,
+    sql`${custosProtudosCache.custoMultFat} IS NOT NULL`,
+    sql`CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) > 0`,
     sql`${custosProtudosCache.valormm} IS NOT NULL`,
-    sql`${custosProtudosCache.valormm} > 0`,
+    sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > 0`,
   ];
   if (filtros.tipoprod) baseConditions.push(eq(custosProtudosCache.tipoprod, filtros.tipoprod));
   if (filtros.codtbmm) baseConditions.push(eq(custosProtudosCache.codtbmm, filtros.codtbmm));
@@ -1142,35 +1148,35 @@ async function buscarComparacaoDoCache(
   const [resumoResult, topPrejuizoResult, topLucroResult, margemPorTipoResult, margemPorTabelaResult, margemPorConvenioResult, conveniosResult] = await Promise.all([
     db.select({
       totalItens: count(),
-      totalComLucro: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01 THEN 1 ELSE 0 END)`,
-      totalComPrejuizo: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) - 0.01 THEN 1 ELSE 0 END)`,
-      custoTotalHospital: sql<string>`SUM(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      totalComLucro: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) + 0.01 THEN 1 ELSE 0 END)`,
+      totalComPrejuizo: sql<number>`SUM(CASE WHEN CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) - 0.01 THEN 1 ELSE 0 END)`,
+      custoTotalHospital: sql<string>`SUM(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
       valorTotalConvenio: sql<string>`SUM(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere),
 
     db.select()
       .from(custosProtudosCache)
-      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) - 0.01`))
-      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) ASC`)
+      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) < CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) - 0.01`))
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6))) ASC`)
       .limit(15),
 
     db.select()
       .from(custosProtudosCache)
-      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)) + 0.01`))
-      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6))) DESC`)
+      .where(and(...baseConditions, sql`CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) > CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)) + 0.01`))
+      .orderBy(sql`(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)) - CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6))) DESC`)
       .limit(15),
 
     db.select({
       tipoprod: custosProtudosCache.tipoprod,
       total: count(),
-      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
       avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.tipoprod),
 
     db.select({
       codtbmm: custosProtudosCache.codtbmm,
       total: count(),
-      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
       avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.codtbmm),
 
@@ -1178,7 +1184,7 @@ async function buscarComparacaoDoCache(
       codplaco: custosProtudosCache.codplaco,
       nomeConvenio: custosProtudosCache.nomeConvenio,
       total: count(),
-      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoEstoque} AS DECIMAL(18,6)))`,
+      avgCusto: sql<string>`AVG(CAST(${custosProtudosCache.custoMultFat} AS DECIMAL(18,6)))`,
       avgValor: sql<string>`AVG(CAST(${custosProtudosCache.valormm} AS DECIMAL(18,6)))`,
     }).from(custosProtudosCache).where(baseWhere).groupBy(custosProtudosCache.codplaco, custosProtudosCache.nomeConvenio),
 
@@ -1200,7 +1206,7 @@ async function buscarComparacaoDoCache(
   const totalItens = r?.totalItens || 0;
 
   const mapItem = (d: any) => {
-    const ch = parseFloat(d.custoEstoque || "0");
+    const ch = parseFloat(d.custoMultFat || "0");
     const vc = parseFloat(d.valormm || "0");
     const mr = vc - ch;
     return {
@@ -1291,7 +1297,9 @@ async function buscarComparacaoDoPostgresql(
     const params: any[] = [];
     let paramIdx = 1;
 
+    // Usar custo_mult_fat (custoatual / multcobr) para comparação justa com valormm
     const extraConditions: string[] = [
+      "COALESCE(B.multcobr, 0) > 0",
       "A.custoatual IS NOT NULL",
       "A.custoatual > 0",
       "B.valormm IS NOT NULL",
@@ -1321,9 +1329,17 @@ async function buscarComparacaoDoPostgresql(
     const fullQuery = `
       SELECT 
         A.codprod, B.codtbmm, A.descricao, A.tipoprod,
-        A.custoatual AS custo_hospital,
+        CASE 
+          WHEN A.tipoprod IN ('M','T','O') AND COALESCE(B.multcobr, 0) > 0 
+            THEN A.custoatual / B.multcobr
+          ELSE A.custoatual 
+        END AS custo_hospital,
         B.valormm AS valor_convenio,
-        (B.valormm - A.custoatual) AS margem_reais,
+        (B.valormm - CASE 
+          WHEN A.tipoprod IN ('M','T','O') AND COALESCE(B.multcobr, 0) > 0 
+            THEN A.custoatual / B.multcobr
+          ELSE A.custoatual 
+        END) AS margem_reais,
         PL.codplaco,
         C.nomeconv AS nome_convenio
       FROM "PACIENTE".tabprod A
