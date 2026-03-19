@@ -1,0 +1,36 @@
+CATEGORIAS (fin_categorias):
+3=Emprestimos, 4=Beneficios, 6=Aluguel, 8=Salarios, 10=Internet, 11=Salarios Extras, 12=Energia, 13=Estacionamento, 14=Salarios Pj, 15=Rescisoes, 16=Ferias, 17=Plano de Saude, 18=Carro, 19=Decimo Terceiro Salario, 20=Fgts, 21=Inss, 22=Das, 23=Ponto Mais, 24=Impressora, 25=Alpha
+
+CENTROS DE CUSTO (fin_centros_custo):
+1=Administrativo, 2=Impostos, 3=Despesas Variaveis, 4=Despesas Fixas, 5=Emprestimos, 6=Colaboradores
+
+MAPEAMENTO CORRETO:
+Descrição -> Categoria -> Centro de Custo
+
+Fgts -> 20(Fgts) -> 6(Colaboradores)
+Fgts Consignado -> 20(Fgts) -> 6(Colaboradores)
+Emprestimo* / Empretimo* -> 3(Emprestimos) -> 5(Emprestimos) [JÁ CORRETO]
+Impostos Parcelado -> 21(Inss) ou criar "Impostos" -> 2(Impostos) [Centro OK, falta categoria]
+Cartoes Caju -> 4(Beneficios) -> 6(Colaboradores)
+Unimed -> 17(Plano de Saude) -> 6(Colaboradores) [Categoria deveria ser Plano de Saude, não Beneficios]
+Carro / Carro SW4 -> 18(Carro) -> 3(Despesas Variaveis) [Centro OK, falta categoria]
+Aluguel T-30 -> 6(Aluguel) -> 4(Despesas Fixas) [JÁ CORRETO]
+Email - Skymail -> 10(Internet) -> 1(Administrativo)
+Cartao Brb/Bradesco/Inter/Porto Bank/Unicred/Karta -> sem categoria especifica -> 3(Despesas Variaveis) [OK centro]
+Dcon -> 14(Salarios Pj) -> 6(Colaboradores)
+Decimo Primeira Parcela -> 19(Decimo Terceiro Salario) -> 6(Colaboradores)
+Extra Ronaldo / Extra Natalia -> 11(Salarios Extras) -> 6(Colaboradores)
+Internet Ling -> 10(Internet) -> 1(Administrativo) [JÁ CORRETO]
+Algar Telefone / Algar Nuvem -> 10(Internet) -> 1(Administrativo)
+Cartao Bradesco -> sem -> 3(Despesas Variaveis)
+Sus Urulogico -> sem -> 3(Despesas Variaveis)
+Das Controltec -> 22(Das) -> 2(Impostos)
+Papelaria Tributaria -> sem -> 1(Administrativo)
+Impressora -> 24(Impressora) -> 1(Administrativo)
+Ferias * -> 16(Ferias) -> 6(Colaboradores)
+Visage -> sem -> 1(Administrativo)
+Scaner Cassio -> sem -> 1(Administrativo)
+Ponto mais -> 23(Ponto Mais) -> 1(Administrativo)
+Enel -> 12(Energia) -> 4(Despesas Fixas)
+Rescisao * -> 15(Rescisoes) -> 6(Colaboradores)
+lauanda / Moto boy -> 11(Salarios Extras) -> 6(Colaboradores)

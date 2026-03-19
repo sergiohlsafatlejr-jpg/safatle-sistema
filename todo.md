@@ -3201,3 +3201,6 @@
 - [x] Inserir dados de exemplo em Contas a Receber via SQL (com tipoServico e descricaoServico)
 - [x] Preencher categorias e centros de custo em Contas a Pagar existentes via SQL
 - [x] Testes vitest para edição inline (21 testes passando)
+- [x] Corrigir categorias e centros de custo das Contas a Pagar (script anterior atribuiu valores errados)
+- [x] 100% dos 232 registros agora possuem categoria e centro de custo corretos
+- [x] Criadas 4 novas categorias: Cartao de Credito, Funcionamento, Servicos Terceiros, Material de Escritorio
