@@ -3259,3 +3259,5 @@
 - [x] Suporte a geração individual (uma guia) e em lote (múltiplas guias)
 - [x] Marcar guias que já tiveram XML de recurso gerado
 - [x] Salvar XMLs gerados no S3 com link para consulta futura
+
+- [x] Corrigir erro "Cannot access 'convenioIdNum' before initialization" na página de Conciliação Cruzada

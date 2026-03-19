@@ -74,6 +74,27 @@ export default function ConciliacaoCruzada() {
   const [codigoGlosa, setCodigoGlosa] = useState("");
   const [modoGlosa, setModoGlosa] = useState<'selecionados' | 'todos'>('selecionados');
 
+  // ===== QUERIES PARA ABA CONCILIADOS =====
+
+  // Competências da conciliados_automatico
+  const { data: competenciasConciliados } = trpc.faturamentoUnificado.competenciasConciliados.useQuery(
+    { estabelecimentoId },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  // Convênios da conciliados_automatico
+  const { data: conveniosConciliados } = trpc.faturamentoUnificado.conveniosConciliados.useQuery(
+    { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  // Convênio ID numérico para filtro
+  const convenioIdNum = useMemo(() => {
+    if (convenioFiltro === "todos") return undefined;
+    const n = Number(convenioFiltro);
+    return isNaN(n) ? undefined : n;
+  }, [convenioFiltro]);
+
   // ===== QUERIES PARA ABA XML RECURSO =====
 
   // Guias glosadas disponíveis para geração de XML
@@ -95,27 +116,6 @@ export default function ConciliacaoCruzada() {
     },
     { enabled: estabelecimentoId > 0 && abaAtiva === "xml_recurso" }
   );
-
-  // ===== QUERIES PARA ABA CONCILIADOS =====
-
-  // Competências da conciliados_automatico
-  const { data: competenciasConciliados } = trpc.faturamentoUnificado.competenciasConciliados.useQuery(
-    { estabelecimentoId },
-    { enabled: estabelecimentoId > 0 }
-  );
-
-  // Convênios da conciliados_automatico
-  const { data: conveniosConciliados } = trpc.faturamentoUnificado.conveniosConciliados.useQuery(
-    { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined },
-    { enabled: estabelecimentoId > 0 }
-  );
-
-  // Convênio ID numérico para filtro
-  const convenioIdNum = useMemo(() => {
-    if (convenioFiltro === "todos") return undefined;
-    const n = Number(convenioFiltro);
-    return isNaN(n) ? undefined : n;
-  }, [convenioFiltro]);
 
   // Resumo agrupado por guia (aba conciliados - tabela principal)
   const { data: dadosGuiasConciliadas, isLoading: isLoadingGuiasConciliadas, refetch: refetchGuiasConciliadas } = trpc.faturamentoUnificado.resumoConciliadosPorGuia.useQuery(
