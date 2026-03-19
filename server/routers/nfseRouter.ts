@@ -13,10 +13,16 @@ import { invokeLLM } from "../_core/llm";
 // ============================================================
 
 const hospitaisRouter = router({
-  listar: protectedProcedure.query(async () => {
-    const db = (await getDb())!;
-    return db.select().from(nfseHospitais).where(eq(nfseHospitais.ativo, "sim")).orderBy(nfseHospitais.nome);
-  }),
+  listar: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const conditions: any[] = [eq(nfseHospitais.ativo, "sim")];
+      if (input?.estabelecimentoId) {
+        conditions.push(eq(nfseHospitais.estabelecimentoId, input.estabelecimentoId));
+      }
+      return db.select().from(nfseHospitais).where(and(...conditions)).orderBy(nfseHospitais.nome);
+    }),
 
   buscarPorId: protectedProcedure
     .input(z.object({ id: z.number() }))
@@ -384,7 +390,7 @@ const notasRouter = router({
 
       // Contadores
       const [hospitalCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(nfseHospitais).where(eq(nfseHospitais.ativo, "sim"));
-      const [convenioCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(nfseConvenios).where(eq(nfseConvenios.ativo, "sim"));
+      const [convenioCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(convenios).where(eq(convenios.ativo, "sim"));
 
       // Últimas notas
       const ultimasNotas = await db.select({

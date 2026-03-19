@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,10 @@ import {
 // DASHBOARD TAB
 // ============================================================
 function DashboardTab() {
+  const { estabelecimentoAtual, visualizandoTodos } = useEstabelecimento();
+  const estabId = (!visualizandoTodos && estabelecimentoAtual?.id) ? estabelecimentoAtual.id : undefined;
   const [hospitalFilter, setHospitalFilter] = useState<number | undefined>();
-  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery();
+  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery(estabId ? { estabelecimentoId: estabId } : undefined);
   const { data: dashboard, isLoading } = trpc.nfse.notas.dashboard.useQuery({
     hospitalId: hospitalFilter,
   });
@@ -190,6 +193,8 @@ function DashboardTab() {
 // NOTAS FISCAIS TAB (CRUD)
 // ============================================================
 function NotasFiscaisTab() {
+  const { estabelecimentoAtual, visualizandoTodos } = useEstabelecimento();
+  const estabId = (!visualizandoTodos && estabelecimentoAtual?.id) ? estabelecimentoAtual.id : undefined;
   const [busca, setBusca] = useState("");
   const [hospitalFilter, setHospitalFilter] = useState<number | undefined>();
   const [statusFilter, setStatusFilter] = useState<"sim" | "nao" | undefined>();
@@ -199,7 +204,7 @@ function NotasFiscaisTab() {
   const [importResult, setImportResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery();
+  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery(estabId ? { estabelecimentoId: estabId } : undefined);
   const { data: convenios } = trpc.nfse.convenios.listar.useQuery();
   const { data: notasData, isLoading } = trpc.nfse.notas.listar.useQuery({
     hospitalId: hospitalFilter,
@@ -533,8 +538,10 @@ function NotasFiscaisTab() {
 // PENDENTES TAB
 // ============================================================
 function PendentesTab() {
+  const { estabelecimentoAtual, visualizandoTodos } = useEstabelecimento();
+  const estabId = (!visualizandoTodos && estabelecimentoAtual?.id) ? estabelecimentoAtual.id : undefined;
   const [hospitalFilter, setHospitalFilter] = useState<number | undefined>();
-  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery();
+  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery(estabId ? { estabelecimentoId: estabId } : undefined);
   const { data: pendentesData, isLoading } = trpc.nfse.notas.pendentes.useQuery({
     hospitalId: hospitalFilter,
   });
@@ -662,11 +669,13 @@ function PendentesTab() {
 // ACOMPANHAMENTO TAB
 // ============================================================
 function AcompanhamentoTab() {
+  const { estabelecimentoAtual, visualizandoTodos } = useEstabelecimento();
+  const estabId = (!visualizandoTodos && estabelecimentoAtual?.id) ? estabelecimentoAtual.id : undefined;
   const now = new Date();
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [ano, setAno] = useState(now.getFullYear());
   const [hospitalFilter, setHospitalFilter] = useState<number | undefined>();
-  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery();
+  const { data: hospitais } = trpc.nfse.hospitais.listar.useQuery(estabId ? { estabelecimentoId: estabId } : undefined);
   const { data: acompData, isLoading } = trpc.nfse.notas.acompanhamentoEnvios.useQuery({
     hospitalId: hospitalFilter,
     mes,
@@ -791,10 +800,12 @@ function AcompanhamentoTab() {
 // HOSPITAIS CONFIG TAB
 // ============================================================
 function HospitaisTab() {
+  const { estabelecimentoAtual, visualizandoTodos } = useEstabelecimento();
+  const estabId = (!visualizandoTodos && estabelecimentoAtual?.id) ? estabelecimentoAtual.id : undefined;
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
-  const { data: hospitais, isLoading } = trpc.nfse.hospitais.listar.useQuery();
+  const { data: hospitais, isLoading } = trpc.nfse.hospitais.listar.useQuery(estabId ? { estabelecimentoId: estabId } : undefined);
   const utils = trpc.useUtils();
   const criarMutation = trpc.nfse.hospitais.criar.useMutation({
     onSuccess: () => { utils.nfse.hospitais.invalidate(); toast.success("Hospital criado"); setShowForm(false); },

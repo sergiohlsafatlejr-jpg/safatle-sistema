@@ -3235,3 +3235,5 @@
 - [x] Adicionar filtro de seleção de estabelecimento no Painel Executivo (dropdown com todos os estabelecimentos + opção Todos)
 - [x] Exibir campos de usuário e senha na tela de hospitais NFS-e para acesso ao site de emissão de nota fiscal
 - [x] Integrar convênios da tabela existente no sistema ao módulo NFS-e (em vez de cadastro separado)
+- [x] Vincular hospitais NFS-e aos estabelecimentos do sistema para filtro automático por unidade selecionada
+- [x] Importar notas fiscais do CSV fornecido pelo usuário no banco de dados (72 notas: 34 PSI + 38 Mat Ela)
