@@ -16,7 +16,8 @@ import {
   ArrowUpDown, Calendar, FileText, Download, ChevronDown, ChevronRight,
   Banknote, Receipt, CircleDollarSign, Percent, ArrowDownRight, ArrowUpRight,
   Clock, CheckCircle, XCircle, Eye, Landmark, List, Upload, Target, Edit, ToggleLeft,
-  RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2, MapPin
+  RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2, MapPin,
+  Filter, SortAsc, X, FileSpreadsheet
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -184,17 +185,45 @@ function FinDashboard() {
 function ContasPagar() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [filtroEmpresa, setFiltroEmpresa] = useState("todas");
+  const [filtroCategoria, setFiltroCategoria] = useState("todas");
+  const [filtroCentroCusto, setFiltroCentroCusto] = useState("todos");
+  const [filtroPeriodo, setFiltroPeriodo] = useState("todo");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [ordenacao, setOrdenacao] = useState<"data" | "az" | "valor">("data");
   const utils = trpc.useUtils();
+
+  // Calcular datas do período
+  const periodoFiltro = useMemo(() => {
+    const hoje = new Date();
+    if (filtroPeriodo === "mes") {
+      return { dataInicio: new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10), dataFim: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10) };
+    }
+    if (filtroPeriodo === "trimestre") {
+      const m = hoje.getMonth();
+      const qi = m - (m % 3);
+      return { dataInicio: new Date(hoje.getFullYear(), qi, 1).toISOString().slice(0, 10), dataFim: new Date(hoje.getFullYear(), qi + 3, 0).toISOString().slice(0, 10) };
+    }
+    if (filtroPeriodo === "ano") {
+      return { dataInicio: `${hoje.getFullYear()}-01-01`, dataFim: `${hoje.getFullYear()}-12-31` };
+    }
+    return {};
+  }, [filtroPeriodo]);
 
   const lista = trpc.financeiro.transacoes.listar.useQuery({
     busca: busca || undefined,
     pago: filtroStatus === "todos" ? undefined : filtroStatus as any,
-    limit: 200,
+    empresaId: filtroEmpresa !== "todas" ? Number(filtroEmpresa) : undefined,
+    categoriaId: filtroCategoria !== "todas" ? Number(filtroCategoria) : undefined,
+    centroCustoId: filtroCentroCusto !== "todos" ? Number(filtroCentroCusto) : undefined,
+    dataInicio: periodoFiltro.dataInicio,
+    dataFim: periodoFiltro.dataFim,
+    limit: 500,
   });
   const empresas = trpc.financeiro.empresas.listar.useQuery();
   const categorias = trpc.financeiro.categorias.listar.useQuery();
   const bancos = trpc.financeiro.bancos.listar.useQuery();
+  const centrosCusto = trpc.financeiro.centrosCusto.listar.useQuery();
 
   const criar = trpc.financeiro.transacoes.criar.useMutation({
     onSuccess: () => { utils.financeiro.invalidate(); toast.success("Conta criada!"); setDialogOpen(false); },
@@ -207,11 +236,78 @@ function ContasPagar() {
     onSuccess: () => { utils.financeiro.invalidate(); toast.success("Conta excluída!"); },
   });
 
-  const items = lista.data?.items || [];
+  const rawItems = lista.data?.items || [];
   const hoje = new Date().toISOString().slice(0, 10);
+
+  // Ordenação
+  const items = useMemo(() => {
+    const sorted = [...rawItems];
+    if (ordenacao === "az") sorted.sort((a: any, b: any) => (a.descricao || "").localeCompare(b.descricao || ""));
+    else if (ordenacao === "valor") sorted.sort((a: any, b: any) => Number(b.valor) - Number(a.valor));
+    // default "data" já vem ordenado do backend
+    return sorted;
+  }, [rawItems, ordenacao]);
 
   const totalPendente = items.filter((t: any) => t.pago === "nao").reduce((s: number, t: any) => s + Number(t.valor), 0);
   const totalVencido = items.filter((t: any) => t.pago === "nao" && t.dataVencimento && new Date(t.dataVencimento) < new Date(hoje)).reduce((s: number, t: any) => s + Number(t.valor), 0);
+  const totalPago = items.filter((t: any) => t.pago === "sim").reduce((s: number, t: any) => s + Number(t.valor), 0);
+
+  const temFiltrosAtivos = filtroEmpresa !== "todas" || filtroCategoria !== "todas" || filtroCentroCusto !== "todos" || filtroPeriodo !== "todo" || filtroStatus !== "todos";
+
+  const limparFiltros = () => {
+    setFiltroEmpresa("todas"); setFiltroCategoria("todas"); setFiltroCentroCusto("todos"); setFiltroPeriodo("todo"); setFiltroStatus("todos"); setBusca("");
+  };
+
+  // Importar Excel
+  const handleImportExcel = () => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = ".xlsx,.xls,.csv";
+    input.onchange = async (ev: any) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const wb = XLSX.read(evt.target?.result, { type: "binary" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const data = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+          let importados = 0;
+          for (const row of data) {
+            const descricao = row["Descrição"] || row["descricao"] || row["DESCRICAO"] || "";
+            const valor = String(row["Valor"] || row["valor"] || row["VALOR"] || "0").replace(",", ".");
+            const venc = row["Vencimento"] || row["vencimento"] || row["DATA_VENCIMENTO"] || row["dataVencimento"] || "";
+            if (descricao && valor) {
+              await criar.mutateAsync({ descricao, valor, dataVencimento: venc || new Date().toISOString().slice(0, 10) });
+              importados++;
+            }
+          }
+          toast.success(`${importados} contas importadas com sucesso!`);
+          utils.financeiro.invalidate();
+        } catch (err) { toast.error("Erro ao importar arquivo"); }
+      };
+      reader.readAsBinaryString(file);
+    };
+    input.click();
+  };
+
+  // Exportar Excel
+  const handleExportExcel = () => {
+    const data = items.map((t: any) => ({
+      "Descrição": t.descricao,
+      "Valor": Number(t.valor),
+      "Vencimento": t.dataVencimento ? new Date(t.dataVencimento).toLocaleDateString("pt-BR") : "",
+      "Data Pagamento": t.dataPagamento ? new Date(t.dataPagamento).toLocaleDateString("pt-BR") : "",
+      "Status": t.pago === "sim" ? "Pago" : "Pendente",
+      "Categoria": t.categoriaNome || "",
+      "Centro de Custo": t.centroCustoNome || "",
+      "Observações": t.observacoes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contas a Pagar");
+    XLSX.writeFile(wb, `contas_pagar_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success("Excel exportado!");
+  };
 
   const handleCriar = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -223,49 +319,87 @@ function ContasPagar() {
       empresaId: fd.get("empresaId") ? Number(fd.get("empresaId")) : undefined,
       categoriaId: fd.get("categoriaId") ? Number(fd.get("categoriaId")) : undefined,
       bancoId: fd.get("bancoId") ? Number(fd.get("bancoId")) : undefined,
+      centroCustoId: fd.get("centroCustoId") ? Number(fd.get("centroCustoId")) : undefined,
+      dataPagamento: (fd.get("dataPagamento") as string) || undefined,
       observacoes: (fd.get("observacoes") as string) || undefined,
     });
   };
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold">Contas a Pagar</h2>
-          <div className="flex gap-4 mt-1">
+          <div className="flex gap-4 mt-1 flex-wrap">
             <span className="text-sm text-muted-foreground">Pendente: <span className="font-semibold text-amber-600">{formatCurrency(totalPendente)}</span></span>
             {totalVencido > 0 && <span className="text-sm text-red-500 font-medium">Vencido: {formatCurrency(totalVencido)}</span>}
+            <span className="text-sm text-muted-foreground">Pago: <span className="font-semibold text-green-600">{formatCurrency(totalPago)}</span></span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} className="pl-9 w-48" /></div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> Nova Conta</Button>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle><DialogDescription>Registre uma nova despesa.</DialogDescription></DialogHeader>
+            <form onSubmit={handleCriar} className="space-y-3">
+              <div><Label>Descrição *</Label><Input name="descricao" required /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" required /></div>
+                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" required /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Data de Pagamento</Label><Input name="dataPagamento" type="date" /></div>
+                <div><Label>Centro de Custo</Label><select name="centroCustoId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(centrosCusto.data || []).map((cc: any) => <option key={cc.id} value={cc.id}>{cc.codigo} - {cc.nome}</option>)}</select></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Empresa</Label><select name="empresaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(empresas.data || []).map((e: any) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></div>
+                <div><Label>Categoria</Label><select name="categoriaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(categorias.data || []).map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
+                <div><Label>Banco</Label><select name="bancoId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(bancos.data || []).map((b: any) => <option key={b.id} value={b.id}>{b.nome}</option>)}</select></div>
+              </div>
+              <div><Label>Observações</Label><Textarea name="observacoes" rows={2} /></div>
+              <DialogFooter><Button type="submit" disabled={criar.isPending}>{criar.isPending ? "Salvando..." : "Salvar"}</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Barra de Filtros */}
+      <div className="rounded-lg border border-border bg-card/50 p-3 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filtros:</span>
+          <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
+            <SelectTrigger className="w-36 h-8 text-xs"><Calendar className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="todo">Todo período</SelectItem><SelectItem value="mes">Este mês</SelectItem><SelectItem value="trimestre">Este trimestre</SelectItem><SelectItem value="ano">Este ano</SelectItem></SelectContent>
+          </Select>
+          <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>
+            <SelectTrigger className="w-36 h-8 text-xs"><Building2 className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="todas">Safatle</SelectItem>{(empresas.data || []).map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+            <SelectTrigger className="w-36 h-8 text-xs"><Target className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="todas">Todas</SelectItem>{(categorias.data || []).map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filtroCentroCusto} onValueChange={setFiltroCentroCusto}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+            <SelectContent><SelectItem value="todos">Todos</SelectItem>{(centrosCusto.data || []).map((cc: any) => <SelectItem key={cc.id} value={String(cc.id)}>{cc.nome}</SelectItem>)}</SelectContent>
+          </Select>
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="nao">Pendentes</SelectItem><SelectItem value="sim">Pagos</SelectItem></SelectContent>
           </Select>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> Nova Conta</Button>
-            <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle><DialogDescription>Registre uma nova despesa.</DialogDescription></DialogHeader>
-              <form onSubmit={handleCriar} className="space-y-3">
-                <div><Label>Descrição *</Label><Input name="descricao" required /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" required /></div>
-                  <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" required /></div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Empresa</Label><select name="empresaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(empresas.data || []).map((e: any) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></div>
-                  <div><Label>Categoria</Label><select name="categoriaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(categorias.data || []).map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
-                  <div><Label>Banco</Label><select name="bancoId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(bancos.data || []).map((b: any) => <option key={b.id} value={b.id}>{b.nome}</option>)}</select></div>
-                </div>
-                <div><Label>Observações</Label><Textarea name="observacoes" rows={2} /></div>
-                <DialogFooter><Button type="submit" disabled={criar.isPending}>{criar.isPending ? "Salvando..." : "Salvar"}</Button></DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {temFiltrosAtivos && <button onClick={limparFiltros} className="text-xs text-primary hover:underline flex items-center gap-1"><X className="h-3 w-3" /> Limpar filtros</button>}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleImportExcel}><Upload className="h-3 w-3 mr-1" /> Importar Excel</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleExportExcel}><Download className="h-3 w-3 mr-1" /> Exportar Excel</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOrdenacao(ordenacao === "az" ? "data" : "az")}><SortAsc className="h-3 w-3 mr-1" /> Ordenar A-Z</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { utils.financeiro.invalidate(); toast.success("Dados atualizados!"); }}><RefreshCw className="h-3 w-3 mr-1" /> Atualizar custos</Button>
+          <div className="ml-auto relative"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} className="pl-8 h-8 w-48 text-xs" /></div>
         </div>
       </div>
 
+      {/* Tabela */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           {lista.isLoading ? <div className="py-12 text-center text-muted-foreground">Carregando...</div> : items.length === 0 ? (
@@ -276,6 +410,9 @@ function ContasPagar() {
                 <th className="py-3 pl-4 pr-2 text-xs font-semibold text-muted-foreground">Descrição</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground text-right">Valor</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Vencimento</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Categoria</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Centro de Custo</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Dt. Pagamento</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="py-3 pl-2 pr-4 text-xs font-semibold text-muted-foreground text-right">Ações</th>
               </tr></thead>
@@ -284,8 +421,11 @@ function ContasPagar() {
                 return (
                   <tr key={t.id} className={cn("border-b border-border hover:bg-muted/30 transition-colors", vencido && "bg-red-50/50 dark:bg-red-900/10")}>
                     <td className="py-3 pl-4 pr-2"><p className="font-medium">{t.descricao}</p>{t.observacoes && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{t.observacoes}</p>}</td>
-                    <td className="px-2 py-3 text-right font-semibold text-red-600">{formatCurrency(t.valor)}</td>
-                    <td className="px-2 py-3"><span className={cn(vencido && "text-red-500 font-medium")}>{formatDate(t.dataVencimento)}</span></td>
+                    <td className="px-2 py-3 text-right font-semibold text-red-600 whitespace-nowrap">{formatCurrency(t.valor)}</td>
+                    <td className="px-2 py-3 whitespace-nowrap"><span className={cn(vencido && "text-red-500 font-medium")}>{formatDate(t.dataVencimento)}</span></td>
+                    <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.categoriaNome || <span className="text-muted-foreground/50">—</span>}</td>
+                    <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.centroCustoNome || <span className="text-muted-foreground/50">—</span>}</td>
+                    <td className="px-2 py-3 text-xs whitespace-nowrap">{t.dataPagamento ? <span className="text-green-600 font-medium">{formatDate(t.dataPagamento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
                     <td className="px-2 py-3">{t.pago === "sim" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-900/20 px-2 py-0.5 text-xs font-semibold text-green-600"><CheckCircle className="h-3 w-3" /> Pago</span> : vencido ? <span className="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-900/20 px-2 py-0.5 text-xs font-semibold text-red-500"><AlertTriangle className="h-3 w-3" /> Vencido</span> : <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-xs font-semibold text-amber-600"><Clock className="h-3 w-3" /> Pendente</span>}</td>
                     <td className="py-3 pl-2 pr-4 text-right">
                       <div className="flex gap-1 justify-end">
@@ -300,6 +440,7 @@ function ContasPagar() {
           )}
         </div>
       </div>
+      <div className="text-xs text-muted-foreground text-right">{items.length} registro(s) encontrado(s)</div>
     </div>
   );
 }
@@ -308,17 +449,45 @@ function ContasPagar() {
 function ContasReceber() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [filtroEmpresa, setFiltroEmpresa] = useState("todas");
+  const [filtroTipoServico, setFiltroTipoServico] = useState("todos");
+  const [filtroCliente, setFiltroCliente] = useState("todos");
+  const [filtroPeriodo, setFiltroPeriodo] = useState("todo");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [ordenacao, setOrdenacao] = useState<"data" | "az" | "valor">("data");
   const utils = trpc.useUtils();
+
+  // Calcular datas do período
+  const periodoFiltro = useMemo(() => {
+    const hoje = new Date();
+    if (filtroPeriodo === "mes") {
+      return { dataInicio: new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10), dataFim: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10) };
+    }
+    if (filtroPeriodo === "trimestre") {
+      const m = hoje.getMonth();
+      const qi = m - (m % 3);
+      return { dataInicio: new Date(hoje.getFullYear(), qi, 1).toISOString().slice(0, 10), dataFim: new Date(hoje.getFullYear(), qi + 3, 0).toISOString().slice(0, 10) };
+    }
+    if (filtroPeriodo === "ano") {
+      return { dataInicio: `${hoje.getFullYear()}-01-01`, dataFim: `${hoje.getFullYear()}-12-31` };
+    }
+    return {};
+  }, [filtroPeriodo]);
 
   const lista = trpc.financeiro.recebiveis.listar.useQuery({
     busca: busca || undefined,
     recebido: filtroStatus === "todos" ? undefined : filtroStatus as any,
-    limit: 200,
+    empresaId: filtroEmpresa !== "todas" ? Number(filtroEmpresa) : undefined,
+    clienteId: filtroCliente !== "todos" ? Number(filtroCliente) : undefined,
+    tipoServico: filtroTipoServico !== "todos" ? filtroTipoServico : undefined,
+    dataInicio: periodoFiltro.dataInicio,
+    dataFim: periodoFiltro.dataFim,
+    limit: 500,
   });
   const empresas = trpc.financeiro.empresas.listar.useQuery();
   const clientes = trpc.financeiro.clientes.listar.useQuery();
   const bancos = trpc.financeiro.bancos.listar.useQuery();
+  const tiposServicoDistintos = trpc.financeiro.recebiveis.tiposServicoDistintos.useQuery();
 
   const criar = trpc.financeiro.recebiveis.criar.useMutation({
     onSuccess: () => { utils.financeiro.invalidate(); toast.success("Recebível criado!"); setDialogOpen(false); },
@@ -331,8 +500,84 @@ function ContasReceber() {
     onSuccess: () => { utils.financeiro.invalidate(); toast.success("Recebível excluído!"); },
   });
 
-  const items = lista.data?.items || [];
+  const rawItems = lista.data?.items || [];
+
+  // Ordenação
+  const items = useMemo(() => {
+    const sorted = [...rawItems];
+    if (ordenacao === "az") sorted.sort((a: any, b: any) => (a.descricao || "").localeCompare(b.descricao || ""));
+    else if (ordenacao === "valor") sorted.sort((a: any, b: any) => Number(b.valor) - Number(a.valor));
+    return sorted;
+  }, [rawItems, ordenacao]);
+
   const totalPendente = items.filter((r: any) => r.recebido === "nao").reduce((s: number, r: any) => s + Number(r.valor), 0);
+  const totalRecebido = items.filter((r: any) => r.recebido === "sim").reduce((s: number, r: any) => s + Number(r.valor), 0);
+
+  const temFiltrosAtivos = filtroEmpresa !== "todas" || filtroTipoServico !== "todos" || filtroCliente !== "todos" || filtroPeriodo !== "todo" || filtroStatus !== "todos";
+
+  const limparFiltros = () => {
+    setFiltroEmpresa("todas"); setFiltroTipoServico("todos"); setFiltroCliente("todos"); setFiltroPeriodo("todo"); setFiltroStatus("todos"); setBusca("");
+  };
+
+  // Tipos de serviço pré-definidos para o select do formulário
+  const tiposServicoPadrao = ["Consulta", "Exame", "Cirurgia", "Internação", "Procedimento", "Fisioterapia", "Urgência/Emergência", "Home Care", "Telemedicina", "Outros"];
+
+  // Exportar Excel
+  const handleExportExcel = () => {
+    const data = items.map((r: any) => ({
+      "Descrição": r.descricao,
+      "Valor": Number(r.valor),
+      "Vencimento": r.dataVencimento ? new Date(r.dataVencimento).toLocaleDateString("pt-BR") : "",
+      "Dt. Recebimento": r.dataRecebimento ? new Date(r.dataRecebimento).toLocaleDateString("pt-BR") : "",
+      "Status": r.recebido === "sim" ? "Recebido" : "Pendente",
+      "Tipo de Serviço": r.tipoServico || "",
+      "Descrição do Serviço": r.descricaoServico || "",
+      "Cliente": r.clienteNome || "",
+      "Observações": r.observacoes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contas a Receber");
+    XLSX.writeFile(wb, `contas_receber_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success("Excel exportado!");
+  };
+
+  // Importar Excel
+  const handleImportExcel = () => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = ".xlsx,.xls,.csv";
+    input.onchange = async (ev: any) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const wb = XLSX.read(evt.target?.result, { type: "binary" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const data = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+          let importados = 0;
+          for (const row of data) {
+            const descricao = row["Descrição"] || row["descricao"] || row["DESCRICAO"] || "";
+            const valor = String(row["Valor"] || row["valor"] || row["VALOR"] || "0").replace(",", ".");
+            const venc = row["Vencimento"] || row["vencimento"] || row["DATA_VENCIMENTO"] || row["dataVencimento"] || "";
+            const tipoServ = row["Tipo de Serviço"] || row["tipoServico"] || row["TIPO_SERVICO"] || "";
+            const descServ = row["Descrição do Serviço"] || row["descricaoServico"] || row["DESCRICAO_SERVICO"] || "";
+            if (descricao && valor) {
+              await criar.mutateAsync({
+                descricao, valor, dataVencimento: venc || new Date().toISOString().slice(0, 10),
+                tipoServico: tipoServ || undefined, descricaoServico: descServ || undefined,
+              });
+              importados++;
+            }
+          }
+          toast.success(`${importados} recebíveis importados com sucesso!`);
+          utils.financeiro.invalidate();
+        } catch (err) { toast.error("Erro ao importar arquivo"); }
+      };
+      reader.readAsBinaryString(file);
+    };
+    input.click();
+  };
 
   const handleCriar = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -344,46 +589,87 @@ function ContasReceber() {
       empresaId: fd.get("empresaId") ? Number(fd.get("empresaId")) : undefined,
       clienteId: fd.get("clienteId") ? Number(fd.get("clienteId")) : undefined,
       bancoId: fd.get("bancoId") ? Number(fd.get("bancoId")) : undefined,
+      tipoServico: (fd.get("tipoServico") as string) || undefined,
+      descricaoServico: (fd.get("descricaoServico") as string) || undefined,
       observacoes: (fd.get("observacoes") as string) || undefined,
     });
   };
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold">Contas a Receber</h2>
-          <p className="text-sm text-muted-foreground mt-1">Pendente: <span className="font-semibold text-blue-600">{formatCurrency(totalPendente)}</span></p>
+          <div className="flex gap-4 mt-1 flex-wrap">
+            <span className="text-sm text-muted-foreground">Pendente: <span className="font-semibold text-blue-600">{formatCurrency(totalPendente)}</span></span>
+            <span className="text-sm text-muted-foreground">Recebido: <span className="font-semibold text-green-600">{formatCurrency(totalRecebido)}</span></span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} className="pl-9 w-48" /></div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> Novo Recebível</Button>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Novo Recebível</DialogTitle><DialogDescription>Registre uma nova receita a receber.</DialogDescription></DialogHeader>
+            <form onSubmit={handleCriar} className="space-y-3">
+              <div><Label>Descrição *</Label><Input name="descricao" required /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" required /></div>
+                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" required /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Tipo de Serviço</Label><select name="tipoServico" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Selecione...</option>{tiposServicoPadrao.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div><Label>Cliente</Label><select name="clienteId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(clientes.data || []).map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
+              </div>
+              <div><Label>Descrição do Serviço</Label><Textarea name="descricaoServico" rows={2} placeholder="Descreva detalhes do serviço prestado..." /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Empresa</Label><select name="empresaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(empresas.data || []).map((e: any) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></div>
+                <div><Label>Banco</Label><select name="bancoId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(bancos.data || []).map((b: any) => <option key={b.id} value={b.id}>{b.nome}</option>)}</select></div>
+                <div></div>
+              </div>
+              <div><Label>Observações</Label><Textarea name="observacoes" rows={2} /></div>
+              <DialogFooter><Button type="submit" disabled={criar.isPending}>{criar.isPending ? "Salvando..." : "Salvar"}</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Barra de Filtros */}
+      <div className="rounded-lg border border-border bg-card/50 p-3 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filtros:</span>
+          <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
+            <SelectTrigger className="w-36 h-8 text-xs"><Calendar className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="todo">Todo período</SelectItem><SelectItem value="mes">Este mês</SelectItem><SelectItem value="trimestre">Este trimestre</SelectItem><SelectItem value="ano">Este ano</SelectItem></SelectContent>
+          </Select>
+          <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>
+            <SelectTrigger className="w-36 h-8 text-xs"><Building2 className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="todas">Todas</SelectItem>{(empresas.data || []).map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filtroCliente} onValueChange={setFiltroCliente}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+            <SelectContent><SelectItem value="todos">Todos</SelectItem>{(clientes.data || []).map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filtroTipoServico} onValueChange={setFiltroTipoServico}>
+            <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+            <SelectContent><SelectItem value="todos">Todos os tipos</SelectItem>{(tiposServicoDistintos.data || []).map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+          </Select>
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="nao">Pendentes</SelectItem><SelectItem value="sim">Recebidos</SelectItem></SelectContent>
           </Select>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> Novo Recebível</Button>
-            <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Novo Recebível</DialogTitle><DialogDescription>Registre uma nova receita a receber.</DialogDescription></DialogHeader>
-              <form onSubmit={handleCriar} className="space-y-3">
-                <div><Label>Descrição *</Label><Input name="descricao" required /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" required /></div>
-                  <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" required /></div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Empresa</Label><select name="empresaId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(empresas.data || []).map((e: any) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></div>
-                  <div><Label>Cliente</Label><select name="clienteId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(clientes.data || []).map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
-                  <div><Label>Banco</Label><select name="bancoId" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">-</option>{(bancos.data || []).map((b: any) => <option key={b.id} value={b.id}>{b.nome}</option>)}</select></div>
-                </div>
-                <div><Label>Observações</Label><Textarea name="observacoes" rows={2} /></div>
-                <DialogFooter><Button type="submit" disabled={criar.isPending}>{criar.isPending ? "Salvando..." : "Salvar"}</Button></DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {temFiltrosAtivos && <button onClick={limparFiltros} className="text-xs text-primary hover:underline flex items-center gap-1"><X className="h-3 w-3" /> Limpar filtros</button>}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleImportExcel}><Upload className="h-3 w-3 mr-1" /> Importar Excel</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleExportExcel}><Download className="h-3 w-3 mr-1" /> Exportar Excel</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOrdenacao(ordenacao === "az" ? "data" : "az")}><SortAsc className="h-3 w-3 mr-1" /> Ordenar A-Z</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { utils.financeiro.invalidate(); toast.success("Dados atualizados!"); }}><RefreshCw className="h-3 w-3 mr-1" /> Atualizar</Button>
+          <div className="ml-auto relative"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} className="pl-8 h-8 w-48 text-xs" /></div>
         </div>
       </div>
 
+      {/* Tabela */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           {lista.isLoading ? <div className="py-12 text-center text-muted-foreground">Carregando...</div> : items.length === 0 ? (
@@ -394,14 +680,22 @@ function ContasReceber() {
                 <th className="py-3 pl-4 pr-2 text-xs font-semibold text-muted-foreground">Descrição</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground text-right">Valor</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Vencimento</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Tipo de Serviço</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Desc. Serviço</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Cliente</th>
+                <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Dt. Recebimento</th>
                 <th className="px-2 py-3 text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="py-3 pl-2 pr-4 text-xs font-semibold text-muted-foreground text-right">Ações</th>
               </tr></thead>
               <tbody>{items.map((r: any) => (
                 <tr key={r.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                  <td className="py-3 pl-4 pr-2"><p className="font-medium">{r.descricao}</p></td>
-                  <td className="px-2 py-3 text-right font-semibold text-green-600">{formatCurrency(r.valor)}</td>
-                  <td className="px-2 py-3">{formatDate(r.dataVencimento)}</td>
+                  <td className="py-3 pl-4 pr-2"><p className="font-medium">{r.descricao}</p>{r.observacoes && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.observacoes}</p>}</td>
+                  <td className="px-2 py-3 text-right font-semibold text-green-600 whitespace-nowrap">{formatCurrency(r.valor)}</td>
+                  <td className="px-2 py-3 whitespace-nowrap">{formatDate(r.dataVencimento)}</td>
+                  <td className="px-2 py-3 text-xs whitespace-nowrap">{r.tipoServico ? <span className="inline-flex items-center rounded-full bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300">{r.tipoServico}</span> : <span className="text-muted-foreground/50">—</span>}</td>
+                  <td className="px-2 py-3 text-xs text-muted-foreground"><p className="truncate max-w-[200px]" title={r.descricaoServico || ""}>{r.descricaoServico || <span className="text-muted-foreground/50">—</span>}</p></td>
+                  <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{r.clienteNome || <span className="text-muted-foreground/50">—</span>}</td>
+                  <td className="px-2 py-3 text-xs whitespace-nowrap">{r.dataRecebimento ? <span className="text-green-600 font-medium">{formatDate(r.dataRecebimento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
                   <td className="px-2 py-3">{r.recebido === "sim" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-900/20 px-2 py-0.5 text-xs font-semibold text-green-600"><CheckCircle className="h-3 w-3" /> Recebido</span> : <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-semibold text-blue-600"><Clock className="h-3 w-3" /> Pendente</span>}</td>
                   <td className="py-3 pl-2 pr-4 text-right">
                     <div className="flex gap-1 justify-end">
@@ -415,6 +709,7 @@ function ContasReceber() {
           )}
         </div>
       </div>
+      <div className="text-xs text-muted-foreground text-right">{items.length} registro(s) encontrado(s)</div>
     </div>
   );
 }

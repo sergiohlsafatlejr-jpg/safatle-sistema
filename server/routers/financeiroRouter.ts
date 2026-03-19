@@ -249,7 +249,31 @@ const transacoesRouter = router({
 
       const where = conditions.length ? and(...conditions) : undefined;
       const [items, [countResult]] = await Promise.all([
-        db.select().from(finTransacoes).where(where).orderBy(desc(finTransacoes.dataVencimento)).limit(p.limit).offset((p.page - 1) * p.limit),
+        db.select({
+          id: finTransacoes.id,
+          descricao: finTransacoes.descricao,
+          valor: finTransacoes.valor,
+          dataVencimento: finTransacoes.dataVencimento,
+          dataPagamento: finTransacoes.dataPagamento,
+          pago: finTransacoes.pago,
+          observacoes: finTransacoes.observacoes,
+          empresaId: finTransacoes.empresaId,
+          categoriaId: finTransacoes.categoriaId,
+          bancoId: finTransacoes.bancoId,
+          centroCustoId: finTransacoes.centroCustoId,
+          tipoId: finTransacoes.tipoId,
+          custoId: finTransacoes.custoId,
+          userId: finTransacoes.userId,
+          categoriaNome: finCategorias.nome,
+          centroCustoNome: finCentrosCusto.nome,
+        })
+          .from(finTransacoes)
+          .leftJoin(finCategorias, eq(finTransacoes.categoriaId, finCategorias.id))
+          .leftJoin(finCentrosCusto, eq(finTransacoes.centroCustoId, finCentrosCusto.id))
+          .where(where)
+          .orderBy(desc(finTransacoes.dataVencimento))
+          .limit(p.limit)
+          .offset((p.page - 1) * p.limit),
         db.select({ count: sql<number>`count(*)` }).from(finTransacoes).where(where),
       ]);
       return { items, total: countResult.count, page: p.page, limit: p.limit };
@@ -350,6 +374,7 @@ const recebiveisRouter = router({
       empresaId: z.number().optional(),
       clienteId: z.number().optional(),
       recebido: z.enum(["sim", "nao"]).optional(),
+      tipoServico: z.string().optional(),
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       busca: z.string().optional(),
@@ -363,23 +388,59 @@ const recebiveisRouter = router({
       if (p.empresaId) conditions.push(eq(finRecebiveis.empresaId, p.empresaId));
       if (p.clienteId) conditions.push(eq(finRecebiveis.clienteId, p.clienteId));
       if (p.recebido) conditions.push(eq(finRecebiveis.recebido, p.recebido));
+      if (p.tipoServico) conditions.push(eq(finRecebiveis.tipoServico, p.tipoServico));
       if (p.dataInicio) conditions.push(gte(finRecebiveis.dataVencimento, new Date(p.dataInicio)));
       if (p.dataFim) conditions.push(lte(finRecebiveis.dataVencimento, new Date(p.dataFim)));
-      if (p.busca) conditions.push(like(finRecebiveis.descricao, `%${p.busca}%`));
+      if (p.busca) {
+        conditions.push(
+          sql`(${finRecebiveis.descricao} LIKE ${`%${p.busca}%`} OR ${finRecebiveis.tipoServico} LIKE ${`%${p.busca}%`} OR ${finRecebiveis.descricaoServico} LIKE ${`%${p.busca}%`})`
+        );
+      }
 
       const where = conditions.length ? and(...conditions) : undefined;
       const [items, [countResult]] = await Promise.all([
-        db.select().from(finRecebiveis).where(where).orderBy(desc(finRecebiveis.dataVencimento)).limit(p.limit).offset((p.page - 1) * p.limit),
+        db.select({
+          id: finRecebiveis.id,
+          empresaId: finRecebiveis.empresaId,
+          clienteId: finRecebiveis.clienteId,
+          tipoId: finRecebiveis.tipoId,
+          bancoId: finRecebiveis.bancoId,
+          descricao: finRecebiveis.descricao,
+          valor: finRecebiveis.valor,
+          dataVencimento: finRecebiveis.dataVencimento,
+          dataRecebimento: finRecebiveis.dataRecebimento,
+          recebido: finRecebiveis.recebido,
+          tipoServico: finRecebiveis.tipoServico,
+          descricaoServico: finRecebiveis.descricaoServico,
+          observacoes: finRecebiveis.observacoes,
+          userId: finRecebiveis.userId,
+          createdAt: finRecebiveis.createdAt,
+          updatedAt: finRecebiveis.updatedAt,
+          clienteNome: finClientes.nome,
+        })
+          .from(finRecebiveis)
+          .leftJoin(finClientes, eq(finRecebiveis.clienteId, finClientes.id))
+          .where(where)
+          .orderBy(desc(finRecebiveis.dataVencimento))
+          .limit(p.limit)
+          .offset((p.page - 1) * p.limit),
         db.select({ count: sql<number>`count(*)` }).from(finRecebiveis).where(where),
       ]);
       return { items, total: countResult.count, page: p.page, limit: p.limit };
     }),
+  tiposServicoDistintos: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    const result = await db.selectDistinct({ tipoServico: finRecebiveis.tipoServico }).from(finRecebiveis).where(sql`${finRecebiveis.tipoServico} IS NOT NULL AND ${finRecebiveis.tipoServico} != ''`).orderBy(finRecebiveis.tipoServico);
+    return result.map(r => r.tipoServico).filter(Boolean) as string[];
+  }),
   criar: protectedProcedure
     .input(z.object({
       empresaId: z.number().optional(), clienteId: z.number().optional(), tipoId: z.number().optional(),
       bancoId: z.number().optional(), descricao: z.string().min(1), valor: z.string(),
       dataVencimento: z.string(), dataRecebimento: z.string().optional(),
-      recebido: z.enum(["sim", "nao"]).optional(), observacoes: z.string().optional(),
+      recebido: z.enum(["sim", "nao"]).optional(),
+      tipoServico: z.string().optional(), descricaoServico: z.string().optional(),
+      observacoes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = (await getDb())!;
@@ -387,7 +448,8 @@ const recebiveisRouter = router({
         empresaId: input.empresaId || null, clienteId: input.clienteId || null, tipoId: input.tipoId || null,
         bancoId: input.bancoId || null, descricao: input.descricao, valor: input.valor,
         dataVencimento: new Date(input.dataVencimento), dataRecebimento: input.dataRecebimento ? new Date(input.dataRecebimento) : null,
-        recebido: input.recebido || "nao", observacoes: input.observacoes || null, userId: ctx.user.id,
+        recebido: input.recebido || "nao", tipoServico: input.tipoServico || null, descricaoServico: input.descricaoServico || null,
+        observacoes: input.observacoes || null, userId: ctx.user.id,
       });
       return { id: result.insertId };
     }),
@@ -396,7 +458,9 @@ const recebiveisRouter = router({
       id: z.number(), empresaId: z.number().optional(), clienteId: z.number().optional(), tipoId: z.number().optional(),
       bancoId: z.number().optional(), descricao: z.string().min(1), valor: z.string(),
       dataVencimento: z.string(), dataRecebimento: z.string().optional(),
-      recebido: z.enum(["sim", "nao"]).optional(), observacoes: z.string().optional(),
+      recebido: z.enum(["sim", "nao"]).optional(),
+      tipoServico: z.string().optional(), descricaoServico: z.string().optional(),
+      observacoes: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
@@ -405,7 +469,8 @@ const recebiveisRouter = router({
         empresaId: data.empresaId || null, clienteId: data.clienteId || null, tipoId: data.tipoId || null,
         bancoId: data.bancoId || null, descricao: data.descricao, valor: data.valor,
         dataVencimento: new Date(data.dataVencimento), dataRecebimento: data.dataRecebimento ? new Date(data.dataRecebimento) : null,
-        recebido: data.recebido || "nao", observacoes: data.observacoes || null,
+        recebido: data.recebido || "nao", tipoServico: data.tipoServico || null, descricaoServico: data.descricaoServico || null,
+        observacoes: data.observacoes || null,
       }).where(eq(finRecebiveis.id, id));
       return { success: true };
     }),

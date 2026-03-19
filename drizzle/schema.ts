@@ -4071,6 +4071,8 @@ export const finRecebiveis = mysqlTable("fin_recebiveis", {
   dataVencimento: date("dataVencimento").notNull(),
   dataRecebimento: date("dataRecebimento"),
   recebido: mysqlEnum("recebido", ["sim", "nao"]).default("nao").notNull(),
+  tipoServico: varchar("tipoServico", { length: 255 }), // Tipo de Serviço (ex: Consulta, Exame, Cirurgia, Internação)
+  descricaoServico: text("descricaoServico"), // Descrição detalhada do serviço prestado
   observacoes: text("observacoes"),
   userId: int("userId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

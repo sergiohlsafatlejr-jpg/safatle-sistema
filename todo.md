@@ -3185,3 +3185,12 @@
 - [x] Vincular cadastro de clientes ao CNPJ da Safatle (campo cnpjSafatle com default 24.785.393/0001-54)
 - [x] Busca automática de endereço por CEP (API ViaCEP)
 - [x] Testes vitest para cadastro de clientes com campos completos (6 testes passando)
+- [x] Adicionar colunas Categoria, Centro de Custo e Data de Pagamento na tabela de Contas a Pagar
+- [x] Adicionar barra de filtros: Período, Empresa, Categoria, Centro de Custo, Status com botão Limpar filtros
+- [x] Adicionar botões: Importar Excel, Exportar Excel, Ordenar A-Z, Atualizar custos
+- [x] Adicionar Centro de Custo e Data de Pagamento no formulário de criação
+- [x] Adicionar campo Tipo de Serviço em Contas a Receber (schema + backend + frontend)
+- [x] Adicionar campo Descrição de Serviço em Contas a Receber (schema + backend + frontend)
+- [x] Exibir colunas Tipo de Serviço e Descrição de Serviço na tabela de Contas a Receber
+- [x] Adicionar filtros e botões de ação em Contas a Receber (similar a Contas a Pagar)
+- [x] Testes vitest para Contas a Pagar e Contas a Receber (14 testes passando)
