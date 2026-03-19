@@ -3168,3 +3168,6 @@
 - [x] Aplicar verificação de permissão por módulo no frontend (PainelExecutivo.tsx)
 - [x] Testes vitest para permissões granulares (25 testes passando)
 - [x] BUG: Corrigir erro de hooks no VisaoGeral do PainelExecutivo - 'Rendered more hooks than during the previous render'
+- [x] REESTRUTURAR Painel Executivo: apenas KPIs consolidados (Atendimentos, Faturado, Recebido, Glosado, Recursados por estabelecimento) - sem abas internas
+- [x] Módulos Financeiro, Contratos, Propostas como itens separados no menu lateral do Safatle
+- [x] NFS-e disponível para TODOS os estabelecimentos (não apenas Safatle)

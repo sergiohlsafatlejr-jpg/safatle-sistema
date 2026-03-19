@@ -183,19 +183,13 @@ const menuItems: MenuItem[] = [
     { icon: Link2, label: "Conciliação Cruzada", path: "/conciliacao-cruzada", modulo: "conciliacaoContasPagas" },
   ]},
 
-  // Módulo 8 - NFS-e
+  // Módulo 8 - NFS-e (disponível para TODOS os estabelecimentos)
   { icon: Receipt, label: "NFS-e", path: "/nfse", modulo: "faturamento" },
 
-  // Painel Executivo Safatle (admin only, só aparece quando Safatle está selecionado)
+  // ===== MÓDULOS SAFATLE (admin only, só quando Safatle está selecionado) =====
   { icon: LayoutGrid, label: "Painel Executivo", path: "/painel-executivo", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
-
-  // Módulo 9 - Financeiro (admin only, só via Safatle)
   { icon: DollarSign, label: "Financeiro", path: "/financeiro", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
-
-  // Módulo 10 - Contratos (admin only, só via Safatle)
   { icon: FileText, label: "Contratos", path: "/contratos", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
-
-  // Módulo 11 - Propostas (admin only, só via Safatle)
   { icon: FileSpreadsheet, label: "Propostas", path: "/propostas", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
 
 ];
