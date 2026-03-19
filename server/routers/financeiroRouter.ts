@@ -57,14 +57,19 @@ const clientesRouter = router({
     .input(z.object({
       empresaId: z.number().optional(), nome: z.string().min(1), cnpj: z.string().optional(),
       email: z.string().optional(), telefone: z.string().optional(), valorContrato: z.string().optional(),
-      cep: z.string().optional(), endereco: z.string().optional(), cidade: z.string().optional(), uf: z.string().optional(),
+      cep: z.string().optional(), endereco: z.string().optional(), numero: z.string().optional(),
+      complemento: z.string().optional(), bairro: z.string().optional(),
+      cidade: z.string().optional(), uf: z.string().optional(), cnpjSafatle: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = (await getDb())!;
       const [result] = await db.insert(finClientes).values({
         empresaId: input.empresaId || null, nome: input.nome, cnpj: input.cnpj || null,
         email: input.email || null, telefone: input.telefone || null, valorContrato: input.valorContrato || null,
-        cep: input.cep || null, endereco: input.endereco || null, cidade: input.cidade || null, uf: input.uf || null,
+        cep: input.cep || null, endereco: input.endereco || null, numero: input.numero || null,
+        complemento: input.complemento || null, bairro: input.bairro || null,
+        cidade: input.cidade || null, uf: input.uf || null,
+        cnpjSafatle: input.cnpjSafatle || "24.785.393/0001-54",
         userId: ctx.user.id,
       });
       return { id: result.insertId };
@@ -73,12 +78,21 @@ const clientesRouter = router({
     .input(z.object({
       id: z.number(), empresaId: z.number().optional(), nome: z.string().min(1), cnpj: z.string().optional(),
       email: z.string().optional(), telefone: z.string().optional(), valorContrato: z.string().optional(),
-      cep: z.string().optional(), endereco: z.string().optional(), cidade: z.string().optional(), uf: z.string().optional(),
+      cep: z.string().optional(), endereco: z.string().optional(), numero: z.string().optional(),
+      complemento: z.string().optional(), bairro: z.string().optional(),
+      cidade: z.string().optional(), uf: z.string().optional(), cnpjSafatle: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
       const { id, ...data } = input;
-      await db.update(finClientes).set({ ...data, empresaId: data.empresaId || null, cnpj: data.cnpj || null, email: data.email || null, telefone: data.telefone || null, valorContrato: data.valorContrato || null, cep: data.cep || null, endereco: data.endereco || null, cidade: data.cidade || null, uf: data.uf || null }).where(eq(finClientes.id, id));
+      await db.update(finClientes).set({
+        ...data, empresaId: data.empresaId || null, cnpj: data.cnpj || null,
+        email: data.email || null, telefone: data.telefone || null, valorContrato: data.valorContrato || null,
+        cep: data.cep || null, endereco: data.endereco || null, numero: data.numero || null,
+        complemento: data.complemento || null, bairro: data.bairro || null,
+        cidade: data.cidade || null, uf: data.uf || null,
+        cnpjSafatle: data.cnpjSafatle || "24.785.393/0001-54",
+      }).where(eq(finClientes.id, id));
       return { success: true };
     }),
   excluir: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {

@@ -3181,3 +3181,7 @@
 - [x] Download de PDF do boleto e QR Code Pix
 - [x] Cancelamento de boletos com motivo
 - [x] Testes vitest para Centro de Custo, Importador Excel, Boletos e Permissões (14 testes)
+- [x] Adicionar campos CEP, Endereço, Número, Complemento, Bairro, Cidade, UF no cadastro de clientes
+- [x] Vincular cadastro de clientes ao CNPJ da Safatle (campo cnpjSafatle com default 24.785.393/0001-54)
+- [x] Busca automática de endereço por CEP (API ViaCEP)
+- [x] Testes vitest para cadastro de clientes com campos completos (6 testes passando)

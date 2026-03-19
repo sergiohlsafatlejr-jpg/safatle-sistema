@@ -16,7 +16,7 @@ import {
   ArrowUpDown, Calendar, FileText, Download, ChevronDown, ChevronRight,
   Banknote, Receipt, CircleDollarSign, Percent, ArrowDownRight, ArrowUpRight,
   Clock, CheckCircle, XCircle, Eye, Landmark, List, Upload, Target, Edit, ToggleLeft,
-  RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2
+  RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2, MapPin
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -953,10 +953,13 @@ function Cadastros() {
   const [empDialog, setEmpDialog] = useState(false);
   const [catDialog, setCatDialog] = useState(false);
   const [cliDialog, setCliDialog] = useState(false);
+  const [editCliente, setEditCliente] = useState<any>(null);
+  const [cepLoading, setCepLoading] = useState(false);
 
   const criarEmpresa = trpc.financeiro.empresas.criar.useMutation({ onSuccess: () => { utils.financeiro.empresas.invalidate(); toast.success("Empresa criada!"); setEmpDialog(false); } });
   const criarCategoria = trpc.financeiro.categorias.criar.useMutation({ onSuccess: () => { utils.financeiro.categorias.invalidate(); toast.success("Categoria criada!"); setCatDialog(false); } });
-  const criarCliente = trpc.financeiro.clientes.criar.useMutation({ onSuccess: () => { utils.financeiro.clientes.invalidate(); toast.success("Cliente criado!"); setCliDialog(false); } });
+  const criarCliente = trpc.financeiro.clientes.criar.useMutation({ onSuccess: () => { utils.financeiro.clientes.invalidate(); toast.success("Cliente criado!"); setCliDialog(false); setEditCliente(null); } });
+  const atualizarCliente = trpc.financeiro.clientes.atualizar.useMutation({ onSuccess: () => { utils.financeiro.clientes.invalidate(); toast.success("Cliente atualizado!"); setCliDialog(false); setEditCliente(null); } });
   const excluirEmpresa = trpc.financeiro.empresas.excluir.useMutation({ onSuccess: () => { utils.financeiro.empresas.invalidate(); toast.success("Empresa excluída!"); } });
   const excluirCategoria = trpc.financeiro.categorias.excluir.useMutation({ onSuccess: () => { utils.financeiro.categorias.invalidate(); toast.success("Categoria excluída!"); } });
   const excluirCliente = trpc.financeiro.clientes.excluir.useMutation({ onSuccess: () => { utils.financeiro.clientes.invalidate(); toast.success("Cliente excluído!"); } });
@@ -1010,26 +1013,143 @@ function Cadastros() {
         </Card>
 
         {/* Clientes */}
-        <Card>
+        <Card className="lg:col-span-3">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" /> Clientes</CardTitle>
-              <Dialog open={cliDialog} onOpenChange={setCliDialog}><Button size="sm" variant="outline" onClick={() => setCliDialog(true)}><Plus className="h-3.5 w-3.5" /></Button>
-                <DialogContent><DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader><form onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); criarCliente.mutate({ nome: fd.get("nome") as string, cnpj: (fd.get("cnpj") as string) || undefined, email: (fd.get("email") as string) || undefined }); }} className="space-y-3"><div><Label>Nome *</Label><Input name="nome" required /></div><div className="grid grid-cols-2 gap-3"><div><Label>CNPJ</Label><Input name="cnpj" /></div><div><Label>Email</Label><Input name="email" type="email" /></div></div><DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent>
-              </Dialog>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" /> Clientes</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => { setEditCliente(null); setCliDialog(true); }}><Plus className="h-3.5 w-3.5 mr-1" /> Novo Cliente</Button>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-48 overflow-auto">
-              {(clientes.data || []).map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between px-4 py-2 border-b border-border hover:bg-muted/30">
-                  <div><p className="text-sm font-medium">{c.nome}</p>{c.cnpj && <p className="text-xs text-muted-foreground">{c.cnpj}</p>}</div>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500" onClick={() => excluirCliente.mutate({ id: c.id })}><Trash2 className="h-3 w-3" /></Button>
-                </div>
-              ))}
-              {(clientes.data || []).length === 0 && <p className="text-center py-4 text-xs text-muted-foreground">Nenhum cliente</p>}
+          <CardContent>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="py-2 px-3 font-medium">Nome</th>
+                    <th className="py-2 px-3 font-medium">CNPJ/CPF</th>
+                    <th className="py-2 px-3 font-medium">Email</th>
+                    <th className="py-2 px-3 font-medium">Telefone</th>
+                    <th className="py-2 px-3 font-medium">Cidade/UF</th>
+                    <th className="py-2 px-3 font-medium">CNPJ Safatle</th>
+                    <th className="py-2 px-3 font-medium w-20">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(clientes.data || []).map((c: any) => (
+                    <tr key={c.id} className="border-b border-border hover:bg-muted/30">
+                      <td className="py-2 px-3 font-medium">{c.nome}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.cnpj || "-"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.email || "-"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.telefone || "-"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.cidade ? `${c.cidade}/${c.uf}` : "-"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.cnpjSafatle || "24.785.393/0001-54"}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { setEditCliente(c); setCliDialog(true); }}><Edit className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500" onClick={() => excluirCliente.mutate({ id: c.id })}><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(clientes.data || []).length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-6 text-muted-foreground">Nenhum cliente cadastrado</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
+
+        {/* Dialog Novo/Editar Cliente */}
+        <Dialog open={cliDialog} onOpenChange={(open) => { setCliDialog(open); if (!open) setEditCliente(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editCliente ? "Editar Cliente" : "Novo Cliente"}</DialogTitle></DialogHeader>
+            <form onSubmit={e => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const payload = {
+                nome: fd.get("nome") as string,
+                cnpj: (fd.get("cnpj") as string) || undefined,
+                email: (fd.get("email") as string) || undefined,
+                telefone: (fd.get("telefone") as string) || undefined,
+                valorContrato: (fd.get("valorContrato") as string) || undefined,
+                cep: (fd.get("cep") as string) || undefined,
+                endereco: (fd.get("endereco") as string) || undefined,
+                numero: (fd.get("numero") as string) || undefined,
+                complemento: (fd.get("complemento") as string) || undefined,
+                bairro: (fd.get("bairro") as string) || undefined,
+                cidade: (fd.get("cidade") as string) || undefined,
+                uf: (fd.get("uf") as string) || undefined,
+                cnpjSafatle: (fd.get("cnpjSafatle") as string) || "24.785.393/0001-54",
+              };
+              if (editCliente) {
+                atualizarCliente.mutate({ id: editCliente.id, ...payload });
+              } else {
+                criarCliente.mutate(payload);
+              }
+            }} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2"><Label>Nome *</Label><Input name="nome" required defaultValue={editCliente?.nome || ""} /></div>
+                <div><Label>CNPJ/CPF</Label><Input name="cnpj" defaultValue={editCliente?.cnpj || ""} placeholder="00.000.000/0000-00" /></div>
+                <div><Label>Email</Label><Input name="email" type="email" defaultValue={editCliente?.email || ""} /></div>
+                <div><Label>Telefone</Label><Input name="telefone" defaultValue={editCliente?.telefone || ""} placeholder="(00) 00000-0000" /></div>
+                <div><Label>Valor Contrato (R$)</Label><Input name="valorContrato" defaultValue={editCliente?.valorContrato || ""} placeholder="0,00" /></div>
+              </div>
+
+              <div className="border-t border-border pt-4">
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2"><MapPin className="h-4 w-4" /> Endereço</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>CEP</Label>
+                    <div className="flex gap-2">
+                      <Input name="cep" id="cep-input" defaultValue={editCliente?.cep || ""} placeholder="00000-000" 
+                        onBlur={async (ev) => {
+                          const cep = ev.target.value.replace(/\D/g, "");
+                          if (cep.length !== 8) return;
+                          setCepLoading(true);
+                          try {
+                            const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                            const data = await res.json();
+                            if (!data.erro) {
+                              const form = ev.target.closest("form")!;
+                              const setVal = (name: string, val: string) => { const el = form.querySelector(`[name="${name}"]`) as HTMLInputElement; if (el && val) el.value = val; };
+                              setVal("endereco", data.logradouro);
+                              setVal("bairro", data.bairro);
+                              setVal("cidade", data.localidade);
+                              setVal("uf", data.uf);
+                              setVal("complemento", data.complemento);
+                              toast.success("Endereço encontrado!");
+                            } else {
+                              toast.error("CEP não encontrado");
+                            }
+                          } catch { toast.error("Erro ao buscar CEP"); }
+                          setCepLoading(false);
+                        }}
+                      />
+                      {cepLoading && <div className="flex items-center"><Loader2 className="h-4 w-4 animate-spin" /></div>}
+                    </div>
+                  </div>
+                  <div className="col-span-2"><Label>Endereço</Label><Input name="endereco" defaultValue={editCliente?.endereco || ""} placeholder="Rua, Avenida..." /></div>
+                  <div><Label>Número</Label><Input name="numero" defaultValue={editCliente?.numero || ""} placeholder="123" /></div>
+                  <div><Label>Complemento</Label><Input name="complemento" defaultValue={editCliente?.complemento || ""} placeholder="Sala, Andar..." /></div>
+                  <div><Label>Bairro</Label><Input name="bairro" defaultValue={editCliente?.bairro || ""} /></div>
+                  <div><Label>Cidade</Label><Input name="cidade" defaultValue={editCliente?.cidade || ""} /></div>
+                  <div><Label>UF</Label><Input name="uf" defaultValue={editCliente?.uf || ""} maxLength={2} placeholder="GO" /></div>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4">
+                <h4 className="text-sm font-semibold mb-3">Vínculo Safatle</h4>
+                <div><Label>CNPJ Safatle</Label><Input name="cnpjSafatle" defaultValue={editCliente?.cnpjSafatle || "24.785.393/0001-54"} /></div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setCliDialog(false); setEditCliente(null); }}>Cancelar</Button>
+                <Button type="submit">{editCliente ? "Atualizar" : "Salvar"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
