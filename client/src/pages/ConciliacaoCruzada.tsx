@@ -13,11 +13,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Search, Filter, Download, Eye, CheckCircle2, AlertCircle, XCircle, Clock,
   DollarSign, TrendingUp, TrendingDown, FileText, Building2, ArrowUpDown,
   ChevronDown, ChevronUp, RefreshCw, Link2, Database, Loader2, Unlink,
-  Zap, RotateCcw, BarChart3, Info, ListChecks, Table2, ChevronRight, ArrowLeft
+  Zap, RotateCcw, BarChart3, Info, ListChecks, Table2, ChevronRight, ArrowLeft,
+  Ban, Undo2, CheckSquare
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -55,6 +58,13 @@ export default function ConciliacaoCruzada() {
   // Modal de resultado da conciliacao
   const [modalResultadoAberto, setModalResultadoAberto] = useState(false);
   const [resultadoConciliacao, setResultadoConciliacao] = useState<any>(null);
+
+  // Glosa de itens não recebidos
+  const [itensSelecionadosGlosa, setItensSelecionadosGlosa] = useState<Set<number>>(new Set());
+  const [modalGlosaAberto, setModalGlosaAberto] = useState(false);
+  const [motivoGlosa, setMotivoGlosa] = useState("");
+  const [codigoGlosa, setCodigoGlosa] = useState("");
+  const [modoGlosa, setModoGlosa] = useState<'selecionados' | 'todos'>('selecionados');
 
   // ===== QUERIES PARA ABA CONCILIADOS =====
 
@@ -201,6 +211,42 @@ export default function ConciliacaoCruzada() {
     onError: (err) => toast.error(`Erro ao resetar: ${err.message}`),
   });
 
+  // Mutations de glosa
+  const glosarItensMut = trpc.faturamentoUnificado.glosarItens.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.atualizados} itens marcados como glosa`);
+      setItensSelecionadosGlosa(new Set());
+      setModalGlosaAberto(false);
+      setMotivoGlosa("");
+      setCodigoGlosa("");
+      refetchGuiasConciliadas();
+      refetchResumo();
+    },
+    onError: (err) => toast.error(`Erro ao glosar: ${err.message}`),
+  });
+
+  const glosarTodosMut = trpc.faturamentoUnificado.glosarTodosNaoRecebidosPorGuia.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.atualizados} itens marcados como glosa`);
+      setModalGlosaAberto(false);
+      setMotivoGlosa("");
+      setCodigoGlosa("");
+      refetchGuiasConciliadas();
+      refetchResumo();
+    },
+    onError: (err) => toast.error(`Erro ao glosar: ${err.message}`),
+  });
+
+  const reverterGlosaMut = trpc.faturamentoUnificado.reverterGlosa.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.atualizados} itens revertidos para não recebido`);
+      setItensSelecionadosGlosa(new Set());
+      refetchGuiasConciliadas();
+      refetchResumo();
+    },
+    onError: (err) => toast.error(`Erro ao reverter glosa: ${err.message}`),
+  });
+
   // ===== HELPERS =====
 
   const formatarMoeda = (valor: number) => {
@@ -222,6 +268,8 @@ export default function ConciliacaoCruzada() {
         return <Badge className="bg-yellow-500 hover:bg-yellow-600"><AlertCircle className="w-3 h-3 mr-1" /> Divergente</Badge>;
       case 'nao_recebido':
         return <Badge className="bg-red-500 hover:bg-red-600"><XCircle className="w-3 h-3 mr-1" /> Não Recebido</Badge>;
+      case 'glosado':
+        return <Badge className="bg-purple-600 hover:bg-purple-700"><Ban className="w-3 h-3 mr-1" /> Glosado</Badge>;
       case 'pendente':
       default:
         return <Badge className="bg-gray-500 hover:bg-gray-600"><Clock className="w-3 h-3 mr-1" /> Pendente</Badge>;
@@ -474,6 +522,7 @@ export default function ConciliacaoCruzada() {
                     <SelectItem value="conciliado">Conciliado</SelectItem>
                     <SelectItem value="divergente">Divergente</SelectItem>
                     <SelectItem value="nao_recebido">Não Recebido</SelectItem>
+                    <SelectItem value="glosado">Glosado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -586,10 +635,65 @@ export default function ConciliacaoCruzada() {
                 {/* Tabela de itens detalhados */}
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
-                      Itens da Guia ({itensConciliadosGuia?.length || 0})
-                    </CardTitle>
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        Itens da Guia ({itensConciliadosGuia?.length || 0})
+                      </CardTitle>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Botões de ação de glosa */}
+                        {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido') && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-purple-600 border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950"
+                              onClick={() => {
+                                setModoGlosa('todos');
+                                setModalGlosaAberto(true);
+                              }}
+                            >
+                              <Ban className="w-4 h-4 mr-1" />
+                              Glosar Todos Não Recebidos
+                            </Button>
+                            {itensSelecionadosGlosa.size > 0 && (
+                              <Button
+                                size="sm"
+                                className="bg-purple-600 hover:bg-purple-700"
+                                onClick={() => {
+                                  setModoGlosa('selecionados');
+                                  setModalGlosaAberto(true);
+                                }}
+                              >
+                                <CheckSquare className="w-4 h-4 mr-1" />
+                                Glosar Selecionados ({itensSelecionadosGlosa.size})
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        {/* Botão reverter glosa */}
+                        {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'glosado') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950"
+                            onClick={() => {
+                              const glosadoIds = itensConciliadosGuia
+                                .filter((i: any) => i.statusConciliacao === 'glosado' && (itensSelecionadosGlosa.size === 0 || itensSelecionadosGlosa.has(i.id)))
+                                .map((i: any) => i.id)
+                                .filter(Boolean);
+                              if (!glosadoIds.length) { toast.error('Nenhum item glosado para reverter'); return; }
+                              if (!confirm(`Reverter ${glosadoIds.length} item(ns) glosado(s) para "Não Recebido"?`)) return;
+                              reverterGlosaMut.mutate({ ids: glosadoIds });
+                            }}
+                            disabled={reverterGlosaMut.isPending}
+                          >
+                            {reverterGlosaMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 mr-1" />}
+                            Reverter Glosa
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {isLoadingItensConciliados ? (
@@ -601,6 +705,18 @@ export default function ConciliacaoCruzada() {
                         <table className="w-full">
                           <thead>
                             <tr className="border-b bg-muted/50">
+                              <th className="p-3 w-10">
+                                <Checkbox
+                                  checked={itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').length > 0 && itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').every((i: any) => itensSelecionadosGlosa.has(i.id))}
+                                  onCheckedChange={(checked) => {
+                                    const novos = new Set(itensSelecionadosGlosa);
+                                    itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').forEach((i: any) => {
+                                      if (checked) novos.add(i.id); else novos.delete(i.id);
+                                    });
+                                    setItensSelecionadosGlosa(novos);
+                                  }}
+                                />
+                              </th>
                               <th className="text-left p-3 font-medium">Código</th>
                               <th className="text-left p-3 font-medium min-w-[200px]">Descrição</th>
                               <th className="text-center p-3 font-medium">Tipo</th>
@@ -619,8 +735,21 @@ export default function ConciliacaoCruzada() {
                             {itensConciliadosGuia.map((item: any, index: number) => (
                               <tr key={item.id || index} className={`border-b hover:bg-muted/50 ${
                                 item.statusConciliacao === 'divergente' ? 'bg-yellow-50/50 dark:bg-yellow-950/20' :
-                                item.statusConciliacao === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
+                                item.statusConciliacao === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' :
+                                item.statusConciliacao === 'glosado' ? 'bg-purple-50/50 dark:bg-purple-950/20' : ''
                               }`}>
+                                <td className="p-3">
+                                  {(item.statusConciliacao === 'nao_recebido' || item.statusConciliacao === 'glosado') && item.id ? (
+                                    <Checkbox
+                                      checked={itensSelecionadosGlosa.has(item.id)}
+                                      onCheckedChange={(checked) => {
+                                        const novos = new Set(itensSelecionadosGlosa);
+                                        if (checked) novos.add(item.id); else novos.delete(item.id);
+                                        setItensSelecionadosGlosa(novos);
+                                      }}
+                                    />
+                                  ) : null}
+                                </td>
                                 <td className="p-3 font-mono text-sm">{item.codigoItem || '-'}</td>
                                 <td className="p-3 text-sm max-w-[200px] truncate" title={item.descricaoItem}>{item.descricaoItem || '-'}</td>
                                 <td className="p-3 text-center">
@@ -658,6 +787,7 @@ export default function ConciliacaoCruzada() {
                           </tbody>
                           <tfoot className="bg-muted/30 font-medium">
                             <tr className="border-t-2">
+                              <td className="p-3"></td>
                               <td className="p-3" colSpan={4}>Total</td>
                               <td className="p-3 text-center">{itensConciliadosGuia.reduce((s: number, i: any) => s + (Number(i.quantidade) || 1), 0)}</td>
                               <td className="p-3 text-right text-blue-600">{formatarMoeda(itensConciliadosGuia.reduce((s: number, i: any) => s + Number(i.valorFaturado || 0), 0))}</td>
@@ -1322,6 +1452,78 @@ export default function ConciliacaoCruzada() {
                 </DialogFooter>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Glosa */}
+        <Dialog open={modalGlosaAberto} onOpenChange={setModalGlosaAberto}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Ban className="w-5 h-5 text-purple-600" />
+                Marcar como Glosa
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                <p className="text-sm text-purple-700 dark:text-purple-300">
+                  {modoGlosa === 'todos' ? (
+                    <>Todos os itens <strong>Não Recebidos</strong> desta guia serão marcados como <strong>Glosados</strong>. O valor da glosa será o valor faturado de cada item.</>
+                  ) : (
+                    <><strong>{itensSelecionadosGlosa.size}</strong> item(ns) selecionado(s) serão marcados como <strong>Glosados</strong>. O valor da glosa será o valor faturado de cada item.</>
+                  )}
+                </p>
+              </div>
+              <div>
+                <Label>Código da Glosa (opcional)</Label>
+                <Input
+                  placeholder="Ex: 1001, A001, etc."
+                  value={codigoGlosa}
+                  onChange={(e) => setCodigoGlosa(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Motivo da Glosa (opcional)</Label>
+                <Textarea
+                  placeholder="Descreva o motivo da glosa..."
+                  value={motivoGlosa}
+                  onChange={(e) => setMotivoGlosa(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModalGlosaAberto(false)}>Cancelar</Button>
+              <Button
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={() => {
+                  if (modoGlosa === 'todos') {
+                    glosarTodosMut.mutate({
+                      estabelecimentoId,
+                      numeroGuia: guiaConciliadaSelecionada?.numeroGuia || undefined,
+                      contaNumero: guiaConciliadaSelecionada?.contaNumero || undefined,
+                      codigoGlosa: codigoGlosa || undefined,
+                      motivoGlosa: motivoGlosa || 'Item não recebido no demonstrativo',
+                    });
+                  } else {
+                    const ids = Array.from(itensSelecionadosGlosa);
+                    glosarItensMut.mutate({
+                      ids,
+                      codigoGlosa: codigoGlosa || undefined,
+                      motivoGlosa: motivoGlosa || 'Item não recebido no demonstrativo',
+                    });
+                  }
+                }}
+                disabled={glosarItensMut.isPending || glosarTodosMut.isPending}
+              >
+                {(glosarItensMut.isPending || glosarTodosMut.isPending) ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Ban className="w-4 h-4 mr-2" />
+                )}
+                Confirmar Glosa
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

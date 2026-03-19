@@ -3237,3 +3237,10 @@
 - [x] Integrar convênios da tabela existente no sistema ao módulo NFS-e (em vez de cadastro separado)
 - [x] Vincular hospitais NFS-e aos estabelecimentos do sistema para filtro automático por unidade selecionada
 - [x] Importar notas fiscais do CSV fornecido pelo usuário no banco de dados (72 notas: 34 PSI + 38 Mat Ela)
+- [ ] Pesquisar e avaliar opções de automação de emissão de NFS-e (APIs de prefeituras e provedores)
+- [ ] Integrar API do Nota Fácil para emissão automática de NFS-e direto pelo sistema
+- [x] Investigar erro de importação de arquivos XML (203331 e 203321) - arquivos estavam vazios (0 bytes)
+- [ ] Validar arquivo vazio no upload (frontend e backend) com mensagem clara ao usuário
+- [x] Corrigir funcionalidade de Conciliações Cruzadas (já estava funcionando, isolamento por estabelecimento OK)
+- [x] Adicionar capacidade de glosar itens que não apareceram no demonstrativo na Conciliação Cruzada
+- [x] Conciliação Cruzada já respeita isolamento de dados por estabelecimento (todas queries filtram por estabelecimentoId)

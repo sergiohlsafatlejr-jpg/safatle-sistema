@@ -295,4 +295,45 @@ export const faturamentoUnificadoRouter = router({
     .query(async ({ input }) => {
       return await faturamentoService.itensConciliadosPorGuia(input);
     }),
+
+  /**
+   * Glosar itens individuais (mudar de nao_recebido para glosado)
+   */
+  glosarItens: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      estabelecimentoId: z.number(),
+      motivoGlosa: z.string().optional(),
+      codigoGlosa: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.glosarItens(input);
+    }),
+
+  /**
+   * Glosar TODOS os itens não recebidos de uma guia
+   */
+  glosarTodosNaoRecebidosPorGuia: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      numeroGuia: z.string().optional(),
+      contaNumero: z.string().optional(),
+      motivoGlosa: z.string().optional(),
+      codigoGlosa: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.glosarTodosNaoRecebidosPorGuia(input);
+    }),
+
+  /**
+   * Reverter glosa de itens (voltar para nao_recebido)
+   */
+  reverterGlosa: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      estabelecimentoId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.reverterGlosa(input);
+    }),
 });

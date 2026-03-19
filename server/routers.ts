@@ -497,6 +497,14 @@ export const appRouter = router({
         // Decode base64 content
         const buffer = Buffer.from(input.conteudo, "base64");
         
+        // Validar arquivo vazio
+        if (buffer.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'O arquivo está vazio (0 bytes). Verifique o arquivo e tente novamente.',
+          });
+        }
+        
         // Sanitize filename to remove special characters
         const sanitizedNome = sanitizeFilename(input.nome);
         

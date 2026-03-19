@@ -211,6 +211,17 @@ export default function Upload() {
       ));
 
       try {
+        // Validar arquivo vazio antes de enviar
+        if (fileItem.file.size === 0) {
+          toast.error(`Arquivo "${fileItem.file.name}" está vazio (0 bytes). Verifique o arquivo e tente novamente.`);
+          setSelectedFiles(prev => prev.map((f, idx) => 
+            idx === fileIndex ? { ...f, status: "error" as const, error: "Arquivo vazio (0 bytes)" } : f
+          ));
+          errorCount++;
+          setUploadProgress(Math.round(((i + 1) / pendingFiles.length) * 100));
+          continue;
+        }
+
         // Show progress for large files
         const fileSizeMB = fileItem.file.size / (1024 * 1024);
         if (fileSizeMB > 1) {

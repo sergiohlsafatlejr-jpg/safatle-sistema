@@ -1539,6 +1539,120 @@ export async function itensConciliadosPorGuia(params: {
 }
 
 // ============================================================
+// GLOSAR ITENS NÃO RECEBIDOS
+// ============================================================
+
+/**
+ * Glosar itens individuais da conciliados_automatico
+ * Muda o status de 'nao_recebido' para 'glosado' e preenche valorGlosa
+ */
+export async function glosarItens(params: {
+  ids: number[];
+  estabelecimentoId: number;
+  motivoGlosa?: string;
+  codigoGlosa?: string;
+}): Promise<{ atualizados: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  if (params.ids.length === 0) return { atualizados: 0 };
+
+  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
+  const ids = params.ids.join(',');
+
+  const query = `
+    UPDATE conciliados_automatico 
+    SET statusConciliacao = 'glosado',
+        valorGlosa = valorFaturado,
+        valorPago = 0,
+        diferenca = valorFaturado,
+        percentualDiferenca = 100,
+        motivoGlosa = ${esc(params.motivoGlosa)},
+        codigoGlosa = ${esc(params.codigoGlosa)}
+    WHERE id IN (${ids})
+      AND estabelecimentoId = ${params.estabelecimentoId}
+      AND statusConciliacao = 'nao_recebido'
+  `;
+
+  const [result] = await db.execute(sql.raw(query));
+  const atualizados = (result as any)?.affectedRows || 0;
+  return { atualizados: Number(atualizados) };
+}
+
+/**
+ * Glosar TODOS os itens não recebidos de uma guia
+ */
+export async function glosarTodosNaoRecebidosPorGuia(params: {
+  estabelecimentoId: number;
+  numeroGuia?: string;
+  contaNumero?: string;
+  motivoGlosa?: string;
+  codigoGlosa?: string;
+}): Promise<{ atualizados: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
+
+  let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId} AND statusConciliacao = 'nao_recebido'`;
+  if (params.numeroGuia) {
+    whereClause += ` AND numeroGuia = ${esc(params.numeroGuia)}`;
+  }
+  if (params.contaNumero) {
+    whereClause += ` AND contaNumero = ${esc(params.contaNumero)}`;
+  }
+
+  const query = `
+    UPDATE conciliados_automatico 
+    SET statusConciliacao = 'glosado',
+        valorGlosa = valorFaturado,
+        valorPago = 0,
+        diferenca = valorFaturado,
+        percentualDiferenca = 100,
+        motivoGlosa = ${esc(params.motivoGlosa)},
+        codigoGlosa = ${esc(params.codigoGlosa)}
+    ${whereClause}
+  `;
+
+  const [result] = await db.execute(sql.raw(query));
+  const atualizados = (result as any)?.affectedRows || 0;
+  return { atualizados: Number(atualizados) };
+}
+
+/**
+ * Reverter glosa de itens (voltar para nao_recebido)
+ */
+export async function reverterGlosa(params: {
+  ids: number[];
+  estabelecimentoId: number;
+}): Promise<{ atualizados: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  if (params.ids.length === 0) return { atualizados: 0 };
+
+  const ids = params.ids.join(',');
+
+  const query = `
+    UPDATE conciliados_automatico 
+    SET statusConciliacao = 'nao_recebido',
+        valorGlosa = 0,
+        valorPago = 0,
+        diferenca = 0,
+        percentualDiferenca = 0,
+        motivoGlosa = NULL,
+        codigoGlosa = NULL
+    WHERE id IN (${ids})
+      AND estabelecimentoId = ${params.estabelecimentoId}
+      AND statusConciliacao = 'glosado'
+  `;
+
+  const [result] = await db.execute(sql.raw(query));
+  const atualizados = (result as any)?.affectedRows || 0;
+  return { atualizados: Number(atualizados) };
+}
+
+// ============================================================
 // FUNÇÕES AUXILIARES
 // ============================================================
 
