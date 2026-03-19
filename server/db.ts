@@ -6830,9 +6830,9 @@ export async function getDadosConsolidados(userId: number) {
         .from(demonstrativo)
         .where(inArray(demonstrativo.arquivoId, arquivoIds));
 
-      totalProcedimentos = procs[0]?.count || 0;
-      valorPago = procs[0]?.valorPago || 0;
-      valorGlosado = procs[0]?.valorGlosa || 0;
+      totalProcedimentos = Number(procs[0]?.count || 0);
+      valorPago = Number(procs[0]?.valorPago || 0);
+      valorGlosado = Number(procs[0]?.valorGlosa || 0);
       valorFaturado = valorPago + valorGlosado;
     }
 
@@ -6846,8 +6846,8 @@ export async function getDadosConsolidados(userId: number) {
       id: est.id,
       nome: est.nome,
       cnpj: est.cnpj,
-      totalArquivos: arquivosCount?.count || 0,
-      totalConvenios: conveniosCount?.count || 0,
+      totalArquivos: Number(arquivosCount?.count || 0),
+      totalConvenios: Number(conveniosCount?.count || 0),
       totalProcedimentos,
       valorFaturado,
       valorGlosado,
@@ -6856,7 +6856,7 @@ export async function getDadosConsolidados(userId: number) {
     });
 
     // Acumular totais
-    dadosConsolidados.totais.totalArquivos += arquivosCount?.count || 0;
+    dadosConsolidados.totais.totalArquivos += Number(arquivosCount?.count || 0);
     dadosConsolidados.totais.totalProcedimentos += totalProcedimentos;
     dadosConsolidados.totais.valorTotalFaturado += valorFaturado;
     dadosConsolidados.totais.valorTotalGlosado += valorGlosado;

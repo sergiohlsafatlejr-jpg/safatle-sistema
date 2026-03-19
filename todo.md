@@ -3231,3 +3231,5 @@
 - [x] Aba DRE (Demonstrativo de Resultado do Exercício) separada no módulo financeiro
 - [x] Backend: procedures para KPIs, fluxo de caixa, análise detalhada, comparativo mensal e DRE
 - [x] Testes vitest para Dashboard e DRE (51 testes passando)
+- [x] Corrigir Painel Executivo mostrando dados zerados (converter strings SQL para Number no backend)
+- [x] Adicionar filtro de seleção de estabelecimento no Painel Executivo (dropdown com todos os estabelecimentos + opção Todos)

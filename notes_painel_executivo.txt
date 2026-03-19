@@ -1,0 +1,24 @@
+INVESTIGAÇÃO PAINEL EXECUTIVO - Dados zerados
+
+DADOS EXISTENTES NO BANCO:
+- 1224 arquivos
+- 182993 demonstrativos
+- 9 estabelecimentos ativos
+- 21 convênios
+
+POR ESTABELECIMENTO:
+- Estab 1 (Pronto Socorro Infantil): 820 arquivos, 50179 demonstrativos, R$ 1.668.779,55 pago, R$ 36.882,92 glosa
+- Estab 6 (Hemolabor): 229 arquivos, 71052 demonstrativos, R$ 6.872.328,02 pago, R$ 850.143,08 glosa
+- Estab 3 (Ox Uti): 158 arquivos, 51390 demonstrativos, R$ 2.438.844,09 pago, R$ 46.383,02 glosa
+
+PROBLEMA PROVÁVEL:
+A função getDadosConsolidados usa Drizzle ORM com campo demonstrativo.arquivoId e demonstrativo.valorPago
+Mas a coluna real no banco é arquivo_id e valor_pago (snake_case)
+O Drizzle deve mapear automaticamente, mas preciso verificar se o schema está correto.
+
+Outra possibilidade: a função verificarSeGestor retorna false para o usuário logado.
+
+SOLUÇÃO:
+1. Verificar se verificarSeGestor funciona corretamente
+2. Verificar mapeamento de colunas no Drizzle schema
+3. Adicionar filtro de estabelecimento no frontend
