@@ -231,7 +231,7 @@ export async function popularDeXmlTiss(
       origemSistema, origemId, estabelecimentoId,
       numeroGuia, numeroGuiaOperadora, senha,
       lotePrestador, carteiraBeneficiario,
-      convenioId, competencia,
+      convenioId, convenio, competencia,
       profissionalExecutante,
       tipoItem, codigoItem,
       descricaoItem, dataExecucao, quantidade,
@@ -248,6 +248,7 @@ export async function popularDeXmlTiss(
       dedup.numero_lote,
       dedup.carteira_beneficiario,
       dedup.convenioId,
+      c.nome,
       DATE_FORMAT(dedup.data_referencia, '%Y-%m'),
       dedup.nome_prof,
       dedup.tipo_item,
@@ -267,6 +268,7 @@ export async function popularDeXmlTiss(
       FROM faturamento_tiss ft
       WHERE ft.estabelecimentoId = ${estabelecimentoId}
     ) dedup
+    LEFT JOIN convenios c ON dedup.convenioId = c.id
     WHERE dedup.rn = 1
   `;
 
@@ -772,6 +774,54 @@ export async function executarConciliacaoAutomatica(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
+  // Se não há filtro de competência, processar em lotes por competência
+  // para evitar timeout com muitos itens
+  if (!params.competencia) {
+    const [compRows] = await db.execute(sql.raw(
+      `SELECT DISTINCT competencia FROM faturamento_unificado WHERE estabelecimentoId = ${params.estabelecimentoId} AND statusConciliacao = 'pendente' ORDER BY competencia`
+    ));
+    const competencias = (compRows as any[]).map((r: any) => r.competencia).filter(Boolean);
+    
+    if (competencias.length > 1) {
+      // Processar cada competência separadamente e agregar resultados
+      const resultadoTotal: ConciliacaoResultado = {
+        totalProcessados: 0,
+        totalConciliados: 0,
+        totalDivergentes: 0,
+        totalNaoRecebidos: 0,
+        totalJaConciliados: 0,
+        detalhes: {
+          conciliadosPorGuiaCodigo: 0,
+          conciliadosPorGuiaCodigoTuss: 0,
+          conciliadosPorVinculacao: 0,
+          conciliadosPorPacienteCodigo: 0,
+          conciliadosPorCarteiraCodigo: 0,
+        },
+        divergencias: [],
+      };
+      
+      for (const comp of competencias) {
+        const parcial = await executarConciliacaoAutomatica({
+          ...params,
+          competencia: comp,
+        });
+        resultadoTotal.totalProcessados += parcial.totalProcessados;
+        resultadoTotal.totalConciliados += parcial.totalConciliados;
+        resultadoTotal.totalDivergentes += parcial.totalDivergentes;
+        resultadoTotal.totalNaoRecebidos += parcial.totalNaoRecebidos;
+        resultadoTotal.totalJaConciliados += parcial.totalJaConciliados;
+        resultadoTotal.detalhes.conciliadosPorGuiaCodigo += parcial.detalhes.conciliadosPorGuiaCodigo;
+        resultadoTotal.detalhes.conciliadosPorGuiaCodigoTuss += parcial.detalhes.conciliadosPorGuiaCodigoTuss;
+        resultadoTotal.detalhes.conciliadosPorVinculacao += parcial.detalhes.conciliadosPorVinculacao;
+        resultadoTotal.detalhes.conciliadosPorPacienteCodigo += parcial.detalhes.conciliadosPorPacienteCodigo;
+        resultadoTotal.detalhes.conciliadosPorCarteiraCodigo += parcial.detalhes.conciliadosPorCarteiraCodigo;
+        resultadoTotal.divergencias.push(...parcial.divergencias.slice(0, 20)); // limitar divergências
+      }
+      
+      return resultadoTotal;
+    }
+  }
+
   const tolerancia = params.toleranciaPercentual ?? 1; // 1% de tolerância por padrão
 
   const resultado: ConciliacaoResultado = {
@@ -1175,7 +1225,7 @@ export async function executarConciliacaoAutomatica(params: {
   // -------------------------------------------------------
   // PASSO 6: INSERT em batch na tabela conciliados_automatico
   // -------------------------------------------------------
-  const BATCH_SIZE = 200;
+  const BATCH_SIZE = 50; // Reduzido para evitar queries muito longas com muitas colunas
   for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
     const batch = inserts.slice(i, i + BATCH_SIZE);
 
@@ -1190,6 +1240,31 @@ export async function executarConciliacaoAutomatica(params: {
       VALUES ${values}
     `;
     await db.execute(sql.raw(insertQuery));
+  }
+
+  // -------------------------------------------------------
+  // PASSO 7: Atualizar statusConciliacao no faturamento_unificado
+  // Para que os itens já processados não sejam re-processados
+  // -------------------------------------------------------
+  const UPDATE_BATCH_SIZE = 500;
+  for (let i = 0; i < inserts.length; i += UPDATE_BATCH_SIZE) {
+    const batch = inserts.slice(i, i + UPDATE_BATCH_SIZE);
+    
+    // Agrupar por status para fazer UPDATEs mais eficientes
+    const porStatus = new Map<string, number[]>();
+    for (const ins of batch) {
+      const status = ins.statusConciliacao;
+      if (!porStatus.has(status)) porStatus.set(status, []);
+      porStatus.get(status)!.push(ins.faturamentoUnificadoId);
+    }
+    
+    for (const [status, ids] of porStatus) {
+      if (ids.length === 0) continue;
+      const idsStr = ids.join(',');
+      await db.execute(sql.raw(
+        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${idsStr})`
+      ));
+    }
   }
 
   return resultado;
@@ -1219,6 +1294,23 @@ export async function resetarConciliacao(params: {
     `SELECT COUNT(*) as total FROM conciliados_automatico ${whereClause}`
   ));
   const total = Number((countRows as any)?.[0]?.total || 0);
+
+  // Resetar statusConciliacao no faturamento_unificado para 'pendente'
+  // Primeiro buscar os IDs do faturamento_unificado que serão afetados
+  const [idsRows] = await db.execute(sql.raw(
+    `SELECT DISTINCT faturamentoUnificadoId FROM conciliados_automatico ${whereClause}`
+  ));
+  const idsAfetados = (idsRows as any[]).map((r: any) => r.faturamentoUnificadoId).filter(Boolean);
+  
+  if (idsAfetados.length > 0) {
+    // Atualizar em batches de 500
+    for (let i = 0; i < idsAfetados.length; i += 500) {
+      const batch = idsAfetados.slice(i, i + 500);
+      await db.execute(sql.raw(
+        `UPDATE faturamento_unificado SET statusConciliacao = 'pendente' WHERE id IN (${batch.join(',')})`
+      ));
+    }
+  }
 
   // Deletar registros de conciliação
   const query = `DELETE FROM conciliados_automatico ${whereClause}`;
@@ -1373,14 +1465,24 @@ export async function resumoConciliadosAutomatico(params: {
 
 /**
  * Competências disponíveis na tabela conciliados_automatico
+ * Também inclui competências do faturamento_unificado que ainda não foram conciliadas
  */
 export async function competenciasConciliados(estabelecimentoId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
+  // Unir competências de ambas as tabelas para que o dropdown mostre todas
   const [rows] = await db.execute(sql.raw(
-    `SELECT competencia, COUNT(*) as total
-     FROM conciliados_automatico
-     WHERE estabelecimentoId = ${estabelecimentoId}
+    `SELECT competencia, SUM(total) as total FROM (
+       SELECT competencia, COUNT(*) as total
+       FROM conciliados_automatico
+       WHERE estabelecimentoId = ${estabelecimentoId}
+       GROUP BY competencia
+       UNION ALL
+       SELECT competencia, COUNT(*) as total
+       FROM faturamento_unificado
+       WHERE estabelecimentoId = ${estabelecimentoId}
+       GROUP BY competencia
+     ) combined
      GROUP BY competencia
      ORDER BY competencia DESC`
   ));
