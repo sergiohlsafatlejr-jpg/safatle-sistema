@@ -6,6 +6,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as faturamentoService from "../faturamentoUnificadoService";
+import * as xmlRecursoService from "../xmlRecursoService";
 
 export const faturamentoUnificadoRouter = router({
   /**
@@ -335,5 +336,71 @@ export const faturamentoUnificadoRouter = router({
     }))
     .mutation(async ({ input }) => {
       return await faturamentoService.reverterGlosa(input);
+    }),
+
+  // ============================================================
+  // XML DE RECURSO DE GLOSA
+  // ============================================================
+
+  /**
+   * Gerar XML de recurso para guias glosadas (individual ou lote)
+   */
+  gerarXmlRecurso: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      guias: z.array(z.string()).min(1),
+      convenioId: z.number().optional(),
+      registroANS: z.string().optional(),
+      cnpjOperadora: z.string().optional(),
+      numeroDemonstrativo: z.string().optional(),
+      numeroProtocolo: z.string().optional(),
+      lotePrestador: z.string().optional(),
+      dataProtocolo: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return await xmlRecursoService.gerarXmlRecurso({
+        ...input,
+        userId: ctx.user?.id,
+      });
+    }),
+
+  /**
+   * Listar XMLs de recurso gerados
+   */
+  listarXmlsGerados: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      convenioId: z.number().optional(),
+      competencia: z.string().optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await xmlRecursoService.listarXmlsGerados(input);
+    }),
+
+  /**
+   * Buscar guias glosadas disponíveis para geração de XML
+   */
+  guiasGlosadasDisponiveis: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      convenioId: z.number().optional(),
+      competencia: z.string().optional(),
+      apenasNaoGeradas: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await xmlRecursoService.guiasGlosadasDisponiveis(input);
+    }),
+
+  /**
+   * Download de XML de recurso gerado
+   */
+  downloadXmlRecurso: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return await xmlRecursoService.downloadXmlRecurso(input.id);
     }),
 });

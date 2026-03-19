@@ -3244,7 +3244,7 @@
 - [x] Corrigir funcionalidade de Conciliações Cruzadas (já estava funcionando, isolamento por estabelecimento OK)
 - [x] Adicionar capacidade de glosar itens que não apareceram no demonstrativo na Conciliação Cruzada
 - [x] Conciliação Cruzada já respeita isolamento de dados por estabelecimento (todas queries filtram por estabelecimentoId)
-- [ ] Corrigir Conciliação Cruzada para exibir dados do Hemolabor (guia 18414424 não aparece)
+- [x] Corrigir Conciliação Cruzada para exibir dados do Hemolabor (guia 18414424 não aparece)
 - [ ] Corrigir nomes dos convênios que aparecem como IDs numéricos (60003, 120005) na Conciliação Cruzada
 
 - [x] Corrigir conciliação cruzada do Hemolabor - guia 18414424 não aparecia após conciliar automaticamente
@@ -3253,3 +3253,9 @@
 - [x] Atualizar statusConciliacao no faturamento_unificado após conciliação para evitar reprocessamento
 - [x] Atualizar resetarConciliacao para também resetar statusConciliacao no faturamento_unificado
 - [x] Incluir competências do faturamento_unificado no dropdown da aba Conciliados (além das já conciliadas)
+
+- [x] Corrigir erro "estabelecimentoId expected number, received undefined" ao glosar itens
+- [x] Criar módulo de geração de XML de recurso de glosa no padrão TISS/TASY
+- [x] Suporte a geração individual (uma guia) e em lote (múltiplas guias)
+- [x] Marcar guias que já tiveram XML de recurso gerado
+- [x] Salvar XMLs gerados no S3 com link para consulta futura
