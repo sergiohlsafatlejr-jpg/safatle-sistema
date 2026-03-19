@@ -3265,3 +3265,6 @@
 - [x] Corrigir geração de XML de recurso: incluir TODOS os itens da guia (pagos e glosados), não apenas glosados
 - [x] Código de glosa no XML deve ser apenas número (não texto)
 - [x] Seguir exatamente o formato do XML modelo (demonstrativo de análise de conta TISS)
+
+- [x] Tratar itens divergentes como glosados na conciliação cruzada (permitir adicionar motivo de glosa)
+- [x] Incluir itens divergentes na geração de XML de recurso

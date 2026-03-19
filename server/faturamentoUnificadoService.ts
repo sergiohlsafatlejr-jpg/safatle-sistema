@@ -1646,7 +1646,7 @@ export async function itensConciliadosPorGuia(params: {
 
 /**
  * Glosar itens individuais da conciliados_automatico
- * Muda o status de 'nao_recebido' para 'glosado' e preenche valorGlosa
+ * Muda o status de 'nao_recebido' ou 'divergente' para 'glosado' e preenche valorGlosa
  */
 export async function glosarItens(params: {
   ids: number[];
@@ -1659,21 +1659,21 @@ export async function glosarItens(params: {
 
   if (params.ids.length === 0) return { atualizados: 0 };
 
-  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
+  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}' ` : 'NULL';
   const ids = params.ids.join(',');
 
   const query = `
     UPDATE conciliados_automatico 
     SET statusConciliacao = 'glosado',
-        valorGlosa = valorFaturado,
-        valorPago = 0,
-        diferenca = valorFaturado,
-        percentualDiferenca = 100,
+        valorGlosa = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN valorFaturado - valorPago ELSE valorFaturado END,
+        valorPago = CASE WHEN statusConciliacao = 'divergente' THEN valorPago ELSE 0 END,
+        diferenca = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN valorFaturado - valorPago ELSE valorFaturado END,
+        percentualDiferenca = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN ROUND(((valorFaturado - valorPago) / valorFaturado) * 100, 2) ELSE 100 END,
         motivoGlosa = ${esc(params.motivoGlosa)},
         codigoGlosa = ${esc(params.codigoGlosa)}
     WHERE id IN (${ids})
       AND estabelecimentoId = ${params.estabelecimentoId}
-      AND statusConciliacao = 'nao_recebido'
+      AND statusConciliacao IN ('nao_recebido', 'divergente')
   `;
 
   const [result] = await db.execute(sql.raw(query));
@@ -1682,7 +1682,7 @@ export async function glosarItens(params: {
 }
 
 /**
- * Glosar TODOS os itens não recebidos de uma guia
+ * Glosar TODOS os itens não recebidos e divergentes de uma guia
  */
 export async function glosarTodosNaoRecebidosPorGuia(params: {
   estabelecimentoId: number;
@@ -1694,9 +1694,9 @@ export async function glosarTodosNaoRecebidosPorGuia(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
+  const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}' ` : 'NULL';
 
-  let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId} AND statusConciliacao = 'nao_recebido'`;
+  let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId} AND statusConciliacao IN ('nao_recebido', 'divergente')`;
   if (params.numeroGuia) {
     whereClause += ` AND numeroGuia = ${esc(params.numeroGuia)}`;
   }
@@ -1707,10 +1707,10 @@ export async function glosarTodosNaoRecebidosPorGuia(params: {
   const query = `
     UPDATE conciliados_automatico 
     SET statusConciliacao = 'glosado',
-        valorGlosa = valorFaturado,
-        valorPago = 0,
-        diferenca = valorFaturado,
-        percentualDiferenca = 100,
+        valorGlosa = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN valorFaturado - valorPago ELSE valorFaturado END,
+        valorPago = CASE WHEN statusConciliacao = 'divergente' THEN valorPago ELSE 0 END,
+        diferenca = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN valorFaturado - valorPago ELSE valorFaturado END,
+        percentualDiferenca = CASE WHEN valorFaturado > 0 AND valorPago > 0 AND valorPago < valorFaturado THEN ROUND(((valorFaturado - valorPago) / valorFaturado) * 100, 2) ELSE 100 END,
         motivoGlosa = ${esc(params.motivoGlosa)},
         codigoGlosa = ${esc(params.codigoGlosa)}
     ${whereClause}
@@ -1722,7 +1722,7 @@ export async function glosarTodosNaoRecebidosPorGuia(params: {
 }
 
 /**
- * Reverter glosa de itens (voltar para nao_recebido)
+ * Reverter glosa de itens (voltar para status anterior - nao_recebido ou divergente)
  */
 export async function reverterGlosa(params: {
   ids: number[];
@@ -1735,13 +1735,13 @@ export async function reverterGlosa(params: {
 
   const ids = params.ids.join(',');
 
+  // Reverter: se o item tinha valorPago > 0, volta para 'divergente'; senão volta para 'nao_recebido'
   const query = `
     UPDATE conciliados_automatico 
-    SET statusConciliacao = 'nao_recebido',
+    SET statusConciliacao = CASE WHEN valorPago > 0 THEN 'divergente' ELSE 'nao_recebido' END,
         valorGlosa = 0,
-        valorPago = 0,
-        diferenca = 0,
-        percentualDiferenca = 0,
+        diferenca = CASE WHEN valorPago > 0 THEN valorFaturado - valorPago ELSE 0 END,
+        percentualDiferenca = CASE WHEN valorPago > 0 AND valorFaturado > 0 THEN ROUND(((valorFaturado - valorPago) / valorFaturado) * 100, 2) ELSE 0 END,
         motivoGlosa = NULL,
         codigoGlosa = NULL
     WHERE id IN (${ids})

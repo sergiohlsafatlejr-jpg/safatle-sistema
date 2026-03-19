@@ -21,6 +21,8 @@ describe("conciliacaoAutomatica", () => {
 
   describe("executarConciliacaoAutomatica", () => {
     it("deve retornar resultado vazio quando nao ha itens de faturamento", async () => {
+      // Query competencias (retorna 1 só)
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Query faturamento retorna vazio
       mockExecute.mockResolvedValueOnce([[]]);
 
@@ -35,6 +37,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve conciliar itens com match exato por guia + codigo", async () => {
+      // Query competencias (retorna 1 só, não faz batch)
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Query faturamento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -82,6 +86,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve marcar como divergente quando valores sao diferentes", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -129,6 +135,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve marcar como nao_recebido quando nao ha match", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -162,6 +170,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar match por codigo TUSS quando codigo direto nao encontra", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento com codigoItemTuss diferente do codigoItem
       mockExecute.mockResolvedValueOnce([[
         {
@@ -207,6 +217,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar vinculacao de codigos (de-para) quando match direto falha", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -258,6 +270,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar match por paciente + codigo como fallback", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento - guia diferente do recebimento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -303,6 +317,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve aceitar tolerancia percentual customizada", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento
       mockExecute.mockResolvedValueOnce([[
         {
@@ -349,6 +365,8 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve processar multiplos itens em batch", async () => {
+      // Query competencias
+      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // Faturamento - 3 itens
       mockExecute.mockResolvedValueOnce([[
         { id: 1, codigoItem: "A", codigoItemTuss: null, numeroGuia: "G1", contaNumero: "C1", pacienteNome: "P1", carteiraBeneficiario: "001", convenioId: 10, competencia: "2025-12", valorFaturado: 10, quantidade: 1 },
@@ -405,7 +423,11 @@ describe("conciliacaoAutomatica", () => {
     it("deve resetar itens conciliados para pendente", async () => {
       // Count
       mockExecute.mockResolvedValueOnce([[{ total: 50 }]]);
-      // UPDATE
+      // SELECT DISTINCT faturamentoUnificadoId
+      mockExecute.mockResolvedValueOnce([[{ faturamentoUnificadoId: 1 }, { faturamentoUnificadoId: 2 }]]);
+      // UPDATE faturamento_unificado
+      mockExecute.mockResolvedValueOnce([{ affectedRows: 2 }]);
+      // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 50 }]);
 
       const result = await resetarConciliacao({
@@ -413,11 +435,16 @@ describe("conciliacaoAutomatica", () => {
       });
 
       expect(result.resetados).toBe(50);
-      expect(mockExecute).toHaveBeenCalledTimes(2);
+      expect(mockExecute).toHaveBeenCalledTimes(4);
     });
 
     it("deve aceitar filtro de competencia", async () => {
       mockExecute.mockResolvedValueOnce([[{ total: 20 }]]);
+      // SELECT DISTINCT
+      mockExecute.mockResolvedValueOnce([[{ faturamentoUnificadoId: 10 }]]);
+      // UPDATE faturamento_unificado
+      mockExecute.mockResolvedValueOnce([{ affectedRows: 1 }]);
+      // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 20 }]);
 
       const result = await resetarConciliacao({
@@ -430,6 +457,11 @@ describe("conciliacaoAutomatica", () => {
 
     it("deve aceitar filtro de convenioId", async () => {
       mockExecute.mockResolvedValueOnce([[{ total: 10 }]]);
+      // SELECT DISTINCT
+      mockExecute.mockResolvedValueOnce([[{ faturamentoUnificadoId: 20 }]]);
+      // UPDATE faturamento_unificado
+      mockExecute.mockResolvedValueOnce([{ affectedRows: 1 }]);
+      // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 10 }]);
 
       const result = await resetarConciliacao({
@@ -442,6 +474,9 @@ describe("conciliacaoAutomatica", () => {
 
     it("deve retornar 0 quando nao ha itens para resetar", async () => {
       mockExecute.mockResolvedValueOnce([[{ total: 0 }]]);
+      // SELECT DISTINCT - retorna vazio
+      mockExecute.mockResolvedValueOnce([[]]);
+      // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
 
       const result = await resetarConciliacao({
@@ -450,5 +485,92 @@ describe("conciliacaoAutomatica", () => {
 
       expect(result.resetados).toBe(0);
     });
+  });
+});
+
+describe("glosarItens e reverterGlosa com divergentes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockExecute.mockResolvedValue([{ affectedRows: 0 }]);
+  });
+
+  it("glosarItens deve aceitar itens e retornar contagem de atualizados", async () => {
+    const { glosarItens } = await import("./faturamentoUnificadoService");
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 3 }]);
+
+    const result = await glosarItens({
+      ids: [1, 2, 3],
+      estabelecimentoId: 6,
+      motivoGlosa: "Valor divergente",
+      codigoGlosa: "1015",
+    });
+
+    expect(result.atualizados).toBe(3);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("glosarItens deve executar query com parametros corretos", async () => {
+    const { glosarItens } = await import("./faturamentoUnificadoService");
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const result = await glosarItens({
+      ids: [10],
+      estabelecimentoId: 6,
+      codigoGlosa: "1015",
+    });
+
+    expect(result.atualizados).toBe(1);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("glosarTodosNaoRecebidosPorGuia deve retornar contagem correta", async () => {
+    const { glosarTodosNaoRecebidosPorGuia } = await import("./faturamentoUnificadoService");
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 5 }]);
+
+    const result = await glosarTodosNaoRecebidosPorGuia({
+      estabelecimentoId: 6,
+      numeroGuia: "18414424",
+      codigoGlosa: "1015",
+    });
+
+    expect(result.atualizados).toBe(5);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("reverterGlosa deve retornar contagem de itens revertidos", async () => {
+    const { reverterGlosa } = await import("./faturamentoUnificadoService");
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 2 }]);
+
+    const result = await reverterGlosa({
+      ids: [1, 2],
+      estabelecimentoId: 6,
+    });
+
+    expect(result.atualizados).toBe(2);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("glosarItens deve retornar 0 quando ids vazio", async () => {
+    const { glosarItens } = await import("./faturamentoUnificadoService");
+
+    const result = await glosarItens({
+      ids: [],
+      estabelecimentoId: 6,
+    });
+
+    expect(result.atualizados).toBe(0);
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it("reverterGlosa deve retornar 0 quando ids vazio", async () => {
+    const { reverterGlosa } = await import("./faturamentoUnificadoService");
+
+    const result = await reverterGlosa({
+      ids: [],
+      estabelecimentoId: 6,
+    });
+
+    expect(result.atualizados).toBe(0);
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 });

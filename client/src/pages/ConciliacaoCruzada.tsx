@@ -697,7 +697,7 @@ export default function ConciliacaoCruzada() {
                       </CardTitle>
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Botões de ação de glosa */}
-                        {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido') && (
+                        {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'divergente') && (
                           <>
                             <Button
                               size="sm"
@@ -709,7 +709,7 @@ export default function ConciliacaoCruzada() {
                               }}
                             >
                               <Ban className="w-4 h-4 mr-1" />
-                              Glosar Todos Não Recebidos
+                              Glosar Não Recebidos/Divergentes
                             </Button>
                             {itensSelecionadosGlosa.size > 0 && (
                               <Button
@@ -762,10 +762,10 @@ export default function ConciliacaoCruzada() {
                             <tr className="border-b bg-muted/50">
                               <th className="p-3 w-10">
                                 <Checkbox
-                                  checked={itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').length > 0 && itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').every((i: any) => itensSelecionadosGlosa.has(i.id))}
+                                  checked={itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado' || i.statusConciliacao === 'divergente').length > 0 && itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado' || i.statusConciliacao === 'divergente').every((i: any) => itensSelecionadosGlosa.has(i.id))}
                                   onCheckedChange={(checked) => {
                                     const novos = new Set(itensSelecionadosGlosa);
-                                    itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado').forEach((i: any) => {
+                                    itensConciliadosGuia.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'glosado' || i.statusConciliacao === 'divergente').forEach((i: any) => {
                                       if (checked) novos.add(i.id); else novos.delete(i.id);
                                     });
                                     setItensSelecionadosGlosa(novos);
@@ -794,7 +794,7 @@ export default function ConciliacaoCruzada() {
                                 item.statusConciliacao === 'glosado' ? 'bg-purple-50/50 dark:bg-purple-950/20' : ''
                               }`}>
                                 <td className="p-3">
-                                  {(item.statusConciliacao === 'nao_recebido' || item.statusConciliacao === 'glosado') && item.id ? (
+                                  {(item.statusConciliacao === 'nao_recebido' || item.statusConciliacao === 'glosado' || item.statusConciliacao === 'divergente') && item.id ? (
                                     <Checkbox
                                       checked={itensSelecionadosGlosa.has(item.id)}
                                       onCheckedChange={(checked) => {
