@@ -2,10 +2,11 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { consultarSaldo, consultarExtrato, consultarExtratoCompleto, exportarExtratoPdf, getInterStatus, emitirBoleto, consultarBoleto, listarBoletos, downloadBoletoPdf, cancelarBoleto, sumarioBoletos } from "../bancoInter";
 import {
   finEmpresas, finClientes, finCategorias, finTiposPagamento,
   finTiposRecebivel, finBancos, finCustos, finTransacoes,
-  finRecebiveis, finExtratos, finPrevisaoReceita,
+  finRecebiveis, finExtratos, finPrevisaoReceita, finCentrosCusto,
 } from "../../drizzle/schema";
 import { eq, desc, and, sql, like, gte, lte, asc, inArray } from "drizzle-orm";
 
@@ -211,6 +212,7 @@ const transacoesRouter = router({
       empresaId: z.number().optional(),
       categoriaId: z.number().optional(),
       bancoId: z.number().optional(),
+      centroCustoId: z.number().optional(),
       pago: z.enum(["sim", "nao"]).optional(),
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
@@ -225,6 +227,7 @@ const transacoesRouter = router({
       if (p.empresaId) conditions.push(eq(finTransacoes.empresaId, p.empresaId));
       if (p.categoriaId) conditions.push(eq(finTransacoes.categoriaId, p.categoriaId));
       if (p.bancoId) conditions.push(eq(finTransacoes.bancoId, p.bancoId));
+      if (p.centroCustoId) conditions.push(eq(finTransacoes.centroCustoId, p.centroCustoId));
       if (p.pago) conditions.push(eq(finTransacoes.pago, p.pago));
       if (p.dataInicio) conditions.push(gte(finTransacoes.dataVencimento, new Date(p.dataInicio)));
       if (p.dataFim) conditions.push(lte(finTransacoes.dataVencimento, new Date(p.dataFim)));
@@ -240,7 +243,8 @@ const transacoesRouter = router({
   criar: protectedProcedure
     .input(z.object({
       empresaId: z.number().optional(), categoriaId: z.number().optional(), tipoId: z.number().optional(),
-      custoId: z.number().optional(), bancoId: z.number().optional(), descricao: z.string().min(1),
+      custoId: z.number().optional(), bancoId: z.number().optional(), centroCustoId: z.number().optional(),
+      descricao: z.string().min(1),
       valor: z.string(), dataVencimento: z.string(), dataPagamento: z.string().optional(),
       pago: z.enum(["sim", "nao"]).optional(), observacoes: z.string().optional(),
     }))
@@ -248,7 +252,7 @@ const transacoesRouter = router({
       const db = (await getDb())!;
       const [result] = await db.insert(finTransacoes).values({
         empresaId: input.empresaId || null, categoriaId: input.categoriaId || null, tipoId: input.tipoId || null,
-        custoId: input.custoId || null, bancoId: input.bancoId || null, descricao: input.descricao,
+        custoId: input.custoId || null, bancoId: input.bancoId || null, centroCustoId: input.centroCustoId || null, descricao: input.descricao,
         valor: input.valor, dataVencimento: new Date(input.dataVencimento), dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
         pago: input.pago || "nao", observacoes: input.observacoes || null, userId: ctx.user.id,
       });
@@ -257,7 +261,8 @@ const transacoesRouter = router({
   atualizar: protectedProcedure
     .input(z.object({
       id: z.number(), empresaId: z.number().optional(), categoriaId: z.number().optional(), tipoId: z.number().optional(),
-      custoId: z.number().optional(), bancoId: z.number().optional(), descricao: z.string().min(1),
+      custoId: z.number().optional(), bancoId: z.number().optional(), centroCustoId: z.number().optional(),
+      descricao: z.string().min(1),
       valor: z.string(), dataVencimento: z.string(), dataPagamento: z.string().optional(),
       pago: z.enum(["sim", "nao"]).optional(), observacoes: z.string().optional(),
     }))
@@ -266,7 +271,7 @@ const transacoesRouter = router({
       const { id, ...data } = input;
       await db.update(finTransacoes).set({
         empresaId: data.empresaId || null, categoriaId: data.categoriaId || null, tipoId: data.tipoId || null,
-        custoId: data.custoId || null, bancoId: data.bancoId || null, descricao: data.descricao,
+        custoId: data.custoId || null, bancoId: data.bancoId || null, centroCustoId: data.centroCustoId || null, descricao: data.descricao,
         valor: data.valor, dataVencimento: new Date(data.dataVencimento), dataPagamento: data.dataPagamento ? new Date(data.dataPagamento) : null,
         pago: data.pago || "nao", observacoes: data.observacoes || null,
       }).where(eq(finTransacoes.id, id));
@@ -595,6 +600,315 @@ const dashboardRouter = router({
 });
 
 // ============================================================
+// CENTROS DE CUSTO
+// ============================================================
+const centrosCustoRouter = router({
+  listar: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    return db.select().from(finCentrosCusto).orderBy(asc(finCentrosCusto.nome));
+  }),
+  criar: protectedProcedure
+    .input(z.object({
+      codigo: z.string().min(1),
+      nome: z.string().min(1),
+      descricao: z.string().optional(),
+      responsavel: z.string().optional(),
+      orcamentoMensal: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = (await getDb())!;
+      const [result] = await db.insert(finCentrosCusto).values({
+        codigo: input.codigo,
+        nome: input.nome,
+        descricao: input.descricao || null,
+        responsavel: input.responsavel || null,
+        orcamentoMensal: input.orcamentoMensal || null,
+        userId: ctx.user.id,
+      });
+      return { id: result.insertId };
+    }),
+  atualizar: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      codigo: z.string().min(1),
+      nome: z.string().min(1),
+      descricao: z.string().optional(),
+      responsavel: z.string().optional(),
+      orcamentoMensal: z.string().optional(),
+      ativo: z.enum(["sim", "nao"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = (await getDb())!;
+      const { id, ...data } = input;
+      await db.update(finCentrosCusto).set({
+        codigo: data.codigo,
+        nome: data.nome,
+        descricao: data.descricao || null,
+        responsavel: data.responsavel || null,
+        orcamentoMensal: data.orcamentoMensal || null,
+        ativo: data.ativo || "sim",
+      }).where(eq(finCentrosCusto.id, id));
+      return { success: true };
+    }),
+  excluir: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    const db = (await getDb())!;
+    await db.delete(finCentrosCusto).where(eq(finCentrosCusto.id, input.id));
+    return { success: true };
+  }),
+  // Dashboard: total de contas a pagar por centro de custo
+  resumo: protectedProcedure
+    .input(z.object({ mes: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const now = new Date();
+      const mesRef = input?.mes || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const [ano, mesNum] = mesRef.split("-").map(Number);
+      const inicio = `${ano}-${String(mesNum).padStart(2, "0")}-01`;
+      const lastDay = new Date(ano, mesNum, 0).getDate();
+      const fim = `${ano}-${String(mesNum).padStart(2, "0")}-${lastDay}`;
+
+      const result = await db.select({
+        centroCustoId: finTransacoes.centroCustoId,
+        ccNome: finCentrosCusto.nome,
+        ccCodigo: finCentrosCusto.codigo,
+        ccOrcamento: finCentrosCusto.orcamentoMensal,
+        totalPago: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'sim' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        totalPendente: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'nao' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        totalGeral: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+        qtdTransacoes: sql<number>`COUNT(*)`,
+      })
+      .from(finTransacoes)
+      .leftJoin(finCentrosCusto, eq(finTransacoes.centroCustoId, finCentrosCusto.id))
+      .where(and(
+        gte(finTransacoes.dataVencimento, new Date(inicio)),
+        lte(finTransacoes.dataVencimento, new Date(fim)),
+        sql`${finTransacoes.centroCustoId} IS NOT NULL`,
+      ))
+      .groupBy(finTransacoes.centroCustoId, finCentrosCusto.nome, finCentrosCusto.codigo, finCentrosCusto.orcamentoMensal);
+
+      return result;
+    }),
+});
+
+// ============================================================
+// IMPORTADOR EXCEL (Contas a Pagar / Contas a Receber)
+// ============================================================
+const importadorRouter = router({
+  importarContasPagar: protectedProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        descricao: z.string(),
+        valor: z.string(),
+        dataVencimento: z.string(),
+        dataPagamento: z.string().optional(),
+        pago: z.enum(["sim", "nao"]).optional(),
+        empresaId: z.number().optional(),
+        categoriaId: z.number().optional(),
+        centroCustoId: z.number().optional(),
+        bancoId: z.number().optional(),
+        observacoes: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = (await getDb())!;
+      let imported = 0;
+      let errors = 0;
+      for (const item of input.items) {
+        try {
+          await db.insert(finTransacoes).values({
+            descricao: item.descricao,
+            valor: item.valor,
+            dataVencimento: new Date(item.dataVencimento),
+            dataPagamento: item.dataPagamento ? new Date(item.dataPagamento) : null,
+            pago: item.pago || "nao",
+            empresaId: item.empresaId || null,
+            categoriaId: item.categoriaId || null,
+            centroCustoId: item.centroCustoId || null,
+            bancoId: item.bancoId || null,
+            observacoes: item.observacoes || null,
+            userId: ctx.user.id,
+          });
+          imported++;
+        } catch {
+          errors++;
+        }
+      }
+      return { imported, errors, total: input.items.length };
+    }),
+  importarContasReceber: protectedProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        descricao: z.string(),
+        valor: z.string(),
+        dataVencimento: z.string(),
+        dataRecebimento: z.string().optional(),
+        recebido: z.enum(["sim", "nao"]).optional(),
+        empresaId: z.number().optional(),
+        clienteId: z.number().optional(),
+        bancoId: z.number().optional(),
+        observacoes: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = (await getDb())!;
+      let imported = 0;
+      let errors = 0;
+      for (const item of input.items) {
+        try {
+          await db.insert(finRecebiveis).values({
+            descricao: item.descricao,
+            valor: item.valor,
+            dataVencimento: new Date(item.dataVencimento),
+            dataRecebimento: item.dataRecebimento ? new Date(item.dataRecebimento) : null,
+            recebido: item.recebido || "nao",
+            empresaId: item.empresaId || null,
+            clienteId: item.clienteId || null,
+            bancoId: item.bancoId || null,
+            observacoes: item.observacoes || null,
+            userId: ctx.user.id,
+          });
+          imported++;
+        } catch {
+          errors++;
+        }
+      }
+      return { imported, errors, total: input.items.length };
+    }),
+});
+
+// ============================================================
+// BANCO INTER
+// ============================================================
+const bancoInterRouter = router({
+  status: protectedProcedure.query(async () => {
+    return getInterStatus();
+  }),
+
+  saldo: protectedProcedure.query(async () => {
+    return consultarSaldo();
+  }),
+
+  extrato: protectedProcedure
+    .input(z.object({
+      dataInicio: z.string(),
+      dataFim: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return consultarExtrato(input.dataInicio, input.dataFim);
+    }),
+
+  extratoCompleto: protectedProcedure
+    .input(z.object({
+      dataInicio: z.string(),
+      dataFim: z.string(),
+      pagina: z.number().optional(),
+      tamanhoPagina: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return consultarExtratoCompleto(input.dataInicio, input.dataFim, input.pagina, input.tamanhoPagina);
+    }),
+
+  extratoPdf: protectedProcedure
+    .input(z.object({
+      dataInicio: z.string(),
+      dataFim: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      return exportarExtratoPdf(input.dataInicio, input.dataFim);
+    }),
+
+  // ---- COBRANÇA (BOLETO COM PIX) ----
+  emitirBoleto: protectedProcedure
+    .input(z.object({
+      seuNumero: z.string().max(15),
+      valorNominal: z.number().min(2.5).max(99999999.99),
+      dataVencimento: z.string(), // YYYY-MM-DD
+      numDiasAgenda: z.number().int().min(0).max(60).default(30),
+      pagador: z.object({
+        cpfCnpj: z.string(),
+        tipoPessoa: z.enum(["FISICA", "JURIDICA"]),
+        nome: z.string(),
+        endereco: z.string(),
+        bairro: z.string(),
+        cidade: z.string(),
+        uf: z.string().length(2),
+        cep: z.string(),
+        email: z.string().optional(),
+        ddd: z.string().optional(),
+        telefone: z.string().optional(),
+        numero: z.string().optional(),
+        complemento: z.string().optional(),
+      }),
+      desconto: z.object({
+        taxa: z.number(),
+        codigo: z.enum(["PERCENTUALDATAINFORMADA", "VALORFIXODATAINFORMADA"]),
+        quantidadeDias: z.number(),
+      }).optional(),
+      multa: z.object({
+        taxa: z.number(),
+        codigo: z.enum(["PERCENTUAL", "VALORFIXO"]),
+      }).optional(),
+      mora: z.object({
+        taxa: z.number(),
+        codigo: z.enum(["TAXAMENSAL", "VALORFIXO"]),
+      }).optional(),
+      mensagem: z.object({
+        linha1: z.string().optional(),
+        linha2: z.string().optional(),
+        linha3: z.string().optional(),
+        linha4: z.string().optional(),
+        linha5: z.string().optional(),
+      }).optional(),
+      formasRecebimento: z.array(z.enum(["BOLETO", "PIX"])).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return emitirBoleto(input);
+    }),
+
+  consultarBoleto: protectedProcedure
+    .input(z.object({ codigoSolicitacao: z.string() }))
+    .query(async ({ input }) => {
+      return consultarBoleto(input.codigoSolicitacao);
+    }),
+
+  listarBoletos: protectedProcedure
+    .input(z.object({
+      dataInicial: z.string(),
+      dataFinal: z.string(),
+      situacao: z.string().optional(),
+      pagina: z.number().optional(),
+      itensPorPagina: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return listarBoletos(input.dataInicial, input.dataFinal, input.situacao, input.pagina, input.itensPorPagina);
+    }),
+
+  downloadBoletoPdf: protectedProcedure
+    .input(z.object({ codigoSolicitacao: z.string() }))
+    .mutation(async ({ input }) => {
+      return downloadBoletoPdf(input.codigoSolicitacao);
+    }),
+
+  cancelarBoleto: protectedProcedure
+    .input(z.object({
+      codigoSolicitacao: z.string(),
+      motivoCancelamento: z.string().max(50),
+    }))
+    .mutation(async ({ input }) => {
+      return cancelarBoleto(input.codigoSolicitacao, input.motivoCancelamento);
+    }),
+
+  sumarioBoletos: protectedProcedure
+    .input(z.object({
+      dataInicial: z.string(),
+      dataFinal: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return sumarioBoletos(input.dataInicial, input.dataFinal);
+    }),
+});
+
+// ============================================================
 // EXPORT ROUTER
 // ============================================================
 export const financeiroRouter = router({
@@ -605,9 +919,12 @@ export const financeiroRouter = router({
   tiposRecebivel: tiposRecebivelRouter,
   bancos: bancosRouter,
   custos: custosRouter,
+  centrosCusto: centrosCustoRouter,
   transacoes: transacoesRouter,
   recebiveis: recebiveisRouter,
   extratos: extratosRouter,
   previsao: previsaoRouter,
   dashboard: dashboardRouter,
+  importador: importadorRouter,
+  bancoInter: bancoInterRouter,
 });

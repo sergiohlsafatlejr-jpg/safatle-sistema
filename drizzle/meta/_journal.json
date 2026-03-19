@@ -50,6 +50,13 @@
       "when": 1773876092347,
       "tag": "0088_amusing_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "5",
+      "when": 1773882972915,
+      "tag": "0089_striped_wallow",
+      "breakpoints": true
     }
   ]
 }

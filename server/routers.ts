@@ -4009,6 +4009,27 @@ export const appRouter = router({
       return db.listarTodosUsuarios();
     }),
 
+    // Listar permissões de todos os usuários para o Safatle
+    listarPermissoesSafatle: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem ver permissões Safatle" });
+      }
+      const allUsers = await db.listarTodosUsuarios();
+      const results: any[] = [];
+      for (const user of allUsers) {
+        const perms = await db.getPermissoesUsuario(user.id);
+        const safatlePerm = perms.find((p: any) => p.estabelecimentoId === 2160001);
+        results.push({
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
+          permissions: safatlePerm || null,
+        });
+      }
+      return results;
+    }),
+
     // Remover permissão (apenas gestores/admin)
     removerPermissao: protectedProcedure
       .input(z.object({

@@ -82,6 +82,7 @@ const FinanceiroModule = lazy(() => import("./pages/FinanceiroModule"));
 const ContratosModule = lazy(() => import("./pages/ContratosModule"));
 const PropostasModule = lazy(() => import("./pages/PropostasModule"));
 const PainelExecutivo = lazy(() => import("./pages/PainelExecutivo"));
+const PermissoesSafatle = lazy(() => import("./pages/PermissoesSafatle"));
 
 function PageLoader() {
   return (
@@ -186,6 +187,7 @@ function Router() {
         <Route path={"/contratos"} component={ContratosModule} />
         <Route path={"/propostas"} component={PropostasModule} />
         <Route path={"/painel-executivo"} component={PainelExecutivo} />
+        <Route path={"/permissoes-safatle"} component={PermissoesSafatle} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

@@ -15,8 +15,10 @@ import {
   Wallet, CreditCard, BarChart3, PiggyBank, Trash2, Building2, Users,
   ArrowUpDown, Calendar, FileText, Download, ChevronDown, ChevronRight,
   Banknote, Receipt, CircleDollarSign, Percent, ArrowDownRight, ArrowUpRight,
-  Clock, CheckCircle, XCircle, Eye, Landmark, List
+  Clock, CheckCircle, XCircle, Eye, Landmark, List, Upload, Target, Edit, ToggleLeft,
+  RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 // ==================== HELPERS ====================
 function formatCurrency(value: string | number | null | undefined) {
@@ -474,6 +476,473 @@ function BancosView() {
   );
 }
 
+// ==================== CENTROS DE CUSTO ====================
+function CentrosCusto() {
+  const utils = trpc.useUtils();
+  const centros = trpc.financeiro.centrosCusto.listar.useQuery();
+  const resumo = trpc.financeiro.centrosCusto.resumo.useQuery();
+  const [dialog, setDialog] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const criar = trpc.financeiro.centrosCusto.criar.useMutation({
+    onSuccess: () => { utils.financeiro.centrosCusto.invalidate(); toast.success("Centro de custo criado!"); setDialog(false); },
+  });
+  const atualizar = trpc.financeiro.centrosCusto.atualizar.useMutation({
+    onSuccess: () => { utils.financeiro.centrosCusto.invalidate(); toast.success("Centro de custo atualizado!"); setEditItem(null); },
+  });
+  const excluir = trpc.financeiro.centrosCusto.excluir.useMutation({
+    onSuccess: () => { utils.financeiro.centrosCusto.invalidate(); toast.success("Centro de custo excluído!"); },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const data = {
+      codigo: fd.get("codigo") as string,
+      nome: fd.get("nome") as string,
+      descricao: (fd.get("descricao") as string) || undefined,
+      responsavel: (fd.get("responsavel") as string) || undefined,
+      orcamentoMensal: (fd.get("orcamentoMensal") as string) || undefined,
+    };
+    if (editItem) {
+      atualizar.mutate({ id: editItem.id, ...data, ativo: editItem.ativo });
+    } else {
+      criar.mutate(data);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2"><Target className="h-5 w-5" /> Centros de Custo</h2>
+        <Button onClick={() => { setEditItem(null); setDialog(true); }}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
+      </div>
+
+      {/* Resumo por Centro de Custo */}
+      {(resumo.data || []).length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {(resumo.data || []).map((r: any, i: number) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-mono">{r.ccCodigo}</span>
+                  {r.ccNome || "Sem centro"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Geral</span>
+                  <span className="font-semibold">{formatCurrency(r.totalGeral)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600">Pago</span>
+                  <span className="text-green-600 font-medium">{formatCurrency(r.totalPago)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-amber-600">Pendente</span>
+                  <span className="text-amber-600 font-medium">{formatCurrency(r.totalPendente)}</span>
+                </div>
+                {r.ccOrcamento && (
+                  <div className="pt-2 border-t">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <span>Orçamento</span>
+                      <span>{formatCurrency(r.ccOrcamento)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className={cn("h-2 rounded-full", Number(r.totalGeral) > Number(r.ccOrcamento) ? "bg-red-500" : "bg-green-500")}
+                        style={{ width: `${Math.min(100, (Number(r.totalGeral) / Number(r.ccOrcamento)) * 100)}%` }}
+                      />
+                    </div>
+                    <p className={cn("text-xs mt-1", Number(r.totalGeral) > Number(r.ccOrcamento) ? "text-red-500" : "text-green-600")}>
+                      {((Number(r.totalGeral) / Number(r.ccOrcamento)) * 100).toFixed(1)}% utilizado
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Lista de Centros de Custo */}
+      <Card>
+        <CardContent className="p-0">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/30">
+                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Código</th>
+                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Nome</th>
+                <th className="text-left p-3 text-xs font-medium text-muted-foreground">Responsável</th>
+                <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento Mensal</th>
+                <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
+                <th className="text-right p-3 text-xs font-medium text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(centros.data || []).map((cc: any) => (
+                <tr key={cc.id} className="border-b hover:bg-muted/20">
+                  <td className="p-3 font-mono text-sm">{cc.codigo}</td>
+                  <td className="p-3 text-sm font-medium">{cc.nome}</td>
+                  <td className="p-3 text-sm text-muted-foreground">{cc.responsavel || "-"}</td>
+                  <td className="p-3 text-sm text-right">{cc.orcamentoMensal ? formatCurrency(cc.orcamentoMensal) : "-"}</td>
+                  <td className="p-3 text-center">
+                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", cc.ativo === "sim" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                      {cc.ativo === "sim" ? "Ativo" : "Inativo"}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditItem(cc); setDialog(true); }}><Edit className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => {
+                        atualizar.mutate({ id: cc.id, codigo: cc.codigo, nome: cc.nome, ativo: cc.ativo === "sim" ? "nao" : "sim" });
+                      }}><ToggleLeft className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => excluir.mutate({ id: cc.id })}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(centros.data || []).length === 0 && (
+                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum centro de custo cadastrado</td></tr>
+              )}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* Dialog Criar/Editar */}
+      <Dialog open={dialog} onOpenChange={(v) => { setDialog(v); if (!v) setEditItem(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editItem ? "Editar" : "Novo"} Centro de Custo</DialogTitle><DialogDescription>Preencha os dados do centro de custo</DialogDescription></DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Código *</Label><Input name="codigo" defaultValue={editItem?.codigo || ""} required /></div>
+              <div><Label>Nome *</Label><Input name="nome" defaultValue={editItem?.nome || ""} required /></div>
+            </div>
+            <div><Label>Descrição</Label><Textarea name="descricao" defaultValue={editItem?.descricao || ""} rows={2} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Responsável</Label><Input name="responsavel" defaultValue={editItem?.responsavel || ""} /></div>
+              <div><Label>Orçamento Mensal (R$)</Label><Input name="orcamentoMensal" type="number" step="0.01" defaultValue={editItem?.orcamentoMensal || ""} /></div>
+            </div>
+            <DialogFooter><Button type="submit">{editItem ? "Salvar" : "Criar"}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ==================== IMPORTADOR EXCEL ====================
+function ImportadorExcel() {
+  const utils = trpc.useUtils();
+  const empresas = trpc.financeiro.empresas.listar.useQuery();
+  const categorias = trpc.financeiro.categorias.listar.useQuery();
+  const centrosCusto = trpc.financeiro.centrosCusto.listar.useQuery();
+  const bancos = trpc.financeiro.bancos.listar.useQuery();
+  const clientes = trpc.financeiro.clientes.listar.useQuery();
+
+  const [tipo, setTipo] = useState<"pagar" | "receber">("pagar");
+  const [preview, setPreview] = useState<any[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; errors: number; total: number } | null>(null);
+  const [defaultEmpresaId, setDefaultEmpresaId] = useState<string>("");
+  const [defaultCategoriaId, setDefaultCategoriaId] = useState<string>("");
+  const [defaultCentroCustoId, setDefaultCentroCustoId] = useState<string>("");
+  const [defaultBancoId, setDefaultBancoId] = useState<string>("");
+  const [defaultClienteId, setDefaultClienteId] = useState<string>("");
+
+  const importarPagar = trpc.financeiro.importador.importarContasPagar.useMutation({
+    onSuccess: (data) => { setResult(data); utils.financeiro.transacoes.invalidate(); toast.success(`${data.imported} contas importadas!`); },
+    onError: (err) => toast.error(err.message),
+  });
+  const importarReceber = trpc.financeiro.importador.importarContasReceber.useMutation({
+    onSuccess: (data) => { setResult(data); utils.financeiro.recebiveis.invalidate(); toast.success(`${data.imported} contas importadas!`); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target?.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+        if (data.length === 0) { toast.error("Planilha vazia"); return; }
+        const hdrs = Object.keys(data[0]);
+        setHeaders(hdrs);
+        setPreview(data.slice(0, 10));
+        // Auto-mapping
+        const autoMap: Record<string, string> = {};
+        hdrs.forEach(h => {
+          const hl = h.toLowerCase().trim();
+          if (hl.includes("descri")) autoMap["descricao"] = h;
+          else if (hl.includes("valor")) autoMap["valor"] = h;
+          else if (hl.includes("vencimento")) autoMap["dataVencimento"] = h;
+          else if (hl.includes("pagamento") || hl.includes("recebimento")) autoMap[tipo === "pagar" ? "dataPagamento" : "dataRecebimento"] = h;
+          else if (hl.includes("observa") || hl.includes("obs")) autoMap["observacoes"] = h;
+          else if (hl.includes("status") || hl.includes("pago") || hl.includes("recebido")) autoMap[tipo === "pagar" ? "pago" : "recebido"] = h;
+        });
+        setMapping(autoMap);
+        toast.success(`${data.length} linhas encontradas`);
+      } catch { toast.error("Erro ao ler arquivo"); }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    handleFile({ target: input } as any);
+  };
+
+  const parseDate = (val: any): string | undefined => {
+    if (!val) return undefined;
+    if (typeof val === "number") {
+      // Excel serial date
+      const d = new Date((val - 25569) * 86400000);
+      return d.toISOString().slice(0, 10);
+    }
+    const str = String(val).trim();
+    // DD/MM/YYYY
+    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    return str;
+  };
+
+  const parseStatus = (val: any): "sim" | "nao" => {
+    const s = String(val).toLowerCase().trim();
+    return ["sim", "s", "pago", "recebido", "yes", "1", "true"].includes(s) ? "sim" : "nao";
+  };
+
+  const handleImport = () => {
+    if (!mapping.descricao || !mapping.valor || !mapping.dataVencimento) {
+      toast.error("Mapeie pelo menos: Descrição, Valor e Data Vencimento");
+      return;
+    }
+    setImporting(true);
+    // Re-read full data
+    const input = document.querySelector<HTMLInputElement>("input[type=file]");
+    const file = input?.files?.[0];
+    if (!file) { toast.error("Selecione o arquivo novamente"); setImporting(false); return; }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const wb = XLSX.read(evt.target?.result, { type: "binary" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const allData = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+
+      if (tipo === "pagar") {
+        const items = allData.map(row => ({
+          descricao: String(row[mapping.descricao] || "").trim(),
+          valor: String(row[mapping.valor] || "0").replace(/[^\d.,-]/g, "").replace(",", "."),
+          dataVencimento: parseDate(row[mapping.dataVencimento]) || new Date().toISOString().slice(0, 10),
+          dataPagamento: mapping.dataPagamento ? parseDate(row[mapping.dataPagamento]) : undefined,
+          pago: mapping.pago ? parseStatus(row[mapping.pago]) : undefined,
+          empresaId: defaultEmpresaId ? Number(defaultEmpresaId) : undefined,
+          categoriaId: defaultCategoriaId ? Number(defaultCategoriaId) : undefined,
+          centroCustoId: defaultCentroCustoId ? Number(defaultCentroCustoId) : undefined,
+          bancoId: defaultBancoId ? Number(defaultBancoId) : undefined,
+          observacoes: mapping.observacoes ? String(row[mapping.observacoes] || "") : undefined,
+        })).filter(i => i.descricao && i.valor !== "0");
+        importarPagar.mutate({ items }, { onSettled: () => setImporting(false) });
+      } else {
+        const items = allData.map(row => ({
+          descricao: String(row[mapping.descricao] || "").trim(),
+          valor: String(row[mapping.valor] || "0").replace(/[^\d.,-]/g, "").replace(",", "."),
+          dataVencimento: parseDate(row[mapping.dataVencimento]) || new Date().toISOString().slice(0, 10),
+          dataRecebimento: mapping.dataRecebimento ? parseDate(row[mapping.dataRecebimento]) : undefined,
+          recebido: mapping.recebido ? parseStatus(row[mapping.recebido]) : undefined,
+          empresaId: defaultEmpresaId ? Number(defaultEmpresaId) : undefined,
+          clienteId: defaultClienteId ? Number(defaultClienteId) : undefined,
+          bancoId: defaultBancoId ? Number(defaultBancoId) : undefined,
+          observacoes: mapping.observacoes ? String(row[mapping.observacoes] || "") : undefined,
+        })).filter(i => i.descricao && i.valor !== "0");
+        importarReceber.mutate({ items }, { onSettled: () => setImporting(false) });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const requiredFields = tipo === "pagar"
+    ? ["descricao", "valor", "dataVencimento", "dataPagamento", "pago", "observacoes"]
+    : ["descricao", "valor", "dataVencimento", "dataRecebimento", "recebido", "observacoes"];
+  const fieldLabels: Record<string, string> = {
+    descricao: "Descrição *", valor: "Valor *", dataVencimento: "Data Vencimento *",
+    dataPagamento: "Data Pagamento", dataRecebimento: "Data Recebimento",
+    pago: "Status (Pago/Não)", recebido: "Status (Recebido/Não)", observacoes: "Observações",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2"><Upload className="h-5 w-5" /> Importar Excel</h2>
+        <div className="flex gap-2">
+          <Button variant={tipo === "pagar" ? "default" : "outline"} size="sm" onClick={() => setTipo("pagar")}>
+            <Receipt className="h-4 w-4 mr-1" /> Contas a Pagar
+          </Button>
+          <Button variant={tipo === "receber" ? "default" : "outline"} size="sm" onClick={() => setTipo("receber")}>
+            <Banknote className="h-4 w-4 mr-1" /> Contas a Receber
+          </Button>
+        </div>
+      </div>
+
+      {/* Drop Zone */}
+      <Card>
+        <CardContent className="p-8">
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
+            className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+            onClick={() => document.querySelector<HTMLInputElement>("input[type=file]")?.click()}
+          >
+            <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">{fileName || "Arraste o arquivo Excel aqui"}</p>
+            <p className="text-sm text-muted-foreground mt-1">Ou clique para selecionar (.xlsx, .xls, .csv)</p>
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} className="hidden" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {headers.length > 0 && (
+        <>
+          {/* Mapeamento de Colunas */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Mapeamento de Colunas</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {requiredFields.map(field => (
+                  <div key={field}>
+                    <Label className="text-xs">{fieldLabels[field]}</Label>
+                    <Select value={mapping[field] || ""} onValueChange={v => setMapping(prev => ({ ...prev, [field]: v }))}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar coluna" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">-- Não mapear --</SelectItem>
+                        {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Valores Padrão */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Valores Padrão (aplicados a todas as linhas)</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <Label className="text-xs">Empresa</Label>
+                  <Select value={defaultEmpresaId} onValueChange={setDefaultEmpresaId}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">-- Nenhuma --</SelectItem>
+                      {(empresas.data || []).map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {tipo === "pagar" ? (
+                  <>
+                    <div>
+                      <Label className="text-xs">Categoria</Label>
+                      <Select value={defaultCategoriaId} onValueChange={setDefaultCategoriaId}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">-- Nenhuma --</SelectItem>
+                          {(categorias.data || []).map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Centro de Custo</Label>
+                      <Select value={defaultCentroCustoId} onValueChange={setDefaultCentroCustoId}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">-- Nenhum --</SelectItem>
+                          {(centrosCusto.data || []).map((cc: any) => <SelectItem key={cc.id} value={String(cc.id)}>{cc.codigo} - {cc.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <Label className="text-xs">Cliente</Label>
+                    <Select value={defaultClienteId} onValueChange={setDefaultClienteId}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">-- Nenhum --</SelectItem>
+                        {(clientes.data || []).map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs">Banco</Label>
+                  <Select value={defaultBancoId} onValueChange={setDefaultBancoId}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">-- Nenhum --</SelectItem>
+                      {(bancos.data || []).map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Preview */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Pré-visualização (primeiras 10 linhas)</CardTitle></CardHeader>
+            <CardContent className="p-0 overflow-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    {headers.map(h => <th key={h} className="p-2 text-left font-medium">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i} className="border-b">
+                      {headers.map(h => <td key={h} className="p-2 max-w-[200px] truncate">{String(row[h] ?? "")}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          {/* Botão Importar */}
+          <div className="flex items-center gap-4">
+            <Button onClick={handleImport} disabled={importing} size="lg">
+              {importing ? "Importando..." : `Importar ${tipo === "pagar" ? "Contas a Pagar" : "Contas a Receber"}`}
+            </Button>
+            {result && (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-green-600 font-medium flex items-center gap-1"><CheckCircle className="h-4 w-4" /> {result.imported} importadas</span>
+                {result.errors > 0 && <span className="text-red-500 font-medium flex items-center gap-1"><XCircle className="h-4 w-4" /> {result.errors} erros</span>}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ==================== CADASTROS ====================
 function Cadastros() {
   const utils = trpc.useUtils();
@@ -566,6 +1035,462 @@ function Cadastros() {
   );
 }
 
+// ==================== BANCO INTER ====================
+function BancoInterView() {
+  const [subTab, setSubTab] = useState("extrato");
+  const [periodo, setPeriodo] = useState(() => {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    return {
+      dataInicio: inicio.toISOString().split('T')[0],
+      dataFim: hoje.toISOString().split('T')[0],
+    };
+  });
+  const [boletoPeriodo, setBoletoPeriodo] = useState(() => {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 3, 1);
+    return {
+      dataInicial: inicio.toISOString().split('T')[0],
+      dataFinal: hoje.toISOString().split('T')[0],
+    };
+  });
+  const [showEmitirDialog, setShowEmitirDialog] = useState(false);
+  const [showCancelarDialog, setShowCancelarDialog] = useState(false);
+  const [boletoSelecionado, setBoletoSelecionado] = useState<string | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [filtroSituacao, setFiltroSituacao] = useState("");
+  const [novoBoleto, setNovoBoleto] = useState({
+    seuNumero: "",
+    valorNominal: 0,
+    dataVencimento: "",
+    numDiasAgenda: 30,
+    pagador: {
+      cpfCnpj: "", tipoPessoa: "FISICA" as "FISICA" | "JURIDICA",
+      nome: "", endereco: "", bairro: "", cidade: "", uf: "", cep: "",
+      email: "", ddd: "", telefone: "",
+    },
+    multaTaxa: 2, moraTaxa: 1,
+    mensagem: "",
+  });
+
+  const statusQuery = trpc.financeiro.bancoInter.status.useQuery();
+  const saldoQuery = trpc.financeiro.bancoInter.saldo.useQuery(undefined, {
+    enabled: statusQuery.data?.configured === true,
+  });
+  const extratoQuery = trpc.financeiro.bancoInter.extrato.useQuery(periodo, {
+    enabled: statusQuery.data?.configured === true && subTab === "extrato",
+  });
+  const boletosQuery = trpc.financeiro.bancoInter.listarBoletos.useQuery({
+    ...boletoPeriodo,
+    situacao: filtroSituacao || undefined,
+  }, {
+    enabled: statusQuery.data?.configured === true && subTab === "boletos",
+  });
+
+  const emitirMutation = trpc.financeiro.bancoInter.emitirBoleto.useMutation({
+    onSuccess: (data: any) => {
+      if (data.error) { toast.error(data.error); return; }
+      toast.success(`Boleto emitido! Código: ${data.codigoSolicitacao}`);
+      setShowEmitirDialog(false);
+      boletosQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const cancelarMutation = trpc.financeiro.bancoInter.cancelarBoleto.useMutation({
+    onSuccess: (data: any) => {
+      if (data.error) { toast.error(data.error); return; }
+      toast.success("Boleto cancelado com sucesso");
+      setShowCancelarDialog(false);
+      boletosQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const downloadPdfMutation = trpc.financeiro.bancoInter.downloadBoletoPdf.useMutation({
+    onSuccess: (data: any) => {
+      if (data.error) { toast.error(data.error); return; }
+      if (data.pdf) {
+        const byteChars = atob(data.pdf);
+        const byteNums = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([new Uint8Array(byteNums)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const isConfigured = statusQuery.data?.configured;
+
+  if (statusQuery.isLoading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (!isConfigured) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-full bg-amber-500/10"><WifiOff className="h-8 w-8 text-amber-500" /></div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">API do Banco Inter Não Configurada</h3>
+                <p className="text-sm text-muted-foreground">Para utilizar a integração com o Banco Inter, configure as credenciais de acesso:</p>
+                <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1 mt-2">
+                  <li><strong>Client ID</strong> e <strong>Client Secret</strong> - Internet Banking do Inter</li>
+                  <li><strong>Certificado Digital (.crt)</strong> e <strong>Chave Privada (.key)</strong> - mTLS em PEM</li>
+                  <li><strong>Conta Corrente</strong> (opcional) - Para múltiplas contas</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Status da Configuração</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { label: "Client ID", ok: statusQuery.data?.hasClientId },
+                { label: "Client Secret", ok: statusQuery.data?.hasClientSecret },
+                { label: "Certificado", ok: statusQuery.data?.hasCert },
+                { label: "Chave Privada", ok: statusQuery.data?.hasKey },
+                { label: "Conta Corrente", ok: !!statusQuery.data?.contaCorrente },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2 p-3 rounded-lg border">
+                  {item.ok ? <CheckCircle className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                  <span className="text-sm">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const situacaoColors: Record<string, string> = {
+    RECEBIDO: "bg-green-500/10 text-green-600",
+    A_RECEBER: "bg-blue-500/10 text-blue-600",
+    MARCADO_RECEBIDO: "bg-green-500/10 text-green-500",
+    ATRASADO: "bg-red-500/10 text-red-600",
+    CANCELADO: "bg-gray-500/10 text-gray-500",
+    EXPIRADO: "bg-orange-500/10 text-orange-600",
+    EM_PROCESSAMENTO: "bg-yellow-500/10 text-yellow-600",
+    FALHA_EMISSAO: "bg-red-500/10 text-red-500",
+    PROTESTO: "bg-purple-500/10 text-purple-600",
+  };
+
+  const situacaoLabels: Record<string, string> = {
+    RECEBIDO: "Recebido", A_RECEBER: "A Receber", MARCADO_RECEBIDO: "Marcado Recebido",
+    ATRASADO: "Atrasado", CANCELADO: "Cancelado", EXPIRADO: "Expirado",
+    EM_PROCESSAMENTO: "Processando", FALHA_EMISSAO: "Falha", PROTESTO: "Protesto",
+  };
+
+  function handleEmitir() {
+    if (!novoBoleto.seuNumero || !novoBoleto.valorNominal || !novoBoleto.dataVencimento || !novoBoleto.pagador.cpfCnpj || !novoBoleto.pagador.nome) {
+      toast.error("Preencha todos os campos obrigatórios"); return;
+    }
+    emitirMutation.mutate({
+      seuNumero: novoBoleto.seuNumero,
+      valorNominal: novoBoleto.valorNominal,
+      dataVencimento: novoBoleto.dataVencimento,
+      numDiasAgenda: novoBoleto.numDiasAgenda,
+      pagador: novoBoleto.pagador,
+      multa: novoBoleto.multaTaxa > 0 ? { taxa: novoBoleto.multaTaxa, codigo: "PERCENTUAL" } : undefined,
+      mora: novoBoleto.moraTaxa > 0 ? { taxa: novoBoleto.moraTaxa, codigo: "TAXAMENSAL" } : undefined,
+      mensagem: novoBoleto.mensagem ? { linha1: novoBoleto.mensagem } : undefined,
+      formasRecebimento: ["BOLETO", "PIX"],
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Status e Saldo */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-green-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div><p className="text-xs text-muted-foreground">Status</p><p className="text-lg font-bold text-green-500">Conectado</p></div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div><p className="text-xs text-muted-foreground">Saldo Disponível</p>
+                <p className="text-lg font-bold">{saldoQuery.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : saldoQuery.data?.error ? <span className="text-red-500 text-sm">Erro</span> : formatCurrency(saldoQuery.data?.disponivel || 0)}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div><p className="text-xs text-muted-foreground">Bloqueado</p>
+                <p className="text-lg font-bold">{saldoQuery.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : formatCurrency(saldoQuery.data?.bloqueadoCheque || 0)}</p>
+              </div>
+              <CreditCard className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div><p className="text-xs text-muted-foreground">Limite</p>
+                <p className="text-lg font-bold">{saldoQuery.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : formatCurrency(saldoQuery.data?.limite || 0)}</p>
+              </div>
+              <Wallet className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Sub-abas: Extrato / Boletos */}
+      <Tabs value={subTab} onValueChange={setSubTab}>
+        <TabsList>
+          <TabsTrigger value="extrato"><List className="h-4 w-4 mr-1" /> Extrato</TabsTrigger>
+          <TabsTrigger value="boletos"><FileText className="h-4 w-4 mr-1" /> Boletos</TabsTrigger>
+        </TabsList>
+
+        {/* ---- EXTRATO ---- */}
+        <TabsContent value="extrato">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base">Extrato Bancário</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Input type="date" value={periodo.dataInicio} onChange={(e) => setPeriodo(p => ({ ...p, dataInicio: e.target.value }))} className="w-40" />
+                  <span className="text-muted-foreground">até</span>
+                  <Input type="date" value={periodo.dataFim} onChange={(e) => setPeriodo(p => ({ ...p, dataFim: e.target.value }))} className="w-40" />
+                  <Button variant="outline" size="sm" onClick={() => { extratoQuery.refetch(); saldoQuery.refetch(); }}>
+                    <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {extratoQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /><span className="ml-2 text-muted-foreground">Consultando extrato...</span></div>
+              ) : extratoQuery.data?.error ? (
+                <div className="text-center py-8"><AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" /><p className="text-sm text-red-500">{extratoQuery.data.error}</p></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b"><th className="text-left p-2">Data</th><th className="text-left p-2">Descrição</th><th className="text-left p-2">Tipo</th><th className="text-right p-2">Valor</th></tr></thead>
+                    <tbody>
+                      {(extratoQuery.data?.transacoes || []).length === 0 ? (
+                        <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">Nenhuma transação encontrada no período.</td></tr>
+                      ) : (
+                        (extratoQuery.data?.transacoes || []).map((t: any, i: number) => (
+                          <tr key={i} className="border-b hover:bg-muted/50">
+                            <td className="p-2">{t.dataEntrada || t.dataMovimento || '-'}</td>
+                            <td className="p-2">{t.titulo || t.descricao || '-'}</td>
+                            <td className="p-2"><span className={cn("px-2 py-0.5 rounded text-xs font-medium", t.tipoOperacao === 'C' || t.tipo === 'C' ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>{t.tipoOperacao === 'C' || t.tipo === 'C' ? 'Crédito' : 'Débito'}</span></td>
+                            <td className={cn("p-2 text-right font-medium", t.tipoOperacao === 'C' || t.tipo === 'C' ? "text-green-500" : "text-red-500")}>{t.tipoOperacao === 'C' || t.tipo === 'C' ? '+' : '-'}{formatCurrency(Math.abs(t.valor || 0))}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ---- BOLETOS ---- */}
+        <TabsContent value="boletos">
+          <div className="space-y-4">
+            {/* Filtros e Ações */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <Input type="date" value={boletoPeriodo.dataInicial} onChange={(e) => setBoletoPeriodo(p => ({ ...p, dataInicial: e.target.value }))} className="w-40" />
+                    <span className="text-muted-foreground">até</span>
+                    <Input type="date" value={boletoPeriodo.dataFinal} onChange={(e) => setBoletoPeriodo(p => ({ ...p, dataFinal: e.target.value }))} className="w-40" />
+                    <Select value={filtroSituacao} onValueChange={setFiltroSituacao}>
+                      <SelectTrigger className="w-44"><SelectValue placeholder="Todas situações" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas</SelectItem>
+                        <SelectItem value="A_RECEBER">A Receber</SelectItem>
+                        <SelectItem value="RECEBIDO">Recebido</SelectItem>
+                        <SelectItem value="ATRASADO">Atrasado</SelectItem>
+                        <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                        <SelectItem value="EM_PROCESSAMENTO">Processando</SelectItem>
+                        <SelectItem value="EXPIRADO">Expirado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" onClick={() => boletosQuery.refetch()}>
+                      <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
+                    </Button>
+                  </div>
+                  <Button onClick={() => setShowEmitirDialog(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Emitir Boleto
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Lista de Boletos */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Boletos Emitidos</CardTitle></CardHeader>
+              <CardContent>
+                {boletosQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /><span className="ml-2 text-muted-foreground">Consultando boletos...</span></div>
+                ) : boletosQuery.data?.error ? (
+                  <div className="text-center py-8"><AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" /><p className="text-sm text-red-500">{boletosQuery.data.error}</p></div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">Seu Número</th>
+                          <th className="text-left p-2">Pagador</th>
+                          <th className="text-left p-2">Vencimento</th>
+                          <th className="text-right p-2">Valor</th>
+                          <th className="text-center p-2">Situação</th>
+                          <th className="text-center p-2">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(boletosQuery.data?.cobrancas || []).length === 0 ? (
+                          <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum boleto encontrado no período.</td></tr>
+                        ) : (
+                          (boletosQuery.data?.cobrancas || []).map((b: any, i: number) => (
+                            <tr key={i} className="border-b hover:bg-muted/50">
+                              <td className="p-2 font-mono text-xs">{b.seuNumero || '-'}</td>
+                              <td className="p-2">{b.pagador?.nome || '-'}</td>
+                              <td className="p-2">{b.dataVencimento ? formatDate(b.dataVencimento) : '-'}</td>
+                              <td className="p-2 text-right font-medium">{formatCurrency(b.valorNominal || 0)}</td>
+                              <td className="p-2 text-center">
+                                <span className={cn("px-2 py-0.5 rounded text-xs font-medium", situacaoColors[b.situacao] || "bg-gray-500/10 text-gray-500")}>
+                                  {situacaoLabels[b.situacao] || b.situacao}
+                                </span>
+                              </td>
+                              <td className="p-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button variant="ghost" size="sm" title="Download PDF" onClick={() => downloadPdfMutation.mutate({ codigoSolicitacao: b.codigoSolicitacao })}>
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                  {(b.situacao === 'A_RECEBER' || b.situacao === 'EM_PROCESSAMENTO') && (
+                                    <Button variant="ghost" size="sm" title="Cancelar" className="text-red-500 hover:text-red-600" onClick={() => { setBoletoSelecionado(b.codigoSolicitacao); setShowCancelarDialog(true); }}>
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    {boletosQuery.data?.totalElementos > 0 && (
+                      <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
+                        <span>{boletosQuery.data.totalElementos} boleto(s) encontrado(s)</span>
+                        <span>Página {(boletosQuery.data.paginaAtual || 0) + 1} de {boletosQuery.data.totalPaginas || 1}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialog Emitir Boleto */}
+      <Dialog open={showEmitirDialog} onOpenChange={setShowEmitirDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Emitir Novo Boleto</DialogTitle>
+            <DialogDescription>Preencha os dados para emissão do boleto com código de barras e QR Code Pix.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Seu Número *</Label><Input value={novoBoleto.seuNumero} onChange={(e) => setNovoBoleto(p => ({ ...p, seuNumero: e.target.value }))} placeholder="Número de referência" maxLength={15} /></div>
+              <div><Label>Valor Nominal (R$) *</Label><Input type="number" step="0.01" min="2.50" value={novoBoleto.valorNominal || ''} onChange={(e) => setNovoBoleto(p => ({ ...p, valorNominal: parseFloat(e.target.value) || 0 }))} placeholder="0,00" /></div>
+              <div><Label>Data Vencimento *</Label><Input type="date" value={novoBoleto.dataVencimento} onChange={(e) => setNovoBoleto(p => ({ ...p, dataVencimento: e.target.value }))} /></div>
+              <div><Label>Dias p/ Cancelamento Auto</Label><Input type="number" min={0} max={60} value={novoBoleto.numDiasAgenda} onChange={(e) => setNovoBoleto(p => ({ ...p, numDiasAgenda: parseInt(e.target.value) || 0 }))} /></div>
+            </div>
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-sm mb-3">Dados do Pagador</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Nome *</Label><Input value={novoBoleto.pagador.nome} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, nome: e.target.value } }))} /></div>
+                <div><Label>CPF/CNPJ *</Label><Input value={novoBoleto.pagador.cpfCnpj} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, cpfCnpj: e.target.value } }))} placeholder="Somente números" /></div>
+                <div>
+                  <Label>Tipo Pessoa</Label>
+                  <Select value={novoBoleto.pagador.tipoPessoa} onValueChange={(v) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, tipoPessoa: v as "FISICA" | "JURIDICA" } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FISICA">Pessoa Física</SelectItem>
+                      <SelectItem value="JURIDICA">Pessoa Jurídica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>E-mail</Label><Input value={novoBoleto.pagador.email} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, email: e.target.value } }))} /></div>
+                <div className="col-span-2"><Label>Endereço *</Label><Input value={novoBoleto.pagador.endereco} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, endereco: e.target.value } }))} /></div>
+                <div><Label>Bairro *</Label><Input value={novoBoleto.pagador.bairro} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, bairro: e.target.value } }))} /></div>
+                <div><Label>Cidade *</Label><Input value={novoBoleto.pagador.cidade} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, cidade: e.target.value } }))} /></div>
+                <div><Label>UF *</Label><Input value={novoBoleto.pagador.uf} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, uf: e.target.value.toUpperCase() } }))} maxLength={2} /></div>
+                <div><Label>CEP *</Label><Input value={novoBoleto.pagador.cep} onChange={(e) => setNovoBoleto(p => ({ ...p, pagador: { ...p.pagador, cep: e.target.value } }))} placeholder="Somente números" /></div>
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-sm mb-3">Encargos (opcional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Multa (%)</Label><Input type="number" step="0.01" min={0} value={novoBoleto.multaTaxa} onChange={(e) => setNovoBoleto(p => ({ ...p, multaTaxa: parseFloat(e.target.value) || 0 }))} /></div>
+                <div><Label>Mora Mensal (%)</Label><Input type="number" step="0.01" min={0} value={novoBoleto.moraTaxa} onChange={(e) => setNovoBoleto(p => ({ ...p, moraTaxa: parseFloat(e.target.value) || 0 }))} /></div>
+              </div>
+            </div>
+            <div><Label>Mensagem no Boleto</Label><Textarea value={novoBoleto.mensagem} onChange={(e) => setNovoBoleto(p => ({ ...p, mensagem: e.target.value }))} placeholder="Mensagem opcional no corpo do boleto" rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmitirDialog(false)}>Cancelar</Button>
+            <Button onClick={handleEmitir} disabled={emitirMutation.isPending}>
+              {emitirMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Emitindo...</> : <><FileText className="h-4 w-4 mr-1" /> Emitir Boleto</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Cancelar Boleto */}
+      <Dialog open={showCancelarDialog} onOpenChange={setShowCancelarDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Boleto</DialogTitle>
+            <DialogDescription>Informe o motivo do cancelamento. Esta ação não pode ser desfeita.</DialogDescription>
+          </DialogHeader>
+          <div><Label>Motivo do Cancelamento *</Label><Input value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Ex: Pagamento realizado por outra forma" maxLength={50} /></div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelarDialog(false)}>Voltar</Button>
+            <Button variant="destructive" onClick={() => { if (!motivoCancelamento.trim()) { toast.error("Informe o motivo"); return; } if (boletoSelecionado) cancelarMutation.mutate({ codigoSolicitacao: boletoSelecionado, motivoCancelamento }); }} disabled={cancelarMutation.isPending}>
+              {cancelarMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <XCircle className="h-4 w-4 mr-1" />} Cancelar Boleto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Info */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CheckCircle className="h-3 w-3 text-green-500" />
+            <span>Integração ativa com Banco Inter</span>
+            <span className="mx-2">|</span>
+            <span>Base URL: {statusQuery.data?.baseUrl}</span>
+            {statusQuery.data?.contaCorrente && (<><span className="mx-2">|</span><span>Conta: {statusQuery.data.contaCorrente}</span></>)}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ==================== MÓDULO PRINCIPAL ====================
 export default function FinanceiroModule() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -586,14 +1511,20 @@ export default function FinanceiroModule() {
           <TabsTrigger value="pagar"><Receipt className="h-4 w-4 mr-1" /> Contas a Pagar</TabsTrigger>
           <TabsTrigger value="receber"><Banknote className="h-4 w-4 mr-1" /> Contas a Receber</TabsTrigger>
           <TabsTrigger value="bancos"><Landmark className="h-4 w-4 mr-1" /> Bancos</TabsTrigger>
+          <TabsTrigger value="centros-custo"><Target className="h-4 w-4 mr-1" /> Centros de Custo</TabsTrigger>
+          <TabsTrigger value="importador"><Upload className="h-4 w-4 mr-1" /> Importar Excel</TabsTrigger>
           <TabsTrigger value="cadastros"><Building2 className="h-4 w-4 mr-1" /> Cadastros</TabsTrigger>
+          <TabsTrigger value="banco-inter"><Landmark className="h-4 w-4 mr-1" /> Banco Inter</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard"><FinDashboard /></TabsContent>
         <TabsContent value="pagar"><ContasPagar /></TabsContent>
         <TabsContent value="receber"><ContasReceber /></TabsContent>
         <TabsContent value="bancos"><BancosView /></TabsContent>
+        <TabsContent value="centros-custo"><CentrosCusto /></TabsContent>
+        <TabsContent value="importador"><ImportadorExcel /></TabsContent>
         <TabsContent value="cadastros"><Cadastros /></TabsContent>
+        <TabsContent value="banco-inter"><BancoInterView /></TabsContent>
       </Tabs>
     </div>
   );

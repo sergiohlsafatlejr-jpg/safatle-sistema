@@ -3171,3 +3171,13 @@
 - [x] REESTRUTURAR Painel Executivo: apenas KPIs consolidados (Atendimentos, Faturado, Recebido, Glosado, Recursados por estabelecimento) - sem abas internas
 - [x] Módulos Financeiro, Contratos, Propostas como itens separados no menu lateral do Safatle
 - [x] NFS-e disponível para TODOS os estabelecimentos (não apenas Safatle)
+- [x] Criar tela de Gerenciamento de Permissões separada no menu do Safatle (controle granular por módulo/usuário)
+- [x] Integração API Banco Inter no módulo Financeiro (extratos, saldo, extrato PDF)
+- [x] Criar Centro de Custo no Financeiro > Cadastros com vinculação às Contas a Pagar
+- [x] Criar Importador de Excel para Contas a Pagar e Contas a Receber
+- [x] Implementar geração de boletos automáticos via API Banco Inter (Cobrança v3)
+- [x] Interface de emissão de boletos no módulo Financeiro (dados pagador, valor, vencimento, multa, juros, desconto)
+- [x] Listagem e consulta de boletos emitidos com status (aberto, pago, vencido, cancelado)
+- [x] Download de PDF do boleto e QR Code Pix
+- [x] Cancelamento de boletos com motivo
+- [x] Testes vitest para Centro de Custo, Importador Excel, Boletos e Permissões (14 testes)

@@ -4033,6 +4033,7 @@ export const finTransacoes = mysqlTable("fin_transacoes", {
   tipoId: int("tipoId"), // FK para fin_tipos_pagamento
   custoId: int("custoId"), // FK para fin_custos
   bancoId: int("bancoId"), // FK para fin_bancos
+  centroCustoId: int("centroCustoId"), // FK para fin_centros_custo
   descricao: varchar("descricao", { length: 500 }).notNull(),
   valor: decimal("valor", { precision: 15, scale: 2 }).default("0").notNull(),
   dataVencimento: date("dataVencimento").notNull(),
@@ -4123,6 +4124,32 @@ export const finPrevisaoReceita = mysqlTable("fin_previsao_receita", {
 
 export type FinPrevisaoReceita = typeof finPrevisaoReceita.$inferSelect;
 export type InsertFinPrevisaoReceita = typeof finPrevisaoReceita.$inferInsert;
+
+// ============================================================
+// CENTROS DE CUSTO
+// ============================================================
+
+/**
+ * Centros de Custo
+ */
+export const finCentrosCusto = mysqlTable("fin_centros_custo", {
+  id: int("id").autoincrement().primaryKey(),
+  codigo: varchar("codigo", { length: 50 }).notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  responsavel: varchar("responsavel", { length: 255 }),
+  orcamentoMensal: decimal("orcamentoMensal", { precision: 15, scale: 2 }),
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  userId: int("userId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  codigoIdx: index("idx_fin_cc_codigo").on(table.codigo),
+  ativoIdx: index("idx_fin_cc_ativo").on(table.ativo),
+}));
+
+export type FinCentroCusto = typeof finCentrosCusto.$inferSelect;
+export type InsertFinCentroCusto = typeof finCentrosCusto.$inferInsert;
 
 // ============================================================
 // MÓDULO CONTRATOS
