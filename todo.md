@@ -3220,3 +3220,14 @@
 - [x] Mutations duplicarEmLote no backend (transacoes e recebiveis)
 - [x] Testes vitest para período personalizado e duplicarEmLote (35 testes passando)
 - [ ] Integração API Banco Inter para emissão de boletos (aguardando Client ID e Client Secret)
+- [x] Dashboard Financeiro completo: Cards KPI (Saldo Bancário, Total a Pagar, Total a Receber, Vencidos, Saldo Projetado)
+- [x] Dashboard: Alerta de pagamentos vencidos com link para detalhes
+- [x] Dashboard: Cards secundários (Pagamentos do Dia, Total Pago, Total Recebido, Custos Fixos)
+- [x] Dashboard: Próximos Vencimentos e Próximos Recebimentos (próximos 7 dias)
+- [x] Dashboard: Gráfico Fluxo de Caixa Projetado (7/15/30/60 dias) com linhas Recebimentos/Pagamentos/Saldo
+- [x] Dashboard: Análise Detalhada (Evolução Mensal de Pagamentos + Top 5 Maiores Pagamentos)
+- [x] Dashboard: Pagamentos por Categoria com variação mês a mês
+- [x] Dashboard: Comparativo Mensal por Categoria e por Descrição com variação percentual
+- [x] Aba DRE (Demonstrativo de Resultado do Exercício) separada no módulo financeiro
+- [x] Backend: procedures para KPIs, fluxo de caixa, análise detalhada, comparativo mensal e DRE
+- [x] Testes vitest para Dashboard e DRE (51 testes passando)

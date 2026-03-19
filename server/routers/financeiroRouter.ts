@@ -699,13 +699,146 @@ const dashboardRouter = router({
         condReceber.push(eq(finRecebiveis.empresaId, input.empresaId));
       }
 
-      const [[despPago], [despPendente], [despVencido], [recRecebido], [recPendente]] = await Promise.all([
+      // Saldo bancário
+      const saldoBancario = await db.select({
+        total: sql<string>`COALESCE(SUM(saldoInicial), 0)`,
+        qtdBancos: sql<number>`COUNT(*)`
+      }).from(finBancos);
+
+      const [[despPago], [despPendente], [despVencido], [despVencidoCount], [recRecebido], [recPendente], [recPendenteCount], [despPendenteCount],
+        [pagDia], [pagDiaCount], [pagDiaTotal],
+        [totalPagoGeral], [totalRecebidoGeral],
+        [custosFixos]] = await Promise.all([
         db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(...condPagar, eq(finTransacoes.pago, "sim"))),
         db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(...condPagar, eq(finTransacoes.pago, "nao"))),
-        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(...condPagar, eq(finTransacoes.pago, "nao"), lte(finTransacoes.dataVencimento, new Date(hoje)))),
+        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(eq(finTransacoes.pago, "nao"), lte(finTransacoes.dataVencimento, new Date(hoje)))),
+        db.select({ count: sql<number>`COUNT(*)` }).from(finTransacoes).where(and(eq(finTransacoes.pago, "nao"), lte(finTransacoes.dataVencimento, new Date(hoje)))),
         db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(and(...condReceber, eq(finRecebiveis.recebido, "sim"))),
         db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(and(...condReceber, eq(finRecebiveis.recebido, "nao"))),
+        db.select({ count: sql<number>`COUNT(*)` }).from(finRecebiveis).where(and(...condReceber, eq(finRecebiveis.recebido, "nao"))),
+        db.select({ count: sql<number>`COUNT(*)` }).from(finTransacoes).where(and(...condPagar, eq(finTransacoes.pago, "nao"))),
+        // Pagamentos do dia
+        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(eq(finTransacoes.dataVencimento, new Date(hoje)), eq(finTransacoes.pago, "nao"))),
+        db.select({ count: sql<number>`COUNT(*)` }).from(finTransacoes).where(eq(finTransacoes.dataVencimento, new Date(hoje))),
+        db.select({ count: sql<number>`COUNT(*)` }).from(finTransacoes).where(and(eq(finTransacoes.dataVencimento, new Date(hoje)), eq(finTransacoes.pago, "nao"))),
+        // Total pago geral (todos os meses)
+        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(eq(finTransacoes.pago, "sim")),
+        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(eq(finRecebiveis.recebido, "sim")),
+        // Custos fixos
+        db.select({ total: sql<string>`COALESCE(SUM(valor), 0)`, count: sql<number>`COUNT(*)` }).from(finCustos).where(eq(finCustos.tipo, "fixo")),
       ]);
+
+      // Próximos vencimentos (7 dias)
+      const proxVencimentos = await db.select({
+        id: finTransacoes.id,
+        descricao: finTransacoes.descricao,
+        valor: finTransacoes.valor,
+        dataVencimento: finTransacoes.dataVencimento,
+        empresaNome: finEmpresas.nome,
+      }).from(finTransacoes)
+        .leftJoin(finEmpresas, eq(finTransacoes.empresaId, finEmpresas.id))
+        .where(and(
+          eq(finTransacoes.pago, "nao"),
+          gte(finTransacoes.dataVencimento, new Date(hoje)),
+          lte(finTransacoes.dataVencimento, new Date(new Date(hoje).getTime() + 7 * 86400000).toISOString().slice(0, 10)),
+        ))
+        .orderBy(asc(finTransacoes.dataVencimento))
+        .limit(10);
+
+      const proxVencTotal = await db.select({
+        total: sql<string>`COALESCE(SUM(valor), 0)`,
+        count: sql<number>`COUNT(*)`
+      }).from(finTransacoes).where(and(
+        eq(finTransacoes.pago, "nao"),
+        gte(finTransacoes.dataVencimento, new Date(hoje)),
+        lte(finTransacoes.dataVencimento, new Date(new Date(hoje).getTime() + 7 * 86400000).toISOString().slice(0, 10)),
+      ));
+
+      // Próximos recebimentos (7 dias)
+      const proxRecebimentos = await db.select({
+        id: finRecebiveis.id,
+        descricao: finRecebiveis.descricao,
+        valor: finRecebiveis.valor,
+        dataVencimento: finRecebiveis.dataVencimento,
+        clienteNome: finClientes.nome,
+      }).from(finRecebiveis)
+        .leftJoin(finClientes, eq(finRecebiveis.clienteId, finClientes.id))
+        .where(and(
+          eq(finRecebiveis.recebido, "nao"),
+          gte(finRecebiveis.dataVencimento, new Date(hoje)),
+          lte(finRecebiveis.dataVencimento, new Date(new Date(hoje).getTime() + 7 * 86400000).toISOString().slice(0, 10)),
+        ))
+        .orderBy(asc(finRecebiveis.dataVencimento))
+        .limit(10);
+
+      const proxRecebTotal = await db.select({
+        total: sql<string>`COALESCE(SUM(valor), 0)`,
+        count: sql<number>`COUNT(*)`
+      }).from(finRecebiveis).where(and(
+        eq(finRecebiveis.recebido, "nao"),
+        gte(finRecebiveis.dataVencimento, new Date(hoje)),
+        lte(finRecebiveis.dataVencimento, new Date(new Date(hoje).getTime() + 7 * 86400000).toISOString().slice(0, 10)),
+      ));
+
+      // Top 5 maiores pagamentos do mês
+      const topPagamentos = await db.select({
+        id: finTransacoes.id,
+        descricao: finTransacoes.descricao,
+        valor: finTransacoes.valor,
+        dataVencimento: finTransacoes.dataVencimento,
+        pago: finTransacoes.pago,
+        empresaNome: finEmpresas.nome,
+        categoriaNome: finCategorias.nome,
+      }).from(finTransacoes)
+        .leftJoin(finEmpresas, eq(finTransacoes.empresaId, finEmpresas.id))
+        .leftJoin(finCategorias, eq(finTransacoes.categoriaId, finCategorias.id))
+        .where(and(...condPagar))
+        .orderBy(desc(finTransacoes.valor))
+        .limit(5);
+
+      // Pagamentos por categoria (mês atual vs mês anterior)
+      const mesAnterior = new Date(ano, mesNum - 2, 1);
+      const maIni = `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}-01`;
+      const maLastDay = new Date(mesAnterior.getFullYear(), mesAnterior.getMonth() + 1, 0).getDate();
+      const maFim = `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}-${maLastDay}`;
+
+      const catAtual = await db.select({
+        categoriaId: finTransacoes.categoriaId,
+        categoriaNome: finCategorias.nome,
+        totalPago: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'sim' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        totalPendente: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'nao' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        totalGeral: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+      }).from(finTransacoes)
+        .leftJoin(finCategorias, eq(finTransacoes.categoriaId, finCategorias.id))
+        .where(and(gte(finTransacoes.dataVencimento, new Date(inicio)), lte(finTransacoes.dataVencimento, new Date(fim))))
+        .groupBy(finTransacoes.categoriaId, finCategorias.nome)
+        .orderBy(desc(sql`SUM(${finTransacoes.valor})`));
+
+      const catAnterior = await db.select({
+        categoriaId: finTransacoes.categoriaId,
+        totalGeral: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+        totalPendente: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'nao' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+      }).from(finTransacoes)
+        .where(and(gte(finTransacoes.dataVencimento, new Date(maIni)), lte(finTransacoes.dataVencimento, new Date(maFim))))
+        .groupBy(finTransacoes.categoriaId);
+
+      const catAnteriorMap = new Map(catAnterior.map(c => [c.categoriaId, c]));
+      const categorias = catAtual.map(c => {
+        const ant = catAnteriorMap.get(c.categoriaId);
+        const totalAnt = ant ? Number(ant.totalGeral) : 0;
+        const totalAtual = Number(c.totalGeral);
+        const variacao = totalAnt > 0 ? ((totalAtual - totalAnt) / totalAnt * 100) : 0;
+        return {
+          categoriaId: c.categoriaId,
+          nome: c.categoriaNome || "Sem categoria",
+          mesAtual: totalAtual,
+          mesAtualPendente: Number(c.totalPendente),
+          mesAnterior: totalAnt,
+          mesAnteriorPendente: ant ? Number(ant.totalPendente) : 0,
+          variacao: Math.round(variacao),
+          total: totalAtual + totalAnt,
+        };
+      });
 
       // Evolução últimos 6 meses
       const evolucao = [];
@@ -718,26 +851,235 @@ const dashboardRouter = router({
 
         const cP = [gte(finTransacoes.dataVencimento, new Date(mIni)), lte(finTransacoes.dataVencimento, new Date(mFim))];
         const cR = [gte(finRecebiveis.dataVencimento, new Date(mIni)), lte(finRecebiveis.dataVencimento, new Date(mFim))];
-        if (input?.empresaId) { cP.push(eq(finTransacoes.empresaId, input.empresaId)); cR.push(eq(finRecebiveis.empresaId, input.empresaId)); }
 
-        const [[desp], [rec]] = await Promise.all([
+        const [[despT], [despPagoM], [recT], [recRecM]] = await Promise.all([
           db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(...cP)),
+          db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(...cP, eq(finTransacoes.pago, "sim"))),
           db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(and(...cR)),
+          db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(and(...cR, eq(finRecebiveis.recebido, "sim"))),
         ]);
-        evolucao.push({ mes: mLabel, despesas: Number(desp.total), receitas: Number(rec.total) });
+        evolucao.push({ mes: mLabel, despesas: Number(despT.total), despesasPago: Number(despPagoM.total), receitas: Number(recT.total), receitasRecebido: Number(recRecM.total) });
       }
 
       return {
         mesRef,
+        saldoBancario: saldoBancario[0]?.total || "0",
+        qtdBancos: saldoBancario[0]?.qtdBancos || 0,
         despesasPago: despPago.total,
         despesasPendente: despPendente.total,
+        despesasPendenteCount: despPendenteCount.count,
         despesasVencido: despVencido.total,
+        despesasVencidoCount: despVencidoCount.count,
         receitasRecebido: recRecebido.total,
         receitasPendente: recPendente.total,
+        receitasPendenteCount: recPendenteCount.count,
+        pagamentoDia: pagDia.total,
+        pagamentoDiaCount: pagDiaCount.count,
+        pagamentoDiaPendente: pagDiaTotal.count,
+        totalPagoGeral: totalPagoGeral.total,
+        totalRecebidoGeral: totalRecebidoGeral.total,
+        custosFixos: custosFixos.total,
+        custosFixosCount: custosFixos.count,
+        proxVencimentos,
+        proxVencTotal: { total: proxVencTotal[0]?.total || "0", count: proxVencTotal[0]?.count || 0 },
+        proxRecebimentos,
+        proxRecebTotal: { total: proxRecebTotal[0]?.total || "0", count: proxRecebTotal[0]?.count || 0 },
+        topPagamentos,
+        categorias,
         evolucao,
+        mesAtualLabel: `${MONTHS_SHORT[mesNum - 1]}/${String(ano).slice(2)}`,
+        mesAnteriorLabel: `${MONTHS_SHORT[mesAnterior.getMonth()]}/${String(mesAnterior.getFullYear()).slice(2)}`,
       };
     }),
+
+  // Fluxo de caixa projetado
+  fluxoCaixa: protectedProcedure
+    .input(z.object({ dias: z.number().default(30) }))
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const hoje = new Date();
+      const hojeStr = hoje.toISOString().slice(0, 10);
+      const fimDate = new Date(hoje.getTime() + input.dias * 86400000);
+      const fimStr = fimDate.toISOString().slice(0, 10);
+
+      // Buscar todos os pagamentos e recebimentos no período
+      const pagamentos = await db.select({
+        dataVencimento: finTransacoes.dataVencimento,
+        valor: finTransacoes.valor,
+        pago: finTransacoes.pago,
+      }).from(finTransacoes)
+        .where(and(
+          gte(finTransacoes.dataVencimento, new Date(hojeStr)),
+          lte(finTransacoes.dataVencimento, new Date(fimStr)),
+        ));
+
+      const recebimentos = await db.select({
+        dataVencimento: finRecebiveis.dataVencimento,
+        valor: finRecebiveis.valor,
+        recebido: finRecebiveis.recebido,
+      }).from(finRecebiveis)
+        .where(and(
+          gte(finRecebiveis.dataVencimento, new Date(hojeStr)),
+          lte(finRecebiveis.dataVencimento, new Date(fimStr)),
+        ));
+
+      // Agrupar por dia
+      const diasMap = new Map<string, { receber: number; pagar: number }>();
+      for (let i = 0; i <= input.dias; i++) {
+        const d = new Date(hoje.getTime() + i * 86400000).toISOString().slice(0, 10);
+        diasMap.set(d, { receber: 0, pagar: 0 });
+      }
+
+      for (const p of pagamentos) {
+        const d = new Date(p.dataVencimento).toISOString().slice(0, 10);
+        const entry = diasMap.get(d);
+        if (entry) entry.pagar += Number(p.valor);
+      }
+      for (const r of recebimentos) {
+        const d = new Date(r.dataVencimento).toISOString().slice(0, 10);
+        const entry = diasMap.get(d);
+        if (entry) entry.receber += Number(r.valor);
+      }
+
+      let saldoAcumulado = 0;
+      let totalReceber = 0;
+      let totalPagar = 0;
+      const pontos = Array.from(diasMap.entries()).sort().map(([data, v]) => {
+        saldoAcumulado += v.receber - v.pagar;
+        totalReceber += v.receber;
+        totalPagar += v.pagar;
+        return { data, receber: v.receber, pagar: v.pagar, saldo: saldoAcumulado };
+      });
+
+      return { pontos, totalReceber, totalPagar, saldoFinal: saldoAcumulado };
+    }),
+
+  // Comparativo mensal
+  comparativoMensal: protectedProcedure
+    .input(z.object({ mes1: z.string(), mes2: z.string(), tipo: z.enum(["categoria", "descricao"]).default("categoria") }))
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const parse = (m: string) => {
+        const [a, n] = m.split("-").map(Number);
+        const ini = `${a}-${String(n).padStart(2, "0")}-01`;
+        const ld = new Date(a, n, 0).getDate();
+        const fim = `${a}-${String(n).padStart(2, "0")}-${ld}`;
+        return { ini, fim, label: `${MONTHS_SHORT[n - 1]}/${String(a).slice(2)}` };
+      };
+      const m1 = parse(input.mes1);
+      const m2 = parse(input.mes2);
+
+      const groupField = input.tipo === "categoria" ? finCategorias.nome : finTransacoes.descricao;
+
+      const getData = async (ini: string, fim: string) => {
+        if (input.tipo === "categoria") {
+          return db.select({
+            nome: sql<string>`COALESCE(${finCategorias.nome}, 'Sem categoria')`,
+            total: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+          }).from(finTransacoes)
+            .leftJoin(finCategorias, eq(finTransacoes.categoriaId, finCategorias.id))
+            .where(and(gte(finTransacoes.dataVencimento, new Date(ini)), lte(finTransacoes.dataVencimento, new Date(fim))))
+            .groupBy(finCategorias.nome)
+            .orderBy(desc(sql`SUM(${finTransacoes.valor})`));
+        } else {
+          return db.select({
+            nome: finTransacoes.descricao,
+            total: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+          }).from(finTransacoes)
+            .where(and(gte(finTransacoes.dataVencimento, new Date(ini)), lte(finTransacoes.dataVencimento, new Date(fim))))
+            .groupBy(finTransacoes.descricao)
+            .orderBy(desc(sql`SUM(${finTransacoes.valor})`));
+        }
+      };
+
+      const [data1, data2] = await Promise.all([getData(m1.ini, m1.fim), getData(m2.ini, m2.fim)]);
+      const map2 = new Map(data2.map(d => [d.nome, Number(d.total)]));
+      const total1 = data1.reduce((s, d) => s + Number(d.total), 0);
+      const total2 = data2.reduce((s, d) => s + Number(d.total), 0);
+      const varTotal = total1 > 0 ? ((total2 - total1) / total1 * 100) : 0;
+
+      const allNames = new Set([...data1.map(d => d.nome), ...data2.map(d => d.nome)]);
+      const map1 = new Map(data1.map(d => [d.nome, Number(d.total)]));
+      const items = Array.from(allNames).map(nome => {
+        const v1 = map1.get(nome) || 0;
+        const v2 = map2.get(nome) || 0;
+        const variacao = v1 > 0 ? ((v2 - v1) / v1 * 100) : (v2 > 0 ? 100 : 0);
+        return { nome, mes1: v1, mes2: v2, variacao: Math.round(variacao * 10) / 10 };
+      }).sort((a, b) => b.mes1 - a.mes1);
+
+      return { mes1Label: m1.label, mes2Label: m2.label, total1, total2, varTotal: Math.round(varTotal * 10) / 10, items };
+    }),
+
+  // DRE
+  dre: protectedProcedure
+    .input(z.object({ mes: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const now = new Date();
+      const mesRef = input?.mes || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const [ano, mesNum] = mesRef.split("-").map(Number);
+      const inicio = `${ano}-${String(mesNum).padStart(2, "0")}-01`;
+      const lastDay = new Date(ano, mesNum, 0).getDate();
+      const fim = `${ano}-${String(mesNum).padStart(2, "0")}-${lastDay}`;
+
+      // Receitas por tipo de serviço
+      const receitas = await db.select({
+        tipoServico: sql<string>`COALESCE(${finRecebiveis.tipoServico}, 'Outros')`,
+        recebido: sql<string>`COALESCE(SUM(CASE WHEN ${finRecebiveis.recebido} = 'sim' THEN ${finRecebiveis.valor} ELSE 0 END), 0)`,
+        pendente: sql<string>`COALESCE(SUM(CASE WHEN ${finRecebiveis.recebido} = 'nao' THEN ${finRecebiveis.valor} ELSE 0 END), 0)`,
+        total: sql<string>`COALESCE(SUM(${finRecebiveis.valor}), 0)`,
+      }).from(finRecebiveis)
+        .where(and(gte(finRecebiveis.dataVencimento, new Date(inicio)), lte(finRecebiveis.dataVencimento, new Date(fim))))
+        .groupBy(finRecebiveis.tipoServico)
+        .orderBy(desc(sql`SUM(${finRecebiveis.valor})`));
+
+      // Despesas por categoria
+      const despesas = await db.select({
+        categoria: sql<string>`COALESCE(${finCategorias.nome}, 'Sem categoria')`,
+        pago: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'sim' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        pendente: sql<string>`COALESCE(SUM(CASE WHEN ${finTransacoes.pago} = 'nao' THEN ${finTransacoes.valor} ELSE 0 END), 0)`,
+        total: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+      }).from(finTransacoes)
+        .leftJoin(finCategorias, eq(finTransacoes.categoriaId, finCategorias.id))
+        .where(and(gte(finTransacoes.dataVencimento, new Date(inicio)), lte(finTransacoes.dataVencimento, new Date(fim))))
+        .groupBy(finCategorias.nome)
+        .orderBy(desc(sql`SUM(${finTransacoes.valor})`));
+
+      // Despesas por centro de custo
+      const despesasPorCC = await db.select({
+        centroCusto: sql<string>`COALESCE(${finCentrosCusto.nome}, 'Sem centro de custo')`,
+        total: sql<string>`COALESCE(SUM(${finTransacoes.valor}), 0)`,
+      }).from(finTransacoes)
+        .leftJoin(finCentrosCusto, eq(finTransacoes.centroCustoId, finCentrosCusto.id))
+        .where(and(gte(finTransacoes.dataVencimento, new Date(inicio)), lte(finTransacoes.dataVencimento, new Date(fim))))
+        .groupBy(finCentrosCusto.nome)
+        .orderBy(desc(sql`SUM(${finTransacoes.valor})`));
+
+      const totalReceitas = receitas.reduce((s, r) => s + Number(r.total), 0);
+      const totalDespesas = despesas.reduce((s, d) => s + Number(d.total), 0);
+      const resultado = totalReceitas - totalDespesas;
+
+      // Evolução DRE últimos 6 meses
+      const evolucaoDre = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(ano, mesNum - 1 - i, 1);
+        const mIni = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+        const mLastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const mFim = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${mLastDay}`;
+        const mLabel = `${MONTHS_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
+
+        const [[rec], [desp]] = await Promise.all([
+          db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finRecebiveis).where(and(gte(finRecebiveis.dataVencimento, new Date(mIni)), lte(finRecebiveis.dataVencimento, new Date(mFim)))),
+          db.select({ total: sql<string>`COALESCE(SUM(valor), 0)` }).from(finTransacoes).where(and(gte(finTransacoes.dataVencimento, new Date(mIni)), lte(finTransacoes.dataVencimento, new Date(mFim)))),
+        ]);
+        evolucaoDre.push({ mes: mLabel, receitas: Number(rec.total), despesas: Number(desp.total), resultado: Number(rec.total) - Number(desp.total) });
+      }
+
+      return { mesRef, receitas, despesas, despesasPorCC, totalReceitas, totalDespesas, resultado, evolucaoDre };
+    }),
 });
+
+const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 // ============================================================
 // CENTROS DE CUSTO

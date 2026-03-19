@@ -1,0 +1,50 @@
+Dashboard Financeiro - Design Reference (from screenshots)
+
+=== TOPO - Cards KPI (5 cards em linha) ===
+1. Saldo Bancário: R$ 25.876,56 - "3 banco(s)" - ícone banco (azul)
+2. Total a Pagar: R$ 913.505,25 - "166 pendentes" - ícone seta baixo (vermelho)
+3. Total a Receber: R$ 629.195,79 - "42 pendentes" - ícone seta cima (verde)
+4. Vencidos: R$ 54.433,26 - "9 transações" - ícone alerta (amarelo)
+5. Saldo Projetado: -R$ 284.309,46 - "Receber - Pagar" - ícone cifrão (verde)
+
+=== ALERTA VENCIDOS ===
+Barra amarela: "Pagamentos Vencidos! Você tem 9 pagamento(s) vencido(s) totalizando R$ 54.433,26. Ver detalhes →"
+Botão X para fechar
+
+=== CARDS SECUNDÁRIOS (4 cards em linha) ===
+1. Pagamentos do Dia: R$ 0,00 - "0 pendente(s) de 0" - ícone calendário (verde)
+2. Total Pago: R$ 1.663.657,63 - "Confirmados" - ícone check (azul)
+3. Total Recebido: R$ 900.793,31 - "Confirmados" - ícone check (verde)
+4. Custos Fixos: R$ 0,00 - "38 custos" - ícone relógio (branco)
+
+=== PRÓXIMOS VENCIMENTOS / RECEBIMENTOS (2 colunas) ===
+Esquerda: "Próximos Vencimentos" - 29 nos próximos 7 dias • R$ 136.091,40
+- Lista: Nome, Empresa • Data, Valor, "Amanhã"/"X dias"
+Direita: "Próximos Recebimentos" - 5 nos próximos 7 dias • R$ 106.481,97
+- Lista: Nome, Empresa • Data, Valor, "Amanhã"/"X dias"
+
+=== FLUXO DE CAIXA PROJETADO ===
+Gráfico de linhas com 3 séries: Recebimentos (verde), Pagamentos (vermelho), Saldo Acumulado (verde/vermelho)
+Filtros: 7 dias, 15 dias, 30 dias, 60 dias
+KPIs: A Receber R$ 390,5 mil (verde), A Pagar R$ 607,9 mil (vermelho), Saldo Final -R$ 217,4 mil (vermelho)
+
+=== ANÁLISE DETALHADA ===
+Esquerda: "Evolução Mensal de Pagamentos" - Gráfico área com Pago (verde) e Pendente (amarelo)
+Direita: "Top 5 Maiores Pagamentos" - Lista numerada com ranking, valor, status (Pago/Pendente)
+Filtro: "Todos Os Meses" dropdown
+
+=== PAGAMENTOS POR CATEGORIA ===
+Tabela: Categoria | Mês atual (valor + pendente) | Mês anterior (valor + pendente) | Variação % | Total
+Cores: verde para queda, vermelho para aumento
+Ícone link para ver lançamentos
+
+=== COMPARATIVO MENSAL ===
+Navegação: < Mar/26 Vs Abr/26 >
+Cards: Mês 1 valor, Mês 2 valor, Variação %
+Tabs: "Por Categoria" / "Por Descrição"
+Tabela: Categoria | Mês 1 | Mês 2 | Var.
+Botão Exportar
+
+=== TEMA ===
+Fundo escuro (dark theme), cards com bordas sutis, cores: verde, vermelho, amarelo, azul
+Botões: "+ Novo Recebimento" (verde), "+ Nova Despesa" (vermelho)

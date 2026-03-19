@@ -42,22 +42,51 @@ const MONTHS = [
 function FinDashboard() {
   const now = new Date();
   const [mes, setMes] = useState(() => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [fluxoDias, setFluxoDias] = useState(30);
   const dashboard = trpc.financeiro.dashboard.resumo.useQuery({ mes });
+  const fluxoCaixa = trpc.financeiro.dashboard.fluxoCaixa.useQuery({ dias: fluxoDias });
   const d = dashboard.data;
+  const fc = fluxoCaixa.data;
 
   const [ano, mesNum] = mes.split("-");
   const mesLabel = MONTHS[Number(mesNum) - 1]?.label || mesNum;
 
-  const saldo = d ? Number(d.receitasRecebido) - Number(d.despesasPago) : 0;
-  const totalDespesas = d ? Number(d.despesasPago) + Number(d.despesasPendente) : 0;
-  const totalReceitas = d ? Number(d.receitasRecebido) + Number(d.receitasPendente) : 0;
+  // Comparativo mensal
+  const mesAnterior = useMemo(() => {
+    const [a, m] = mes.split("-").map(Number);
+    const prev = new Date(a, m - 2, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+  }, [mes]);
+  const [compTipo, setCompTipo] = useState<"categoria" | "descricao">("categoria");
+  const comparativo = trpc.financeiro.dashboard.comparativoMensal.useQuery({ mes1: mesAnterior, mes2: mes, tipo: compTipo });
+  const comp = comparativo.data;
+
+  const saldoProjetado = d ? Number(d.receitasPendente) - Number(d.despesasPendente) : 0;
+
+  const formatCompact = (v: number) => {
+    if (Math.abs(v) >= 1000000) return `R$ ${(v / 1000000).toFixed(1)} mi`;
+    if (Math.abs(v) >= 1000) return `R$ ${(v / 1000).toFixed(1)} mil`;
+    return formatCurrency(v);
+  };
+
+  const diasRelativo = (dateStr: string) => {
+    const diff = Math.ceil((new Date(dateStr).getTime() - now.getTime()) / 86400000);
+    if (diff === 0) return "Hoje";
+    if (diff === 1) return "Amanh\u00e3";
+    if (diff < 0) return `${Math.abs(diff)}d atr\u00e1s`;
+    return `${diff} dias`;
+  };
+
+  // Fluxo de caixa - calcular max para escala do gr\u00e1fico
+  const fcMax = fc ? Math.max(...fc.pontos.map(p => Math.max(Math.abs(p.receber), Math.abs(p.pagar), Math.abs(p.saldo))), 1) : 1;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Dashboard Financeiro</h2>
-          <p className="text-sm text-muted-foreground">{mesLabel} {ano}</p>
+          <p className="text-sm text-muted-foreground">Vis\u00e3o geral das suas finan\u00e7as</p>
         </div>
         <div className="flex gap-2">
           <Select value={mesNum} onValueChange={v => setMes(`${ano}-${v}`)}>
@@ -73,80 +102,354 @@ function FinDashboard() {
 
       {dashboard.isLoading ? <div className="text-center py-12 text-muted-foreground">Carregando...</div> : d ? (
         <>
-          {/* KPI Cards */}
+          {/* Top KPI Cards - 5 cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="border-l-4 border-l-red-500">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><TrendingDown className="h-4 w-4" /> Despesas Pagas</div>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(d.despesasPago)}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-300">Saldo Banc\u00e1rio</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.saldoBancario)}</p>
+                    <p className="text-xs text-slate-400 mt-1">{d.qtdBancos} banco(s)</p>
+                  </div>
+                  <Landmark className="h-8 w-8 text-blue-400 opacity-80" />
+                </div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-amber-500">
+            <Card className="bg-gradient-to-br from-red-900/80 to-red-950 text-white border-0">
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><Clock className="h-4 w-4" /> Despesas Pendentes</div>
-                <p className="text-2xl font-bold text-amber-600">{formatCurrency(d.despesasPendente)}</p>
-                {Number(d.despesasVencido) > 0 && <p className="text-xs text-red-500 mt-1 font-medium">Vencidas: {formatCurrency(d.despesasVencido)}</p>}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-red-300">Total a Pagar</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.despesasPendente)}</p>
+                    <p className="text-xs text-red-400 mt-1">{d.despesasPendenteCount} pendentes</p>
+                  </div>
+                  <ArrowDownRight className="h-8 w-8 text-red-400 opacity-80" />
+                </div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-green-500">
+            <Card className="bg-gradient-to-br from-green-900/80 to-green-950 text-white border-0">
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><TrendingUp className="h-4 w-4" /> Receitas Recebidas</div>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(d.receitasRecebido)}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-green-300">Total a Receber</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.receitasPendente)}</p>
+                    <p className="text-xs text-green-400 mt-1">{d.receitasPendenteCount} pendentes</p>
+                  </div>
+                  <ArrowUpRight className="h-8 w-8 text-green-400 opacity-80" />
+                </div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-blue-500">
+            <Card className="bg-gradient-to-br from-amber-900/80 to-amber-950 text-white border-0">
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><Clock className="h-4 w-4" /> Receitas Pendentes</div>
-                <p className="text-2xl font-bold text-blue-600">{formatCurrency(d.receitasPendente)}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-amber-300">Vencidos</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.despesasVencido)}</p>
+                    <p className="text-xs text-amber-400 mt-1">{d.despesasVencidoCount} transa\u00e7\u00f5es</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-amber-400 opacity-80" />
+                </div>
               </CardContent>
             </Card>
-            <Card className={cn("border-l-4", saldo >= 0 ? "border-l-emerald-500" : "border-l-red-500")}>
+            <Card className={cn("text-white border-0", saldoProjetado >= 0 ? "bg-gradient-to-br from-emerald-900/80 to-emerald-950" : "bg-gradient-to-br from-red-900/80 to-red-950")}>
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1"><Percent className="h-4 w-4" /> Saldo do Mês</div>
-                <p className={cn("text-2xl font-bold", saldo >= 0 ? "text-emerald-600" : "text-red-600")}>{formatCurrency(saldo)}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-300">Saldo Projetado</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(saldoProjetado)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Receber - Pagar</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-yellow-400 opacity-80" />
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* DRE Simplificado */}
+          {/* Alerta de vencidos */}
+          {Number(d.despesasVencido) > 0 && (
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400">Pagamentos Vencidos!</p>
+                <p className="text-sm text-red-600 dark:text-red-400/80">Voc\u00ea tem <strong>{d.despesasVencidoCount}</strong> pagamento(s) vencido(s) totalizando <strong>{formatCurrency(d.despesasVencido)}</strong></p>
+              </div>
+            </div>
+          )}
+
+          {/* Second row - 4 cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Pagamentos do Dia</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.pagamentoDia)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{d.pagamentoDiaPendente} pendente(s) de {d.pagamentoDiaCount}</p>
+                  </div>
+                  <Calendar className="h-6 w-6 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Pago</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.totalPagoGeral)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Confirmados</p>
+                  </div>
+                  <CheckCircle className="h-6 w-6 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-emerald-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Recebido</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.totalRecebidoGeral)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Confirmados</p>
+                  </div>
+                  <CheckCircle className="h-6 w-6 text-emerald-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Custos Fixos</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(d.custosFixos)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{d.custosFixosCount} custos</p>
+                  </div>
+                  <Clock className="h-6 w-6 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Pr\u00f3ximos Vencimentos e Recebimentos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Receipt className="h-5 w-5 text-red-500" /> Pr\u00f3ximos Vencimentos
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">{d.proxVencTotal.count} nos pr\u00f3ximos 7 dias &bull; {formatCurrency(d.proxVencTotal.total)}</p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {d.proxVencimentos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum vencimento nos pr\u00f3ximos 7 dias</p>
+                ) : d.proxVencimentos.map((v: any) => (
+                  <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div>
+                      <p className="font-medium text-sm">{v.descricao}</p>
+                      <p className="text-xs text-muted-foreground">{v.empresaNome} &bull; {formatDate(v.dataVencimento)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-red-600 text-sm">{formatCurrency(v.valor)}</p>
+                      <p className="text-xs text-muted-foreground">{diasRelativo(v.dataVencimento)}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Banknote className="h-5 w-5 text-green-500" /> Pr\u00f3ximos Recebimentos
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">{d.proxRecebTotal.count} nos pr\u00f3ximos 7 dias &bull; {formatCurrency(d.proxRecebTotal.total)}</p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {d.proxRecebimentos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum recebimento nos pr\u00f3ximos 7 dias</p>
+                ) : d.proxRecebimentos.map((r: any) => (
+                  <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div>
+                      <p className="font-medium text-sm">{r.descricao}</p>
+                      <p className="text-xs text-muted-foreground">{r.clienteNome} &bull; {formatDate(r.dataVencimento)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-green-600 text-sm">{formatCurrency(r.valor)}</p>
+                      <p className="text-xs text-muted-foreground">{diasRelativo(r.dataVencimento)}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fluxo de Caixa Projetado */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-primary" /> DRE Gerencial — {mesLabel}/{ano}</CardTitle>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-primary" /> Fluxo de Caixa Projetado</CardTitle>
+                  <p className="text-xs text-muted-foreground">Pr\u00f3ximos {fluxoDias} dias</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {[7, 15, 30, 60].map(d => (
+                    <Button key={d} size="sm" variant={fluxoDias === d ? "default" : "outline"} className="text-xs h-7 px-2" onClick={() => setFluxoDias(d)}>{d} dias</Button>
+                  ))}
+                </div>
+              </div>
+              {fc && (
+                <div className="flex gap-6 mt-2 text-sm">
+                  <div><span className="text-muted-foreground">A Receber</span> <span className="font-semibold text-green-600 ml-1">{formatCompact(fc.totalReceber)}</span></div>
+                  <div><span className="text-muted-foreground">A Pagar</span> <span className="font-semibold text-red-600 ml-1">{formatCompact(fc.totalPagar)}</span></div>
+                  <div><span className="text-muted-foreground">Saldo Final</span> <span className={cn("font-semibold ml-1", fc.saldoFinal >= 0 ? "text-green-600" : "text-red-600")}>{formatCompact(fc.saldoFinal)}</span></div>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {fluxoCaixa.isLoading ? <div className="text-center py-8 text-muted-foreground">Carregando...</div> : fc && fc.pontos.length > 0 ? (
+                <div className="relative h-48 w-full">
+                  {/* Eixo Y labels */}
+                  <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[10px] text-muted-foreground w-16">
+                    <span>{formatCompact(fcMax)}</span>
+                    <span>R$ 0</span>
+                    <span>{formatCompact(-fcMax)}</span>
+                  </div>
+                  {/* Gr\u00e1fico SVG */}
+                  <svg className="ml-16 h-full" style={{ width: "calc(100% - 4rem)" }} viewBox={`0 0 ${fc.pontos.length} 200`} preserveAspectRatio="none">
+                    {/* Linha zero */}
+                    <line x1="0" y1="100" x2={fc.pontos.length} y2="100" stroke="currentColor" strokeOpacity="0.2" strokeWidth="0.5" />
+                    {/* Recebimentos */}
+                    <polyline fill="none" stroke="#22c55e" strokeWidth="1.5"
+                      points={fc.pontos.map((p, i) => `${i},${100 - (p.receber / fcMax) * 95}`).join(" ")} />
+                    {/* Pagamentos */}
+                    <polyline fill="none" stroke="#ef4444" strokeWidth="1.5"
+                      points={fc.pontos.map((p, i) => `${i},${100 - (p.pagar / fcMax) * 95}`).join(" ")} />
+                    {/* Saldo acumulado - \u00e1rea */}
+                    <polygon fill="url(#saldoGrad)" opacity="0.3"
+                      points={`0,100 ${fc.pontos.map((p, i) => `${i},${100 - (p.saldo / fcMax) * 95}`).join(" ")} ${fc.pontos.length - 1},100`} />
+                    <polyline fill="none" stroke="#a3e635" strokeWidth="1"
+                      points={fc.pontos.map((p, i) => `${i},${100 - (p.saldo / fcMax) * 95}`).join(" ")} />
+                    <defs>
+                      <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#22c55e" />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  {/* Legenda */}
+                  <div className="flex gap-4 mt-2 justify-center text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-green-500 inline-block" /> Recebimentos</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-500 inline-block" /> Pagamentos</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-lime-400 inline-block" /> Saldo Acumulado</span>
+                  </div>
+                </div>
+              ) : <p className="text-sm text-muted-foreground text-center py-4">Sem dados para o per\u00edodo</p>}
+            </CardContent>
+          </Card>
+
+          {/* An\u00e1lise Detalhada - Evolu\u00e7\u00e3o + Top 5 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Evolu\u00e7\u00e3o Mensal */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-primary" /> Evolu\u00e7\u00e3o Mensal de Pagamentos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {d.evolucao && d.evolucao.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="relative h-40">
+                      <svg className="w-full h-full" viewBox={`0 0 ${d.evolucao.length * 60} 160`} preserveAspectRatio="none">
+                        {(() => {
+                          const maxVal = Math.max(...d.evolucao.map((e: any) => Math.max(e.despesas, e.despesasPago)), 1);
+                          return (
+                            <>
+                              {/* \u00c1rea total */}
+                              <polygon fill="#22c55e" opacity="0.15"
+                                points={`0,160 ${d.evolucao.map((e: any, i: number) => `${i * 60 + 30},${160 - (e.despesas / maxVal) * 140}`).join(" ")} ${(d.evolucao.length - 1) * 60 + 30},160`} />
+                              <polyline fill="none" stroke="#22c55e" strokeWidth="2"
+                                points={d.evolucao.map((e: any, i: number) => `${i * 60 + 30},${160 - (e.despesas / maxVal) * 140}`).join(" ")} />
+                              {/* \u00c1rea pago */}
+                              <polygon fill="#f59e0b" opacity="0.2"
+                                points={`0,160 ${d.evolucao.map((e: any, i: number) => `${i * 60 + 30},${160 - (e.despesasPago / maxVal) * 140}`).join(" ")} ${(d.evolucao.length - 1) * 60 + 30},160`} />
+                              <polyline fill="none" stroke="#f59e0b" strokeWidth="2"
+                                points={d.evolucao.map((e: any, i: number) => `${i * 60 + 30},${160 - (e.despesasPago / maxVal) * 140}`).join(" ")} />
+                            </>
+                          );
+                        })()}
+                      </svg>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground px-2">
+                      {d.evolucao.map((e: any, i: number) => <span key={i}>{e.mes}</span>)}
+                    </div>
+                    <div className="flex gap-4 justify-center text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-green-500 inline-block" /> Pago</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block" /> Pendente</span>
+                    </div>
+                  </div>
+                ) : <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>}
+              </CardContent>
+            </Card>
+
+            {/* Top 5 Maiores Pagamentos */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-5 w-5 text-amber-500" /> Top 5 Maiores Pagamentos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {d.topPagamentos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum pagamento no per\u00edodo</p>
+                ) : d.topPagamentos.map((t: any, i: number) => (
+                  <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                    <span className={cn("text-lg font-bold w-6 text-center", i === 0 ? "text-red-500" : i === 1 ? "text-orange-500" : "text-muted-foreground")}>{i + 1}\u00ba</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{t.descricao}</p>
+                      <p className="text-xs text-muted-foreground">{t.empresaNome} &bull; {t.categoriaNome} &bull; {formatDate(t.dataVencimento)}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-sm">{formatCurrency(t.valor)}</p>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", t.pago === "sim" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400")}>
+                        {t.pago === "sim" ? "Pago" : "Pendente"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Pagamentos por Categoria */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Pagamentos por Categoria</CardTitle>
+              <p className="text-xs text-muted-foreground">Clique em uma categoria para ver os lan\u00e7amentos</p>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0"><tr>
-                    <th className="text-left p-3 font-semibold">Conta</th>
-                    <th className="text-right p-3 font-semibold">Valor</th>
-                    <th className="text-right p-3 font-semibold">% Receita</th>
+                    <th className="text-left p-3 font-semibold">Categoria</th>
+                    <th className="text-right p-3 font-semibold">{d.mesAtualLabel}</th>
+                    <th className="text-right p-3 font-semibold">{d.mesAnteriorLabel}</th>
+                    <th className="text-right p-3 font-semibold">Varia\u00e7\u00e3o</th>
+                    <th className="text-right p-3 font-semibold">Total</th>
                   </tr></thead>
                   <tbody>
-                    {[
-                      { label: "Receita Bruta (Recebimentos)", value: totalReceitas, highlight: true, bold: true },
-                      { label: "  Recebido", value: Number(d.receitasRecebido), indent: 1 },
-                      { label: "  A Receber", value: Number(d.receitasPendente), indent: 1 },
-                      { label: "(-) Despesas Totais", value: -totalDespesas, highlight: true, bold: true },
-                      { label: "  Pagas", value: -Number(d.despesasPago), indent: 1 },
-                      { label: "  Pendentes", value: -Number(d.despesasPendente), indent: 1 },
-                      { label: "  Vencidas", value: -Number(d.despesasVencido), indent: 1, warn: true },
-                      { label: "Resultado do Período", value: saldo, highlight: true, bold: true, total: true },
-                    ].map((row, i) => (
-                      <tr key={i} className={cn("border-t border-border/50 transition-colors hover:bg-muted/30",
-                        row.highlight && "bg-muted/20", row.total && "bg-primary/5")}>
-                        <td className="p-3" style={{ paddingLeft: row.indent ? `${12 + row.indent * 24}px` : undefined }}>
-                          <span className={cn(row.bold && "font-semibold", row.warn && "text-red-500")}>{row.label}</span>
+                    {d.categorias.map((c: any, i: number) => (
+                      <tr key={i} className="border-t border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
+                        <td className="p-3 font-medium">{c.nome}</td>
+                        <td className="p-3 text-right">
+                          <div>{formatCurrency(c.mesAtual)}</div>
+                          {c.mesAtualPendente > 0 && <div className="text-xs text-red-500">R$ {Number(c.mesAtualPendente).toLocaleString("pt-BR", { minimumFractionDigits: 0 })} pend.</div>}
                         </td>
-                        <td className={cn("p-3 text-right tabular-nums whitespace-nowrap font-medium",
-                          row.total && row.value >= 0 && "text-emerald-600 font-bold",
-                          row.total && row.value < 0 && "text-red-600 font-bold",
-                          !row.total && row.value < 0 && "text-red-500/80",
-                          row.warn && "text-red-500")}>
-                          {row.value !== 0 ? formatCurrency(row.value) : "—"}
+                        <td className="p-3 text-right">
+                          <div>{formatCurrency(c.mesAnterior)}</div>
+                          {c.mesAnteriorPendente > 0 && <div className="text-xs text-red-500">R$ {Number(c.mesAnteriorPendente).toLocaleString("pt-BR", { minimumFractionDigits: 0 })} pend.</div>}
                         </td>
-                        <td className="p-3 text-right tabular-nums text-muted-foreground whitespace-nowrap">
-                          {totalReceitas > 0 && row.value !== 0 ? `${(Math.abs(row.value) / totalReceitas * 100).toFixed(1)}%` : "—"}
+                        <td className="p-3 text-right">
+                          <span className={cn("text-sm", c.variacao > 0 ? "text-red-500" : c.variacao < 0 ? "text-green-500" : "text-muted-foreground")}>
+                            {c.variacao > 0 ? `+${c.variacao}%` : c.variacao < 0 ? `${c.variacao}%` : "\u2014 0%"}
+                          </span>
                         </td>
+                        <td className="p-3 text-right font-semibold">{formatCurrency(c.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -155,23 +458,59 @@ function FinDashboard() {
             </CardContent>
           </Card>
 
-          {/* Evolução 6 meses */}
-          {d.evolucao && d.evolucao.length > 0 && (
+          {/* Comparativo Mensal */}
+          {comp && (
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-lg">Evolução — Últimos 6 Meses</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-6 gap-2">
-                  {d.evolucao.map((e: any, i: number) => (
-                    <div key={i} className="text-center rounded-lg border border-border p-3">
-                      <p className="text-xs text-muted-foreground mb-2">{e.mes}</p>
-                      <p className="text-sm font-semibold text-green-600">{formatCurrency(e.receitas)}</p>
-                      <p className="text-sm font-semibold text-red-500">{formatCurrency(e.despesas)}</p>
-                      <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
-                        <div className={cn("h-full rounded-full", e.receitas >= e.despesas ? "bg-green-500" : "bg-red-500")}
-                          style={{ width: `${Math.min(100, e.receitas > 0 ? (Math.min(e.receitas, e.despesas) / Math.max(e.receitas, e.despesas)) * 100 : 0)}%` }} />
-                      </div>
-                    </div>
-                  ))}
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Comparativo Mensal</CardTitle>
+                  <div className="text-sm text-muted-foreground">{comp.mes1Label} vs {comp.mes2Label}</div>
+                </div>
+                <div className="flex gap-4 mt-2">
+                  <div className="rounded-lg border p-3 flex-1">
+                    <p className="text-xs text-muted-foreground">{comp.mes1Label}</p>
+                    <p className="text-xl font-bold">{formatCurrency(comp.total1)}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 flex-1">
+                    <p className="text-xs text-muted-foreground">{comp.mes2Label}</p>
+                    <p className="text-xl font-bold">{formatCurrency(comp.total2)}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 flex-1">
+                    <p className="text-xs text-muted-foreground">Varia\u00e7\u00e3o</p>
+                    <p className={cn("text-xl font-bold", comp.varTotal > 0 ? "text-red-500" : comp.varTotal < 0 ? "text-green-500" : "")}>
+                      {comp.varTotal > 0 ? "+" : ""}{comp.varTotal}%
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant={compTipo === "categoria" ? "default" : "outline"} className="text-xs" onClick={() => setCompTipo("categoria")}>Por Categoria</Button>
+                  <Button size="sm" variant={compTipo === "descricao" ? "default" : "outline"} className="text-xs" onClick={() => setCompTipo("descricao")}>Por Descri\u00e7\u00e3o</Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-auto max-h-96">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0"><tr>
+                      <th className="text-left p-3 font-semibold">{compTipo === "categoria" ? "Categoria" : "Descri\u00e7\u00e3o"}</th>
+                      <th className="text-right p-3 font-semibold">{comp.mes1Label}</th>
+                      <th className="text-right p-3 font-semibold">{comp.mes2Label}</th>
+                      <th className="text-right p-3 font-semibold">Var.</th>
+                    </tr></thead>
+                    <tbody>
+                      {comp.items.map((item: any, i: number) => (
+                        <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                          <td className="p-3 font-medium">{item.nome}</td>
+                          <td className="p-3 text-right">{formatCurrency(item.mes1)}</td>
+                          <td className="p-3 text-right">{formatCurrency(item.mes2)}</td>
+                          <td className="p-3 text-right">
+                            <span className={cn("text-sm", item.variacao > 0 ? "text-red-500" : item.variacao < 0 ? "text-green-500" : "text-muted-foreground")}>
+                              {item.variacao > 0 ? `+${item.variacao}%` : item.variacao < 0 ? `${item.variacao}%` : "\u2014 0%"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
@@ -2139,6 +2478,219 @@ function BancoInterView() {
   );
 }
 
+// ==================== DRE ====================
+function DREView() {
+  const now = new Date();
+  const [mes, setMes] = useState(() => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [viewMode, setViewMode] = useState<"mensal" | "trimestral" | "anual">("mensal");
+  const dreData = trpc.financeiro.dashboard.dre.useQuery({ mes });
+  const d = dreData.data;
+
+  const [ano, mesNum] = mes.split("-");
+  const mesLabel = MONTHS[Number(mesNum) - 1]?.label || mesNum;
+
+  const pctReceita = (val: number, total: number) => total > 0 ? `${(val / total * 100).toFixed(1)}%` : "\u2014";
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">DRE - Demonstrativo de Resultado</h2>
+          <p className="text-sm text-muted-foreground">An\u00e1lise de receitas, despesas e resultado do per\u00edodo</p>
+        </div>
+        <div className="flex gap-2">
+          <Select value={mesNum} onValueChange={v => setMes(`${ano}-${v}`)}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={ano} onValueChange={v => setMes(`${v}-${mesNum}`)}>
+            <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {dreData.isLoading ? <div className="text-center py-12 text-muted-foreground">Carregando...</div> : d ? (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-green-900/80 to-green-950 text-white border-0">
+              <CardContent className="pt-4">
+                <p className="text-xs text-green-300">Receita Bruta</p>
+                <p className="text-3xl font-bold mt-1">{formatCurrency(d.totalReceitas)}</p>
+                <p className="text-xs text-green-400 mt-1">{d.receitas.length} tipo(s) de servi\u00e7o</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-red-900/80 to-red-950 text-white border-0">
+              <CardContent className="pt-4">
+                <p className="text-xs text-red-300">Despesas Totais</p>
+                <p className="text-3xl font-bold mt-1">{formatCurrency(d.totalDespesas)}</p>
+                <p className="text-xs text-red-400 mt-1">{d.despesas.length} categoria(s)</p>
+              </CardContent>
+            </Card>
+            <Card className={cn("text-white border-0", d.resultado >= 0 ? "bg-gradient-to-br from-emerald-900/80 to-emerald-950" : "bg-gradient-to-br from-red-900/80 to-red-950")}>
+              <CardContent className="pt-4">
+                <p className="text-xs text-slate-300">Resultado do Per\u00edodo</p>
+                <p className="text-3xl font-bold mt-1">{formatCurrency(d.resultado)}</p>
+                <p className="text-xs text-slate-400 mt-1">Margem: {d.totalReceitas > 0 ? `${(d.resultado / d.totalReceitas * 100).toFixed(1)}%` : "\u2014"}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* DRE Tabela Completa */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" /> DRE Gerencial \u2014 {mesLabel}/{ano}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0"><tr>
+                    <th className="text-left p-3 font-semibold">Conta</th>
+                    <th className="text-right p-3 font-semibold">Valor</th>
+                    <th className="text-right p-3 font-semibold">% Receita</th>
+                  </tr></thead>
+                  <tbody>
+                    {/* RECEITAS */}
+                    <tr className="bg-green-50 dark:bg-green-950/20 border-t">
+                      <td className="p-3 font-bold text-green-700 dark:text-green-400">RECEITA BRUTA</td>
+                      <td className="p-3 text-right font-bold text-green-700 dark:text-green-400">{formatCurrency(d.totalReceitas)}</td>
+                      <td className="p-3 text-right font-bold text-green-700 dark:text-green-400">100%</td>
+                    </tr>
+                    {d.receitas.map((r: any, i: number) => (
+                      <tr key={`r-${i}`} className="border-t border-border/30 hover:bg-muted/30">
+                        <td className="p-3 pl-8 text-muted-foreground">{r.tipoServico}</td>
+                        <td className="p-3 text-right tabular-nums">
+                          <div>{formatCurrency(r.total)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            <span className="text-green-600">{formatCurrency(r.recebido)} rec.</span>
+                            {Number(r.pendente) > 0 && <span className="text-amber-500 ml-2">{formatCurrency(r.pendente)} pend.</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right tabular-nums text-muted-foreground">{pctReceita(Number(r.total), d.totalReceitas)}</td>
+                      </tr>
+                    ))}
+
+                    {/* DESPESAS */}
+                    <tr className="bg-red-50 dark:bg-red-950/20 border-t-2 border-border">
+                      <td className="p-3 font-bold text-red-700 dark:text-red-400">(-) DESPESAS TOTAIS</td>
+                      <td className="p-3 text-right font-bold text-red-700 dark:text-red-400">{formatCurrency(d.totalDespesas)}</td>
+                      <td className="p-3 text-right font-bold text-red-700 dark:text-red-400">{pctReceita(d.totalDespesas, d.totalReceitas)}</td>
+                    </tr>
+                    {d.despesas.map((desp: any, i: number) => (
+                      <tr key={`d-${i}`} className="border-t border-border/30 hover:bg-muted/30">
+                        <td className="p-3 pl-8 text-muted-foreground">{desp.categoria}</td>
+                        <td className="p-3 text-right tabular-nums">
+                          <div>{formatCurrency(desp.total)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            <span className="text-red-500">{formatCurrency(desp.pago)} pago</span>
+                            {Number(desp.pendente) > 0 && <span className="text-amber-500 ml-2">{formatCurrency(desp.pendente)} pend.</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right tabular-nums text-muted-foreground">{pctReceita(Number(desp.total), d.totalReceitas)}</td>
+                      </tr>
+                    ))}
+
+                    {/* RESULTADO */}
+                    <tr className={cn("border-t-2 border-border", d.resultado >= 0 ? "bg-emerald-50 dark:bg-emerald-950/20" : "bg-red-50 dark:bg-red-950/20")}>
+                      <td className="p-3 font-bold text-lg">=  RESULTADO DO PER\u00cdODO</td>
+                      <td className={cn("p-3 text-right font-bold text-lg", d.resultado >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{formatCurrency(d.resultado)}</td>
+                      <td className={cn("p-3 text-right font-bold", d.resultado >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{pctReceita(Math.abs(d.resultado), d.totalReceitas)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Despesas por Centro de Custo */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base"><Target className="h-5 w-5 text-purple-500" /> Despesas por Centro de Custo</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0"><tr>
+                    <th className="text-left p-3 font-semibold">Centro de Custo</th>
+                    <th className="text-right p-3 font-semibold">Total</th>
+                    <th className="text-right p-3 font-semibold">% Despesa</th>
+                    <th className="p-3 font-semibold">Distribui\u00e7\u00e3o</th>
+                  </tr></thead>
+                  <tbody>
+                    {d.despesasPorCC.map((cc: any, i: number) => {
+                      const pct = d.totalDespesas > 0 ? (Number(cc.total) / d.totalDespesas * 100) : 0;
+                      return (
+                        <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                          <td className="p-3 font-medium">{cc.centroCusto}</td>
+                          <td className="p-3 text-right tabular-nums font-medium">{formatCurrency(cc.total)}</td>
+                          <td className="p-3 text-right tabular-nums text-muted-foreground">{pct.toFixed(1)}%</td>
+                          <td className="p-3">
+                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Evolu\u00e7\u00e3o DRE - \u00daltimos 6 meses */}
+          {d.evolucaoDre && d.evolucaoDre.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-primary" /> Evolu\u00e7\u00e3o DRE \u2014 \u00daltimos 6 Meses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50"><tr>
+                      <th className="text-left p-3 font-semibold">M\u00eas</th>
+                      <th className="text-right p-3 font-semibold">Receitas</th>
+                      <th className="text-right p-3 font-semibold">Despesas</th>
+                      <th className="text-right p-3 font-semibold">Resultado</th>
+                      <th className="text-right p-3 font-semibold">Margem</th>
+                      <th className="p-3">Visual</th>
+                    </tr></thead>
+                    <tbody>
+                      {d.evolucaoDre.map((e: any, i: number) => {
+                        const margem = e.receitas > 0 ? (e.resultado / e.receitas * 100) : 0;
+                        const maxVal = Math.max(...d.evolucaoDre.map((x: any) => Math.max(x.receitas, x.despesas)), 1);
+                        return (
+                          <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                            <td className="p-3 font-medium">{e.mes}</td>
+                            <td className="p-3 text-right text-green-600 font-medium tabular-nums">{formatCurrency(e.receitas)}</td>
+                            <td className="p-3 text-right text-red-500 font-medium tabular-nums">{formatCurrency(e.despesas)}</td>
+                            <td className={cn("p-3 text-right font-bold tabular-nums", e.resultado >= 0 ? "text-emerald-600" : "text-red-600")}>{formatCurrency(e.resultado)}</td>
+                            <td className={cn("p-3 text-right tabular-nums", margem >= 0 ? "text-emerald-600" : "text-red-600")}>{margem.toFixed(1)}%</td>
+                            <td className="p-3">
+                              <div className="flex gap-1 h-4">
+                                <div className="bg-green-500/70 rounded-sm" style={{ width: `${(e.receitas / maxVal) * 100}%` }} title={`Receita: ${formatCurrency(e.receitas)}`} />
+                                <div className="bg-red-500/70 rounded-sm" style={{ width: `${(e.despesas / maxVal) * 100}%` }} title={`Despesa: ${formatCurrency(e.despesas)}`} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 // ==================== MÓDULO PRINCIPAL ====================
 export default function FinanceiroModule() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -2163,6 +2715,7 @@ export default function FinanceiroModule() {
           <TabsTrigger value="importador"><Upload className="h-4 w-4 mr-1" /> Importar Excel</TabsTrigger>
           <TabsTrigger value="cadastros"><Building2 className="h-4 w-4 mr-1" /> Cadastros</TabsTrigger>
           <TabsTrigger value="banco-inter"><Landmark className="h-4 w-4 mr-1" /> Banco Inter</TabsTrigger>
+          <TabsTrigger value="dre"><FileText className="h-4 w-4 mr-1" /> DRE</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard"><FinDashboard /></TabsContent>
@@ -2173,6 +2726,7 @@ export default function FinanceiroModule() {
         <TabsContent value="importador"><ImportadorExcel /></TabsContent>
         <TabsContent value="cadastros"><Cadastros /></TabsContent>
         <TabsContent value="banco-inter"><BancoInterView /></TabsContent>
+        <TabsContent value="dre"><DREView /></TabsContent>
       </Tabs>
     </div>
   );

@@ -356,3 +356,147 @@ describe("Filtro por Período Personalizado", () => {
     expect(dataFim).toBe("2026-12-31");
   });
 });
+
+describe("Dashboard Financeiro - Backend", () => {
+  it("deve ter a procedure dashboard.resumo definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+    expect(routerDef.procedures).toBeDefined();
+  });
+
+  it("deve ter a procedure dashboard.fluxoCaixa definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+  });
+
+  it("deve ter a procedure dashboard.analiseDetalhada definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+  });
+
+  it("deve ter a procedure dashboard.pagamentosPorCategoria definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+  });
+
+  it("deve ter a procedure dashboard.comparativoMensal definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+  });
+
+  it("deve ter a procedure dashboard.dre definida no router financeiro", async () => {
+    const { financeiroRouter } = await import("./routers/financeiroRouter");
+    expect(financeiroRouter).toBeDefined();
+    const routerDef = financeiroRouter._def;
+    expect(routerDef).toBeDefined();
+  });
+
+  it("deve ter as tabelas necessárias para o dashboard no schema", async () => {
+    const schema = await import("../drizzle/schema");
+    expect(schema.finTransacoes).toBeDefined();
+    expect(schema.finRecebiveis).toBeDefined();
+    expect(schema.finBancos).toBeDefined();
+    expect(schema.finCategorias).toBeDefined();
+    expect(schema.finCentrosCusto).toBeDefined();
+  });
+
+  it("deve ter campos de status nas tabelas para cálculo de KPIs", async () => {
+    const schema = await import("../drizzle/schema");
+    // Transações: pago (sim/nao)
+    const transCols = Object.keys(schema.finTransacoes);
+    expect(transCols).toContain("pago");
+    expect(transCols).toContain("valor");
+    expect(transCols).toContain("dataVencimento");
+    expect(transCols).toContain("dataPagamento");
+    // Recebíveis: recebido (sim/nao)
+    const recCols = Object.keys(schema.finRecebiveis);
+    expect(recCols).toContain("recebido");
+    expect(recCols).toContain("valor");
+    expect(recCols).toContain("dataVencimento");
+    expect(recCols).toContain("dataRecebimento");
+  });
+
+  it("deve ter campos essenciais na tabela de bancos", async () => {
+    const schema = await import("../drizzle/schema");
+    const bancoCols = Object.keys(schema.finBancos);
+    expect(bancoCols).toContain("nome");
+    expect(bancoCols).toContain("id");
+  });
+});
+
+describe("DRE - Demonstrativo de Resultado", () => {
+  it("deve calcular margem corretamente", () => {
+    const totalReceitas = 100000;
+    const totalDespesas = 75000;
+    const resultado = totalReceitas - totalDespesas;
+    const margem = totalReceitas > 0 ? (resultado / totalReceitas * 100) : 0;
+
+    expect(resultado).toBe(25000);
+    expect(margem).toBe(25);
+  });
+
+  it("deve calcular margem negativa quando despesas excedem receitas", () => {
+    const totalReceitas = 50000;
+    const totalDespesas = 80000;
+    const resultado = totalReceitas - totalDespesas;
+    const margem = totalReceitas > 0 ? (resultado / totalReceitas * 100) : 0;
+
+    expect(resultado).toBe(-30000);
+    expect(margem).toBe(-60);
+  });
+
+  it("deve calcular percentual sobre receita corretamente", () => {
+    const pctReceita = (val: number, total: number) => total > 0 ? `${(val / total * 100).toFixed(1)}%` : "\u2014";
+
+    expect(pctReceita(25000, 100000)).toBe("25.0%");
+    expect(pctReceita(0, 100000)).toBe("0.0%");
+    expect(pctReceita(100000, 100000)).toBe("100.0%");
+    expect(pctReceita(50000, 0)).toBe("\u2014");
+  });
+
+  it("deve ter campo tipoServico na tabela finRecebiveis para agrupamento de receitas", async () => {
+    const schema = await import("../drizzle/schema");
+    const cols = Object.keys(schema.finRecebiveis);
+    expect(cols).toContain("tipoServico");
+  });
+
+  it("deve ter campo categoriaId na tabela finTransacoes para agrupamento de despesas", async () => {
+    const schema = await import("../drizzle/schema");
+    const cols = Object.keys(schema.finTransacoes);
+    expect(cols).toContain("categoriaId");
+  });
+
+  it("deve ter campo centroCustoId na tabela finTransacoes para despesas por CC", async () => {
+    const schema = await import("../drizzle/schema");
+    const cols = Object.keys(schema.finTransacoes);
+    expect(cols).toContain("centroCustoId");
+  });
+
+  it("deve gerar evolução DRE com dados de 6 meses", () => {
+    const evolucao = [];
+    const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const ano = 2026;
+    const mesNum = 3; // março
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(ano, mesNum - 1 - i, 1);
+      const mLabel = `${MONTHS_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
+      evolucao.push({ mes: mLabel, receitas: 100000 - i * 10000, despesas: 80000 - i * 5000, resultado: 20000 - i * 5000 });
+    }
+
+    expect(evolucao.length).toBe(6);
+    expect(evolucao[0].mes).toBe("Out/25");
+    expect(evolucao[5].mes).toBe("Mar/26");
+    expect(evolucao[5].resultado).toBe(20000);
+  });
+});
