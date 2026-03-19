@@ -3204,3 +3204,7 @@
 - [x] Corrigir categorias e centros de custo das Contas a Pagar (script anterior atribuiu valores errados)
 - [x] 100% dos 232 registros agora possuem categoria e centro de custo corretos
 - [x] Criadas 4 novas categorias: Cartao de Credito, Funcionamento, Servicos Terceiros, Material de Escritorio
+- [x] Limpar dados de exemplo de Contas a Receber (fin_recebiveis)
+- [x] Importar dados reais do Excel contas-a-receber-2026-03-19.xlsx (92 registros: 50 recebidos + 42 pendentes)
+- [x] Criar 5 novos clientes: Hemolabor, Hospital Neurologico, Ox UTI, Hospital Sao Francisco de Assis, IRG
+- [ ] Criar botão de geração de boletos do Banco Inter (aguardando liberação de credenciais pelo banco)

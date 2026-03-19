@@ -1,0 +1,52 @@
+API Cobrança Banco Inter V3
+===========================
+
+Base URL Produção: https://cdpj.partners.bancointer.com.br/cobranca/v3
+Base URL Sandbox: https://cdpj-sandbox.partners.uatinter.co/cobranca/v3
+
+Autenticação: OAuth2 (token com validade de 60 min)
+Escopos: boleto-cobranca.read, boleto-cobranca.write
+
+Endpoint: POST /cobrancas
+Request Body:
+{
+  "seuNumero": "123456",          // <= 15 chars, obrigatório
+  "valorNominal": 2.5,            // [2.5 .. 99999999.99], obrigatório
+  "dataVencimento": "2026-10-20", // YYYY-MM-DD, obrigatório
+  "numDiasAgenda": 60,            // [0..60], obrigatório
+  "pagador": {                    // obrigatório
+    "email": "email@example.com",
+    "ddd": "31",
+    "telefone": "999999999",
+    "numero": "3456",
+    "complemento": "apto 123",
+    "cpfCnpj": "99999999999",     // obrigatório
+    "tipoPessoa": "FISICA",       // FISICA ou JURIDICA, obrigatório
+    "nome": "Nome Pagador",       // obrigatório
+    "endereco": "Rua X",          // obrigatório
+    "cidade": "Cidade",           // obrigatório
+    "uf": "UF",                   // obrigatório
+    "cep": "99999999",            // obrigatório
+    "bairro": "Bairro"            // obrigatório
+  },
+  "desconto": {},
+  "multa": {},
+  "mora": {},
+  "mensagem": {},
+  "beneficiarioFinal": {},
+  "formasRecebimento": ["BOLETO", "PIX"]
+}
+
+Response 200:
+{
+  "codigoSolicitacao": "183e982a-34e5-4bc0-9643-def5432a"
+}
+
+GET /cobrancas/{codigoSolicitacao} - Consultar cobrança detalhada
+GET /cobrancas/{codigoSolicitacao}/pdf - Download do PDF do boleto
+
+Credenciais necessárias:
+- Client ID
+- Client Secret
+- Certificado digital (.crt e .key) ou (.pfx)
+- Conta corrente (header x-conta-corrente)
