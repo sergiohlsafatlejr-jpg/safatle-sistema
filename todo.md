@@ -3233,3 +3233,5 @@
 - [x] Testes vitest para Dashboard e DRE (51 testes passando)
 - [x] Corrigir Painel Executivo mostrando dados zerados (converter strings SQL para Number no backend)
 - [x] Adicionar filtro de seleção de estabelecimento no Painel Executivo (dropdown com todos os estabelecimentos + opção Todos)
+- [x] Exibir campos de usuário e senha na tela de hospitais NFS-e para acesso ao site de emissão de nota fiscal
+- [x] Integrar convênios da tabela existente no sistema ao módulo NFS-e (em vez de cadastro separado)

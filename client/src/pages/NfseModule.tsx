@@ -793,6 +793,7 @@ function AcompanhamentoTab() {
 function HospitaisTab() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
   const { data: hospitais, isLoading } = trpc.nfse.hospitais.listar.useQuery();
   const utils = trpc.useUtils();
   const criarMutation = trpc.nfse.hospitais.criar.useMutation({
@@ -885,20 +886,49 @@ function HospitaisTab() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>CNPJ</TableHead>
+                <TableHead>CPF/Usuário NF</TableHead>
+                <TableHead>Senha NF</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8">Carregando...</TableCell></TableRow>
               ) : !hospitais?.length ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum hospital cadastrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum hospital cadastrado</TableCell></TableRow>
               ) : (
                 hospitais.map((h) => (
                   <TableRow key={h.id}>
                     <TableCell className="font-medium">{h.nome}</TableCell>
                     <TableCell>{h.cnpj || "-"}</TableCell>
+                    <TableCell>
+                      {h.cpfNf ? (
+                        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{h.cpfNf}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {h.senhaNf ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+                            {showPasswords[h.id] ? h.senhaNf : "••••••"}
+                          </span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => setShowPasswords(prev => ({ ...prev, [h.id]: !prev[h.id] }))}
+                            title={showPasswords[h.id] ? "Ocultar senha" : "Mostrar senha"}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>{h.telefone || "-"}</TableCell>
                     <TableCell className="text-right">
                       <Button size="icon" variant="ghost" onClick={() => { setEditing(h); setShowForm(true); }}>
@@ -925,72 +955,23 @@ function HospitaisTab() {
 // CONVÊNIOS CONFIG TAB
 // ============================================================
 function ConveniosNfseTab() {
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const { data: convenios, isLoading } = trpc.nfse.convenios.listar.useQuery();
-  const utils = trpc.useUtils();
-  const criarMutation = trpc.nfse.convenios.criar.useMutation({
-    onSuccess: () => { utils.nfse.convenios.invalidate(); toast.success("Convênio criado"); setShowForm(false); },
-    onError: (e) => toast.error(e.message),
-  });
-  const atualizarMutation = trpc.nfse.convenios.atualizar.useMutation({
-    onSuccess: () => { utils.nfse.convenios.invalidate(); toast.success("Convênio atualizado"); setEditing(null); setShowForm(false); },
-    onError: (e) => toast.error(e.message),
-  });
-  const excluirMutation = trpc.nfse.convenios.excluir.useMutation({
-    onSuccess: () => { utils.nfse.convenios.invalidate(); toast.success("Convênio desativado"); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const data = {
-      nome: fd.get("nome") as string,
-      codigo: (fd.get("codigo") as string) || undefined,
-    };
-    if (editing) {
-      atualizarMutation.mutate({ ...data, id: editing.id });
-    } else {
-      criarMutation.mutate(data);
-    }
-  };
+  const { data: conveniosSistema, isLoading } = trpc.nfse.convenios.listar.useQuery();
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">Configure os convênios para NFS-e</p>
-        <Button onClick={() => { setEditing(null); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Convênio
-        </Button>
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Convênios carregados automaticamente do cadastro principal do sistema.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Para adicionar ou editar convênios, acesse o menu <strong>Gerenciamento &gt; Convênios</strong>.
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs">
+          {conveniosSistema?.length || 0} convênios ativos
+        </Badge>
       </div>
-
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{editing ? "Editar Convênio" : "Novo Convênio"}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Nome *</Label>
-                  <Input name="nome" required defaultValue={editing?.nome || ""} />
-                </div>
-                <div>
-                  <Label>Código</Label>
-                  <Input name="codigo" defaultValue={editing?.codigo || ""} />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={criarMutation.isPending || atualizarMutation.isPending}>Salvar</Button>
-                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancelar</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent className="p-0">
@@ -999,28 +980,21 @@ function ConveniosNfseTab() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Código</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={3} className="text-center py-8">Carregando...</TableCell></TableRow>
-              ) : !convenios?.length ? (
-                <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Nenhum convênio cadastrado</TableCell></TableRow>
+              ) : !conveniosSistema?.length ? (
+                <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Nenhum convênio cadastrado no sistema</TableCell></TableRow>
               ) : (
-                convenios.map((c) => (
+                conveniosSistema.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.nome}</TableCell>
                     <TableCell>{c.codigo || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(c); setShowForm(true); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="text-destructive" onClick={() => {
-                        if (confirm("Desativar este convênio?")) excluirMutation.mutate({ id: c.id });
-                      }}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell>
+                      <Badge variant="default" className="bg-green-600 text-xs">Ativo</Badge>
                     </TableCell>
                   </TableRow>
                 ))

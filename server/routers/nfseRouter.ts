@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { nfseHospitais, nfseConvenios, nfseNotas } from "../../drizzle/schema";
+import { nfseHospitais, nfseConvenios, nfseNotas, convenios } from "../../drizzle/schema";
 import { eq, desc, and, sql, like, gte, lte } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { nanoid } from "nanoid";
@@ -91,6 +91,13 @@ const hospitaisRouter = router({
 
 const conveniosRouter = router({
   listar: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    // Buscar da tabela principal de convênios do sistema
+    return db.select().from(convenios).where(eq(convenios.ativo, "sim")).orderBy(convenios.nome);
+  }),
+
+  // Manter listagem da tabela NFS-e separada para compatibilidade
+  listarNfse: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     return db.select().from(nfseConvenios).where(eq(nfseConvenios.ativo, "sim")).orderBy(nfseConvenios.nome);
   }),
@@ -185,11 +192,11 @@ const notasRouter = router({
           pdfKey: nfseNotas.pdfKey,
           createdAt: nfseNotas.createdAt,
           hospitalNome: nfseHospitais.nome,
-          convenioNome: nfseConvenios.nome,
+          convenioNome: convenios.nome,
         })
           .from(nfseNotas)
           .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-          .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+          .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
           .where(whereClause)
           .orderBy(desc(nfseNotas.dataEmissao))
           .limit(input.limit)
@@ -225,11 +232,11 @@ const notasRouter = router({
         pdfKey: nfseNotas.pdfKey,
         createdAt: nfseNotas.createdAt,
         hospitalNome: nfseHospitais.nome,
-        convenioNome: nfseConvenios.nome,
+        convenioNome: convenios.nome,
       })
         .from(nfseNotas)
         .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-        .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+        .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
         .where(eq(nfseNotas.id, input.id));
       if (!nota) throw new TRPCError({ code: "NOT_FOUND", message: "Nota fiscal não encontrada" });
       return nota;
@@ -388,11 +395,11 @@ const notasRouter = router({
         valorLiquido: nfseNotas.valorLiquido,
         nfEmitida: nfseNotas.nfEmitida,
         hospitalNome: nfseHospitais.nome,
-        convenioNome: nfseConvenios.nome,
+        convenioNome: convenios.nome,
       })
         .from(nfseNotas)
         .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-        .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+        .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
         .where(whereClause)
         .orderBy(desc(nfseNotas.createdAt))
         .limit(10);
@@ -453,11 +460,11 @@ const notasRouter = router({
         observacoes: nfseNotas.observacoes,
         createdAt: nfseNotas.createdAt,
         hospitalNome: nfseHospitais.nome,
-        convenioNome: nfseConvenios.nome,
+        convenioNome: convenios.nome,
       })
         .from(nfseNotas)
         .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-        .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+        .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
         .where(and(...conditions))
         .orderBy(nfseNotas.dataEmissao);
 
@@ -506,7 +513,7 @@ const notasRouter = router({
         hospitalId: nfseNotas.hospitalId,
         hospitalNome: nfseHospitais.nome,
         convenioId: nfseNotas.convenioId,
-        convenioNome: nfseConvenios.nome,
+        convenioNome: convenios.nome,
         totalNotas: sql<number>`COUNT(*)`,
         totalBruto: sql<string>`COALESCE(SUM(${nfseNotas.valorBruto}), 0)`,
         totalLiquido: sql<string>`COALESCE(SUM(${nfseNotas.valorLiquido}), 0)`,
@@ -516,10 +523,10 @@ const notasRouter = router({
       })
         .from(nfseNotas)
         .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-        .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+        .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
         .where(and(...conditions))
-        .groupBy(nfseNotas.hospitalId, nfseHospitais.nome, nfseNotas.convenioId, nfseConvenios.nome)
-        .orderBy(nfseHospitais.nome, nfseConvenios.nome);
+        .groupBy(nfseNotas.hospitalId, nfseHospitais.nome, nfseNotas.convenioId, convenios.nome)
+        .orderBy(nfseHospitais.nome, convenios.nome);
 
       // Agrupar por hospital
       const porHospital = new Map<number, {
@@ -657,11 +664,11 @@ Retorne APENAS um JSON válido com os campos que conseguir identificar. Se não 
       }
 
       if (extractedData.convenio_nome) {
-        const [convenio] = await dbConn.select({ id: nfseConvenios.id })
-          .from(nfseConvenios)
+        const [convenio] = await dbConn.select({ id: convenios.id })
+          .from(convenios)
           .where(and(
-            like(nfseConvenios.nome, `%${extractedData.convenio_nome.substring(0, 20)}%`),
-            eq(nfseConvenios.ativo, "sim"),
+            like(convenios.nome, `%${extractedData.convenio_nome.substring(0, 20)}%`),
+            eq(convenios.ativo, "sim"),
           ))
           .limit(1);
         if (convenio) matchedConvenioId = convenio.id;
@@ -706,11 +713,11 @@ Retorne APENAS um JSON válido com os campos que conseguir identificar. Se não 
         nfEmitida: nfseNotas.nfEmitida,
         observacoes: nfseNotas.observacoes,
         hospitalNome: nfseHospitais.nome,
-        convenioNome: nfseConvenios.nome,
+        convenioNome: convenios.nome,
       })
         .from(nfseNotas)
         .leftJoin(nfseHospitais, eq(nfseNotas.hospitalId, nfseHospitais.id))
-        .leftJoin(nfseConvenios, eq(nfseNotas.convenioId, nfseConvenios.id))
+        .leftJoin(convenios, eq(nfseNotas.convenioId, convenios.id))
         .where(whereClause)
         .orderBy(desc(nfseNotas.dataEmissao));
     }),
