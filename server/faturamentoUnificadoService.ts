@@ -446,6 +446,8 @@ export async function resumoFaturamentoPorGuia(params: {
   convenioId?: number;
   statusConciliacao?: string;
   busca?: string;
+  loteXml?: string;
+  loteRetorno?: string;
   limite?: number;
   offset?: number;
 }): Promise<{ contas: any[]; total: number; resumo: any }> {
@@ -468,6 +470,13 @@ export async function resumoFaturamentoPorGuia(params: {
   if (params.busca) {
     const busca = params.busca.replace(/'/g, "''");
     whereClause += ` AND (fu.contaNumero LIKE '%${busca}%' OR fu.numeroGuia LIKE '%${busca}%' OR fu.pacienteNome LIKE '%${busca}%' OR fu.convenio LIKE '%${busca}%')`;
+  }
+  if (params.loteXml) {
+    whereClause += ` AND fu.lotePrestador = '${params.loteXml.replace(/'/g, "''")}'`;
+  }
+  if (params.loteRetorno) {
+    const lr = params.loteRetorno.replace(/'/g, "''");
+    whereClause += ` AND fu.numeroGuia IN (SELECT DISTINCT d.numero_guia FROM demonstrativo d WHERE d.estabelecimentoId = ${params.estabelecimentoId} AND d.lote_prestador = '${lr}')`;
   }
 
   const limite = params.limite || 50;
@@ -1538,6 +1547,8 @@ export async function resumoConciliadosPorGuia(params: {
   convenioId?: number;
   statusConciliacao?: string;
   busca?: string;
+  loteXml?: string;
+  loteRetorno?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ items: any[]; total: number }> {
@@ -1558,6 +1569,15 @@ export async function resumoConciliadosPorGuia(params: {
   if (params.busca) {
     const b = params.busca.replace(/'/g, "''");
     whereClause += ` AND (ca.numeroGuia LIKE '%${b}%' OR ca.contaNumero LIKE '%${b}%' OR ca.pacienteNome LIKE '%${b}%' OR ca.convenio LIKE '%${b}%')`;
+  }
+  if (params.loteXml) {
+    // Filtrar pelo lote do XML TISS via JOIN com faturamento_unificado
+    whereClause += ` AND ca.faturamentoUnificadoId IN (SELECT fu.id FROM faturamento_unificado fu WHERE fu.lotePrestador = '${params.loteXml.replace(/'/g, "''")}' AND fu.estabelecimentoId = ${params.estabelecimentoId})`;
+  }
+  if (params.loteRetorno) {
+    // Filtrar pelo lote do retorno/demonstrativo via guia
+    const lr = params.loteRetorno.replace(/'/g, "''");
+    whereClause += ` AND ca.numeroGuia IN (SELECT DISTINCT d.numero_guia FROM demonstrativo d WHERE d.estabelecimentoId = ${params.estabelecimentoId} AND d.lote_prestador = '${lr}')`;
   }
 
   const limit = params.limit || 50;
@@ -1820,4 +1840,69 @@ function encontrarMelhorMatch(
   }
 
   return melhor;
+}
+
+
+// ============================================================
+// LOTES DISPONÍVEIS PARA FILTROS
+// ============================================================
+
+/**
+ * Lista lotes do demonstrativo (lote_prestador) para filtro na conciliação cruzada
+ */
+export async function lotesRetornoDisponiveis(params: {
+  estabelecimentoId: number;
+  competencia?: string;
+  convenioId?: number;
+}): Promise<{ lote: string; protocolo: string; total: number }[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  let where = `WHERE d.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia) {
+    where += ` AND DATE_FORMAT(d.data_referencia, '%Y-%m') = '${params.competencia.replace(/'/g, "''")}'`;
+  }
+  if (params.convenioId) {
+    where += ` AND d.convenio_id = ${params.convenioId}`;
+  }
+
+  const [rows] = await db.execute(sql.raw(
+    `SELECT d.lote_prestador as lote, d.protocolo, COUNT(*) as total
+     FROM demonstrativo d
+     ${where}
+     AND d.lote_prestador IS NOT NULL AND d.lote_prestador != ''
+     GROUP BY d.lote_prestador, d.protocolo
+     ORDER BY d.lote_prestador DESC`
+  ));
+  return (rows as unknown as any[]).filter((r: any) => r.lote);
+}
+
+/**
+ * Lista lotes do XML TISS (numero_lote) para filtro na conciliação cruzada
+ */
+export async function lotesXmlTissDisponiveis(params: {
+  estabelecimentoId: number;
+  competencia?: string;
+  convenioId?: number;
+}): Promise<{ lote: string; total: number }[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  let where = `WHERE ft.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia) {
+    where += ` AND DATE_FORMAT(ft.data_referencia, '%Y-%m') = '${params.competencia.replace(/'/g, "''")}'`;
+  }
+  if (params.convenioId) {
+    where += ` AND ft.convenioId = ${params.convenioId}`;
+  }
+
+  const [rows] = await db.execute(sql.raw(
+    `SELECT ft.numero_lote as lote, COUNT(*) as total
+     FROM faturamento_tiss ft
+     ${where}
+     AND ft.numero_lote IS NOT NULL AND ft.numero_lote != ''
+     GROUP BY ft.numero_lote
+     ORDER BY ft.numero_lote DESC`
+  ));
+  return (rows as unknown as any[]).filter((r: any) => r.lote);
 }

@@ -100,6 +100,8 @@ export const faturamentoUnificadoRouter = router({
       convenioId: z.number().optional(),
       statusConciliacao: z.string().optional(),
       busca: z.string().optional(),
+      loteXml: z.string().optional(),
+      loteRetorno: z.string().optional(),
       limite: z.number().optional(),
       offset: z.number().optional(),
     }))
@@ -277,6 +279,8 @@ export const faturamentoUnificadoRouter = router({
       convenioId: z.number().optional(),
       statusConciliacao: z.string().optional(),
       busca: z.string().optional(),
+      loteXml: z.string().optional(),
+      loteRetorno: z.string().optional(),
       limit: z.number().optional(),
       offset: z.number().optional(),
     }))
@@ -402,5 +406,31 @@ export const faturamentoUnificadoRouter = router({
     }))
     .query(async ({ input }) => {
       return await xmlRecursoService.downloadXmlRecurso(input.id);
+    }),
+
+  /**
+   * Lotes do retorno/demonstrativo (lote_prestador + protocolo)
+   */
+  lotesRetorno: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.lotesRetornoDisponiveis(input);
+    }),
+
+  /**
+   * Lotes do XML TISS enviado (numero_lote)
+   */
+  lotesXmlTiss: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenioId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.lotesXmlTissDisponiveis(input);
     }),
 });

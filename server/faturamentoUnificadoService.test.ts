@@ -23,6 +23,9 @@ import {
   atualizarStatusConciliacao,
   vincularGuiaManual,
   buscarRecebimentosCandidatos,
+  lotesXmlTissDisponiveis,
+  lotesRetornoDisponiveis,
+  resumoConciliadosPorGuia,
 } from "./faturamentoUnificadoService";
 
 describe("faturamentoUnificadoService", () => {
@@ -426,6 +429,144 @@ describe("faturamentoUnificadoService", () => {
       expect(mockExecute).toHaveBeenCalled();
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // TESTES DOS FILTROS DE LOTE
+  // ============================================================
+
+  describe("lotesXmlTissDisponiveis", () => {
+    it("deve retornar lista de lotes do XML TISS", async () => {
+      mockExecute.mockResolvedValueOnce([[
+        { lote: "89482", total: 150 },
+        { lote: "89345", total: 120 },
+      ]]);
+      
+      const result = await lotesXmlTissDisponiveis({
+        estabelecimentoId: 6,
+      });
+      
+      expect(mockExecute).toHaveBeenCalled();
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it("deve aceitar filtro de competência e convênio", async () => {
+      mockExecute.mockResolvedValueOnce([[]]);
+      
+      const result = await lotesXmlTissDisponiveis({
+        estabelecimentoId: 6,
+        competencia: "2025-12",
+        convenioId: 1,
+      });
+      
+      expect(mockExecute).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe("lotesRetornoDisponiveis", () => {
+    it("deve retornar lista de lotes do retorno/demonstrativo", async () => {
+      mockExecute.mockResolvedValueOnce([[
+        { lote: "88914", protocolo: "473604", total: 200 },
+        { lote: "89345", protocolo: "487435", total: 180 },
+      ]]);
+      
+      const result = await lotesRetornoDisponiveis({
+        estabelecimentoId: 6,
+      });
+      
+      expect(mockExecute).toHaveBeenCalled();
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it("deve aceitar filtro de competência", async () => {
+      mockExecute.mockResolvedValueOnce([[]]);
+      
+      const result = await lotesRetornoDisponiveis({
+        estabelecimentoId: 6,
+        competencia: "2025-12",
+      });
+      
+      expect(mockExecute).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe("resumoFaturamentoPorGuia - filtros de lote", () => {
+    it("deve aplicar filtro de loteXml na query", async () => {
+      mockExecute
+        .mockResolvedValueOnce([[]]) // rows
+        .mockResolvedValueOnce([[{ total: 0 }]]) // count
+        .mockResolvedValueOnce([[{ totalItens: 0, totalContas: 0, totalFaturado: 0, totalPago: 0, totalGlosado: 0, totalPendente: 0, itensConciliados: 0, itensDivergentes: 0, itensPendentes: 0, itensNaoRecebidos: 0 }]]); // resumo
+      
+      await resumoFaturamentoPorGuia({
+        estabelecimentoId: 6,
+        loteXml: "89482",
+      });
+      
+      // Verificar que a query contém o filtro de lotePrestador
+      const calls = mockExecute.mock.calls;
+      const querySql = JSON.stringify(calls[0][0]);
+      expect(querySql).toContain("lotePrestador");
+      expect(querySql).toContain("89482");
+    });
+
+    it("deve aplicar filtro de loteRetorno na query", async () => {
+      mockExecute
+        .mockResolvedValueOnce([[]]) // rows
+        .mockResolvedValueOnce([[{ total: 0 }]]) // count
+        .mockResolvedValueOnce([[{ totalItens: 0, totalContas: 0, totalFaturado: 0, totalPago: 0, totalGlosado: 0, totalPendente: 0, itensConciliados: 0, itensDivergentes: 0, itensPendentes: 0, itensNaoRecebidos: 0 }]]); // resumo
+      
+      await resumoFaturamentoPorGuia({
+        estabelecimentoId: 6,
+        loteRetorno: "88914",
+      });
+      
+      // Verificar que a query contém o filtro de demonstrativo
+      const calls = mockExecute.mock.calls;
+      const querySql = JSON.stringify(calls[0][0]);
+      expect(querySql).toContain("demonstrativo");
+      expect(querySql).toContain("lote_prestador");
+      expect(querySql).toContain("88914");
+    });
+  });
+
+  describe("resumoConciliadosPorGuia - filtros de lote", () => {
+    it("deve aplicar filtro de loteXml via subquery", async () => {
+      mockExecute
+        .mockResolvedValueOnce([[]]) // rows
+        .mockResolvedValueOnce([[{ total: 0 }]]); // count
+      
+      await resumoConciliadosPorGuia({
+        estabelecimentoId: 6,
+        loteXml: "89482",
+      });
+      
+      const calls = mockExecute.mock.calls;
+      const querySql = JSON.stringify(calls[0][0]);
+      expect(querySql).toContain("faturamento_unificado");
+      expect(querySql).toContain("lotePrestador");
+      expect(querySql).toContain("89482");
+    });
+
+    it("deve aplicar filtro de loteRetorno via subquery demonstrativo", async () => {
+      mockExecute
+        .mockResolvedValueOnce([[]]) // rows
+        .mockResolvedValueOnce([[{ total: 0 }]]); // count
+      
+      await resumoConciliadosPorGuia({
+        estabelecimentoId: 6,
+        loteRetorno: "88914",
+      });
+      
+      const calls = mockExecute.mock.calls;
+      const querySql = JSON.stringify(calls[0][0]);
+      expect(querySql).toContain("demonstrativo");
+      expect(querySql).toContain("lote_prestador");
+      expect(querySql).toContain("88914");
     });
   });
 });

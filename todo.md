@@ -3276,3 +3276,6 @@
 - [x] Corrigir duplicação de itens no faturamento_unificado ao executar Popular Dados novamente (itens glosados perdem status e são duplicados)
 - [x] Preservar status de glosa/conciliação dos itens já processados ao repopular dados
 - [x] Adicionar índice composto (origemSistema, origemId, estabelecimentoId) para otimizar LEFT JOIN anti-duplicação
+
+- [x] Adicionar filtro por lote_prestador (retorno do convênio/demonstrativo) na Conciliação Cruzada
+- [x] Adicionar filtro por numero_lote (XML TISS enviado) na Conciliação Cruzada

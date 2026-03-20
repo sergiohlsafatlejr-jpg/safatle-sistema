@@ -36,6 +36,8 @@ export default function ConciliacaoCruzada() {
   const [competenciaFiltro, setCompetenciaFiltro] = useState<string>("todos");
   const [convenioFiltro, setConvenioFiltro] = useState("todos");
   const [statusFiltro, setStatusFiltro] = useState("todos");
+  const [loteXmlFiltro, setLoteXmlFiltro] = useState("todos");
+  const [loteRetornoFiltro, setLoteRetornoFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(0);
   const ITENS_POR_PAGINA = 50;
@@ -95,6 +97,18 @@ export default function ConciliacaoCruzada() {
     return isNaN(n) ? undefined : n;
   }, [convenioFiltro]);
 
+  // Lotes do XML TISS (enviado)
+  const { data: lotesXml } = trpc.faturamentoUnificado.lotesXmlTiss.useQuery(
+    { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined, convenioId: convenioIdNum },
+    { enabled: estabelecimentoId > 0 }
+  );
+
+  // Lotes do retorno/demonstrativo
+  const { data: lotesRetorno } = trpc.faturamentoUnificado.lotesRetorno.useQuery(
+    { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined, convenioId: convenioIdNum },
+    { enabled: estabelecimentoId > 0 }
+  );
+
   // ===== QUERIES PARA ABA XML RECURSO =====
 
   // Guias glosadas disponíveis para geração de XML
@@ -125,6 +139,8 @@ export default function ConciliacaoCruzada() {
       convenioId: convenioIdNum,
       statusConciliacao: statusFiltro !== "todos" ? statusFiltro : undefined,
       busca: busca || undefined,
+      loteXml: loteXmlFiltro !== "todos" ? loteXmlFiltro : undefined,
+      loteRetorno: loteRetornoFiltro !== "todos" ? loteRetornoFiltro : undefined,
       limit: ITENS_POR_PAGINA,
       offset: paginaConciliados * ITENS_POR_PAGINA,
     },
@@ -173,6 +189,8 @@ export default function ConciliacaoCruzada() {
       convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
       statusConciliacao: statusFiltro !== "todos" ? statusFiltro : undefined,
       busca: busca || undefined,
+      loteXml: loteXmlFiltro !== "todos" ? loteXmlFiltro : undefined,
+      loteRetorno: loteRetornoFiltro !== "todos" ? loteRetornoFiltro : undefined,
       limite: ITENS_POR_PAGINA,
       offset: paginaAtual * ITENS_POR_PAGINA,
     },
@@ -524,7 +542,7 @@ export default function ConciliacaoCruzada() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
               <div>
                 <Label className="font-semibold text-primary">Competência</Label>
                 <Select value={competenciaFiltro} onValueChange={(v) => { setCompetenciaFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
@@ -572,12 +590,44 @@ export default function ConciliacaoCruzada() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="lg:col-span-2">
+              <div>
+                <Label>Lote XML (Enviado)</Label>
+                <Select value={loteXmlFiltro} onValueChange={(v) => { setLoteXmlFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {lotesXml?.map((l: any) => (
+                      <SelectItem key={l.lote} value={l.lote}>
+                        Lote {l.lote} ({l.total} itens)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Lote Retorno (Convênio)</Label>
+                <Select value={loteRetornoFiltro} onValueChange={(v) => { setLoteRetornoFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {lotesRetorno?.map((l: any) => (
+                      <SelectItem key={l.lote} value={l.lote}>
+                        Lote {l.lote} {l.protocolo ? `(Prot. ${l.protocolo})` : ''} ({l.total} itens)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="lg:col-span-2 xl:col-span-1">
                 <Label>Buscar</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Guia, conta, paciente, convênio..."
+                    placeholder="Guia, conta, paciente..."
                     value={busca}
                     onChange={(e) => { setBusca(e.target.value); setPaginaAtual(0); setPaginaConciliados(0); }}
                     className="pl-9"
