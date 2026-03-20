@@ -1163,8 +1163,8 @@ export async function executarConciliacaoAutomatica(params: {
         case 'carteira_codigo': resultado.detalhes.conciliadosPorCarteiraCodigo++; break;
       }
     } else {
-      // Não encontrou match: não recebido
-      inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: 0, statusConciliacao: 'nao_recebido', metodoConciliacao: null, diferenca: 0, percentualDiferenca: 0 });
+      // Não encontrou match no demonstrativo: considerar como glosado automaticamente com motivo 5007
+      inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: valorFaturado, statusConciliacao: 'glosado', metodoConciliacao: null, diferenca: valorFaturado, percentualDiferenca: 100, codigoGlosa: '5007' });
       resultado.totalNaoRecebidos++;
     }
   }
@@ -1176,9 +1176,11 @@ export async function executarConciliacaoAutomatica(params: {
   // Ex: Faturamento tem 2 linhas de código 90465865 (qtd 4 + qtd 2),
   //     Recebimento tem 1 linha de código 90465865 (qtd 6, valor = soma).
   // -------------------------------------------------------
+  // Agora itens sem match são marcados como 'glosado' com código 5007,
+  // então filtramos por glosados automáticos (sem recebimentoId e codigoGlosa = '5007')
   const naoRecebidosIdx = inserts
     .map((ins, idx) => ({ ins, idx }))
-    .filter(({ ins }) => ins.statusConciliacao === 'nao_recebido');
+    .filter(({ ins }) => ins.statusConciliacao === 'glosado' && ins.recebimentoId === null && ins.codigoGlosa === '5007');
 
   // Agrupar nao_recebidos por guia+código
   const gruposNaoRecebidos = new Map<string, { ins: typeof inserts[0]; idx: number }[]>();
