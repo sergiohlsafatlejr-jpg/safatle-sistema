@@ -1330,6 +1330,16 @@ export default function ConciliacaoCruzada() {
                     >
                       Selecionar Todas Pendentes
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const todas = guiasGlosadas?.map((g: any) => String(g.numeroGuia)) || [];
+                        setGuiasSelecionadasXml(new Set(todas));
+                      }}
+                    >
+                      Selecionar Todas
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -1345,11 +1355,11 @@ export default function ConciliacaoCruzada() {
                         <tr className="border-b bg-muted/50">
                           <th className="p-2 w-10">
                             <Checkbox
-                              checked={guiasSelecionadasXml.size > 0 && guiasSelecionadasXml.size === guiasGlosadas.filter((g: any) => !Number(g.xmlGerado)).length}
+                              checked={guiasSelecionadasXml.size > 0 && guiasSelecionadasXml.size === guiasGlosadas.length}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  const naoGeradas = guiasGlosadas.filter((g: any) => !Number(g.xmlGerado)).map((g: any) => String(g.numeroGuia));
-                                  setGuiasSelecionadasXml(new Set(naoGeradas));
+                                  const todas = guiasGlosadas.map((g: any) => String(g.numeroGuia));
+                                  setGuiasSelecionadasXml(new Set(todas));
                                 } else {
                                   setGuiasSelecionadasXml(new Set());
                                 }
@@ -1375,7 +1385,6 @@ export default function ConciliacaoCruzada() {
                               <td className="p-2">
                                 <Checkbox
                                   checked={guiasSelecionadasXml.has(guiaKey)}
-                                  disabled={xmlGerado}
                                   onCheckedChange={(checked) => {
                                     const newSet = new Set(guiasSelecionadasXml);
                                     if (checked) newSet.add(guiaKey);
@@ -1404,20 +1413,18 @@ export default function ConciliacaoCruzada() {
                                 )}
                               </td>
                               <td className="p-2 text-center">
-                                {!xmlGerado && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-purple-600 border-purple-300 hover:bg-purple-50"
-                                    onClick={() => {
-                                      setGuiasSelecionadasXml(new Set([guiaKey]));
-                                      setModalXmlAberto(true);
-                                    }}
-                                  >
-                                    <FileCode className="w-3 h-3 mr-1" />
-                                    Gerar XML
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className={xmlGerado ? "text-blue-600 border-blue-300 hover:bg-blue-50" : "text-purple-600 border-purple-300 hover:bg-purple-50"}
+                                  onClick={() => {
+                                    setGuiasSelecionadasXml(new Set([guiaKey]));
+                                    setModalXmlAberto(true);
+                                  }}
+                                >
+                                  <FileCode className="w-3 h-3 mr-1" />
+                                  {xmlGerado ? 'Regerar' : 'Gerar XML'}
+                                </Button>
                               </td>
                             </tr>
                           );

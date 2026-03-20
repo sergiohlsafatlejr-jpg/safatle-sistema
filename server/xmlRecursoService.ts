@@ -188,7 +188,7 @@ async function buscarDadosGuiasCompletas(
     ORDER BY ca.numeroGuia, ca.dataExecucao, ca.codigoItem
   `));
 
-  const itens = itensResult as any[];
+  const itens = itensResult as unknown as any[];
   if (itens.length === 0) return [];
 
   // Buscar dados complementares do faturamento_unificado (senha, carteirinha, etc.)
@@ -210,7 +210,7 @@ async function buscarDadosGuiasCompletas(
   `));
 
   const fuMap = new Map<string, any>();
-  for (const fu of fuResult as any[]) {
+  for (const fu of fuResult as unknown as any[]) {
     fuMap.set(String(fu.numeroGuia), fu);
   }
 
@@ -225,7 +225,7 @@ async function buscarDadosGuiasCompletas(
   `));
 
   const ftMap = new Map<string, string>();
-  for (const ft of ftResult as any[]) {
+  for (const ft of ftResult as unknown as any[]) {
     const key = `${ft.numeroGuia}|${ft.codigoItem}`;
     ftMap.set(key, String(ft.codigoTabela || ''));
   }
@@ -304,7 +304,7 @@ async function buscarDadosPrestador(estabelecimentoId: number): Promise<DadosPre
     SELECT nome, cnpj FROM estabelecimentos WHERE id = ${estabelecimentoId}
   `));
 
-  const estab = (result as any[])[0];
+  const estab = (result as unknown as any[])[0];
   if (!estab) throw new Error(`Estabelecimento ${estabelecimentoId} não encontrado`);
 
   return {
@@ -329,7 +329,7 @@ async function buscarDadosConvenio(
     SELECT c.nome, c.codigo FROM convenios c WHERE c.id = ${convenioId}
   `));
 
-  const conv = (convResult as any[])[0];
+  const conv = (convResult as unknown as any[])[0];
   if (!conv) throw new Error(`Convênio ${convenioId} não encontrado`);
 
   // Buscar código do prestador na operadora
@@ -339,7 +339,7 @@ async function buscarDadosConvenio(
     LIMIT 1
   `));
 
-  const cep = (cepResult as any[])[0];
+  const cep = (cepResult as unknown as any[])[0];
 
   return {
     convenio: {
@@ -533,6 +533,16 @@ export async function gerarXmlRecurso(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
+  // 0. Resetar marcação de XML gerado para permitir regerar
+  const esc = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const guiasStrReset = params.guias.map(g => esc(g)).join(',');
+  await db.execute(sql.raw(`
+    UPDATE conciliados_automatico 
+    SET xmlRecursoGerado = 0, xmlRecursoData = NULL, xmlRecursoLoteId = NULL
+    WHERE estabelecimentoId = ${params.estabelecimentoId}
+      AND numeroGuia IN (${guiasStrReset})
+  `));
+
   // 1. Buscar TODOS os dados das guias (pagos + glosados)
   const guiasData = await buscarDadosGuiasCompletas(params.estabelecimentoId, params.guias);
   
@@ -563,7 +573,7 @@ export async function gerarXmlRecurso(params: {
         AND lotePrestador IS NOT NULL
       LIMIT 1
     `));
-    const lp = (lpResult as any[])[0];
+    const lp = (lpResult as unknown as any[])[0];
     if (lp) lotePrestador = String(lp.lotePrestador);
   }
 
@@ -619,7 +629,7 @@ export async function gerarXmlRecurso(params: {
   const tipo = params.guias.length === 1 ? 'individual' : 'lote';
   const guiasJson = JSON.stringify(params.guias);
 
-  const [insertResult] = await db.execute(sql.raw(`
+  const insertResult = await db.execute(sql.raw(`
     INSERT INTO xml_recursos_gerados 
     (estabelecimentoId, convenioId, convenioNome, guiasIncluidas, totalGuias, totalItens, 
      valorTotalGlosado, xmlUrl, xmlKey, nomeArquivo, tipo, userId)
@@ -633,7 +643,8 @@ export async function gerarXmlRecurso(params: {
      '${nomeArquivo}', '${tipo}', ${params.userId || 'NULL'})
   `));
 
-  const registroId = (insertResult as any)?.insertId || 0;
+  const insertData = Array.isArray(insertResult) ? insertResult[0] : insertResult;
+  const registroId = (insertData as any)?.insertId || 0;
 
   // 10. Marcar as guias como XML gerado na conciliados_automatico
   const idsItens: number[] = [];
@@ -697,7 +708,7 @@ export async function listarXmlsGerados(params: {
   const [countResult] = await db.execute(sql.raw(`
     SELECT COUNT(*) as total FROM xml_recursos_gerados ${whereClause}
   `));
-  const total = Number((countResult as any[])[0]?.total || 0);
+  const total = Number((countResult as unknown as any[])[0]?.total || 0);
 
   const [result] = await db.execute(sql.raw(`
     SELECT * FROM xml_recursos_gerados 
@@ -706,7 +717,7 @@ export async function listarXmlsGerados(params: {
     LIMIT ${limit} OFFSET ${offset}
   `));
 
-  return { registros: result as any[], total };
+  return { registros: result as unknown as any[], total };
 }
 
 /**
@@ -755,7 +766,7 @@ export async function guiasGlosadasDisponiveis(params: {
     ORDER BY ca.competencia DESC, ca.numeroGuia
   `));
 
-  let guias = result as any[];
+  let guias = result as unknown as any[];
 
   // Filtrar apenas não geradas se solicitado
   if (params.apenasNaoGeradas) {
@@ -776,7 +787,7 @@ export async function downloadXmlRecurso(id: number): Promise<{ url: string; nom
     SELECT xmlUrl, nomeArquivo FROM xml_recursos_gerados WHERE id = ${id}
   `));
 
-  const registro = (result as any[])[0];
+  const registro = (result as unknown as any[])[0];
   if (!registro) throw new Error("Registro de XML não encontrado");
 
   return {

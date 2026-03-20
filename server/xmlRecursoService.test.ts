@@ -29,8 +29,10 @@ describe('xmlRecursoService', () => {
 
   describe('gerarXmlRecurso', () => {
     it('deve lançar erro quando não há itens encontrados', async () => {
-      // Mock: retorna vazio para itens
+      // Mock: passo 0 - reset marcação XML
       mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        // Mock: retorna vazio para itens
         .mockResolvedValueOnce([[]])  // buscarDadosGuiasCompletas - itens
         ;
 
@@ -43,8 +45,10 @@ describe('xmlRecursoService', () => {
     });
 
     it('deve gerar XML com TODOS os itens da guia (pagos e glosados)', async () => {
-      // Mock: TODOS os itens da guia (pagos + glosados)
+      // Mock: passo 0 - reset marcação XML
       mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        // Mock: TODOS os itens da guia (pagos + glosados)
         .mockResolvedValueOnce([[
           {
             id: 1,
@@ -160,8 +164,10 @@ describe('xmlRecursoService', () => {
     });
 
     it('deve gerar XML em lote para múltiplas guias com todos os itens', async () => {
-      // Mock: todos os itens de 2 guias
+      // Mock: passo 0 - reset marcação XML
       mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        // Mock: todos os itens de 2 guias
         .mockResolvedValueOnce([[
           {
             id: 1, numeroGuia: '18414424', codigoItem: '10101012',

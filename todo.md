@@ -3270,3 +3270,5 @@
 - [x] Incluir itens divergentes na geração de XML de recurso
 
 - [x] Corrigir XML de recurso: incluir motivo de glosa (código numérico) e valorGlosa nos itens glosados dentro do XML (tags relacaoGlosa/tipoGlosa/valorGlosa e valorGlosaGuia)
+
+- [x] Permitir regerar XML de recurso para guias que já foram geradas (botão Regerar ou permitir selecionar guias já geradas)
