@@ -12,6 +12,7 @@ vi.mock("./db", () => ({
 import {
   popularDeTasy,
   popularDeXmlTiss,
+  popularDeIntegFaturado,
   popularFaturamentoUnificado,
   listarFaturamentoUnificado,
   resumoFaturamentoPorConvenio,
@@ -31,23 +32,89 @@ describe("faturamentoUnificadoService", () => {
     mockExecute.mockResolvedValue([[]]);
   });
 
-  describe("popularDeTasy", () => {
-    it("deve chamar execute para popular dados do Tasy", async () => {
+  // ============================================================
+  // TESTES DE ANTI-DUPLICAÇÃO (CORREÇÃO PRINCIPAL)
+  // ============================================================
+
+  describe("popularDeIntegFaturado - anti-duplicação", () => {
+    it("deve deletar APENAS itens com statusConciliacao = 'pendente'", async () => {
       mockExecute
-        .mockResolvedValueOnce([{ affectedRows: 0 }]) // DELETE
-        .mockResolvedValueOnce([{ affectedRows: 100 }]); // INSERT
+        .mockResolvedValueOnce([{ affectedRows: 100 }]) // DELETE (apenas pendentes)
+        .mockResolvedValueOnce([{ affectedRows: 50 }])  // INSERT (novos itens)
+        .mockResolvedValueOnce([[{ total: 150 }]]);      // COUNT
       
-      const result = await popularDeTasy(1);
+      await popularDeIntegFaturado(2);
       
-      expect(mockExecute).toHaveBeenCalled();
+      // Verificar que o DELETE contém statusConciliacao = 'pendente'
+      const deleteCall = mockExecute.mock.calls[0][0];
+      const deleteSql = deleteCall.queryChunks?.[0]?.value?.[0] || deleteCall.toString();
+      expect(deleteSql).toContain("statusConciliacao = 'pendente'");
+      expect(deleteSql).toContain("origemSistema = 'WARLEINE'");
+    });
+
+    it("deve usar LEFT JOIN para evitar inserir itens que já existem", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])   // DELETE
+        .mockResolvedValueOnce([{ affectedRows: 10 }])   // INSERT
+        .mockResolvedValueOnce([[{ total: 200 }]]);       // COUNT
+      
+      await popularDeIntegFaturado(2);
+      
+      // Verificar que o INSERT contém LEFT JOIN e fu.id IS NULL
+      const insertCall = mockExecute.mock.calls[1][0];
+      const insertSql = insertCall.queryChunks?.[0]?.value?.[0] || insertCall.toString();
+      expect(insertSql).toContain("LEFT JOIN faturamento_unificado fu");
+      expect(insertSql).toContain("fu.id IS NULL");
+    });
+
+    it("deve aceitar competência como filtro", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([{ affectedRows: 50 }])
+        .mockResolvedValueOnce([[{ total: 50 }]]);
+      
+      const result = await popularDeIntegFaturado(2, "2025-12");
+      
+      expect(mockExecute).toHaveBeenCalledTimes(3);
       expect(result).toBeDefined();
-      expect(result).toHaveProperty("inseridos");
+      expect(result).toHaveProperty("total");
+    });
+  });
+
+  describe("popularDeTasy - anti-duplicação", () => {
+    it("deve deletar APENAS itens pendentes do TASY", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])   // DELETE
+        .mockResolvedValueOnce([{ affectedRows: 100 }])  // INSERT
+        .mockResolvedValueOnce([[{ total: 100 }]]);       // COUNT
+      
+      await popularDeTasy(1);
+      
+      const deleteCall = mockExecute.mock.calls[0][0];
+      const deleteSql = deleteCall.queryChunks?.[0]?.value?.[0] || deleteCall.toString();
+      expect(deleteSql).toContain("statusConciliacao = 'pendente'");
+      expect(deleteSql).toContain("origemSistema = 'TASY'");
+    });
+
+    it("deve usar LEFT JOIN para evitar duplicação", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([{ affectedRows: 100 }])
+        .mockResolvedValueOnce([[{ total: 100 }]]);
+      
+      await popularDeTasy(1);
+      
+      const insertCall = mockExecute.mock.calls[1][0];
+      const insertSql = insertCall.queryChunks?.[0]?.value?.[0] || insertCall.toString();
+      expect(insertSql).toContain("LEFT JOIN faturamento_unificado fu");
+      expect(insertSql).toContain("fu.id IS NULL");
     });
 
     it("deve aceitar competência como filtro opcional", async () => {
       mockExecute
         .mockResolvedValueOnce([{ affectedRows: 0 }])
-        .mockResolvedValueOnce([{ affectedRows: 50 }]);
+        .mockResolvedValueOnce([{ affectedRows: 50 }])
+        .mockResolvedValueOnce([[{ total: 50 }]]);
       
       const result = await popularDeTasy(1, "2025-12");
       
@@ -56,13 +123,42 @@ describe("faturamentoUnificadoService", () => {
     });
   });
 
-  describe("popularDeXmlTiss", () => {
-    it("deve chamar execute para popular dados do XML TISS", async () => {
+  describe("popularDeXmlTiss - anti-duplicação", () => {
+    it("deve deletar APENAS itens XML_TISS pendentes", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])   // DELETE
+        .mockResolvedValueOnce([{ affectedRows: 200 }])  // INSERT
+        .mockResolvedValueOnce([[{ total: 200 }]]);       // COUNT
+      
+      await popularDeXmlTiss(1);
+      
+      const deleteCall = mockExecute.mock.calls[0][0];
+      const deleteSql = deleteCall.queryChunks?.[0]?.value?.[0] || deleteCall.toString();
+      expect(deleteSql).toContain("statusConciliacao = 'pendente'");
+      expect(deleteSql).toContain("origemSistema = 'XML_TISS'");
+    });
+
+    it("deve usar LEFT JOIN para evitar inserir itens já existentes", async () => {
       mockExecute
         .mockResolvedValueOnce([{ affectedRows: 0 }])
-        .mockResolvedValueOnce([{ affectedRows: 200 }]);
+        .mockResolvedValueOnce([{ affectedRows: 200 }])
+        .mockResolvedValueOnce([[{ total: 200 }]]);
       
-      const result = await popularDeXmlTiss(1);
+      await popularDeXmlTiss(1);
+      
+      const insertCall = mockExecute.mock.calls[1][0];
+      const insertSql = insertCall.queryChunks?.[0]?.value?.[0] || insertCall.toString();
+      expect(insertSql).toContain("LEFT JOIN faturamento_unificado fu");
+      expect(insertSql).toContain("fu.id IS NULL");
+    });
+
+    it("deve aceitar dataReferencia como filtro", async () => {
+      mockExecute
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([{ affectedRows: 50 }])
+        .mockResolvedValueOnce([[{ total: 50 }]]);
+      
+      const result = await popularDeXmlTiss(1, "2025-12");
       
       expect(mockExecute).toHaveBeenCalled();
       expect(result).toBeDefined();
@@ -70,8 +166,12 @@ describe("faturamentoUnificadoService", () => {
     });
   });
 
+  // ============================================================
+  // TESTES EXISTENTES
+  // ============================================================
+
   describe("popularFaturamentoUnificado", () => {
-    it("deve chamar popularDeTasy e popularDeXmlTiss", async () => {
+    it("deve chamar popularDeIntegFaturado e popularDeXmlTiss", async () => {
       mockExecute.mockResolvedValue([{ affectedRows: 0 }]);
       
       const result = await popularFaturamentoUnificado(1);
@@ -85,7 +185,6 @@ describe("faturamentoUnificadoService", () => {
 
   describe("resumoFaturamentoPorGuia", () => {
     it("deve retornar resumo com totais", async () => {
-      // Primeiro execute retorna resumo, segundo retorna contagem, terceiro retorna contas
       mockExecute
         .mockResolvedValueOnce([[{
           totalItens: 500,

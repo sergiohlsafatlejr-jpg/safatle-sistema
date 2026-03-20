@@ -44,15 +44,23 @@ export async function popularDeIntegFaturado(
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // Limpar registros WARLEINE existentes para o estabelecimento/competência
-  let deleteQuery = `DELETE FROM faturamento_unificado WHERE origemSistema = 'WARLEINE' AND estabelecimentoId = ${estabelecimentoId}`;
-  if (competencia) {
-    deleteQuery += ` AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`;
-  }
+  const compFilter = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
+  const compWarleineFilter = competencia ? `AND ig.mesprod LIKE '${competencia.replace('-', '/').replace(/'/g, "''")}%'` : '';
+
+  // PASSO 1: Deletar APENAS itens com statusConciliacao = 'pendente'
+  // Itens já processados (conciliado, divergente, nao_recebido, glosado) são preservados
+  const deleteQuery = `
+    DELETE FROM faturamento_unificado 
+    WHERE origemSistema = 'WARLEINE' 
+      AND estabelecimentoId = ${estabelecimentoId}
+      AND statusConciliacao = 'pendente'
+      ${compFilter}
+  `;
   await db.execute(sql.raw(deleteQuery));
 
-  // Inserir dados do integ_faturado
-  let insertQuery = `
+  // PASSO 2: Inserir apenas itens que NÃO existem ainda no faturamento_unificado
+  // Usa LEFT JOIN para detectar itens já existentes (por origemId + origemSistema)
+  const insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
       contaNumero, numeroGuia, numeroGuiaOperadora,
@@ -88,22 +96,22 @@ export async function popularDeIntegFaturado(
       ig.vl_faturado,
       NOW()
     FROM integ_faturado ig
+    LEFT JOIN faturamento_unificado fu 
+      ON fu.origemSistema = 'WARLEINE' 
+      AND fu.origemId = CAST(ig._id AS CHAR)
+      AND fu.estabelecimentoId = ig.estabelecimento_id
     WHERE ig.estabelecimento_id = ${estabelecimentoId}
+      AND fu.id IS NULL
+      ${compWarleineFilter}
   `;
-
-  if (competencia) {
-    // competencia vem como 2025-01, integ_faturado armazena como 2025/01
-    const compWarleine = competencia.replace('-', '/');
-    insertQuery += ` AND ig.mesprod LIKE '${compWarleine.replace(/'/g, "''")}%'`;
-  }
 
   await db.execute(sql.raw(insertQuery));
 
-  // Contar registros inseridos
+  // Contar registros totais
   const countQuery = `
     SELECT COUNT(*) as total FROM faturamento_unificado 
     WHERE origemSistema = 'WARLEINE' AND estabelecimentoId = ${estabelecimentoId}
-    ${competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : ''}
+    ${compFilter}
   `;
   const [countResult] = await db.execute(sql.raw(countQuery));
   const total = (countResult as any)?.[0]?.total || 0;
@@ -126,19 +134,19 @@ export async function popularDeTasy(
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // Limpar registros TASY existentes para o estabelecimento/competência
-  let deleteQuery = `DELETE FROM faturamento_unificado WHERE origemSistema = 'TASY' AND estabelecimentoId = ?`;
-  const deleteParams: any[] = [estabelecimentoId];
-  if (competencia) {
-    deleteQuery += ` AND competencia LIKE ?`;
-    deleteParams.push(`${competencia}%`);
-  }
-  await db.execute(sql.raw(deleteQuery.replace(/\?/g, () => {
-    const val = deleteParams.shift();
-    return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : String(val);
-  })));
+  const compFilter = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
 
-  // Inserir dados do faturadoTasy
+  // Limpar APENAS registros TASY pendentes (preservar itens já processados)
+  const deleteQuery = `
+    DELETE FROM faturamento_unificado 
+    WHERE origemSistema = 'TASY' 
+      AND estabelecimentoId = ${estabelecimentoId}
+      AND statusConciliacao = 'pendente'
+      ${compFilter}
+  `;
+  await db.execute(sql.raw(deleteQuery));
+
+  // Inserir apenas itens que NÃO existem ainda (evitar duplicação)
   let insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -176,7 +184,12 @@ export async function popularDeTasy(
       ft.dtPgto,
       NOW()
     FROM faturadoTasy ft
+    LEFT JOIN faturamento_unificado fu 
+      ON fu.origemSistema = 'TASY' 
+      AND fu.origemId = CAST(ft.id AS CHAR)
+      AND fu.estabelecimentoId = ft.estabelecimentoId
     WHERE ft.estabelecimentoId = ${estabelecimentoId}
+      AND fu.id IS NULL
   `;
 
   if (competencia) {
@@ -212,20 +225,21 @@ export async function popularDeXmlTiss(
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // Limpar registros XML_TISS existentes para o estabelecimento
-  let deleteQuery = `DELETE FROM faturamento_unificado WHERE origemSistema = 'XML_TISS' AND estabelecimentoId = ?`;
-  const deleteParams: any[] = [estabelecimentoId];
-  if (dataReferencia) {
-    deleteQuery += ` AND competencia LIKE ?`;
-    deleteParams.push(`${dataReferencia}%`);
-  }
-  await db.execute(sql.raw(deleteQuery.replace(/\?/g, () => {
-    const val = deleteParams.shift();
-    return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : String(val);
-  })));
+  const compFilter = dataReferencia ? `AND competencia = '${dataReferencia.replace(/'/g, "''")}' ` : '';
 
-  // Inserir dados do faturamento_tiss (com deduplicação para evitar duplicatas
-  // quando o mesmo XML é importado em múltiplos convênios)
+  // PASSO 1: Deletar APENAS itens XML_TISS com statusConciliacao = 'pendente'
+  // Itens já processados (conciliado, divergente, nao_recebido, glosado) são preservados
+  const deleteQuery = `
+    DELETE FROM faturamento_unificado 
+    WHERE origemSistema = 'XML_TISS' 
+      AND estabelecimentoId = ${estabelecimentoId}
+      AND statusConciliacao = 'pendente'
+      ${compFilter}
+  `;
+  await db.execute(sql.raw(deleteQuery));
+
+  // PASSO 2: Inserir apenas itens que NÃO existem ainda (evitar duplicação)
+  // Usa LEFT JOIN com faturamento_unificado para detectar itens já existentes
   let insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -269,11 +283,16 @@ export async function popularDeXmlTiss(
       WHERE ft.estabelecimentoId = ${estabelecimentoId}
     ) dedup
     LEFT JOIN convenios c ON dedup.convenioId = c.id
+    LEFT JOIN faturamento_unificado fu 
+      ON fu.origemSistema = 'XML_TISS' 
+      AND fu.origemId = CAST(dedup.id AS CHAR)
+      AND fu.estabelecimentoId = dedup.estabelecimentoId
     WHERE dedup.rn = 1
+      AND fu.id IS NULL
   `;
 
   if (dataReferencia) {
-    insertQuery += ` AND DATE_FORMAT(dedup.data_referencia, '%Y-%m') = '${dataReferencia.replace(/'/g, "''")}'`;
+    insertQuery += ` AND DATE_FORMAT(dedup.data_referencia, '%Y-%m') = '${dataReferencia.replace(/'/g, "''")}' `;
   }
 
   await db.execute(sql.raw(insertQuery));

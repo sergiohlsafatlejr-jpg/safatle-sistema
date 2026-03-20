@@ -3272,3 +3272,7 @@
 - [x] Corrigir XML de recurso: incluir motivo de glosa (código numérico) e valorGlosa nos itens glosados dentro do XML (tags relacaoGlosa/tipoGlosa/valorGlosa e valorGlosaGuia)
 
 - [x] Permitir regerar XML de recurso para guias que já foram geradas (botão Regerar ou permitir selecionar guias já geradas)
+
+- [x] Corrigir duplicação de itens no faturamento_unificado ao executar Popular Dados novamente (itens glosados perdem status e são duplicados)
+- [x] Preservar status de glosa/conciliação dos itens já processados ao repopular dados
+- [x] Adicionar índice composto (origemSistema, origemId, estabelecimentoId) para otimizar LEFT JOIN anti-duplicação
