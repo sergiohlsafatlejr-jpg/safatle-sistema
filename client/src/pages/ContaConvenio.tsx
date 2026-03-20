@@ -45,6 +45,7 @@ import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -57,11 +58,6 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // Formatar data
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 // Badge de status de análise
 const StatusBadge = ({ status }: { status: string }) => {
@@ -257,7 +253,7 @@ export default function ContaConvenio() {
       "Status": conta.statusAnaliseResumo || conta.statusAnalise || "pendente",
       "Divergências": conta.totalDivergencias || 0,
       "Alertas": conta.totalAlertas || 0,
-      "Data Busca": formatDate(conta.dataBusca || conta.criadoEm),
+      "Data Busca": formatDateBR(conta.dataBusca || conta.criadoEm),
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);

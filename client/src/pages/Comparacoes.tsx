@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 export default function Comparacoes() {
   const [, setLocation] = useLocation();
@@ -405,7 +406,7 @@ export default function Comparacoes() {
                     <div className="flex items-center gap-4 text-sm text-slate-600">
                       <span><strong>Arquivo:</strong> {arquivoSelecionado.nome}</span>
                       <span><strong>Convênio:</strong> {convenios?.find(c => c.id === arquivoSelecionado.convenioId)?.nome || "-"}</span>
-                      <span><strong>Data:</strong> {new Date(arquivoSelecionado.createdAt).toLocaleDateString("pt-BR")}</span>
+                      <span><strong>Data:</strong> {formatDateBR(arquivoSelecionado.createdAt)}</span>
                     </div>
                   </div>
                 )}
@@ -875,7 +876,7 @@ export default function Comparacoes() {
                                   {formatCurrency(validacao.valorDiferenca)}
                                 </TableCell>
                                 <TableCell className="text-sm text-slate-500">
-                                  {new Date(validacao.createdAt).toLocaleDateString('pt-BR', {
+                                  {safeParseDate(validacao.createdAt)?.toLocaleDateString('pt-BR', {
                                     day: '2-digit',
                                     month: '2-digit',
                                     year: 'numeric',

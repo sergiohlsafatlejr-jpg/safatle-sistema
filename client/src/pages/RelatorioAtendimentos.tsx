@@ -21,17 +21,9 @@ import {
 import PerfilPacienteTab from "@/components/dashboard/PerfilPacienteTab";
 import AnaliseOperacionalTab from "@/components/dashboard/AnaliseOperacionalTab";
 import { toast } from "sonner";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
 
-function formatDateShort(dateStr: string | null) {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleDateString("pt-BR");
-}
 
 function getTipoColor(tipo: string) {
   switch (tipo) {
@@ -313,8 +305,8 @@ export default function RelatorioAtendimentos() {
       a.servico || "-",
       a.codesp || "-",
       a.especialidade || "-",
-      formatDateShort(a.data_atendimento),
-      formatDateShort(a.data_saida),
+      formatDateBR(a.data_atendimento),
+      formatDateBR(a.data_saida),
       a.censo || "-",
       a.codcc || "-",
       a.centro_custo || "-",
@@ -364,7 +356,7 @@ export default function RelatorioAtendimentos() {
       parts.push(`${statusSync.totalRegistrosCache.toLocaleString("pt-BR")} registros em cache`);
     }
     if (statusSync.ultimaSincronizacao) {
-      parts.push(`Atualizado em ${formatDate(new Date(statusSync.ultimaSincronizacao).toISOString())}`);
+      parts.push(`Atualizado em ${formatDateTimeBR(new Date(statusSync.ultimaSincronizacao).toISOString())}`);
     }
     return parts.join(" | ");
   }, [statusSync]);
@@ -417,7 +409,7 @@ export default function RelatorioAtendimentos() {
         )}
         {statusSync.ultimaSincronizacao && (
           <span className="text-xs text-muted-foreground">
-            Atualizado em {formatDate(new Date(statusSync.ultimaSincronizacao).toISOString())}
+            Atualizado em {formatDateTimeBR(new Date(statusSync.ultimaSincronizacao).toISOString())}
           </span>
         )}
       </div>
@@ -816,8 +808,8 @@ export default function RelatorioAtendimentos() {
                               <TableCell className="max-w-[150px] truncate" title={a.plano_convenio || ""}>{a.plano_convenio || a.codplaco}</TableCell>
                               <TableCell className="text-sm">{a.servico || a.codserv}</TableCell>
                               <TableCell className="max-w-[150px] truncate text-sm" title={a.especialidade || ""}>{a.especialidade || a.codesp || "-"}</TableCell>
-                              <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_atendimento)}</TableCell>
-                              <TableCell className="text-sm whitespace-nowrap">{formatDateShort(a.data_saida)}</TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">{formatDateBR(a.data_atendimento)}</TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">{formatDateBR(a.data_saida)}</TableCell>
                               <TableCell className="text-sm">{a.censo || "-"}</TableCell>
                               <TableCell className="max-w-[150px] truncate text-sm" title={a.centro_custo || ""}>{a.centro_custo || a.codcc || "-"}</TableCell>
                               <TableCell className="max-w-[180px] truncate text-sm" title={a.prestador || ""}>{a.prestador || a.codprest || "-"}</TableCell>

@@ -39,6 +39,7 @@ import {
 import React, { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -51,11 +52,6 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // Formatar data
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 // Mapa de tipos de lançamento com labels legíveis, ícones e cores
 const TIPO_LANCAMENTO_MAP: Record<string, { label: string; color: string; bgColor: string; borderColor: string; icon: any }> = {
@@ -222,7 +218,7 @@ export default function DemonstrativoDetalhes() {
       "Código": item.codigoItem || "",
       "Descrição": item.descricaoItem || "",
       "Tipo Lançamento": getTipoInfo(getTipoEfetivo(item)).label,
-      "Data Execução": formatDate(item.dataExecucao),
+      "Data Execução": formatDateBR(item.dataExecucao),
       "Quantidade": item.quantidade || "",
       "Valor Informado": parseFloat(item.valorInformado || "0"),
       "Valor Pago": parseFloat(item.valorPago || "0"),
@@ -358,11 +354,11 @@ export default function DemonstrativoDetalhes() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Data Pagamento</p>
-                      <p className="font-medium">{formatDate(cabecalho?.dataPagamento)}</p>
+                      <p className="font-medium">{formatDateBR(cabecalho?.dataPagamento)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Competência</p>
-                      <p className="font-medium">{formatDate(cabecalho?.dataReferencia)}</p>
+                      <p className="font-medium">{formatDateBR(cabecalho?.dataReferencia)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -591,7 +587,7 @@ export default function DemonstrativoDetalhes() {
                               )}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {formatDate(item.dataExecucao)}
+                              {formatDateBR(item.dataExecucao)}
                             </TableCell>
                             <TableCell className="text-center font-mono text-sm">
                               {item.quantidade || "1"}

@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { SAFATLE_ESTABELECIMENTO_ID } from "@shared/const";
 import { useEffect } from "react";
+import { formatDateBR } from "@/lib/dateUtils";
 export default function Home() {
   const [, setLocation] = useLocation();
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -277,7 +278,7 @@ export default function Home() {
                           {comp.totalDivergencias || 0} divergências
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(comp.createdAt).toLocaleDateString("pt-BR")}
+                          {formatDateBR(comp.createdAt)}
                         </p>
                       </div>
                     </div>

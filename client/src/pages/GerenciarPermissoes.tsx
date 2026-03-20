@@ -71,6 +71,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Definição dos grupos de serviço pré-definidos
 const GRUPOS_SERVICO_PADRAO = [
@@ -1219,7 +1220,7 @@ export default function GerenciarPermissoes() {
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            {formatDate(log.createdAt)}
+                            {formatDateBR(log.createdAt)}
                           </div>
                         </TableCell>
                         <TableCell>

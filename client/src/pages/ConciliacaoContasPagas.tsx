@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GLOSAS_TISS, traduzirMotivoGlosa } from "../../../shared/glossaryGlosas";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function ConciliacaoContasPagas() {
   const { user } = useAuth();
@@ -371,7 +372,7 @@ export default function ConciliacaoContasPagas() {
           'Valor Glosa': item.vlGlosa || 0,
           'Código Motivo Glosa': item.motivoGlosa || '-',
           'Motivo Glosa': motivoTraduzido,
-          'Data Item': item.dtItem ? new Date(item.dtItem).toLocaleDateString('pt-BR') : '-',
+          'Data Item': item.dtItem ? formatDateBR(item.dtItem) : '-',
         };
       });
       

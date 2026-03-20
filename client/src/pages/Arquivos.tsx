@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function Arquivos() {
   const [, setLocation] = useLocation();
@@ -383,7 +384,7 @@ export default function Arquivos() {
                         <TableCell>{getStatusBadge(arquivo)}</TableCell>
                         <TableCell>
                           <span className="text-sm text-slate-500">
-                            {new Date(arquivo.createdAt).toLocaleDateString("pt-BR")}
+                            {formatDateBR(arquivo.createdAt)}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">

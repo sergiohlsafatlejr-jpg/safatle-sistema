@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/dateUtils";
 import {
   ClipboardCheck, Clock, CheckCircle2, XCircle, AlertTriangle, ArrowLeft,
   RefreshCw, Eye, FileCheck, BarChart3, TrendingUp, ArrowRight, Download,
@@ -19,11 +20,6 @@ function formatCurrency(value: number | string | null | undefined): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (num == null || isNaN(num)) return "R$ 0,00";
   return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function formatDate(date: string | Date | null | undefined): string {
-  if (!date) return "-";
-  return new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -294,8 +290,8 @@ export default function ConferenciaCorrecaoDashboard() {
                           </TableCell>
                           <TableCell className="text-sm">{snap.auditorNome || "-"}</TableCell>
                           <TableCell><StatusBadge status={snap.status} /></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{formatDate(snap.createdAt)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{snap.dataCorrecao ? formatDate(snap.dataCorrecao) : "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDateBR(snap.createdAt)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{snap.dataCorrecao ? formatDateBR(snap.dataCorrecao) : "-"}</TableCell>
                           <TableCell className="text-center">
                             {(() => {
                               if (!snap.dataCorrecao) return <span className="text-muted-foreground text-xs">-</span>;

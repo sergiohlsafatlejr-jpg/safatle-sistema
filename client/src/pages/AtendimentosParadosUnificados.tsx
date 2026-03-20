@@ -14,6 +14,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatDateBR } from "@/lib/dateUtils";
 
 type SortColumn = "numero_atendimento" | "paciente" | "convenio" | "data_entrada" | "data_saida" | "diasParado" | "descricao_atendimento" | "codigo_servico" | "valorConta" | "etapaConta" | "medicoResp" | "matricula" | "setorEtapa" | "dtEtapa" | "userEtapa" | "tipo_atendimento";
 type SortOrder = "asc" | "desc";
@@ -230,11 +231,7 @@ async function gerarPDFNotificacao(
   doc.text("ATENDIMENTOS", margin, y);
   y += 5;
 
-  const formatDate = (d: any) => {
-    if (!d) return "-";
-    try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return String(d); }
-  };
-
+  
   if (isTasy) {
     autoTable(doc, {
       startY: y,
@@ -243,8 +240,8 @@ async function gerarPDFNotificacao(
         d.numero_atendimento || "-",
         d.paciente || "-",
         d.convenio || "-",
-        formatDate(d.data_entrada),
-        formatDate(d.data_saida),
+        formatDateBR(d.data_entrada),
+        formatDateBR(d.data_saida),
         String(d.diasParado || 0),
         d.tipo_atendimento || "-",
         d.codigo_servico || "-",
@@ -273,8 +270,8 @@ async function gerarPDFNotificacao(
         d.numero_atendimento || "-",
         d.paciente || "-",
         d.convenio || "-",
-        formatDate(d.data_entrada),
-        formatDate(d.data_saida),
+        formatDateBR(d.data_entrada),
+        formatDateBR(d.data_saida),
         String(d.diasParado || 0),
         d.tipo_atendimento || "-",
         d.descricao_atendimento || d.codigo_servico || "-",
@@ -579,7 +576,7 @@ export default function AtendimentosParadosUnificados() {
         tipoAtendimento: a.tipo_atendimento || "-",
         plano: a.convenio || "Sem Plano",
         diasParado: a.diasParado || 0,
-        dataEntrada: a.data_entrada ? new Date(a.data_entrada as string).toLocaleDateString("pt-BR") : "-",
+        dataEntrada: a.data_entrada ? formatDateBR(a.data_entrada as string) : "-",
         observacao: undefined,
       })),
     });
@@ -615,12 +612,12 @@ export default function AtendimentosParadosUnificados() {
       if (isTasy) {
         return {
           "N° Atend": a.numero_atendimento, "Paciente": a.paciente, "Plano": a.convenio,
-          "Data Entrada": a.data_entrada ? formatDate(a.data_entrada) : "-",
-          "Data Saída": a.data_saida ? formatDate(a.data_saida) : "-",
+          "Data Entrada": a.data_entrada ? formatDateBR(a.data_entrada) : "-",
+          "Data Saída": a.data_saida ? formatDateBR(a.data_saida) : "-",
           "Dias Parado": a.diasParado, "Tipo Atend.": a.tipo_atendimento,
           "Cód. Serviço": a.codigo_servico, "Descrição Atendimento": a.descricao_atendimento,
           "Etapa Conta": a.etapaConta, "Setor Etapa": a.setorEtapa,
-          "Data Etapa": a.dtEtapa ? formatDate(a.dtEtapa) : "-", "Usuário Etapa": a.userEtapa,
+          "Data Etapa": a.dtEtapa ? formatDateBR(a.dtEtapa) : "-", "Usuário Etapa": a.userEtapa,
           "Nome Protocolo": a.nomeProtocolo || "Sem protocolo",
           "Qtd. Serviço": quantidadePorDescricao[a.descricao_atendimento || "Sem descrição"] || 0,
         };
@@ -629,19 +626,19 @@ export default function AtendimentosParadosUnificados() {
           "N° Atend": a.numero_atendimento, "Plano": a.convenio, "Categoria": a.dsCategoria,
           "Plano Detalhe": a.dsPlano, "Paciente": a.paciente, "Matrícula": a.matricula,
           "Sexo": a.sexo, "Idade": a.idade, "Caráter": a.caracter_atendimento,
-          "Data Entrada": a.data_entrada ? formatDate(a.data_entrada) : "-",
-          "Data Saída": a.data_saida ? formatDate(a.data_saida) : "-",
+          "Data Entrada": a.data_entrada ? formatDateBR(a.data_entrada) : "-",
+          "Data Saída": a.data_saida ? formatDateBR(a.data_saida) : "-",
           "Dias Parado": a.diasParado, "Tipo": a.tipo_atendimento,
           "Serviço": a.descricao_atendimento, "Proc. Principal": a.codigo_procedimento,
           "Conta": a.conta, "Autorização": a.autorizacao, "Valor Conta": a.valorConta,
           "Etapa Conta": a.etapaConta, "Setor Etapa": a.setorEtapa,
-          "Data Etapa": a.dtEtapa ? formatDate(a.dtEtapa) : "-", "Usuário Etapa": a.userEtapa,
+          "Data Etapa": a.dtEtapa ? formatDateBR(a.dtEtapa) : "-", "Usuário Etapa": a.userEtapa,
           "Motivo Devolução": a.motivoDevolucao, "Competência": a.competencia,
           "Referência": a.referencia, "Protocolo Tasy": a.protTasy,
           "Nome Protocolo": a.nomeProtocolo, "Protocolo Convênio": a.protConv,
-          "Status Protocolo": a.protStatus, "Data Entrega": a.dtEntrega ? formatDate(a.dtEntrega) : "-",
-          "Título": a.titulo, "Data Título": a.dtTitulo ? formatDate(a.dtTitulo) : "-",
-          "Data Vencimento": a.dataVencimento ? formatDate(a.dataVencimento) : "-",
+          "Status Protocolo": a.protStatus, "Data Entrega": a.dtEntrega ? formatDateBR(a.dtEntrega) : "-",
+          "Título": a.titulo, "Data Título": a.dtTitulo ? formatDateBR(a.dtTitulo) : "-",
+          "Data Vencimento": a.dataVencimento ? formatDateBR(a.dataVencimento) : "-",
           "Setor Entrada": a.dsSetorEntrada, "Setor Leito": a.dsSetorLeito,
           "Médico Resp.": a.medicoResp, "CRM": a.crm, "Motivo Alta": a.dsMotivoAlta,
           "Centro Custo": a.centroCusto, "Origem": a.origemSistema,
@@ -1372,8 +1369,8 @@ export default function AtendimentosParadosUnificados() {
                                   <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.numero_atendimento}</td>
                                   <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
                                   <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[120px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
-                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
-                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
+                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDateBR(atendimento.data_entrada)}</td>
+                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDateBR(atendimento.data_saida)}</td>
                                   <td className="px-3 py-2.5"><Badge className={`${getDiasParadoColor(atendimento.diasParado)} text-xs`}>{atendimento.diasParado}d</Badge></td>
                                   <td className="px-3 py-2.5"><Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>{atendimento.tipo_atendimento || '-'}</Badge></td>
                                   <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.codigo_servico || '-'}</td>
@@ -1394,8 +1391,8 @@ export default function AtendimentosParadosUnificados() {
                                   <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[150px] truncate" title={atendimento.convenio}>{atendimento.convenio}</td>
                                   <td className="px-3 py-2.5 text-slate-200 text-xs max-w-[180px] truncate" title={atendimento.paciente}>{atendimento.paciente}</td>
                                   <td className="px-3 py-2.5 text-slate-200 font-mono text-xs">{atendimento.matricula || '-'}</td>
-                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_entrada)}</td>
-                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDate(atendimento.data_saida)}</td>
+                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDateBR(atendimento.data_entrada)}</td>
+                                  <td className="px-3 py-2.5 text-slate-200 text-xs whitespace-nowrap">{formatDateBR(atendimento.data_saida)}</td>
                                   <td className="px-3 py-2.5"><Badge className={`${getDiasParadoColor(atendimento.diasParado)} text-xs`}>{atendimento.diasParado}d</Badge></td>
                                   <td className="px-3 py-2.5"><Badge className={`${getTipoAtendimentoBadgeColor(atendimento.tipo_atendimento)} text-xs`}>{atendimento.tipo_atendimento}</Badge></td>
                                   <td className="px-3 py-2.5 text-emerald-400 font-mono text-xs whitespace-nowrap">{formatCurrency(atendimento.valorConta)}</td>
@@ -1564,8 +1561,8 @@ export default function AtendimentosParadosUnificados() {
                       <Badge className={getTipoAtendimentoBadgeColor(selectedRow.tipo_atendimento)}>{selectedRow.tipo_atendimento || '-'}</Badge>
                     </div>
                     <DetailField label="Caráter" value={selectedRow.caracter_atendimento} />
-                    <DetailField label="Data Entrada" value={formatDate(selectedRow.data_entrada)} />
-                    <DetailField label="Data Saída" value={formatDate(selectedRow.data_saida)} />
+                    <DetailField label="Data Entrada" value={formatDateBR(selectedRow.data_entrada)} />
+                    <DetailField label="Data Saída" value={formatDateBR(selectedRow.data_saida)} />
                     <div>
                       <p className="text-slate-400 text-xs">Dias Parado</p>
                       <Badge className={getDiasParadoColor(selectedRow.diasParado)}>{selectedRow.diasParado} dias</Badge>
@@ -1593,8 +1590,8 @@ export default function AtendimentosParadosUnificados() {
                     <DetailField label="Competência" value={selectedRow.competencia} />
                     <DetailField label="Referência" value={selectedRow.referencia} />
                     <DetailField label="Título" value={selectedRow.titulo} />
-                    <DetailField label="Data Título" value={formatDate(selectedRow.dtTitulo)} />
-                    <DetailField label="Data Vencimento" value={formatDate(selectedRow.dataVencimento)} />
+                    <DetailField label="Data Título" value={formatDateBR(selectedRow.dtTitulo)} />
+                    <DetailField label="Data Vencimento" value={formatDateBR(selectedRow.dataVencimento)} />
                   </div>
                 </div>
 
@@ -1605,7 +1602,7 @@ export default function AtendimentosParadosUnificados() {
                     <DetailField label="Nome Protocolo" value={selectedRow.nomeProtocolo} />
                     <DetailField label="Protocolo Convênio" value={selectedRow.protConv} />
                     <DetailField label="Status" value={selectedRow.protStatus} />
-                    <DetailField label="Data Entrega" value={formatDate(selectedRow.dtEntrega)} />
+                    <DetailField label="Data Entrega" value={formatDateBR(selectedRow.dtEntrega)} />
                   </div>
                 </div>
 
@@ -1614,7 +1611,7 @@ export default function AtendimentosParadosUnificados() {
                   <div className="grid grid-cols-2 gap-3">
                     <DetailField label="Etapa" value={selectedRow.etapaConta} />
                     <DetailField label="Setor Etapa" value={selectedRow.setorEtapa} />
-                    <DetailField label="Data Etapa" value={formatDate(selectedRow.dtEtapa)} />
+                    <DetailField label="Data Etapa" value={formatDateBR(selectedRow.dtEtapa)} />
                     <DetailField label="Usuário" value={selectedRow.userEtapa} />
                   </div>
                   {selectedRow.motivoDevolucao && (<DetailField label="Motivo Devolução" value={selectedRow.motivoDevolucao} />)}

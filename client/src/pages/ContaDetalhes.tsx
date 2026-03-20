@@ -26,6 +26,7 @@ import {
 import { useParams, useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { useMemo } from "react";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Mapeamento de código de despesa para nome e ícone
 // Tipos corretos conforme solicitado: Medicamentos, Material, Procedimento, Taxas
@@ -145,11 +146,7 @@ export default function ContaDetalhes() {
     sequencialTransacao: (primeiroItem as any)?.sequencialTransacao || "-",
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return "-";
-    return date.toLocaleDateString("pt-BR");
-  };
-
+  
   const formatCurrency = (value: number) => {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
@@ -164,7 +161,7 @@ export default function ContaDetalhes() {
       "Quantidade": item.quantidade || 1,
       "Valor Unitário": item.valorUnitario ? parseFloat(item.valorUnitario) : 0,
       "Valor Total": item.valorTotal ? parseFloat(item.valorTotal) : 0,
-      "Data Execução": item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "",
+      "Data Execução": item.dataExecucao ? formatDateBR(item.dataExecucao) : "",
       "Médico": item.nomeMedico || "",
       "CRM": item.crmMedico || "",
     }));
@@ -199,7 +196,7 @@ export default function ContaDetalhes() {
       item.quantidade || 1,
       item.valorUnitario || "",
       item.valorTotal || "",
-      item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "",
+      item.dataExecucao ? formatDateBR(item.dataExecucao) : "",
       item.nomeMedico || "",
       item.crmMedico || "",
     ]);
@@ -314,7 +311,7 @@ export default function ContaDetalhes() {
                       <Calendar className="h-3 w-3" />
                       Data da Conta
                     </div>
-                    <p>{formatDate(infoConta.dataConta)}</p>
+                    <p>{formatDateBR(infoConta.dataConta)}</p>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -403,7 +400,7 @@ export default function ContaDetalhes() {
                               {item.valorTotal ? formatCurrency(parseFloat(item.valorTotal)) : "-"}
                             </TableCell>
                             <TableCell className="whitespace-nowrap">
-                              {item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-"}
+                              {item.dataExecucao ? formatDateBR(item.dataExecucao) : "-"}
                             </TableCell>
                             <TableCell className="max-w-[150px]" title={item.nomeMedico || "-"}>
                               {item.nomeMedico ? (

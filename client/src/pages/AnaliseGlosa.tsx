@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { Gavel, Search, CheckCircle2, Loader2, Sparkles, BookOpen, FileText, Send, XCircle, ThumbsUp, ThumbsDown, Brain, Zap, Clock } from "lucide-react";
 import * as XLSX from "xlsx";
 import { GLOSAS_TISS, GlosaInfo } from "../../../shared/glossaryGlosas";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 import {
   BarChart,
   Bar,
@@ -469,7 +470,7 @@ export default function AnaliseGlosa() {
         "Paciente": item.pacienteNome,
         "Guia": item.guiaNumero,
         "Convênio": item.convenioNome,
-        "Data Execução": item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString("pt-BR") : "-",
+        "Data Execução": item.dataExecucao ? formatDateBR(item.dataExecucao) : "-",
         "Valor Cobrado": item.valorCobrado,
         "Valor Pago": item.valorPago,
         "Valor Glosado": item.valorGlosado,
@@ -721,7 +722,7 @@ export default function AnaliseGlosa() {
                         {alerta.diasRestantes} dia(s) restante(s)
                       </Badge>
                       <p className="text-xs text-muted-foreground">
-                        Vence em: {new Date(alerta.dataLimite).toLocaleDateString('pt-BR')}
+                        Vence em: {formatDateBR(alerta.dataLimite)}
                       </p>
                     </div>
                   </div>
@@ -1332,7 +1333,7 @@ export default function AnaliseGlosa() {
                                   {item.dataReferencia && (
                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                                       <Calendar className="h-3 w-3" />
-                                      {new Date(item.dataReferencia).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}
+                                      {safeParseDate(item.dataReferencia)?.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) || "-"}
                                     </div>
                                   )}
                                 </TableCell>
@@ -1561,7 +1562,7 @@ export default function AnaliseGlosa() {
                                   )}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
-                                  {item.dataAceite ? new Date(item.dataAceite).toLocaleDateString("pt-BR") : "-"}
+                                  {item.dataAceite ? formatDateBR(item.dataAceite) : "-"}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <Button

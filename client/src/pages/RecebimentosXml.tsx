@@ -46,6 +46,7 @@ import {
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 interface FileItem {
   file: File;
@@ -284,14 +285,7 @@ export default function RecebimentosXml() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (dateStr: string | Date | null | undefined) => {
-    if (!dateStr) return "-";
-    try {
-      const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-      return d.toLocaleDateString("pt-BR");
-    } catch { return "-"; }
-  };
-
+  
   const handleExportExcel = () => {
     if (!recebimentoData?.items || recebimentoData.items.length === 0) {
       toast.error("Nenhum dado para exportar");
@@ -308,7 +302,7 @@ export default function RecebimentosXml() {
       "Valor Processado": parseFloat(item.valorProcessado || "0"),
       "Valor Glosado": parseFloat(item.valorGlosa || "0"),
       "Código Glosa": item.codigoGlosa || "",
-      "Data Realização": formatDate(item.dataRealizacao),
+      "Data Realização": formatDateBR(item.dataRealizacao),
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
@@ -547,7 +541,7 @@ export default function RecebimentosXml() {
                                     <Badge variant="destructive" className="text-xs font-mono">{item.codigoGlosa}</Badge>
                                   ) : "-"}
                                 </TableCell>
-                                <TableCell className="text-xs">{formatDate(item.dataRealizacao)}</TableCell>
+                                <TableCell className="text-xs">{formatDateBR(item.dataRealizacao)}</TableCell>
                               </TableRow>
                             );
                           })}
@@ -804,7 +798,7 @@ export default function RecebimentosXml() {
             <ArquivosImportadosTab
               estabelecimentoId={estabelecimentoAtual?.id}
               formatCurrency={formatCurrency}
-              formatDate={formatDate}
+              formatDate={formatDateBR}
               onDeleted={() => {
                 utils.recebimentoTiss.list.invalidate();
                 utils.recebimentoTiss.stats.invalidate();
@@ -899,7 +893,7 @@ function ArquivosImportadosTab({
                     </div>
                   </TableCell>
                   <TableCell>{arquivo.convenioNome || "-"}</TableCell>
-                  <TableCell>{formatDate(arquivo.createdAt)}</TableCell>
+                  <TableCell>{formatDateBR(arquivo.createdAt)}</TableCell>
                   <TableCell className="text-right">{arquivo.totalItens || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={arquivo.status === "processado" ? "default" : "secondary"} className="text-xs">

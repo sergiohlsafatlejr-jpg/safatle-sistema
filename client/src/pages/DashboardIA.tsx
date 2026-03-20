@@ -29,6 +29,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 export default function DashboardIA() {
   const { estabelecimentoAtual: estabelecimentoSelecionado } = useEstabelecimento();
@@ -257,7 +258,7 @@ export default function DashboardIA() {
                         <div key={mes.mes} className="space-y-1">
                           <div className="flex justify-between text-sm">
                             <span className="font-medium">
-                              {new Date(mes.mes + "-01").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}
+                              {safeParseDate(mes.mes + "-01")?.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) || "-"}
                             </span>
                             <span className="flex items-center gap-2">
                               <span className="text-green-600">{mes.aceitos} ✓</span>

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/dateUtils";
 import {
   FileText, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2,
   XCircle, RefreshCw, BarChart3, ArrowLeft, Printer, FileDown, ChevronRight,
@@ -89,10 +90,6 @@ const defaultContractData: ContractData = {
 
 function formatCurrency(value: string | number | null | undefined) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-function formatDate(d: string | Date | null | undefined) {
-  if (!d) return "-";
-  try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return String(d); }
 }
 function formatDateContract(dateStr: string) {
   if (!dateStr) return "___/___/______";
@@ -649,7 +646,7 @@ function ContratosDashboard() {
                 {d.alertas.map((a: any, i: number) => (
                   <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${a.tipo === "vencido" ? "bg-red-500/10" : "bg-amber-500/10"}`}>
                     {a.tipo === "vencido" ? <XCircle className="h-5 w-5 text-red-500" /> : <Clock className="h-5 w-5 text-amber-500" />}
-                    <div><span className="font-medium">{a.contrato.contratanteNome}</span><span className="text-sm text-muted-foreground ml-2">{a.tipo === "vencido" ? "Vencido" : "Vence"} em {formatDate(a.contrato.dataFim)}</span></div>
+                    <div><span className="font-medium">{a.contrato.contratanteNome}</span><span className="text-sm text-muted-foreground ml-2">{a.tipo === "vencido" ? "Vencido" : "Vence"} em {formatDateBR(a.contrato.dataFim)}</span></div>
                   </div>
                 ))}
               </div>
@@ -714,8 +711,8 @@ function ListaContratos({ onEditContract }: { onEditContract: (data: ContractDat
                     <TableCell className="text-sm">{c.contratadaNome || "-"}</TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate">{servicos.length > 0 ? `${servicos.length} serviço(s)` : "-"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(c.valorMensal)}</TableCell>
-                    <TableCell>{formatDate(c.dataInicio)}</TableCell>
-                    <TableCell>{formatDate(c.dataFim)}</TableCell>
+                    <TableCell>{formatDateBR(c.dataInicio)}</TableCell>
+                    <TableCell>{formatDateBR(c.dataFim)}</TableCell>
                     <TableCell><Badge className={sc.color}>{sc.label}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-1 justify-end">

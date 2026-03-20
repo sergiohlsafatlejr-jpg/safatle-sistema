@@ -31,6 +31,7 @@ import {
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { traduzirCodigoGlosa } from "../../../shared/glossaryGlosas";
+import { formatDateBR } from "@/lib/dateUtils";
 
 const RESULTADO_CONFIG: { [key: string]: { label: string; color: string; icon: any } } = {
   pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800", icon: Clock },
@@ -76,11 +77,7 @@ export default function HistoricoContestacoes() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
-
+  
   const handleExportExcel = () => {
     if (!historicoData?.items) return;
     const data = historicoData.items.map((item) => ({
@@ -94,8 +91,8 @@ export default function HistoricoContestacoes() {
       "Argumento": item.argumentoUtilizado,
       "Origem": ORIGEM_CONFIG[item.argumentoOrigem]?.label || item.argumentoOrigem,
       "Resultado": RESULTADO_CONFIG[item.resultado]?.label || item.resultado,
-      "Data Contestação": formatDate(item.dataContestacao),
-      "Data Resultado": formatDate(item.dataResultado),
+      "Data Contestação": formatDateBR(item.dataContestacao),
+      "Data Resultado": formatDateBR(item.dataResultado),
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -296,7 +293,7 @@ export default function HistoricoContestacoes() {
                               {RESULTADO_CONFIG[item.resultado]?.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDate(item.dataContestacao)}</TableCell>
+                          <TableCell>{formatDateBR(item.dataContestacao)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button
@@ -408,11 +405,11 @@ export default function HistoricoContestacoes() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Data Contestação</Label>
-                    <p className="font-medium">{formatDate(itemSelecionado.dataContestacao)}</p>
+                    <p className="font-medium">{formatDateBR(itemSelecionado.dataContestacao)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Data Resultado</Label>
-                    <p className="font-medium">{formatDate(itemSelecionado.dataResultado)}</p>
+                    <p className="font-medium">{formatDateBR(itemSelecionado.dataResultado)}</p>
                   </div>
                 </div>
                 

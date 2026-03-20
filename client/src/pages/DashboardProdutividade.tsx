@@ -31,6 +31,7 @@ import {
   Calendar
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 import {
   BarChart,
   Bar,
@@ -95,7 +96,7 @@ export default function DashboardProdutividade() {
   const chartDataDiaGlosas = useMemo(() => {
     if (!metricasGlosas?.porDia) return [];
     return metricasGlosas.porDia.map(d => ({
-      data: new Date(d.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      data: safeParseDate(d.data)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) || "-",
       aceitas: d.aceitas,
       recursadas: d.recursadas,
       total: d.totalClassificados,
@@ -105,7 +106,7 @@ export default function DashboardProdutividade() {
   const chartDataValorGlosas = useMemo(() => {
     if (!metricasGlosas?.porDia) return [];
     return metricasGlosas.porDia.map(d => ({
-      data: new Date(d.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      data: safeParseDate(d.data)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) || "-",
       valorAceito: d.valorAceito,
       valorRecursado: d.valorRecursado,
     }));
@@ -115,7 +116,7 @@ export default function DashboardProdutividade() {
   const chartDataDiaXML = useMemo(() => {
     if (!metricasXML?.porDia) return [];
     return metricasXML.porDia.map(d => ({
-      data: new Date(d.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      data: safeParseDate(d.data)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) || "-",
       arquivos: d.arquivos,
       procedimentos: d.procedimentos,
       valorFaturado: d.valorFaturado,
@@ -126,7 +127,7 @@ export default function DashboardProdutividade() {
   const chartDataDiaBanco = useMemo(() => {
     if (!metricasBanco?.porDia) return [];
     return metricasBanco.porDia.map(d => ({
-      data: new Date(d.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      data: safeParseDate(d.data)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) || "-",
       contas: d.contas,
       itens: d.itens,
       valor: d.valor,
@@ -1026,7 +1027,7 @@ export default function DashboardProdutividade() {
                                 {usuario.ultimaImportacao ? (
                                   <Badge variant="outline" className="gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    {new Date(usuario.ultimaImportacao).toLocaleDateString("pt-BR")}
+                                    {formatDateBR(usuario.ultimaImportacao)}
                                   </Badge>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>

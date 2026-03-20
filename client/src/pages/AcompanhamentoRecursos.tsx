@@ -36,6 +36,7 @@ import {
   Layers
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { formatDateBR, toInputDateValue } from "@/lib/dateUtils";
 
 const formatCurrency = (value: number | string | null | undefined) => {
   const num = typeof value === "string" ? parseFloat(value) : value;
@@ -43,11 +44,6 @@ const formatCurrency = (value: number | string | null | undefined) => {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
 };
 
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   rascunho: { label: "Rascunho", color: "bg-gray-100 text-gray-800", icon: <FileText className="h-4 w-4" /> },
@@ -732,7 +728,7 @@ export default function AcompanhamentoRecursos() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
-                              {formatDate(lote.createdAt)}
+                              {formatDateBR(lote.createdAt)}
                             </span>
                             <span className="flex items-center gap-1">
                               <FileText className="h-4 w-4" />
@@ -854,7 +850,7 @@ export default function AcompanhamentoRecursos() {
                               e.stopPropagation();
                               window.open(lote.xmlUrl, '_blank');
                             }}
-                            title={`XML gerado em ${lote.xmlGeradoEm ? formatDate(lote.xmlGeradoEm) : '-'}`}
+                            title={`XML gerado em ${lote.xmlGeradoEm ? formatDateBR(lote.xmlGeradoEm) : '-'}`}
                             className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
                           >
                             <Download className="h-4 w-4 mr-1" />
@@ -948,7 +944,7 @@ export default function AcompanhamentoRecursos() {
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Data Envio</p>
-                  <p className="font-medium">{formatDate(loteDetalhes.dataEnvio)}</p>
+                  <p className="font-medium">{formatDateBR(loteDetalhes.dataEnvio)}</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Protocolo</p>
@@ -990,7 +986,7 @@ export default function AcompanhamentoRecursos() {
                     </p>
                     {loteDetalhes.dataPagamento && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Pago em: {formatDate(loteDetalhes.dataPagamento)}
+                        Pago em: {formatDateBR(loteDetalhes.dataPagamento)}
                       </p>
                     )}
                   </CardContent>
@@ -1053,7 +1049,7 @@ export default function AcompanhamentoRecursos() {
                                   className="w-36"
                                 />
                               ) : (
-                                item.dataPagamento ? formatDate(item.dataPagamento) : "-"
+                                item.dataPagamento ? formatDateBR(item.dataPagamento) : "-"
                               )}
                             </TableCell>
                             <TableCell>

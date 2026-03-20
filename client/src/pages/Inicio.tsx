@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 import {
   Info,
   AlertTriangle,
@@ -130,7 +131,7 @@ export default function Inicio() {
                         <h4 className={`font-semibold text-sm ${textClass}`}>{aviso.titulo}</h4>
                         <p className={`text-sm mt-1 ${textClass} opacity-80 whitespace-pre-wrap`}>{aviso.conteudo}</p>
                         <p className={`text-xs mt-2 ${textClass} opacity-50`}>
-                          {new Date(aviso.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                          {safeParseDate(aviso.createdAt)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) || "-"}
                           {aviso.criadoPorNome && ` — ${aviso.criadoPorNome}`}
                         </p>
                       </div>

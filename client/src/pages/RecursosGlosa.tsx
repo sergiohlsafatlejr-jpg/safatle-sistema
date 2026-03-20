@@ -43,6 +43,7 @@ import {
 import { useState, useEffect } from "react";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 import { 
   GLOSAS_TISS, 
   obterInfoGlosa, 
@@ -342,11 +343,7 @@ export default function RecursosGlosa() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
-
+  
   const handleExportExcel = () => {
     if (!recursosData?.recursos) return;
     
@@ -366,10 +363,10 @@ export default function RecursosGlosa() {
       "Status": STATUS_CONFIG[r.status]?.label || r.status,
       "Prioridade": PRIORIDADE_CONFIG[r.prioridade]?.label || r.prioridade,
       "Protocolo": r.protocoloRecurso || "-",
-      "Data Glosa": formatDate(r.dataGlosa),
-      "Data Criação": formatDate(r.createdAt),
-      "Data Envio": formatDate(r.dataEnvioRecurso),
-      "Data Resposta": formatDate(r.dataResposta),
+      "Data Glosa": formatDateBR(r.dataGlosa),
+      "Data Criação": formatDateBR(r.createdAt),
+      "Data Envio": formatDateBR(r.dataEnvioRecurso),
+      "Data Resposta": formatDateBR(r.dataResposta),
       "Resposta Convênio": r.respostaConvenio || "-",
     }));
     
@@ -1144,7 +1141,7 @@ export default function RecursosGlosa() {
                               {PRIORIDADE_CONFIG[recurso.prioridade]?.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDate(recurso.createdAt)}</TableCell>
+                          <TableCell>{formatDateBR(recurso.createdAt)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button
@@ -1517,7 +1514,7 @@ export default function RecursosGlosa() {
                             <div className="flex items-center justify-between">
                               <p className="font-medium">{h.tipo}</p>
                               <span className="text-sm text-muted-foreground">
-                                {formatDate(h.createdAt)}
+                                {formatDateBR(h.createdAt)}
                               </span>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">{h.descricao}</p>

@@ -19,6 +19,7 @@ import {
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function Repasse() {
   const { user } = useAuth();
@@ -66,12 +67,7 @@ export default function Repasse() {
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "-";
-    const d = typeof date === "string" ? new Date(date) : date;
-    return d.toLocaleDateString("pt-BR");
-  };
-
+  
   const [isExportingAll, setIsExportingAll] = useState(false);
 
   // Mutation para exportar todos os dados
@@ -94,7 +90,7 @@ export default function Repasse() {
 
     const excelData = (repasseData.items as any[]).map((item: any) => ({
       "Guia": item.guiaNumero || "",
-      "Data Procedimento": formatDate(item.dataExecucao),
+      "Data Procedimento": formatDateBR(item.dataExecucao),
       "Código": item.codigo,
       "Descrição": item.descricao || "",
       "Paciente": item.pacienteNome || "",
@@ -137,7 +133,7 @@ export default function Repasse() {
 
       const excelData = (result.data.items as any[]).map((item: any) => ({
         "Guia": item.guiaNumero || "",
-        "Data Procedimento": formatDate(item.dataExecucao),
+        "Data Procedimento": formatDateBR(item.dataExecucao),
         "Código": item.codigo,
         "Descrição": item.descricao || "",
         "Paciente": item.pacienteNome || "",
@@ -370,7 +366,7 @@ export default function Repasse() {
                           className={parseFloat(item.valorGlosado || "0") > 0 ? "bg-red-50" : ""}
                         >
                           <TableCell className="font-mono text-sm">{item.guiaNumero || "-"}</TableCell>
-                          <TableCell>{formatDate(item.dataExecucao)}</TableCell>
+                          <TableCell>{formatDateBR(item.dataExecucao)}</TableCell>
                           <TableCell className="font-mono text-sm">{item.codigo}</TableCell>
                           <TableCell className="max-w-[250px] truncate" title={item.descricao || ""}>
                             {item.descricao || "-"}

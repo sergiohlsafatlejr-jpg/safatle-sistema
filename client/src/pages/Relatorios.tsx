@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { formatDateBR } from "@/lib/dateUtils";
 import {
   BarChart,
   Bar,
@@ -81,7 +82,7 @@ export default function Relatorios() {
       comp.valorTotalEnviado || "0",
       comp.valorTotalRetornado || "0",
       comp.totalDivergencias || 0,
-      new Date(comp.createdAt).toLocaleDateString("pt-BR"),
+      formatDateBR(comp.createdAt),
     ]);
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");

@@ -39,6 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function Divergencias() {
   const searchString = useSearch();
@@ -276,7 +277,7 @@ export default function Divergencias() {
                   <SelectContent>
                     {comparacoes?.map((comp) => (
                       <SelectItem key={comp.id} value={comp.id.toString()}>
-                        Comparação #{comp.id} - {new Date(comp.createdAt).toLocaleDateString("pt-BR")} 
+                        Comparação #{comp.id} - {formatDateBR(comp.createdAt)} 
                         ({comp.totalDivergencias || 0} divergências)
                       </SelectItem>
                     ))}

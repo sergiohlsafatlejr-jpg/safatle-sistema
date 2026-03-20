@@ -29,6 +29,7 @@ import {
 import React, { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -41,11 +42,6 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // Formatar data
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 export default function ContaDetalhesDemonstrativo() {
   const { user } = useAuth();
@@ -136,7 +132,7 @@ export default function ContaDetalhesDemonstrativo() {
       "Seq": item.sequencialItem || "",
       "Código": item.codigoItem || "",
       "Descrição": item.descricaoItem || "",
-      "Data Execução": formatDate(item.dataExecucao),
+      "Data Execução": formatDateBR(item.dataExecucao),
       "Quantidade": item.quantidade || "",
       "Valor Informado": parseFloat(item.valorInformado || "0"),
       "Valor Pago": parseFloat(item.valorPago || "0"),
@@ -267,11 +263,11 @@ export default function ContaDetalhesDemonstrativo() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Data Pagamento</p>
-                      <p className="font-medium">{formatDate(cabecalho?.dataPagamento)}</p>
+                      <p className="font-medium">{formatDateBR(cabecalho?.dataPagamento)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Data Referência</p>
-                      <p className="font-medium">{formatDate(cabecalho?.dataReferencia)}</p>
+                      <p className="font-medium">{formatDateBR(cabecalho?.dataReferencia)}</p>
                     </div>
                   </div>
                   <div>
@@ -393,7 +389,7 @@ export default function ContaDetalhesDemonstrativo() {
                               )}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {formatDate(item.dataExecucao)}
+                              {formatDateBR(item.dataExecucao)}
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm">
                               {item.quantidade || "1"}

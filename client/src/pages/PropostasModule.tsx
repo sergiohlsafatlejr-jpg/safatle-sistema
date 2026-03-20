@@ -14,6 +14,7 @@ import {
   Layers, ClipboardList, Edit3, AlertTriangle, X, Eye
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateBR } from "@/lib/dateUtils";
 
 type ProposalStatus = "rascunho" | "aguardando" | "aprovada" | "recusada" | "negociando";
 
@@ -41,10 +42,6 @@ const statusConfig: Record<ProposalStatus, { label: string; icon: any; color: st
 
 function formatCurrency(value: string | number | null | undefined) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-function formatDate(d: string | Date | null | undefined) {
-  if (!d) return "-";
-  try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return String(d); }
 }
 function getClientTypeLabel(type: string) {
   return CLIENT_TYPES.find(ct => ct.value === type)?.label || type;
@@ -151,8 +148,8 @@ function ProposalDetail({ proposta, onClose, onDelete, onStatusChange }: {
         <InfoChip icon={Layers} label="Tipo" value={getClientTypeLabel(proposta.tipoCliente)} />
         <InfoChip icon={User} label="Responsável" value={proposta.responsavel || "-"} />
         <InfoChip icon={CreditCard} label="Pagamento" value={proposta.condicoesPagamento || "-"} />
-        <InfoChip icon={Calendar} label="Criada em" value={formatDate(proposta.createdAt)} />
-        <InfoChip icon={Calendar} label="Validade" value={proposta.dataExpiracao ? formatDate(proposta.dataExpiracao) : `${proposta.validadeDias || 30} dias`} />
+        <InfoChip icon={Calendar} label="Criada em" value={formatDateBR(proposta.createdAt)} />
+        <InfoChip icon={Calendar} label="Validade" value={proposta.dataExpiracao ? formatDateBR(proposta.dataExpiracao) : `${proposta.validadeDias || 30} dias`} />
       </div>
       {proposta.observacoes && (
         <div className="px-5 py-3 border-b border-border bg-muted/20">
@@ -369,7 +366,7 @@ export default function PropostasModule() {
                       <td className="py-3 pl-4 pr-3"><p className="text-sm font-semibold">{p.titulo}</p><p className="text-xs text-muted-foreground mt-0.5">{p.numero}</p></td>
                       <td className="px-3 py-3 text-sm">{p.cliente}</td>
                       <td className="hidden px-3 py-3 text-sm text-muted-foreground md:table-cell">{p.responsavel || "-"}</td>
-                      <td className="hidden px-3 py-3 text-sm text-muted-foreground lg:table-cell">{p.dataExpiracao ? formatDate(p.dataExpiracao) : `${p.validadeDias || 30}d`}</td>
+                      <td className="hidden px-3 py-3 text-sm text-muted-foreground lg:table-cell">{p.dataExpiracao ? formatDateBR(p.dataExpiracao) : `${p.validadeDias || 30}d`}</td>
                       <td className="px-3 py-3 text-sm font-semibold">{formatCurrency(p.valorTotal)}</td>
                       <td className="px-3 py-3"><StatusBadge status={p.status} /></td>
                       <td className="py-3 pl-3 pr-4"><Eye className="h-4 w-4 text-muted-foreground" /></td>

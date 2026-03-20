@@ -10,6 +10,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/dateUtils";
 
 const getRiscoBadgeColor = (risco: string) => {
   switch (risco) {
@@ -289,7 +290,7 @@ export function DashboardMotorRegras() {
                           {(validacao.scoreConformidadeMedio || 0).toFixed(1)}
                         </TableCell>
                         <TableCell className="text-sm text-gray-600">
-                          {new Date(validacao.dataProcessamento).toLocaleDateString("pt-BR")}
+                          {formatDateBR(validacao.dataProcessamento)}
                         </TableCell>
                       </TableRow>
                     ))}

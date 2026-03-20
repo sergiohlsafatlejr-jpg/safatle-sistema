@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/dateUtils";
 import {
   FileText, Plus, Search, Upload, Building2, Users, AlertTriangle,
   Clock, CheckCircle, XCircle, Download, Eye, Pencil, Trash2,
@@ -170,7 +171,7 @@ function DashboardTab() {
                     <TableCell className="font-mono">{n.numeroNf}</TableCell>
                     <TableCell>{n.hospitalNome}</TableCell>
                     <TableCell>{n.convenioNome || "-"}</TableCell>
-                    <TableCell>{n.dataEmissao ? new Date(n.dataEmissao).toLocaleDateString("pt-BR") : "-"}</TableCell>
+                    <TableCell>{n.dataEmissao ? formatDateBR(n.dataEmissao) : "-"}</TableCell>
                     <TableCell className="text-right">{fmt(Number(n.valorBruto))}</TableCell>
                     <TableCell>
                       {n.nfEmitida === "sim" ? (
@@ -476,7 +477,7 @@ function NotasFiscaisTab() {
                     <TableCell className="font-mono font-medium">{nota.numeroNf}</TableCell>
                     <TableCell>{nota.hospitalNome}</TableCell>
                     <TableCell>{nota.convenioNome || "-"}</TableCell>
-                    <TableCell>{nota.dataEmissao ? new Date(nota.dataEmissao).toLocaleDateString("pt-BR") : "-"}</TableCell>
+                    <TableCell>{nota.dataEmissao ? formatDateBR(nota.dataEmissao) : "-"}</TableCell>
                     <TableCell className="text-right">{fmt(nota.valorBruto)}</TableCell>
                     <TableCell className="text-right">{fmt(nota.valorLiquido)}</TableCell>
                     <TableCell className="text-center">
@@ -646,7 +647,7 @@ function PendentesTab() {
                     <TableCell className="font-mono">{p.numeroNf}</TableCell>
                     <TableCell>{p.hospitalNome}</TableCell>
                     <TableCell>{p.convenioNome || "-"}</TableCell>
-                    <TableCell>{p.dataEmissao ? new Date(p.dataEmissao).toLocaleDateString("pt-BR") : "-"}</TableCell>
+                    <TableCell>{p.dataEmissao ? formatDateBR(p.dataEmissao) : "-"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{p.diasDesdeEmissao}d</Badge>
                     </TableCell>

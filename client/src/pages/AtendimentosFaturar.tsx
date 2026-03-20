@@ -13,6 +13,7 @@ import {
 import { useLocation } from "wouter";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 type SortColumn = "numatend" | "nomeplaco" | "nomepac" | "datatend" | "datasai" | "diasParado" | "tipoatendimentodescricao" | "codserv" | "carater" | "procprin";
 type SortOrder = "asc" | "desc";
@@ -138,8 +139,8 @@ export default function AtendimentosFaturar() {
       filtrados = filtrados.filter(d => {
         const campos = [
           d.numatend, d.nomeplaco, d.nomepac,
-          d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
-          (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "",
+          d.datatend ? formatDateBR(d.datatend) : "",
+          (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? formatDateBR(d.datasai || d.datatend) : "",
           String(d.diasParado),
           d.tipoatendimentodescricao, d.codserv,
           d.carater, d.procprin,
@@ -189,8 +190,8 @@ export default function AtendimentosFaturar() {
       "Plano": d.nomeplaco,
       "Paciente": d.nomepac || "-",
       "Caráter": d.carater || "-",
-      "Data Entrada": d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
-      "Data Saída": (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "",
+      "Data Entrada": d.datatend ? formatDateBR(d.datatend) : "",
+      "Data Saída": (d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? formatDateBR(d.datasai || d.datatend) : "",
       "Dias Parado": d.diasParado,
       "Tipo": d.tipoatendimentodescricao || "-",
       "Serviço": d.codserv || "-",
@@ -458,10 +459,10 @@ export default function AtendimentosFaturar() {
                       ) : "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "-"}
+                      {d.datatend ? formatDateBR(d.datatend) : "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {(d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? new Date(d.datasai || d.datatend).toLocaleDateString("pt-BR") : "-"}
+                      {(d.datasai || ((d.tipoatendimentodescricao?.toUpperCase() === "EXAME" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATÓRIO" || d.tipoatendimentodescricao?.toUpperCase() === "AMBULATORIO") && d.datatend)) ? formatDateBR(d.datasai || d.datatend) : "-"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${getDiasParadoColor(d.diasParado)}`}>

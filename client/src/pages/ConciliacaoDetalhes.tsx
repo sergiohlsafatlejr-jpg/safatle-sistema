@@ -20,6 +20,7 @@ import {
   FileText
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 interface ItemConciliacao {
   guiaNumero: string;
@@ -148,7 +149,7 @@ export default function ConciliacaoDetalhes() {
     const excelData = contaData.itens.map((item: ItemConciliacao) => ({
       "Código": item.codigo,
       "Descrição": item.descricao,
-      "Data Execução": formatDate(item.dataExecucao),
+      "Data Execução": formatDateBR(item.dataExecucao),
       "Valor Faturado": item.valorFaturado,
       "Valor Recebido": item.valorPago,
       "Valor Glosado": item.valorGlosado,
@@ -171,7 +172,7 @@ export default function ConciliacaoDetalhes() {
     const resumoData = [{
       "Guia": contaData.guiaNumero,
       "Paciente": contaData.pacienteNome,
-      "Data": formatDate(contaData.dataExecucao),
+      "Data": formatDateBR(contaData.dataExecucao),
       "Total Itens": contaData.totalItens,
       "Valor Faturado": contaData.valorTotalFaturado,
       "Valor Recebido": contaData.valorTotalRecebido,
@@ -242,7 +243,7 @@ export default function ConciliacaoDetalhes() {
                 <h1 className="text-2xl font-bold">Conta: {contaData.guiaNumero || "Sem Guia"}</h1>
               </div>
               <p className="text-muted-foreground">
-                Paciente: {contaData.pacienteNome} • Data: {formatDate(contaData.dataExecucao)}
+                Paciente: {contaData.pacienteNome} • Data: {formatDateBR(contaData.dataExecucao)}
               </p>
             </div>
           </div>
@@ -356,7 +357,7 @@ export default function ConciliacaoDetalhes() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{formatDate(item.dataExecucao)}</TableCell>
+                      <TableCell>{formatDateBR(item.dataExecucao)}</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(item.valorFaturado)}</TableCell>
                       <TableCell className="text-right font-mono text-green-600">{formatCurrency(item.valorPago)}</TableCell>
                       <TableCell className="text-right font-mono text-red-600">

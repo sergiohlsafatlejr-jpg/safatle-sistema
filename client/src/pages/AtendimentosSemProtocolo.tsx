@@ -21,6 +21,7 @@ import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Motivos de notificação
 const MOTIVOS = [
@@ -140,9 +141,9 @@ function getMedicoLabel(value: string): string {
 
 function getDataSaida(d: AtendimentoData): string {
   const tipoUpper = d.tipoatendimentodescricao?.toUpperCase();
-  if (d.datasai) return new Date(d.datasai).toLocaleDateString("pt-BR");
+  if (d.datasai) return formatDateBR(d.datasai);
   if ((tipoUpper === "EXAME" || tipoUpper === "AMBULATÓRIO" || tipoUpper === "AMBULATORIO") && d.datatend) {
-    return new Date(d.datatend).toLocaleDateString("pt-BR");
+    return formatDateBR(d.datatend);
   }
   return "-";
 }
@@ -222,7 +223,7 @@ async function gerarPDFNotificacao(
     a.numatend,
     (a.nomepac || "").substring(0, 30),
     a.nomeplaco || "-",
-    a.datatend ? new Date(a.datatend).toLocaleDateString("pt-BR") : "-",
+    a.datatend ? formatDateBR(a.datatend) : "-",
     getDataSaida(a),
     `${a.diasParado} dias`,
     a.tipoatendimentodescricao || a.tipoatend || "-",
@@ -509,7 +510,7 @@ export default function AtendimentosSemProtocolo() {
         tipoAtendimento: a.tipoatendimentodescricao || "-",
         plano: a.nomeplaco || "Sem Plano",
         diasParado: a.diasParado || 0,
-        dataEntrada: a.datatend ? new Date(a.datatend).toLocaleDateString("pt-BR") : "-",
+        dataEntrada: a.datatend ? formatDateBR(a.datatend) : "-",
         observacao: a.motivo || undefined,
       })),
     });
@@ -711,7 +712,7 @@ export default function AtendimentosSemProtocolo() {
       filtrados = filtrados.filter(d => {
         const campos = [
           d.numatend, d.nomepac, d.nomeplaco,
-          d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
+          d.datatend ? formatDateBR(d.datatend) : "",
           getDataSaida(d),
           String(d.diasParado),
           d.tipoatendimentodescricao, d.codserv, d.codcc_destino, d.motivo,
@@ -893,13 +894,13 @@ export default function AtendimentosSemProtocolo() {
         "Nº Atend.": d.numatend,
         "Paciente": d.nomepac,
         "Plano": d.nomeplaco,
-        "Data Entrada": d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
+        "Data Entrada": d.datatend ? formatDateBR(d.datatend) : "",
         "Data Saída": getDataSaida(d),
         "Dias Parado": d.diasParado,
         "Tipo Atend.": d.tipoatend || d.tipoatendimentodescricao || "-",
         "Etapa Conta": d.etapaConta || "-",
         "Setor Etapa": d.setorEtapa || "-",
-        "Dt. Etapa": d.dtEtapa ? new Date(d.dtEtapa).toLocaleDateString("pt-BR") : "-",
+        "Dt. Etapa": d.dtEtapa ? formatDateBR(d.dtEtapa) : "-",
         "User Etapa": d.userEtapa || "-",
         "Cód. Serviço": d.codServico || d.codserv || "-",
         "Descrição Atend.": d.tipoatendimentodescricao || "-",
@@ -912,7 +913,7 @@ export default function AtendimentosSemProtocolo() {
         "Nº Atend.": d.numatend,
         "Paciente": d.nomepac,
         "Plano": d.nomeplaco,
-        "Data Entrada": d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "",
+        "Data Entrada": d.datatend ? formatDateBR(d.datatend) : "",
         "Data Saída": getDataSaida(d),
         "Dias Parado": d.diasParado,
         "Tipo": d.tipoatendimentodescricao || "-",
@@ -985,7 +986,7 @@ export default function AtendimentosSemProtocolo() {
       case "nomeplaco":
         return <span className="max-w-[130px] truncate block" title={d.nomeplaco}>{d.nomeplaco}</span>;
       case "datatend":
-        return <span className="whitespace-nowrap">{d.datatend ? new Date(d.datatend).toLocaleDateString("pt-BR") : "-"}</span>;
+        return <span className="whitespace-nowrap">{d.datatend ? formatDateBR(d.datatend) : "-"}</span>;
       case "datasai":
         return <span className="whitespace-nowrap">{getDataSaida(d)}</span>;
       case "diasParado":
@@ -1030,7 +1031,7 @@ export default function AtendimentosSemProtocolo() {
       case "setorEtapa":
         return <span className="text-xs">{d.setorEtapa || "-"}</span>;
       case "dtEtapa":
-        return <span className="whitespace-nowrap text-xs">{d.dtEtapa ? new Date(d.dtEtapa).toLocaleDateString("pt-BR") : "-"}</span>;
+        return <span className="whitespace-nowrap text-xs">{d.dtEtapa ? formatDateBR(d.dtEtapa) : "-"}</span>;
       case "userEtapa":
         return <span className="text-xs max-w-[120px] truncate block" title={d.userEtapa}>{d.userEtapa || "-"}</span>;
       case "valorConta": {

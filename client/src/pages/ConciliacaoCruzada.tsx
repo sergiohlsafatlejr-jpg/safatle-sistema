@@ -27,6 +27,7 @@ import {
   Ban, Undo2, CheckSquare, FileCode, Package, ExternalLink, FileDown
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function ConciliacaoCruzada() {
   const { user } = useAuth();
@@ -899,7 +900,7 @@ export default function ConciliacaoCruzada() {
                                   ) : '-'}
                                 </td>
                                 <td className="p-3 text-center text-xs text-muted-foreground">
-                                  {item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString('pt-BR') : '-'}
+                                  {item.dataExecucao ? formatDateBR(item.dataExecucao) : '-'}
                                 </td>
                                 <td className="p-3 text-center">{Number(item.quantidade) || 1}</td>
                                 <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
@@ -1727,7 +1728,7 @@ export default function ConciliacaoCruzada() {
                           <td className="p-2 text-right text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
                           <td className="p-2 text-right text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
                           <td className="p-2 text-right text-red-600">{formatarMoeda(Number(item.valorGlosado))}</td>
-                          <td className="p-2 text-sm">{item.dataExecucao ? new Date(item.dataExecucao).toLocaleDateString('pt-BR') : '-'}</td>
+                          <td className="p-2 text-sm">{item.dataExecucao ? formatDateBR(item.dataExecucao) : '-'}</td>
                           <td className="p-2 text-center">{getStatusBadge(item.statusConciliacao || 'pendente')}</td>
                         </tr>
                       ))}

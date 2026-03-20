@@ -38,6 +38,7 @@ import {
 import React, { useState, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 
 
@@ -52,11 +53,6 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // Formatar data
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 // Formatar data de referência como MM/AAAA
 const formatDataReferencia = (date: Date | string | null | undefined) => {
@@ -198,7 +194,7 @@ export default function ContasDemonstrativo() {
       "Protocolo": conta.protocolo || "",
       "Carteirinha": conta.carteiraBeneficiario || "",
       "Paciente": conta.nomeBeneficiario || "",
-      "Data Pagamento": formatDate(conta.dataPagamento),
+      "Data Pagamento": formatDateBR(conta.dataPagamento),
       "Competência": formatDataReferencia(conta.dataReferencia),
       "Qtd Itens": conta.totalItens || 0,
       "Itens Glosados": conta.itensGlosados || 0,
@@ -489,7 +485,7 @@ export default function ContasDemonstrativo() {
                             <Calendar className="h-3 w-3" />
                             <span>Data Pagamento</span>
                           </div>
-                          <p className="font-medium">{formatDate(conta.dataPagamento)}</p>
+                          <p className="font-medium">{formatDateBR(conta.dataPagamento)}</p>
                           <p className="text-sm text-muted-foreground mt-1">
                             Comp: {formatDataReferencia(conta.dataReferencia)}
                           </p>

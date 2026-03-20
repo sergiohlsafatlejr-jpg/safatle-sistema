@@ -21,15 +21,13 @@ import {
   Filter, SortAsc, X, FileSpreadsheet, Copy
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { formatDateBR, toInputDateValue } from "@/lib/dateUtils";
 
 // ==================== HELPERS ====================
 function formatCurrency(value: string | number | null | undefined) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
-function formatDate(d: string | Date | null | undefined) {
-  if (!d) return "-";
-  try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return String(d); }
-}
+
 
 const MONTHS = [
   { value: "01", label: "Janeiro" }, { value: "02", label: "Fevereiro" }, { value: "03", label: "Março" },
@@ -245,7 +243,7 @@ function FinDashboard() {
                   <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div>
                       <p className="font-medium text-sm">{v.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{v.empresaNome} &bull; {formatDate(v.dataVencimento)}</p>
+                      <p className="text-xs text-muted-foreground">{v.empresaNome} &bull; {formatDateBR(v.dataVencimento)}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-red-600 text-sm">{formatCurrency(v.valor)}</p>
@@ -270,7 +268,7 @@ function FinDashboard() {
                   <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div>
                       <p className="font-medium text-sm">{r.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{r.clienteNome} &bull; {formatDate(r.dataVencimento)}</p>
+                      <p className="text-xs text-muted-foreground">{r.clienteNome} &bull; {formatDateBR(r.dataVencimento)}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-green-600 text-sm">{formatCurrency(r.valor)}</p>
@@ -402,7 +400,7 @@ function FinDashboard() {
                     <span className={cn("text-lg font-bold w-6 text-center", i === 0 ? "text-red-500" : i === 1 ? "text-orange-500" : "text-muted-foreground")}>{i + 1}\u00ba</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{t.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{t.empresaNome} &bull; {t.categoriaNome} &bull; {formatDate(t.dataVencimento)}</p>
+                      <p className="text-xs text-muted-foreground">{t.empresaNome} &bull; {t.categoriaNome} &bull; {formatDateBR(t.dataVencimento)}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-semibold text-sm">{formatCurrency(t.valor)}</p>
@@ -674,8 +672,8 @@ function ContasPagar() {
     const data = items.map((t: any) => ({
       "Descrição": t.descricao,
       "Valor": Number(t.valor),
-      "Vencimento": t.dataVencimento ? new Date(t.dataVencimento).toLocaleDateString("pt-BR") : "",
-      "Data Pagamento": t.dataPagamento ? new Date(t.dataPagamento).toLocaleDateString("pt-BR") : "",
+      "Vencimento": t.dataVencimento ? formatDateBR(t.dataVencimento) : "",
+      "Data Pagamento": t.dataPagamento ? formatDateBR(t.dataPagamento) : "",
       "Status": t.pago === "sim" ? "Pago" : "Pendente",
       "Categoria": t.categoriaNome || "",
       "Centro de Custo": t.centroCustoNome || "",
@@ -835,10 +833,10 @@ function ContasPagar() {
                     <td className="py-3 pl-3 pr-1 w-8"><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></td>
                     <td className="py-3 pl-2 pr-2"><p className="font-medium">{t.descricao}</p>{t.observacoes && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{t.observacoes}</p>}</td>
                     <td className="px-2 py-3 text-right font-semibold text-red-600 whitespace-nowrap">{formatCurrency(t.valor)}</td>
-                    <td className="px-2 py-3 whitespace-nowrap"><span className={cn(vencido && "text-red-500 font-medium")}>{formatDate(t.dataVencimento)}</span></td>
+                    <td className="px-2 py-3 whitespace-nowrap"><span className={cn(vencido && "text-red-500 font-medium")}>{formatDateBR(t.dataVencimento)}</span></td>
                     <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.categoriaNome || <span className="text-muted-foreground/50">—</span>}</td>
                     <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{t.centroCustoNome || <span className="text-muted-foreground/50">—</span>}</td>
-                    <td className="px-2 py-3 text-xs whitespace-nowrap">{t.dataPagamento ? <span className="text-green-600 font-medium">{formatDate(t.dataPagamento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
+                    <td className="px-2 py-3 text-xs whitespace-nowrap">{t.dataPagamento ? <span className="text-green-600 font-medium">{formatDateBR(t.dataPagamento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
                     <td className="px-2 py-3">{t.pago === "sim" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-900/20 px-2 py-0.5 text-xs font-semibold text-green-600"><CheckCircle className="h-3 w-3" /> Pago</span> : vencido ? <span className="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-900/20 px-2 py-0.5 text-xs font-semibold text-red-500"><AlertTriangle className="h-3 w-3" /> Vencido</span> : <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-xs font-semibold text-amber-600"><Clock className="h-3 w-3" /> Pendente</span>}</td>
                     <td className="py-3 pl-2 pr-4 text-right">
                       <div className="flex gap-1 justify-end">
@@ -1021,8 +1019,8 @@ function ContasReceber() {
     const data = items.map((r: any) => ({
       "Descrição": r.descricao,
       "Valor": Number(r.valor),
-      "Vencimento": r.dataVencimento ? new Date(r.dataVencimento).toLocaleDateString("pt-BR") : "",
-      "Dt. Recebimento": r.dataRecebimento ? new Date(r.dataRecebimento).toLocaleDateString("pt-BR") : "",
+      "Vencimento": r.dataVencimento ? formatDateBR(r.dataVencimento) : "",
+      "Dt. Recebimento": r.dataRecebimento ? formatDateBR(r.dataRecebimento) : "",
       "Status": r.recebido === "sim" ? "Recebido" : "Pendente",
       "Tipo de Serviço": r.tipoServico || "",
       "Descrição do Serviço": r.descricaoServico || "",
@@ -1220,11 +1218,11 @@ function ContasReceber() {
                   <td className="py-3 pl-3 pr-1 w-8"><Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} /></td>
                   <td className="py-3 pl-2 pr-2"><p className="font-medium">{r.descricao}</p>{r.observacoes && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.observacoes}</p>}</td>
                   <td className="px-2 py-3 text-right font-semibold text-green-600 whitespace-nowrap">{formatCurrency(r.valor)}</td>
-                  <td className="px-2 py-3 whitespace-nowrap">{formatDate(r.dataVencimento)}</td>
+                  <td className="px-2 py-3 whitespace-nowrap">{formatDateBR(r.dataVencimento)}</td>
                   <td className="px-2 py-3 text-xs whitespace-nowrap">{r.tipoServico ? <span className="inline-flex items-center rounded-full bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300">{r.tipoServico}</span> : <span className="text-muted-foreground/50">—</span>}</td>
                   <td className="px-2 py-3 text-xs text-muted-foreground"><p className="truncate max-w-[200px]" title={r.descricaoServico || ""}>{r.descricaoServico || <span className="text-muted-foreground/50">—</span>}</p></td>
                   <td className="px-2 py-3 text-xs text-muted-foreground whitespace-nowrap">{r.clienteNome || <span className="text-muted-foreground/50">—</span>}</td>
-                  <td className="px-2 py-3 text-xs whitespace-nowrap">{r.dataRecebimento ? <span className="text-green-600 font-medium">{formatDate(r.dataRecebimento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
+                  <td className="px-2 py-3 text-xs whitespace-nowrap">{r.dataRecebimento ? <span className="text-green-600 font-medium">{formatDateBR(r.dataRecebimento)}</span> : <span className="text-muted-foreground/50">—</span>}</td>
                   <td className="px-2 py-3">{r.recebido === "sim" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-900/20 px-2 py-0.5 text-xs font-semibold text-green-600"><CheckCircle className="h-3 w-3" /> Recebido</span> : <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-semibold text-blue-600"><Clock className="h-3 w-3" /> Pendente</span>}</td>
                   <td className="py-3 pl-2 pr-4 text-right">
                     <div className="flex gap-1 justify-end">
@@ -2352,7 +2350,7 @@ function BancoInterView() {
                             <tr key={i} className="border-b hover:bg-muted/50">
                               <td className="p-2 font-mono text-xs">{b.seuNumero || '-'}</td>
                               <td className="p-2">{b.pagador?.nome || '-'}</td>
-                              <td className="p-2">{b.dataVencimento ? formatDate(b.dataVencimento) : '-'}</td>
+                              <td className="p-2">{b.dataVencimento ? formatDateBR(b.dataVencimento) : '-'}</td>
                               <td className="p-2 text-right font-medium">{formatCurrency(b.valorNominal || 0)}</td>
                               <td className="p-2 text-center">
                                 <span className={cn("px-2 py-0.5 rounded text-xs font-medium", situacaoColors[b.situacao] || "bg-gray-500/10 text-gray-500")}>

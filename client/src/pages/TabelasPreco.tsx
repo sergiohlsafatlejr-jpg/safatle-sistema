@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/dateUtils";
 import { 
   Plus, 
   Upload, 
@@ -249,11 +250,7 @@ export default function TabelasPreco() {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num || 0);
   };
 
-  const formatDate = (date: string | Date | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
-
+  
   // Função para formatar data no formato DD/MM/AAAA enquanto digita
   const formatDateInput = (value: string): string => {
     // Remove tudo que não for número
@@ -470,7 +467,7 @@ export default function TabelasPreco() {
                               {formatCurrency(item.valor)}
                             </TableCell>
                             <TableCell>{item.unidade || "-"}</TableCell>
-                            <TableCell>{formatDate(item.vigenciaInicio)}</TableCell>
+                            <TableCell>{formatDateBR(item.vigenciaInicio)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
                                 <Button
@@ -780,7 +777,7 @@ export default function TabelasPreco() {
                             <div>
                               <span className="text-muted-foreground">Vigência:</span>
                               <span className="ml-2 font-medium">
-                                {formatDate(registro.vigenciaInicioNovo)}
+                                {formatDateBR(registro.vigenciaInicioNovo)}
                               </span>
                             </div>
                           </div>
@@ -816,11 +813,11 @@ export default function TabelasPreco() {
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">Vigência:</span>
                                 <span className="line-through text-red-500">
-                                  {formatDate(registro.vigenciaInicioAnterior)}
+                                  {formatDateBR(registro.vigenciaInicioAnterior)}
                                 </span>
                                 <span>→</span>
                                 <span className="text-green-600 font-medium">
-                                  {formatDate(registro.vigenciaInicioNovo)}
+                                  {formatDateBR(registro.vigenciaInicioNovo)}
                                 </span>
                               </div>
                             )}

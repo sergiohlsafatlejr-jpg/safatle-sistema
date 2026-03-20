@@ -100,6 +100,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -112,18 +113,8 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // Formatar data
-const formatDate = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR");
-};
 
 // Formatar data e hora
-const formatDateTime = (date: Date | string | null | undefined) => {
-  if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-};
 
 // Ícones por tipo de item
 const getTipoIcon = (tipo: string) => {
@@ -709,7 +700,7 @@ export default function ContaConvenioDetalhes() {
       "Quantidade": parseFloat(item.quantidade || "1"),
       "Valor Unitário": parseFloat(item.valorUnitario || "0"),
       "Valor Total": parseFloat(item.valorTotal || "0"),
-      "Data Execução": formatDate(item.dataExecucao),
+      "Data Execução": formatDateBR(item.dataExecucao),
       "Status": item.statusAnalise || "pendente",
     }));
 
@@ -856,7 +847,7 @@ export default function ContaConvenioDetalhes() {
                 <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm text-muted-foreground">Data Execução</p>
-                  <p className="font-semibold">{formatDate(primeiroItem?.dataExecucao)}</p>
+                  <p className="font-semibold">{formatDateBR(primeiroItem?.dataExecucao)}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -1431,7 +1422,7 @@ export default function ContaConvenioDetalhes() {
                                   </Badge>
                                 ) : "-"}
                               </TableCell>
-                              <TableCell>{formatDate(item.dataExecucao)}</TableCell>
+                              <TableCell>{formatDateBR(item.dataExecucao)}</TableCell>
                               <TableCell className="text-right">{item.quantidade || 1}</TableCell>
                               <TableCell className="text-right">{formatCurrency(item.valorUnitario)}</TableCell>
                               <TableCell className="text-right font-semibold text-emerald-600">
@@ -1858,7 +1849,7 @@ export default function ContaConvenioDetalhes() {
                                             </button>
                                           </TooltipTrigger>
                                           <TooltipContent>
-                                            <p>{fb.usuarioNome} em {formatDateTime(fb.createdAt)}</p>
+                                            <p>{fb.usuarioNome} em {formatDateTimeBR(fb.createdAt)}</p>
                                             {fb.justificativa && <p className="text-xs mt-1 max-w-xs">{fb.justificativa}</p>}
                                           </TooltipContent>
                                         </Tooltip>
@@ -2060,7 +2051,7 @@ export default function ContaConvenioDetalhes() {
                               <p className="text-sm text-muted-foreground mt-1">{falha.descricao}</p>
                             )}
                             <p className="text-xs text-muted-foreground mt-2">
-                              Registrado por {falha.usuarioNome} em {formatDateTime(falha.createdAt)}
+                              Registrado por {falha.usuarioNome} em {formatDateTimeBR(falha.createdAt)}
                             </p>
                           </div>
                           <div className="flex items-center gap-1 ml-4">
@@ -2346,7 +2337,7 @@ export default function ContaConvenioDetalhes() {
                                   {item.setor || "N/D"}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-sm whitespace-nowrap">{item.dataExecucao ? formatDate(item.dataExecucao) : "-"}</TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">{item.dataExecucao ? formatDateBR(item.dataExecucao) : "-"}</TableCell>
                               <TableCell className="text-right">{item.quantidade || 1}</TableCell>
                               <TableCell className="text-right">{formatCurrency(item.valorUnitario)}</TableCell>
                               <TableCell className="text-right font-semibold">{formatCurrency(item.valorTotal)}</TableCell>
@@ -2468,7 +2459,7 @@ export default function ContaConvenioDetalhes() {
                                 <p className="text-xs text-muted-foreground italic mt-1">"{ajuste.justificativa}"</p>
                               )}
                               <p className="text-xs text-muted-foreground mt-1">
-                                Por {ajuste.usuarioNome} em {formatDateTime(ajuste.createdAt)}
+                                Por {ajuste.usuarioNome} em {formatDateTimeBR(ajuste.createdAt)}
                               </p>
                             </div>
                             {ajuste.status === "aplicado" && (
@@ -2588,7 +2579,7 @@ export default function ContaConvenioDetalhes() {
                           {feedbacksData.map((fb: any) => (
                             <TableRow key={fb.id}>
                               <TableCell className="text-sm whitespace-nowrap">
-                                {formatDateTime(fb.createdAt)}
+                                {formatDateTimeBR(fb.createdAt)}
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
@@ -3054,7 +3045,7 @@ export default function ContaConvenioDetalhes() {
                 <div className="bg-muted/50 p-3 rounded-lg">
                   <p className="text-sm"><strong>Item:</strong> {ajusteDialog.item.codigoItem} - {ajusteDialog.item.descricaoItem}</p>
                   {ajusteDialog.tipo === "ALTERAR_SETOR" ? (
-                    <p className="text-sm"><strong>Setor atual:</strong> {ajusteDialog.item.setor || "Não definido"} | <strong>Data:</strong> {ajusteDialog.item.dataExecucao ? formatDate(ajusteDialog.item.dataExecucao) : "-"}</p>
+                    <p className="text-sm"><strong>Setor atual:</strong> {ajusteDialog.item.setor || "Não definido"} | <strong>Data:</strong> {ajusteDialog.item.dataExecucao ? formatDateBR(ajusteDialog.item.dataExecucao) : "-"}</p>
                   ) : (
                     <p className="text-sm"><strong>Qtd atual:</strong> {ajusteDialog.item.quantidade} | <strong>Valor atual:</strong> {formatCurrency(ajusteDialog.item.valorUnitario)}</p>
                   )}
@@ -3200,7 +3191,7 @@ export default function ContaConvenioDetalhes() {
                         </div>
                         <div className="flex items-center gap-2">
                           <DecisaoBadge decisao={fb.decisao} />
-                          <span className="text-xs text-muted-foreground">{formatDateTime(fb.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground">{formatDateTimeBR(fb.createdAt)}</span>
                         </div>
                       </div>
                       {fb.justificativa && (

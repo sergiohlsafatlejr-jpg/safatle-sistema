@@ -22,6 +22,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 type AvisoTipo = "informacao" | "alerta" | "urgente";
 
@@ -283,11 +284,11 @@ export default function GerenciarAvisos() {
                       <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{aviso.conteudo}</p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                         <span>Criado por: {aviso.criadoPorNome || "Admin"}</span>
-                        <span>Em: {new Date(aviso.createdAt).toLocaleDateString("pt-BR")}</span>
+                        <span>Em: {formatDateBR(aviso.createdAt)}</span>
                         {aviso.expiraEm && (
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            Expira: {new Date(aviso.expiraEm).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            Expira: {safeParseDate(aviso.expiraEm)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) || "-"}
                           </span>
                         )}
                       </div>

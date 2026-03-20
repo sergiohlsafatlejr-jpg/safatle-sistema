@@ -45,6 +45,7 @@ import {
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 interface FileItem {
   file: File;
@@ -239,14 +240,7 @@ export default function RecebimentosExcel() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (dateStr: string | Date | null | undefined) => {
-    if (!dateStr) return "-";
-    try {
-      const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-      return d.toLocaleDateString("pt-BR");
-    } catch { return "-"; }
-  };
-
+  
   const handleExportExcel = () => {
     if (!recebimentoData?.items || recebimentoData.items.length === 0) {
       toast.error("Nenhum dado para exportar");
@@ -723,7 +717,7 @@ export default function RecebimentosExcel() {
             <ArquivosImportadosExcelTab
               estabelecimentoId={estabelecimentoAtual?.id}
               formatCurrency={formatCurrency}
-              formatDate={formatDate}
+              formatDate={formatDateBR}
               onDeleted={() => {
                 utils.recebimentosExcel.list.invalidate();
                 utils.recebimentosExcel.resumo.invalidate();
@@ -818,7 +812,7 @@ function ArquivosImportadosExcelTab({
                     </div>
                   </TableCell>
                   <TableCell>{arquivo.convenioNome || "-"}</TableCell>
-                  <TableCell>{formatDate(arquivo.createdAt)}</TableCell>
+                  <TableCell>{formatDateBR(arquivo.createdAt)}</TableCell>
                   <TableCell className="text-right">{arquivo.totalItens || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={arquivo.status === "processado" ? "default" : "secondary"} className="text-xs">

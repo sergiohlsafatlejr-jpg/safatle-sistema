@@ -34,6 +34,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 
 
@@ -144,16 +145,7 @@ export default function Demonstrativo() {
     return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (dateStr: string | Date | null | undefined) => {
-    if (!dateStr) return "-";
-    try {
-      const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-      return d.toLocaleDateString("pt-BR");
-    } catch {
-      return "-";
-    }
-  };
-
+  
   // Navegar para detalhes da conta (preservando filtros atuais na URL)
   const handleVerDetalhes = (conta: any) => {
     const params = new URLSearchParams({
@@ -197,8 +189,8 @@ export default function Demonstrativo() {
         "Lote": conta.lotePrestador || "",
         "Carteirinha": conta.carteiraBeneficiario || "",
         "Paciente": conta.nomeBeneficiario || "",
-        "Data Pagamento": formatDate(conta.dataPagamento),
-        "Competência": formatDate(conta.dataReferencia),
+        "Data Pagamento": formatDateBR(conta.dataPagamento),
+        "Competência": formatDateBR(conta.dataReferencia),
         "Total Itens": conta.totalItens || 0,
         "Itens Glosados": conta.itensGlosados || 0,
         "Valor Informado": valorInformado,
@@ -517,8 +509,8 @@ export default function Demonstrativo() {
                             <TableCell className="font-mono text-sm">{conta.lotePrestador || "-"}</TableCell>
                             <TableCell className="max-w-[180px] truncate text-sm">{conta.nomeBeneficiario || "-"}</TableCell>
                             <TableCell className="font-mono text-sm">{conta.carteiraBeneficiario || "-"}</TableCell>
-                            <TableCell className="text-sm">{formatDate(conta.dataPagamento)}</TableCell>
-                            <TableCell className="text-sm">{formatDate(conta.dataReferencia)}</TableCell>
+                            <TableCell className="text-sm">{formatDateBR(conta.dataPagamento)}</TableCell>
+                            <TableCell className="text-sm">{formatDateBR(conta.dataReferencia)}</TableCell>
                             <TableCell className="text-center">
                               <div className="flex flex-col items-center gap-0.5">
                                 <span className="text-sm font-medium">{conta.totalItens}</span>

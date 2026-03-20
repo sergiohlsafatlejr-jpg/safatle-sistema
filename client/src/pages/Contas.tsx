@@ -28,6 +28,7 @@ import {
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
+import { formatDateBR } from "@/lib/dateUtils";
 
 // Interface para conta agrupada
 // Agora usa chave composta (numeroLote + sequencialTransacao) para identificar faturamentos únicos
@@ -252,11 +253,7 @@ export default function Contas() {
     XLSX.writeFile(wb, `contas_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return "-";
-    return date.toLocaleDateString("pt-BR");
-  };
-
+  
   const formatCurrency = (value: number) => {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
@@ -564,7 +561,7 @@ export default function Contas() {
                             {conta.pacienteNome}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
-                            {formatDate(conta.dataConta)}
+                            {formatDateBR(conta.dataConta)}
                           </TableCell>
                           <TableCell className="text-right font-medium text-green-600">
                             {formatCurrency(conta.valorTotal)}
