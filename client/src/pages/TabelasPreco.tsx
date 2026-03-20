@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { 
   Plus, 
   Upload, 
@@ -158,15 +158,7 @@ export default function TabelasPreco() {
     setFormNome(item.nome);
     setFormValor(item.valor);
     // Converte para formato DD/MM/AAAA para exibição
-    if (item.vigenciaInicio) {
-      const date = new Date(item.vigenciaInicio);
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      setFormVigenciaInicio(`${day}/${month}/${year}`);
-    } else {
-      setFormVigenciaInicio("");
-    }
+    setFormVigenciaInicio(item.vigenciaInicio ? formatDateBR(item.vigenciaInicio) : "");
     setFormUnidade(item.unidade || "");
     setFormObservacao(item.observacao || "");
     setFormEstabelecimentoId(item.estabelecimentoId || undefined);
@@ -754,7 +746,7 @@ export default function TabelasPreco() {
                             </span>
                           </div>
                           <span className="text-sm text-muted-foreground">
-                            {registro.createdAt ? new Date(registro.createdAt).toLocaleString("pt-BR") : "-"}
+                            {registro.createdAt ? formatDateTimeBR(registro.createdAt) : "-"}
                           </span>
                         </div>
                         

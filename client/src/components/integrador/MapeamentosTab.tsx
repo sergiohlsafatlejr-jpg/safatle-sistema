@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -330,9 +331,9 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {map.ultimaSincronizacao
-                        ? new Date(map.ultimaSincronizacao).toLocaleString()
+                        ? formatDateTimeBR(map.ultimaSincronizacao)
                         : map.ultimaExecucao
-                          ? new Date(map.ultimaExecucao).toLocaleString()
+                          ? formatDateTimeBR(map.ultimaExecucao)
                           : "-"}
                     </TableCell>
                     <TableCell className="text-right">
@@ -465,7 +466,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     {syncLogs.data.map((log: any) => (
                       <TableRow key={log.id}>
                         <TableCell className="text-sm">
-                          {new Date(log.iniciadoEm).toLocaleString()}
+                          {formatDateTimeBR(log.iniciadoEm)}
                         </TableCell>
                         <TableCell className="text-sm font-medium">{log.mapeamentoNome || `#${log.mapeamentoId}`}</TableCell>
                         <TableCell>

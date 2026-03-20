@@ -22,7 +22,7 @@ import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 // Motivos de notificação
 const MOTIVOS = [
@@ -707,8 +707,8 @@ export default function Atendimentos() {
     const anos = new Set<string>();
     atendimentos.forEach(d => {
       if (d.datatend) {
-        const dt = new Date(d.datatend);
-        if (!isNaN(dt.getTime())) {
+        const dt = safeParseDate(d.datatend);
+        if (dt && !isNaN(dt.getTime())) {
           anos.add(String(dt.getFullYear()));
         }
       }
@@ -785,16 +785,16 @@ export default function Atendimentos() {
     if (filtroAno !== "todos") {
       filtrados = filtrados.filter(d => {
         if (!d.datatend) return false;
-        const dt = new Date(d.datatend);
-        return !isNaN(dt.getTime()) && String(dt.getFullYear()) === filtroAno;
+        const dt = safeParseDate(d.datatend);
+        return dt && !isNaN(dt.getTime()) && String(dt.getFullYear()) === filtroAno;
       });
     }
     // Filtro por mês (data de entrada)
     if (filtroMes !== "todos") {
       filtrados = filtrados.filter(d => {
         if (!d.datatend) return false;
-        const dt = new Date(d.datatend);
-        return !isNaN(dt.getTime()) && String(dt.getMonth() + 1).padStart(2, "0") === filtroMes;
+        const dt = safeParseDate(d.datatend);
+        return dt && !isNaN(dt.getTime()) && String(dt.getMonth() + 1).padStart(2, "0") === filtroMes;
       });
     }
 

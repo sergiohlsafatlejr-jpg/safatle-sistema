@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateBR } from "@/lib/dateUtils";
 import {
   BarChart, Bar, PieChart, Pie, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -381,7 +382,7 @@ function PacientesInternadosSection({
                       <td className="py-2 px-3 max-w-[150px] truncate" title={p.centroCusto}>{p.centroCusto}</td>
                       <td className="py-2 px-3 max-w-[150px] truncate" title={p.prestador}>{p.prestador}</td>
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {new Date(p.dataEntrada).toLocaleDateString("pt-BR")}
+                        {formatDateBR(p.dataEntrada)}
                       </td>
                       <td className="py-2 px-3 text-center">
                         <DiasInternadoBadge dias={p.diasInternado} />
@@ -629,7 +630,7 @@ function HemodialiseSection({
                       </td>
                       <td className="py-2 px-3 max-w-[180px] truncate" title={p.prestador}>{p.prestador}</td>
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {new Date(p.dataEntrada).toLocaleDateString("pt-BR")}
+                        {formatDateBR(p.dataEntrada)}
                       </td>
                       <td className="py-2 px-3 text-center">
                         <Badge variant="secondary">

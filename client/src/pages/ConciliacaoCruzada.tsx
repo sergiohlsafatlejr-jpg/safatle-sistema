@@ -27,7 +27,7 @@ import {
   Ban, Undo2, CheckSquare, FileCode, Package, ExternalLink, FileDown
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 
 export default function ConciliacaoCruzada() {
   const { user } = useAuth();
@@ -1644,7 +1644,7 @@ export default function ConciliacaoCruzada() {
                             <td className="p-2 text-center">{xml.totalGuias}</td>
                             <td className="p-2 text-center">{xml.totalItens}</td>
                             <td className="p-2 text-right text-red-600 font-medium">{formatarMoeda(Number(xml.valorTotalGlosado))}</td>
-                            <td className="p-2 text-sm">{xml.createdAt ? new Date(xml.createdAt).toLocaleString('pt-BR') : '-'}</td>
+                            <td className="p-2 text-sm">{xml.createdAt ? formatDateTimeBR(xml.createdAt) : '-'}</td>
                             <td className="p-2 text-center">
                               <Button
                                 variant="outline"

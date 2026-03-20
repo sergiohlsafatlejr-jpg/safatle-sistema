@@ -6,9 +6,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock do banco de dados
 const mockExecute = vi.fn();
+const mockSelectFrom = vi.fn();
+const mockSelectWhere = vi.fn();
+
 vi.mock('./db', () => ({
   getDb: vi.fn().mockResolvedValue({
     execute: (...args: any[]) => mockExecute(...args),
+    select: () => ({
+      from: () => ({
+        where: (...args: any[]) => mockSelectWhere(...args),
+      }),
+    }),
   }),
 }));
 
@@ -20,11 +28,21 @@ vi.mock('./storage', () => ({
   }),
 }));
 
+// Mock do schema import
+vi.mock('../drizzle/schema', () => ({
+  convenioEstabelecimentoPrestador: {
+    codigoPrestador: 'codigoPrestador',
+    estabelecimentoId: 'estabelecimentoId',
+  },
+}));
+
 import { gerarXmlRecurso, guiasGlosadasDisponiveis, listarXmlsGerados, downloadXmlRecurso } from './xmlRecursoService';
 
 describe('xmlRecursoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: retornar lista vazia para códigos de prestador (sem filtro de terceiros)
+    mockSelectWhere.mockResolvedValue([]);
   });
 
   describe('gerarXmlRecurso', () => {
@@ -68,6 +86,7 @@ describe('xmlRecursoService', () => {
             codigoGlosa: null,
             motivoGlosa: null,
             pacienteNome: 'MARIA ABADIA DOS SANTOS',
+            codigoPrestadorExecutante: null,
           },
           {
             id: 2,
@@ -87,6 +106,7 @@ describe('xmlRecursoService', () => {
             codigoGlosa: '1015',
             motivoGlosa: 'Item não recebido no demonstrativo',
             pacienteNome: 'MARIA ABADIA DOS SANTOS',
+            codigoPrestadorExecutante: null,
           },
           {
             id: 3,
@@ -106,6 +126,7 @@ describe('xmlRecursoService', () => {
             codigoGlosa: null,
             motivoGlosa: null,
             pacienteNome: 'MARIA ABADIA DOS SANTOS',
+            codigoPrestadorExecutante: null,
           },
         ]])
         // Mock: dados do faturamento_unificado
@@ -136,9 +157,13 @@ describe('xmlRecursoService', () => {
         .mockResolvedValueOnce([[
           { nome: 'IPASGO', codigo: '346659' },
         ]])
-        // Mock: convenioEstabelecimentoPrestador
+        // Mock: convenioEstabelecimentoPrestador (buscarDadosConvenio)
         .mockResolvedValueOnce([[
           { codigoPrestador: 'PREST001' },
+        ]])
+        // Mock: lotePrestador query (step 4)
+        .mockResolvedValueOnce([[
+          { lotePrestador: 'LOTE001' },
         ]])
         // Mock: INSERT xml_recursos_gerados
         .mockResolvedValueOnce([{ insertId: 1 }])
@@ -176,6 +201,7 @@ describe('xmlRecursoService', () => {
             valorGlosa: 0, quantidade: 1, competencia: '2025-12',
             convenio: 'IPASGO', convenioId: 1, statusConciliacao: 'conciliado',
             codigoGlosa: null, motivoGlosa: null, pacienteNome: 'MARIA',
+            codigoPrestadorExecutante: null,
           },
           {
             id: 2, numeroGuia: '18414424', codigoItem: '30101012',
@@ -184,6 +210,7 @@ describe('xmlRecursoService', () => {
             valorGlosa: 50, quantidade: 1, competencia: '2025-12',
             convenio: 'IPASGO', convenioId: 1, statusConciliacao: 'glosado',
             codigoGlosa: '1015', motivoGlosa: 'Item não recebido', pacienteNome: 'MARIA',
+            codigoPrestadorExecutante: null,
           },
           {
             id: 3, numeroGuia: '18560945', codigoItem: '20101012',
@@ -192,6 +219,7 @@ describe('xmlRecursoService', () => {
             valorGlosa: 80, quantidade: 1, competencia: '2025-12',
             convenio: 'IPASGO', convenioId: 1, statusConciliacao: 'glosado',
             codigoGlosa: '2001', motivoGlosa: 'Procedimento não autorizado', pacienteNome: 'JOAO',
+            codigoPrestadorExecutante: null,
           },
         ]])
         .mockResolvedValueOnce([[
@@ -202,6 +230,7 @@ describe('xmlRecursoService', () => {
         .mockResolvedValueOnce([[ { nome: 'HEMOLABOR', cnpj: '01234567000189' } ]])  // prestador
         .mockResolvedValueOnce([[ { nome: 'IPASGO', codigo: '346659' } ]])  // convênio
         .mockResolvedValueOnce([[ { codigoPrestador: 'P001' } ]])  // cep
+        .mockResolvedValueOnce([[ { lotePrestador: 'LOTE1' } ]])  // lotePrestador query
         .mockResolvedValueOnce([{ insertId: 2 }])  // INSERT
         .mockResolvedValueOnce([{ affectedRows: 3 }]);  // UPDATE
 
@@ -236,6 +265,11 @@ describe('xmlRecursoService', () => {
           xmlGerado: 0,
           xmlGeradoEm: null,
           xmlLoteId: null,
+          loteXml: 'LOTE001',
+          protocoloXml: 'PROT001',
+          loteRetorno: null,
+          protocoloRetorno: null,
+          codigoPrestadorExecutante: null,
         },
       ]]);
 
@@ -257,12 +291,16 @@ describe('xmlRecursoService', () => {
           competencia: '2025-12', pacienteNome: 'MARIA', totalItens: 5,
           totalItensGlosados: 2, valorFaturado: 500, valorPago: 300,
           valorGlosa: 200, xmlGerado: 0, xmlGeradoEm: null, xmlLoteId: null,
+          loteXml: null, protocoloXml: null, loteRetorno: null, protocoloRetorno: null,
+          codigoPrestadorExecutante: null,
         },
         {
           numeroGuia: '18560945', convenio: 'IPASGO', convenioId: 1,
           competencia: '2025-12', pacienteNome: 'JOAO', totalItens: 3,
           totalItensGlosados: 1, valorFaturado: 300, valorPago: 220,
           valorGlosa: 80, xmlGerado: 1, xmlGeradoEm: '2026-03-19', xmlLoteId: 1,
+          loteXml: null, protocoloXml: null, loteRetorno: null, protocoloRetorno: null,
+          codigoPrestadorExecutante: null,
         },
       ]]);
 

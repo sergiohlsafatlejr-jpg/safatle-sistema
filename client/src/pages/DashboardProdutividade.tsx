@@ -31,7 +31,7 @@ import {
   Calendar
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
+import { formatDateBR, formatDateTimeBR, safeParseDate } from "@/lib/dateUtils";
 import {
   BarChart,
   Bar,
@@ -1086,7 +1086,7 @@ export default function DashboardProdutividade() {
                               </TableCell>
                               <TableCell>{imp.importadoPor}</TableCell>
                               <TableCell>
-                                {imp.dataImportacao ? new Date(imp.dataImportacao).toLocaleString("pt-BR") : "-"}
+                                {imp.dataImportacao ? formatDateTimeBR(imp.dataImportacao) : "-"}
                               </TableCell>
                             </TableRow>
                           ))}

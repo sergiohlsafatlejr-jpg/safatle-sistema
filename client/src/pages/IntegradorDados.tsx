@@ -47,6 +47,7 @@ import { trpc } from "@/lib/trpc";
 import { ConexoesTab } from "@/components/integrador/ConexoesTab";
 import { TabelasTab } from "@/components/integrador/TabelasTab";
 import { MapeamentosTab } from "@/components/integrador/MapeamentosTab";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 
 const SISTEMA_LABELS: Record<string, string> = {
   warleine: "WARLEINE",
@@ -441,7 +442,7 @@ export function IntegradorDados() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   {obterStatus.data?.ultimaSincronizacao
-                    ? `Última: ${new Date(obterStatus.data.ultimaSincronizacao).toLocaleString()}`
+                    ? `Última: ${formatDateTimeBR(obterStatus.data.ultimaSincronizacao)}`
                     : "Nunca sincronizado"}
                 </p>
               </CardContent>
@@ -762,7 +763,7 @@ export function IntegradorDados() {
                   {obterLogs.data.logs.map((log: any, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell className="text-sm">
-                        {new Date(log.timestamp).toLocaleString()}
+                        {formatDateTimeBR(log.timestamp)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -968,7 +969,7 @@ export function IntegradorDados() {
             {/* Info de última sincronização */}
             {editingConfig?.ultimaSincronizacao && (
               <div className="text-sm text-muted-foreground">
-                Última sincronização: {new Date(editingConfig.ultimaSincronizacao).toLocaleString()}
+                Última sincronização: {formatDateTimeBR(editingConfig.ultimaSincronizacao)}
               </div>
             )}
           </div>

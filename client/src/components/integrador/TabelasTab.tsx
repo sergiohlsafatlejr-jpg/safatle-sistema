@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1096,7 +1097,7 @@ function TabelaRow({ tabela, onView, onDelete, onSync, onEdit, isSyncing }: {
               )}
               {mapeamento.data?.ultimaSincronizacao && (
                 <span className="text-[10px] text-muted-foreground">
-                  Última: {new Date(mapeamento.data.ultimaSincronizacao).toLocaleString()}
+                  Última: {formatDateTimeBR(mapeamento.data.ultimaSincronizacao)}
                 </span>
               )}
             </div>
@@ -1114,7 +1115,7 @@ function TabelaRow({ tabela, onView, onDelete, onSync, onEdit, isSyncing }: {
         )}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {tabela.criadaEm ? new Date(tabela.criadaEm).toLocaleDateString() : "-"}
+        {tabela.criadaEm ? formatDateBR(tabela.criadaEm) : "-"}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex gap-1 justify-end">

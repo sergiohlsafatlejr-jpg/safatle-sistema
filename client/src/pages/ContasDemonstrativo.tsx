@@ -38,7 +38,7 @@ import {
 import React, { useState, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 
 
@@ -57,7 +57,8 @@ const formatCurrency = (value: number | string | null | undefined) => {
 // Formatar data de referência como MM/AAAA
 const formatDataReferencia = (date: Date | string | null | undefined) => {
   if (!date) return "-";
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = safeParseDate(date);
+  if (!d) return "-";
   const mes = String(d.getMonth() + 1).padStart(2, '0');
   const ano = d.getFullYear();
   return `${mes}/${ano}`;

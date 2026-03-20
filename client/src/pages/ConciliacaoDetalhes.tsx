@@ -105,7 +105,7 @@ export default function ConciliacaoDetalhes() {
         }
         return dateStr;
       }
-      return date.toLocaleDateString("pt-BR");
+      return formatDateBR(date);
     } catch {
       return dateStr;
     }

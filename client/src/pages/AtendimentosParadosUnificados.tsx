@@ -14,7 +14,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 type SortColumn = "numero_atendimento" | "paciente" | "convenio" | "data_entrada" | "data_saida" | "diasParado" | "descricao_atendimento" | "codigo_servico" | "valorConta" | "etapaConta" | "medicoResp" | "matricula" | "setorEtapa" | "dtEtapa" | "userEtapa" | "tipo_atendimento";
 type SortOrder = "asc" | "desc";
@@ -772,8 +772,8 @@ export default function AtendimentosParadosUnificados() {
   const formatDate = (date: string | Date | null | undefined): string => {
     if (!date) return "-";
     try {
-      const d = typeof date === 'string' ? new Date(date) : date;
-      return d.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const d = safeParseDate(date) || date;
+      return formatDateBR(d);
     } catch { return String(date); }
   };
 

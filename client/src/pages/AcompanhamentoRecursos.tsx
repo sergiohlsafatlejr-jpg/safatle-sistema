@@ -168,12 +168,7 @@ export default function AcompanhamentoRecursos() {
     setEditandoItem(item.id);
     setValorRecebidoEdit(item.valorRecebido?.toString() || "0");
     // Converter data para formato YYYY-MM-DD para o input date
-    if (item.dataPagamento) {
-      const d = new Date(item.dataPagamento);
-      setDataPagamentoEdit(d.toISOString().split('T')[0]);
-    } else {
-      setDataPagamentoEdit("");
-    }
+    setDataPagamentoEdit(item.dataPagamento ? toInputDateValue(item.dataPagamento) : "");
   };
 
   const handleSalvarPagamento = () => {

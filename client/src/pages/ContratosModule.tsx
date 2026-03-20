@@ -93,7 +93,7 @@ function formatCurrency(value: string | number | null | undefined) {
 }
 function formatDateContract(dateStr: string) {
   if (!dateStr) return "___/___/______";
-  try { const d = new Date(dateStr + "T00:00:00"); return d.toLocaleDateString("pt-BR"); } catch { return dateStr; }
+  try { const d = new Date(dateStr + "T00:00:00"); return formatDateBR(d); } catch { return dateStr; }
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {

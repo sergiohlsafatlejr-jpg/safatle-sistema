@@ -21,7 +21,7 @@ import {
   Filter, SortAsc, X, FileSpreadsheet, Copy
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { formatDateBR, toInputDateValue } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate, toInputDateValue } from "@/lib/dateUtils";
 
 // ==================== HELPERS ====================
 function formatCurrency(value: string | number | null | undefined) {
@@ -610,7 +610,7 @@ function ContasPagar() {
   }, [rawItems, ordenacao]);
 
   const totalPendente = items.filter((t: any) => t.pago === "nao").reduce((s: number, t: any) => s + Number(t.valor), 0);
-  const totalVencido = items.filter((t: any) => t.pago === "nao" && t.dataVencimento && new Date(t.dataVencimento) < new Date(hoje)).reduce((s: number, t: any) => s + Number(t.valor), 0);
+  const totalVencido = items.filter((t: any) => t.pago === "nao" && t.dataVencimento && (safeParseDate(t.dataVencimento)?.getTime() ?? 0) < new Date(hoje).getTime()).reduce((s: number, t: any) => s + Number(t.valor), 0);
   const totalPago = items.filter((t: any) => t.pago === "sim").reduce((s: number, t: any) => s + Number(t.valor), 0);
 
   const totalSelecionado = useMemo(() => {
@@ -827,7 +827,7 @@ function ContasPagar() {
                 <th className="py-3 pl-2 pr-4 text-xs font-semibold text-muted-foreground text-right">Ações</th>
               </tr></thead>
               <tbody>{items.map((t: any) => {
-                const vencido = t.pago === "nao" && t.dataVencimento && new Date(t.dataVencimento) < new Date(hoje);
+                const vencido = t.pago === "nao" && t.dataVencimento && (safeParseDate(t.dataVencimento)?.getTime() ?? 0) < new Date(hoje).getTime();
                 return (
                   <tr key={t.id} className={cn("border-b border-border hover:bg-muted/30 transition-colors", vencido && "bg-red-50/50 dark:bg-red-900/10", selectedIds.has(t.id) && "bg-primary/5")}>
                     <td className="py-3 pl-3 pr-1 w-8"><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></td>
@@ -874,10 +874,10 @@ function ContasPagar() {
               <div><Label>Descrição *</Label><Input name="descricao" defaultValue={editItem.descricao} required /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" defaultValue={Number(editItem.valor)} required /></div>
-                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" defaultValue={editItem.dataVencimento ? new Date(editItem.dataVencimento).toISOString().slice(0, 10) : ""} required /></div>
+                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" defaultValue={editItem.dataVencimento ? toInputDateValue(editItem.dataVencimento) : ""} required /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Data de Pagamento</Label><Input name="dataPagamento" type="date" defaultValue={editItem.dataPagamento ? new Date(editItem.dataPagamento).toISOString().slice(0, 10) : ""} /></div>
+                <div><Label>Data de Pagamento</Label><Input name="dataPagamento" type="date" defaultValue={editItem.dataPagamento ? toInputDateValue(editItem.dataPagamento) : ""} /></div>
                 <div><Label>Status</Label><select name="pago" defaultValue={editItem.pago || "nao"} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="nao">Pendente</option><option value="sim">Pago</option></select></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1259,10 +1259,10 @@ function ContasReceber() {
               <div><Label>Descrição *</Label><Input name="descricao" defaultValue={editItem.descricao} required /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Valor *</Label><Input name="valor" type="number" step="0.01" min="0" defaultValue={Number(editItem.valor)} required /></div>
-                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" defaultValue={editItem.dataVencimento ? new Date(editItem.dataVencimento).toISOString().slice(0, 10) : ""} required /></div>
+                <div><Label>Vencimento *</Label><Input name="dataVencimento" type="date" defaultValue={editItem.dataVencimento ? toInputDateValue(editItem.dataVencimento) : ""} required /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Data de Recebimento</Label><Input name="dataRecebimento" type="date" defaultValue={editItem.dataRecebimento ? new Date(editItem.dataRecebimento).toISOString().slice(0, 10) : ""} /></div>
+                <div><Label>Data de Recebimento</Label><Input name="dataRecebimento" type="date" defaultValue={editItem.dataRecebimento ? toInputDateValue(editItem.dataRecebimento) : ""} /></div>
                 <div><Label>Status</Label><select name="recebido" defaultValue={editItem.recebido || "nao"} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="nao">Pendente</option><option value="sim">Recebido</option></select></div>
               </div>
               <div className="grid grid-cols-2 gap-3">

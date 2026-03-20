@@ -71,7 +71,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 
 // Definição dos grupos de serviço pré-definidos
 const GRUPOS_SERVICO_PADRAO = [
@@ -671,13 +671,7 @@ export default function GerenciarPermissoes() {
   };
 
   const formatDate = (date: Date | string) => {
-    return new Date(date).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatDateTimeBR(date);
   };
 
   const getTipoAcaoLabel = (tipo: string) => {

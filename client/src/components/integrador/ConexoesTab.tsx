@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -201,7 +202,7 @@ export function ConexoesTab({ estabelecimentoId }: ConexoesTabProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {conn.ultimoTesteEm ? new Date(conn.ultimoTesteEm).toLocaleString() : "-"}
+                    {conn.ultimoTesteEm ? formatDateTimeBR(conn.ultimoTesteEm) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">

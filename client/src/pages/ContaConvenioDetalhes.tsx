@@ -100,7 +100,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
+import { formatDateBR, formatDateTimeBR, toInputDateValue } from "@/lib/dateUtils";
 
 // Formatar valor em reais
 const formatCurrency = (value: number | string | null | undefined) => {
@@ -1693,7 +1693,7 @@ export default function ContaConvenioDetalhes() {
                                 <h4 className="font-semibold text-sm">Log de Análise - Padrões Utilizados</h4>
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                Última análise: {ultimaAnalise.criadoEm ? new Date(ultimaAnalise.criadoEm).toLocaleString('pt-BR') : '-'}
+                                Última análise: {ultimaAnalise.criadoEm ? formatDateTimeBR(ultimaAnalise.criadoEm) : '-'}
                               </span>
                             </div>
                             <div className="space-y-2">
@@ -2241,7 +2241,7 @@ export default function ContaConvenioDetalhes() {
                           else { if (item.setor !== filtroSetorAjuste) return false; }
                         }
                         if (filtroDataAjuste && item.dataExecucao) {
-                          const itemDate = new Date(item.dataExecucao).toISOString().split("T")[0];
+                          const itemDate = toInputDateValue(item.dataExecucao);
                           if (itemDate !== filtroDataAjuste) return false;
                         } else if (filtroDataAjuste && !item.dataExecucao) {
                           return false;
@@ -2290,7 +2290,7 @@ export default function ContaConvenioDetalhes() {
                                 else { if (item.setor !== filtroSetorAjuste) return false; }
                               }
                               if (filtroDataAjuste && item.dataExecucao) {
-                                const itemDate = new Date(item.dataExecucao).toISOString().split("T")[0];
+                                const itemDate = toInputDateValue(item.dataExecucao);
                                 if (itemDate !== filtroDataAjuste) return false;
                               } else if (filtroDataAjuste && !item.dataExecucao) {
                                 return false;

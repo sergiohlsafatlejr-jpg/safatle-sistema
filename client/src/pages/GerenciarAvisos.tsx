@@ -22,7 +22,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate, toInputDateValue } from "@/lib/dateUtils";
 
 type AvisoTipo = "informacao" | "alerta" | "urgente";
 
@@ -119,7 +119,7 @@ export default function GerenciarAvisos() {
     setTitulo(aviso.titulo);
     setConteudo(aviso.conteudo);
     setTipo(aviso.tipo);
-    setExpiraEm(aviso.expiraEm ? new Date(aviso.expiraEm).toISOString().slice(0, 16) : "");
+    setExpiraEm(aviso.expiraEm ? toInputDateValue(aviso.expiraEm) : "");
     setDialogOpen(true);
   }
 

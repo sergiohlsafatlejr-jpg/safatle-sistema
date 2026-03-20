@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 
 export default function AuditDashboard() {
   const [filters, setFilters] = useState({
@@ -209,7 +210,7 @@ export default function AuditDashboard() {
                             </TableCell>
                             <TableCell>{log.usuarioId}</TableCell>
                             <TableCell className="text-sm">
-                              {new Date(log.dataHora).toLocaleString("pt-BR")}
+                              {formatDateTimeBR(log.dataHora)}
                             </TableCell>
                             <TableCell className="text-xs">
                               <code className="bg-gray-100 p-1 rounded block max-w-xs truncate">

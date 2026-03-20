@@ -28,7 +28,7 @@ import {
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
-import { formatDateBR } from "@/lib/dateUtils";
+import { formatDateBR, safeParseDate } from "@/lib/dateUtils";
 
 // Interface para conta agrupada
 // Agora usa chave composta (numeroLote + sequencialTransacao) para identificar faturamentos únicos
@@ -133,7 +133,7 @@ export default function Contas() {
           sequencialTransacao: sequencialTransacao || "-",
           senha: p.senha || p.dadosExtras?.senha || "-",
           carteirinha: p.pacienteCarteirinha || "-",
-          dataConta: p.dataExecucao ? new Date(p.dataExecucao) : null,
+          dataConta: p.dataExecucao ? safeParseDate(p.dataExecucao) : null,
           valorTotal: 0,
           pacienteNome: p.pacienteNome || "-",
           convenioNome: p.convenioNome || "-",
@@ -150,8 +150,8 @@ export default function Contas() {
       
       // Usar a data mais antiga como data da conta
       if (p.dataExecucao) {
-        const dataItem = new Date(p.dataExecucao);
-        if (!grupos[chave].dataConta || dataItem < grupos[chave].dataConta) {
+        const dataItem = safeParseDate(p.dataExecucao);
+        if (dataItem && (!grupos[chave].dataConta || dataItem < grupos[chave].dataConta)) {
           grupos[chave].dataConta = dataItem;
         }
       }

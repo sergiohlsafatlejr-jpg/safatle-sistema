@@ -22,6 +22,7 @@ import {
   BarChart3, TableIcon, DollarSign, Scale, Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "-";
@@ -274,7 +275,7 @@ export default function RelatorioCustos() {
                     <span>
                       {statusSync.data.totalRegistrosCache.toLocaleString("pt-BR")} produtos em cache
                       {statusSync.data.ultimaSincronizacao && (
-                        <> | Sync: {new Date(statusSync.data.ultimaSincronizacao).toLocaleString("pt-BR")}</>
+                        <> | Sync: {formatDateTimeBR(statusSync.data.ultimaSincronizacao)}</>
                       )}
                     </span>
                   </>

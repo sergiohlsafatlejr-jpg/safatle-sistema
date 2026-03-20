@@ -356,7 +356,7 @@ export default function RelatorioAtendimentos() {
       parts.push(`${statusSync.totalRegistrosCache.toLocaleString("pt-BR")} registros em cache`);
     }
     if (statusSync.ultimaSincronizacao) {
-      parts.push(`Atualizado em ${formatDateTimeBR(new Date(statusSync.ultimaSincronizacao).toISOString())}`);
+      parts.push(`Atualizado em ${formatDateTimeBR(statusSync.ultimaSincronizacao)}`);
     }
     return parts.join(" | ");
   }, [statusSync]);
@@ -409,7 +409,7 @@ export default function RelatorioAtendimentos() {
         )}
         {statusSync.ultimaSincronizacao && (
           <span className="text-xs text-muted-foreground">
-            Atualizado em {formatDateTimeBR(new Date(statusSync.ultimaSincronizacao).toISOString())}
+            Atualizado em {formatDateTimeBR(statusSync.ultimaSincronizacao)}
           </span>
         )}
       </div>

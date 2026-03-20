@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { safeParseDate } from "@/lib/dateUtils";
 import { ArrowLeft, Download, Trash2, Filter } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -46,7 +47,7 @@ export function HistoricoValidacaoXml() {
   const historicoFiltrado = useMemo(() => {
     return historico.filter((item: any) => {
       const nomeArquivo = item.nomeArquivo?.toLowerCase() || "";
-      const dataProcessamento = item.dataProcessamento ? format(new Date(item.dataProcessamento), "dd/MM/yyyy") : "";
+      const dataProcessamento = item.dataProcessamento ? format(safeParseDate(item.dataProcessamento) || new Date(), "dd/MM/yyyy") : "";
 
       return (
         nomeArquivo.includes(filtroArquivo.toLowerCase()) &&
@@ -67,7 +68,7 @@ export function HistoricoValidacaoXml() {
     ];
 
     const rows = historicoFiltrado.map((item: any) => [
-      format(new Date(item.dataProcessamento), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
+      format(safeParseDate(item.dataProcessamento) || new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
       item.nomeArquivo,
       String(item.totalContas),
       String(item.contasValidas),
@@ -215,7 +216,7 @@ export function HistoricoValidacaoXml() {
                     return (
                       <tr key={item.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-4">
-                          {format(new Date(item.dataProcessamento), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          {format(safeParseDate(item.dataProcessamento) || new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                         </td>
                         <td className="py-3 px-4 font-medium">{item.nomeArquivo}</td>
                         <td className="py-3 px-4 text-center">{item.totalContas}</td>
