@@ -82,7 +82,7 @@ function mapearCodigoTabela(tipoItem: string | null, codigoTabelaOriginal: strin
       '03': '19', // Material -> 19
       '04': '22', // Procedimento -> 22
       '05': '18', // Diária -> 18
-      '07': '07', // Taxa -> 07
+      '07': '18', // Taxa -> 18 (Diárias e Taxas)
       '01': '01', // Gás -> 01
     };
     return mapa[codigoTabelaOriginal] || codigoTabelaOriginal;
@@ -94,7 +94,7 @@ function mapearCodigoTabela(tipoItem: string | null, codigoTabelaOriginal: strin
   if (tipo.includes('MEDICAMENTO') || tipo.includes('MED')) return '20';
   if (tipo.includes('MATERIAL') || tipo.includes('MAT')) return '19';
   if (tipo.includes('DIARIA') || tipo.includes('DIÁRIA')) return '18';
-  if (tipo.includes('TAXA')) return '07';
+  if (tipo.includes('TAXA')) return '18';
   if (tipo.includes('GAS') || tipo.includes('GÁS')) return '01';
   return '22'; // Procedimento como default
 }
@@ -382,11 +382,13 @@ function gerarXmlDemonstrativo(
   let valorInformadoProtocolo = 0;
   let valorProcessadoProtocolo = 0;
   let valorLiberadoProtocolo = 0;
+  let valorGlosaProtocolo = 0;
 
   for (const guia of guias) {
     valorInformadoProtocolo += guia.valorInformadoGuia;
     valorProcessadoProtocolo += guia.valorProcessadoGuia;
     valorLiberadoProtocolo += guia.valorLiberadoGuia;
+    valorGlosaProtocolo += guia.valorGlosaGuia;
   }
 
   // Gerar XML das guias
@@ -481,12 +483,14 @@ function gerarXmlDemonstrativo(
           <ans:situacaoProtocolo>6</ans:situacaoProtocolo>${guiasXml}
           <ans:valorInformadoProtocolo>${formatarValor(valorInformadoProtocolo)}</ans:valorInformadoProtocolo>
           <ans:valorProcessadoProtocolo>${formatarValor(valorProcessadoProtocolo)}</ans:valorProcessadoProtocolo>
-          <ans:valorLiberadoProtocolo>${formatarValor(valorLiberadoProtocolo)}</ans:valorLiberadoProtocolo>
+          <ans:valorLiberadoProtocolo>${formatarValor(valorLiberadoProtocolo)}</ans:valorLiberadoProtocolo>${valorGlosaProtocolo > 0 ? `
+          <ans:valorGlosaProtocolo>${formatarValor(valorGlosaProtocolo)}</ans:valorGlosaProtocolo>` : ''}
         </ans:dadosProtocolo>
       </ans:dadosConta>
       <ans:valorInformadoGeral>${formatarValor(valorInformadoProtocolo)}</ans:valorInformadoGeral>
       <ans:valorProcessadoGeral>${formatarValor(valorProcessadoProtocolo)}</ans:valorProcessadoGeral>
-      <ans:valorLiberadoGeral>${formatarValor(valorLiberadoProtocolo)}</ans:valorLiberadoGeral>
+      <ans:valorLiberadoGeral>${formatarValor(valorLiberadoProtocolo)}</ans:valorLiberadoGeral>${valorGlosaProtocolo > 0 ? `
+      <ans:valorGlosaGeral>${formatarValor(valorGlosaProtocolo)}</ans:valorGlosaGeral>` : ''}
     </ans:demonstrativoAnaliseConta>
     </ans:demonstrativosRetorno>
   </ans:operadoraParaPrestador>

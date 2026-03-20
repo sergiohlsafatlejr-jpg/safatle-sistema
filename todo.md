@@ -3280,3 +3280,5 @@
 - [x] Adicionar filtro por lote_prestador (retorno do convênio/demonstrativo) na Conciliação Cruzada
 - [x] Adicionar filtro por numero_lote (XML TISS enviado) na Conciliação Cruzada
 - [x] Transformar filtros de Lote XML e Lote Retorno de dropdown para campo de pesquisa com autocomplete
+- [x] Adicionar tags valorGlosaProtocolo e valorGlosaGeral no XML de recurso de glosa gerado pelo sistema
+- [x] Corrigir código de tabela incorreto no XML de recurso (ex: 07 em vez de 18 para procedimento 60023406)
