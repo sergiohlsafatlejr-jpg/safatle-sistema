@@ -1251,6 +1251,85 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
+  // PASSO 5.6: Reagrupar recebimentos duplicados do demonstrativo
+  // Quando o convênio divide 1 item em múltiplas linhas no demonstrativo
+  // (ex: Gencitabina 1000mg faturada, convênio retorna 2x 500mg = R$345 cada)
+  // O matching individual pega apenas 1 recebimento e marca como divergente/glosado.
+  // Este passo soma todos os recebimentos disponíveis com mesmo guia+código
+  // para reclassificar o item.
+  // -------------------------------------------------------
+  const divergentesOuGlosados = inserts
+    .map((ins, idx) => ({ ins, idx }))
+    .filter(({ ins }) => ins.statusConciliacao === 'divergente' || ins.statusConciliacao === 'glosado');
+
+  for (const { ins, idx } of divergentesOuGlosados) {
+    const guia = ins.numeroGuia;
+    const codigo = ins.codigoItem;
+    if (!guia || !codigo) continue;
+
+    const chave = `${guia}|${codigo}`;
+    const candidatos = indexGuiaCodigo.get(chave);
+    if (!candidatos) continue;
+
+    // Buscar recebimentos NÃO usados com o mesmo guia+código
+    const naoUsados = candidatos.filter(c => !recebimentosUsados.has(c.id));
+    if (naoUsados.length === 0) continue;
+
+    // Somar o valor pago e glosa dos recebimentos não usados + o recebimento já associado
+    let somaValorPago = ins.valorPago;
+    let somaValorGlosa = ins.valorGlosa;
+    const recebimentosAgrupados: any[] = [];
+
+    for (const rec of naoUsados) {
+      somaValorPago += Number(rec.valorPago) || 0;
+      somaValorGlosa += Number(rec.valorGlosa) || 0;
+      recebimentosAgrupados.push(rec);
+    }
+
+    // Verificar se a soma dos recebimentos agrupados é mais próxima do faturado
+    const diferencaAtual = Math.abs(ins.valorFaturado - ins.valorPago);
+    const diferencaAgrupada = Math.abs(ins.valorFaturado - somaValorPago);
+
+    if (diferencaAgrupada < diferencaAtual) {
+      // Marcar todos os recebimentos agrupados como usados
+      for (const rec of recebimentosAgrupados) {
+        recebimentosUsados.add(rec.id);
+      }
+
+      // Atualizar o insert com os valores agrupados
+      const percentualDiferenca = ins.valorFaturado > 0 ? (diferencaAgrupada / ins.valorFaturado) * 100 : 0;
+      const statusAnterior = ins.statusConciliacao;
+
+      ins.valorPago = somaValorPago;
+      ins.valorGlosa = somaValorGlosa;
+      ins.diferenca = ins.valorFaturado - somaValorPago;
+      ins.percentualDiferenca = percentualDiferenca;
+      ins.metodoConciliacao = 'agrupamento_recebimentos';
+
+      // Reclassificar com base na tolerância
+      if (somaValorGlosa > 0 && somaValorPago < ins.valorFaturado) {
+        // Se há glosa explícita no demonstrativo, manter como glosado
+        ins.statusConciliacao = 'glosado';
+        // Atualizar código de glosa do último recebimento agrupado se disponível
+        const recComGlosa = recebimentosAgrupados.find(r => r.codigoGlosa);
+        if (recComGlosa && !ins.codigoGlosa) {
+          ins.codigoGlosa = String(recComGlosa.codigoGlosa);
+        }
+      } else if (percentualDiferenca <= tolerancia) {
+        ins.statusConciliacao = 'conciliado';
+      } else {
+        ins.statusConciliacao = 'divergente';
+      }
+
+      // Atualizar contadores
+      if (statusAnterior === 'divergente') resultado.totalDivergentes--;
+      if (statusAnterior === 'glosado') resultado.totalGlosados = (resultado.totalGlosados || 0) - 1;
+      if (ins.statusConciliacao === 'conciliado') resultado.totalConciliados++;
+      else if (ins.statusConciliacao === 'divergente') resultado.totalDivergentes++;
+    }
+  }
+
+  // -------------------------------------------------------
   // PASSO 6: INSERT em batch na tabela conciliados_automatico
   // -------------------------------------------------------
   const BATCH_SIZE = 50; // Reduzido para evitar queries muito longas com muitas colunas
