@@ -7,6 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +42,8 @@ export default function ConciliacaoCruzada() {
   const [statusFiltro, setStatusFiltro] = useState("todos");
   const [loteXmlFiltro, setLoteXmlFiltro] = useState("todos");
   const [loteRetornoFiltro, setLoteRetornoFiltro] = useState("todos");
+  const [loteXmlOpen, setLoteXmlOpen] = useState(false);
+  const [loteRetornoOpen, setLoteRetornoOpen] = useState(false);
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(0);
   const ITENS_POR_PAGINA = 50;
@@ -592,35 +598,65 @@ export default function ConciliacaoCruzada() {
               </div>
               <div>
                 <Label>Lote XML (Enviado)</Label>
-                <Select value={loteXmlFiltro} onValueChange={(v) => { setLoteXmlFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {lotesXml?.map((l: any) => (
-                      <SelectItem key={l.lote} value={l.lote}>
-                        Lote {l.lote} ({l.total} itens)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={loteXmlOpen} onOpenChange={setLoteXmlOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={loteXmlOpen} className="w-full justify-between font-normal h-9 bg-transparent">
+                      {loteXmlFiltro === "todos" ? "Todos" : `Lote ${loteXmlFiltro}`}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Pesquisar lote..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum lote encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="todos" onSelect={() => { setLoteXmlFiltro("todos"); setLoteXmlOpen(false); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                            <Check className={cn("mr-2 h-4 w-4", loteXmlFiltro === "todos" ? "opacity-100" : "opacity-0")} />
+                            Todos
+                          </CommandItem>
+                          {lotesXml?.map((l: any) => (
+                            <CommandItem key={l.lote} value={`lote ${l.lote} ${l.total} itens`} onSelect={() => { setLoteXmlFiltro(l.lote); setLoteXmlOpen(false); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                              <Check className={cn("mr-2 h-4 w-4", loteXmlFiltro === l.lote ? "opacity-100" : "opacity-0")} />
+                              Lote {l.lote} ({l.total} itens)
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>Lote Retorno (Convênio)</Label>
-                <Select value={loteRetornoFiltro} onValueChange={(v) => { setLoteRetornoFiltro(v); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {lotesRetorno?.map((l: any) => (
-                      <SelectItem key={l.lote} value={l.lote}>
-                        Lote {l.lote} {l.protocolo ? `(Prot. ${l.protocolo})` : ''} ({l.total} itens)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={loteRetornoOpen} onOpenChange={setLoteRetornoOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={loteRetornoOpen} className="w-full justify-between font-normal h-9 bg-transparent">
+                      {loteRetornoFiltro === "todos" ? "Todos" : (() => { const found = lotesRetorno?.find((l: any) => l.lote === loteRetornoFiltro); return found?.protocolo ? `Lote ${loteRetornoFiltro} (Prot. ${found.protocolo})` : `Lote ${loteRetornoFiltro}`; })()}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Pesquisar lote ou protocolo..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum lote encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="todos" onSelect={() => { setLoteRetornoFiltro("todos"); setLoteRetornoOpen(false); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                            <Check className={cn("mr-2 h-4 w-4", loteRetornoFiltro === "todos" ? "opacity-100" : "opacity-0")} />
+                            Todos
+                          </CommandItem>
+                          {lotesRetorno?.map((l: any) => (
+                            <CommandItem key={l.lote} value={`lote ${l.lote} protocolo ${l.protocolo || ''} ${l.total} itens`} onSelect={() => { setLoteRetornoFiltro(l.lote); setLoteRetornoOpen(false); setPaginaAtual(0); setPaginaConciliados(0); setGuiaConciliadaSelecionada(null); }}>
+                              <Check className={cn("mr-2 h-4 w-4", loteRetornoFiltro === l.lote ? "opacity-100" : "opacity-0")} />
+                              Lote {l.lote} {l.protocolo ? `(Prot. ${l.protocolo})` : ''} ({l.total} itens)
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="lg:col-span-2 xl:col-span-1">
                 <Label>Buscar</Label>
