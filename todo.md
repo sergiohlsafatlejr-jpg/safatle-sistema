@@ -3297,4 +3297,5 @@
 - [x] Criar seção/aba de "Terceiros" na tela de conciliação para itens de outros prestadores
 - [x] Excluir itens de terceiros da geração de XML de recurso de glosa
 - [x] Corrigir formato de datas incorreto em todo o sistema (garantir DD/MM/AAAA)
-- [ ] Exportar código para GitHub (repositório safatle-sistema)
+- [x] Exportar código para GitHub (repositório hospital_file_manager)
+- [x] Criar CONTRIBUTING.md com instruções de setup local para onboarding de novos desenvolvedores
