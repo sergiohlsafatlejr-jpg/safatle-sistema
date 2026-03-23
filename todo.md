@@ -3312,3 +3312,4 @@
 ## Bug: Terceiros ainda aparecendo como glosados
 - [x] Investigar por que item 20104294 (Erich Pires Marota) na guia 17007812 ainda aparece como glosado
 - [x] Corrigir lógica de classificação de terceiros na conciliação automática (causa: nenhum terceiro cadastrado, invertida lógica para usar códigos próprios)
+- [x] Bug persistente: guia 17007116 item 20104294 - causa: codigoPrestadorExecutante NULL no faturamento_tiss. Corrigido parser para extrair do equipeSadt + lógica de fallback na conciliação (NULL com itens próprios na mesma guia = terceiro)

@@ -1187,8 +1187,28 @@ export async function executarConciliacaoAutomatica(params: {
       // Não encontrou match no demonstrativo
       // Verificar se o item é de um prestador terceiro
       // Terceiro = código do prestador executante NÃO está entre os códigos próprios cadastrados
+      // OU código é NULL mas outros itens da mesma guia têm código próprio (indica que este item é de terceiro)
       const codPrestExec = baseInsert.codigoPrestadorExecutante;
-      const isTerceiro = codPrestExec && codigosProprios.size > 0 && !codigosProprios.has(codPrestExec);
+      let isTerceiro = false;
+      if (codigosProprios.size > 0) {
+        if (codPrestExec && !codigosProprios.has(codPrestExec)) {
+          // Código preenchido e NÃO é próprio → terceiro
+          isTerceiro = true;
+        } else if (!codPrestExec) {
+          // Código NULL: verificar se outros itens da mesma guia têm código próprio
+          // Se sim, este item provavelmente é de um médico terceiro cujo código não foi extraído
+          const mesmaGuia = itensFaturamento.filter((f: any) => 
+            String(f.numeroGuia) === String(baseInsert.numeroGuia)
+          );
+          const temProprioNaGuia = mesmaGuia.some((f: any) => {
+            const cod = f.codigoPrestadorExecutante ? String(f.codigoPrestadorExecutante) : null;
+            return cod && codigosProprios.has(cod);
+          });
+          if (temProprioNaGuia) {
+            isTerceiro = true;
+          }
+        }
+      }
       
       if (isTerceiro) {
         // Item de terceiro: convênio paga diretamente ao terceiro, não é glosa
