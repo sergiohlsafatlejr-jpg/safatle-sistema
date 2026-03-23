@@ -3349,3 +3349,10 @@
 - [x] Corrigir dados existentes no banco para preencher competência onde está faltando
 - [x] Escrever testes para validar consistência de valores entre telas
 - [x] Validar que BI e Conta Convênio mostram os mesmos valores para mesmo filtro
+
+## Tabela TASY.FATURADO.STAGING
+- [x] Analisar estrutura do CSV hemolaboripasgo12-2025 (50 colunas, vírgula decimal)
+- [x] Criar tabela tasy_faturado_staging no schema Drizzle com todos os 50 campos
+- [x] Criar script de parsing inteligente para tratar vírgulas decimais e descrições com vírgulas
+- [x] Importar dados do CSV para a tabela
+- [x] Validar dados importados (contagem, valores, integridade)
