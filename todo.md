@@ -3370,3 +3370,17 @@
 - [x] Criar script para popular contas_convenio_resumo agrupando por conta do staging
 - [x] Criar script para popular contas_convenio_itens com itens que existem na faturamento_unificado
 - [x] Validar dados populados na Conta Convênio
+
+## Padrões de Cobrança para Hemolabor/Ipasgo
+- [x] Analisar como padrões de cobrança são criados atualmente no sistema
+- [x] Gerar padrões de composição (quais itens acompanham cada procedimento principal)
+- [x] Gerar padrões de preços (média, min, max por código de item)
+- [x] Gerar padrões de quantidade (média, min, max por código de item)
+- [x] Gerar padrões por médico (itens típicos cobrados por cada profissional)
+- [x] Validar padrões gerados
+
+## Integrar Hemolabor na Conciliação Cruzada
+- [x] Analisar como a conciliação cruzada funciona atualmente
+- [x] Garantir que contas Hemolabor apareçam na conciliação cruzada
+- [x] Testar processo de comparação faturado vs recebido para Hemolabor
+- [x] Validar integração

@@ -1604,6 +1604,43 @@ export const padroesCobrancaRouter = router({
       return (stats as any)[0] || [];
     }),
 
+  // ============================================================
+  // PADRÕES TASY (dados do contas_convenio_itens)
+  // ============================================================
+
+  /**
+   * Analisar padrões de cobrança a partir dos dados do Tasy
+   * Retorna composição, preços, quantidade e padrões por médico
+   */
+  analisarPadroesTasy: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { analisarPadroesCobrancaTasy } = await import("../db");
+      return analisarPadroesCobrancaTasy(input);
+    }),
+
+  /**
+   * Salvar/atualizar padrões de cobrança Tasy na tabela padroesCobranca
+   */
+  salvarPadroesTasy: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { salvarPadroesCobrancaTasy } = await import("../db");
+      return salvarPadroesCobrancaTasy(input);
+    }),
+
 });
 
 // ============================================================

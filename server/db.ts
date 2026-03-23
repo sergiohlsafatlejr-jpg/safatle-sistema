@@ -18487,3 +18487,424 @@ export async function getMetricasImportacaoBanco(filters: {
     ultimasImportacoes,
   };
 }
+
+
+/**
+ * Analisa padrões de cobrança a partir dos dados do Tasy (contas_convenio_itens)
+ * Gera padrões por composição, preços, quantidade e médico
+ */
+export async function analisarPadroesCobrancaTasy(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+  competencia?: string;
+}): Promise<{
+  padroesComposicao: Array<{
+    codigoProcedimento: string;
+    descricao: string;
+    tipo: string;
+    totalOcorrencias: number;
+    contasComItem: number;
+    frequenciaPercentual: number;
+    quantidadeMedia: number;
+    quantidadeMin: number;
+    quantidadeMax: number;
+    valorUnitarioMedio: number;
+    valorUnitarioMin: number;
+    valorUnitarioMax: number;
+    valorTotalMedio: number;
+    itensAssociados: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      frequencia: number;
+      quantidadeMedia: number;
+      valorUnitarioMedio: number;
+    }>;
+  }>;
+  padroesPorMedico: Array<{
+    profissional: string;
+    totalContas: number;
+    totalItens: number;
+    codigosUnicos: number;
+    valorTotal: number;
+    valorMedioPorConta: number;
+    itensFrequentes: Array<{
+      codigo: string;
+      descricao: string;
+      ocorrencias: number;
+      quantidadeMedia: number;
+      valorMedio: number;
+    }>;
+  }>;
+  resumoPrecos: Array<{
+    codigoItem: string;
+    descricao: string;
+    tipo: string;
+    precoMedio: number;
+    precoMin: number;
+    precoMax: number;
+    desvioPadrao: number;
+    totalOcorrencias: number;
+  }>;
+  totalContas: number;
+  totalItens: number;
+}> {
+  const db = await getDb();
+  if (!db) return { padroesComposicao: [], padroesPorMedico: [], resumoPrecos: [], totalContas: 0, totalItens: 0 };
+
+  // Filtros
+  let whereClause = `WHERE cci.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.convenioId) {
+    whereClause += ` AND cci.convenioId = ${params.convenioId}`;
+  }
+  if (params.competencia) {
+    whereClause += ` AND cci.competencia = '${params.competencia.replace(/'/g, "''")}'`;
+  }
+
+  // -------------------------------------------------------
+  // 1. Buscar todos os itens das contas
+  // -------------------------------------------------------
+  const [itensRows] = await db.execute(sql.raw(`
+    SELECT cci.numeroConta, cci.codigoItem, cci.descricaoItem, cci.tipoItem,
+           cci.quantidade, cci.valorUnitario, cci.valorTotal, cci.profissionalExecutante,
+           cci.setor
+    FROM contas_convenio_itens cci
+    ${whereClause}
+    ORDER BY cci.numeroConta, cci.codigoItem
+  `));
+  const itens = itensRows as unknown as any[];
+
+  if (itens.length === 0) {
+    return { padroesComposicao: [], padroesPorMedico: [], resumoPrecos: [], totalContas: 0, totalItens: 0 };
+  }
+
+  // -------------------------------------------------------
+  // 2. Agrupar por conta
+  // -------------------------------------------------------
+  const contasMap = new Map<string, any[]>();
+  for (const item of itens) {
+    const conta = String(item.numeroConta || '');
+    if (!contasMap.has(conta)) contasMap.set(conta, []);
+    contasMap.get(conta)!.push(item);
+  }
+
+  const totalContas = contasMap.size;
+  const totalItens = itens.length;
+
+  // -------------------------------------------------------
+  // 3. Padrões de Composição (quais itens aparecem juntos)
+  // -------------------------------------------------------
+  const padroesPorCodigo = new Map<string, {
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    ocorrencias: number;
+    quantidades: number[];
+    valoresUnitarios: number[];
+    valorTotal: number;
+    contasComItem: Set<string>;
+    itensAssociados: Map<string, {
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      ocorrencias: number;
+      quantidades: number[];
+      valoresUnitarios: number[];
+    }>;
+  }>();
+
+  for (const [conta, itensConta] of contasMap) {
+    const codigosNaConta = new Set(itensConta.map((i: any) => String(i.codigoItem || '')));
+
+    for (const item of itensConta) {
+      const codigo = String(item.codigoItem || '');
+      if (!codigo) continue;
+
+      if (!padroesPorCodigo.has(codigo)) {
+        padroesPorCodigo.set(codigo, {
+          codigo,
+          descricao: String(item.descricaoItem || ''),
+          tipo: String(item.tipoItem || ''),
+          ocorrencias: 0,
+          quantidades: [],
+          valoresUnitarios: [],
+          valorTotal: 0,
+          contasComItem: new Set(),
+          itensAssociados: new Map(),
+        });
+      }
+
+      const padrao = padroesPorCodigo.get(codigo)!;
+      padrao.ocorrencias++;
+      padrao.quantidades.push(Number(item.quantidade) || 0);
+      padrao.valoresUnitarios.push(Number(item.valorUnitario) || 0);
+      padrao.valorTotal += Number(item.valorTotal) || 0;
+      padrao.contasComItem.add(conta);
+
+      // Registrar itens associados (outros itens na mesma conta)
+      for (const outroCodigo of codigosNaConta) {
+        if (outroCodigo === codigo) continue;
+        const outroItem = itensConta.find((i: any) => String(i.codigoItem) === outroCodigo);
+        if (!outroItem) continue;
+
+        if (!padrao.itensAssociados.has(outroCodigo)) {
+          padrao.itensAssociados.set(outroCodigo, {
+            codigo: outroCodigo,
+            descricao: String(outroItem.descricaoItem || ''),
+            tipo: String(outroItem.tipoItem || ''),
+            ocorrencias: 0,
+            quantidades: [],
+            valoresUnitarios: [],
+          });
+        }
+        const assoc = padrao.itensAssociados.get(outroCodigo)!;
+        assoc.ocorrencias++;
+        assoc.quantidades.push(Number(outroItem.quantidade) || 0);
+        assoc.valoresUnitarios.push(Number(outroItem.valorUnitario) || 0);
+      }
+    }
+  }
+
+  const padroesComposicao = Array.from(padroesPorCodigo.values())
+    .filter(p => p.contasComItem.size >= 3)
+    .map(p => {
+      const qtds = p.quantidades;
+      const vals = p.valoresUnitarios;
+      return {
+        codigoProcedimento: p.codigo,
+        descricao: p.descricao,
+        tipo: p.tipo,
+        totalOcorrencias: p.ocorrencias,
+        contasComItem: p.contasComItem.size,
+        frequenciaPercentual: Math.round((p.contasComItem.size / totalContas) * 10000) / 100,
+        quantidadeMedia: Math.round((qtds.reduce((a, b) => a + b, 0) / qtds.length) * 100) / 100,
+        quantidadeMin: Math.min(...qtds),
+        quantidadeMax: Math.max(...qtds),
+        valorUnitarioMedio: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10000) / 10000,
+        valorUnitarioMin: Math.min(...vals),
+        valorUnitarioMax: Math.max(...vals),
+        valorTotalMedio: Math.round((p.valorTotal / p.ocorrencias) * 100) / 100,
+        itensAssociados: Array.from(p.itensAssociados.values())
+          .filter(a => a.ocorrencias >= 2)
+          .map(a => ({
+            codigo: a.codigo,
+            descricao: a.descricao,
+            tipo: a.tipo,
+            frequencia: Math.round((a.ocorrencias / p.contasComItem.size) * 10000) / 100,
+            quantidadeMedia: Math.round((a.quantidades.reduce((x, y) => x + y, 0) / a.quantidades.length) * 100) / 100,
+            valorUnitarioMedio: Math.round((a.valoresUnitarios.reduce((x, y) => x + y, 0) / a.valoresUnitarios.length) * 10000) / 10000,
+          }))
+          .sort((a, b) => b.frequencia - a.frequencia)
+          .slice(0, 15),
+      };
+    })
+    .sort((a, b) => b.frequenciaPercentual - a.frequenciaPercentual);
+
+  // -------------------------------------------------------
+  // 4. Padrões por Médico
+  // -------------------------------------------------------
+  const medicoMap = new Map<string, {
+    profissional: string;
+    contas: Set<string>;
+    totalItens: number;
+    codigos: Set<string>;
+    valorTotal: number;
+    itensPorCodigo: Map<string, { codigo: string; descricao: string; ocorrencias: number; quantidades: number[]; valores: number[] }>;
+  }>();
+
+  for (const item of itens) {
+    const prof = String(item.profissionalExecutante || '').trim();
+    if (!prof || prof === 'NULL' || prof === '') continue;
+
+    if (!medicoMap.has(prof)) {
+      medicoMap.set(prof, {
+        profissional: prof,
+        contas: new Set(),
+        totalItens: 0,
+        codigos: new Set(),
+        valorTotal: 0,
+        itensPorCodigo: new Map(),
+      });
+    }
+    const med = medicoMap.get(prof)!;
+    med.contas.add(String(item.numeroConta || ''));
+    med.totalItens++;
+    med.codigos.add(String(item.codigoItem || ''));
+    med.valorTotal += Number(item.valorTotal) || 0;
+
+    const cod = String(item.codigoItem || '');
+    if (!med.itensPorCodigo.has(cod)) {
+      med.itensPorCodigo.set(cod, {
+        codigo: cod,
+        descricao: String(item.descricaoItem || ''),
+        ocorrencias: 0,
+        quantidades: [],
+        valores: [],
+      });
+    }
+    const ic = med.itensPorCodigo.get(cod)!;
+    ic.ocorrencias++;
+    ic.quantidades.push(Number(item.quantidade) || 0);
+    ic.valores.push(Number(item.valorTotal) || 0);
+  }
+
+  const padroesPorMedico = Array.from(medicoMap.values())
+    .filter(m => m.contas.size >= 2)
+    .map(m => ({
+      profissional: m.profissional,
+      totalContas: m.contas.size,
+      totalItens: m.totalItens,
+      codigosUnicos: m.codigos.size,
+      valorTotal: Math.round(m.valorTotal * 100) / 100,
+      valorMedioPorConta: Math.round((m.valorTotal / m.contas.size) * 100) / 100,
+      itensFrequentes: Array.from(m.itensPorCodigo.values())
+        .sort((a, b) => b.ocorrencias - a.ocorrencias)
+        .slice(0, 10)
+        .map(ic => ({
+          codigo: ic.codigo,
+          descricao: ic.descricao,
+          ocorrencias: ic.ocorrencias,
+          quantidadeMedia: Math.round((ic.quantidades.reduce((a, b) => a + b, 0) / ic.quantidades.length) * 100) / 100,
+          valorMedio: Math.round((ic.valores.reduce((a, b) => a + b, 0) / ic.valores.length) * 100) / 100,
+        })),
+    }))
+    .sort((a, b) => b.totalContas - a.totalContas);
+
+  // -------------------------------------------------------
+  // 5. Resumo de Preços (estatísticas por código)
+  // -------------------------------------------------------
+  const precoMap = new Map<string, {
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    precos: number[];
+  }>();
+
+  for (const item of itens) {
+    const codigo = String(item.codigoItem || '');
+    const preco = Number(item.valorUnitario) || 0;
+    if (!codigo) continue;
+
+    if (!precoMap.has(codigo)) {
+      precoMap.set(codigo, {
+        codigo,
+        descricao: String(item.descricaoItem || ''),
+        tipo: String(item.tipoItem || ''),
+        precos: [],
+      });
+    }
+    precoMap.get(codigo)!.precos.push(preco);
+  }
+
+  const resumoPrecos = Array.from(precoMap.values())
+    .filter(p => p.precos.length >= 3)
+    .map(p => {
+      const media = p.precos.reduce((a, b) => a + b, 0) / p.precos.length;
+      const variancia = p.precos.reduce((sum, val) => sum + Math.pow(val - media, 2), 0) / p.precos.length;
+      const desvio = Math.sqrt(variancia);
+      return {
+        codigoItem: p.codigo,
+        descricao: p.descricao,
+        tipo: p.tipo,
+        precoMedio: Math.round(media * 10000) / 10000,
+        precoMin: Math.min(...p.precos),
+        precoMax: Math.max(...p.precos),
+        desvioPadrao: Math.round(desvio * 10000) / 10000,
+        totalOcorrencias: p.precos.length,
+      };
+    })
+    .sort((a, b) => b.totalOcorrencias - a.totalOcorrencias);
+
+  return {
+    padroesComposicao,
+    padroesPorMedico,
+    resumoPrecos,
+    totalContas,
+    totalItens,
+  };
+}
+
+/**
+ * Salva padrões de cobrança do Tasy na tabela padroesCobranca
+ * Atualiza os existentes e cria novos
+ */
+export async function salvarPadroesCobrancaTasy(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+  competencia?: string;
+}): Promise<{ salvos: number; atualizados: number; novos: number }> {
+  const analise = await analisarPadroesCobrancaTasy(params);
+  const db = await getDb();
+  if (!db) return { salvos: 0, atualizados: 0, novos: 0 };
+
+  let atualizados = 0;
+  let novos = 0;
+
+  for (const padrao of analise.padroesComposicao) {
+    const itensAssociadosJson = JSON.stringify(padrao.itensAssociados.map(a => ({
+      codigo: a.codigo,
+      descricao: a.descricao,
+      tipo: a.tipo,
+      frequencia: a.frequencia,
+      quantidadeMedia: a.quantidadeMedia,
+      valorUnitarioMedio: a.valorUnitarioMedio,
+    })));
+
+    // Calcular confiança baseada na frequência e total de ocorrências
+    const confianca = Math.min(99, Math.round(
+      (padrao.frequenciaPercentual * 0.5) + 
+      (Math.min(padrao.totalOcorrencias, 100) * 0.5)
+    ));
+
+    // Verificar se já existe
+    const [existente] = await db.execute(sql.raw(`
+      SELECT id, totalOcorrencias FROM padroesCobranca 
+      WHERE estabelecimentoId = ${params.estabelecimentoId} 
+        AND codigoProcedimentoPrincipal = '${padrao.codigoProcedimento.replace(/'/g, "''")}'
+        ${params.convenioId ? `AND convenioId = ${params.convenioId}` : ''}
+      LIMIT 1
+    `));
+
+    const rows = existente as unknown as any[];
+    if (rows.length > 0) {
+      // Atualizar existente
+      const esc = (v: string) => v.replace(/'/g, "''");
+      await db.execute(sql.raw(`
+        UPDATE padroesCobranca SET
+          descricaoProcedimentoPrincipal = '${esc(padrao.descricao)}',
+          tipoProcedimentoPrincipal = '${esc(padrao.tipo === 'PROC/TAXA' ? 'procedimento' : 'material')}',
+          itensAssociados = '${esc(itensAssociadosJson)}',
+          totalOcorrencias = ${padrao.totalOcorrencias},
+          valorMedioConta = ${padrao.valorTotalMedio},
+          valorMinConta = ${padrao.valorUnitarioMin},
+          valorMaxConta = ${padrao.valorUnitarioMax},
+          confianca = ${confianca},
+          profissionalExecutante = NULL,
+          setor = NULL
+        WHERE id = ${rows[0].id}
+      `));
+      atualizados++;
+    } else {
+      // Inserir novo
+      const esc = (v: string) => v.replace(/'/g, "''");
+      await db.execute(sql.raw(`
+        INSERT INTO padroesCobranca (
+          convenioId, estabelecimentoId, codigoProcedimentoPrincipal, 
+          descricaoProcedimentoPrincipal, tipoProcedimentoPrincipal,
+          itensAssociados, totalOcorrencias, valorMedioConta, valorMinConta, valorMaxConta,
+          confianca, status, createdAt
+        ) VALUES (
+          ${params.convenioId || 'NULL'}, ${params.estabelecimentoId},
+          '${esc(padrao.codigoProcedimento)}', '${esc(padrao.descricao)}',
+          '${esc(padrao.tipo === 'PROC/TAXA' ? 'procedimento' : 'material')}',
+          '${esc(itensAssociadosJson)}', ${padrao.totalOcorrencias},
+          ${padrao.valorTotalMedio}, ${padrao.valorUnitarioMin}, ${padrao.valorUnitarioMax},
+          ${confianca}, 'aprendendo', NOW()
+        )
+      `));
+      novos++;
+    }
+  }
+
+  return { salvos: atualizados + novos, atualizados, novos };
+}
