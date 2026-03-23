@@ -3384,3 +3384,11 @@
 - [x] Garantir que contas Hemolabor apareçam na conciliação cruzada
 - [x] Testar processo de comparação faturado vs recebido para Hemolabor
 - [x] Validar integração
+
+## Gerar Regras Automaticamente a partir dos Padrões Tasy
+- [x] Criar endpoint backend gerarRegrasDosPadroesTasy que analisa contas e cria regras
+- [x] Adicionar botão "Gerar Regras dos Padrões Tasy" na tela de Regras de Negócio
+- [x] Criar dialog com filtros (estabelecimento, convênio, competência, frequência mínima)
+- [x] Exibir preview dos padrões encontrados antes de criar as regras
+- [x] Criar regras automaticamente com itens associados, quantidades e valores
+- [x] Testar geração e validar regras criadas

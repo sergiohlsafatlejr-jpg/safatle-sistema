@@ -3910,6 +3910,139 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return db.removeItemRegraNegocio(input.id);
       }),
+
+    // Preview dos padrões Tasy para gerar regras
+    previewPadroesTasy: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+        frequenciaMinima: z.number().default(10),
+      }))
+      .query(async ({ input }) => {
+        const { analisarPadroesCobrancaTasy } = await import("./db");
+        const analise = await analisarPadroesCobrancaTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          competencia: input.competencia,
+        });
+
+        // Filtrar padrões com frequência mínima e que tenham itens associados
+        const padroesElegiveis = analise.padroesComposicao
+          .filter(p => p.frequenciaPercentual >= input.frequenciaMinima && p.itensAssociados.length > 0)
+          .map(p => ({
+            codigoProcedimento: p.codigoProcedimento,
+            descricao: p.descricao,
+            tipo: p.tipo,
+            frequenciaPercentual: p.frequenciaPercentual,
+            totalOcorrencias: p.totalOcorrencias,
+            contasComItem: p.contasComItem,
+            quantidadeMedia: p.quantidadeMedia,
+            quantidadeMin: p.quantidadeMin,
+            quantidadeMax: p.quantidadeMax,
+            valorUnitarioMedio: p.valorUnitarioMedio,
+            valorTotalMedio: p.valorTotalMedio,
+            itensAssociados: p.itensAssociados
+              .filter(a => a.frequencia >= input.frequenciaMinima)
+              .map(a => ({
+                codigo: a.codigo,
+                descricao: a.descricao,
+                tipo: a.tipo,
+                frequencia: a.frequencia,
+                quantidadeMedia: a.quantidadeMedia,
+                valorUnitarioMedio: a.valorUnitarioMedio,
+              })),
+          }))
+          .filter(p => p.itensAssociados.length > 0);
+
+        return {
+          padroesElegiveis,
+          totalContas: analise.totalContas,
+          totalItens: analise.totalItens,
+          totalPadroes: padroesElegiveis.length,
+        };
+      }),
+
+    // Gerar regras de negócio a partir dos padrões Tasy
+    gerarRegrasDosPadroesTasy: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+        frequenciaMinima: z.number().default(10),
+        padroesSelecionados: z.array(z.string()).optional(), // códigos dos procedimentos a incluir
+      }))
+      .mutation(async ({ input }) => {
+        const { analisarPadroesCobrancaTasy } = await import("./db");
+        const analise = await analisarPadroesCobrancaTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          competencia: input.competencia,
+        });
+
+        const padroesElegiveis = analise.padroesComposicao
+          .filter(p => p.frequenciaPercentual >= input.frequenciaMinima && p.itensAssociados.length > 0)
+          .filter(p => !input.padroesSelecionados || input.padroesSelecionados.includes(p.codigoProcedimento))
+          .filter(p => p.itensAssociados.filter(a => a.frequencia >= input.frequenciaMinima).length > 0);
+
+        let criadas = 0;
+        let itensAdicionados = 0;
+
+        const mapTipoItem = (tipo: string): "procedimento" | "taxa" | "material" | "medicamento" | "diaria" | "outros" => {
+          const t = tipo.toUpperCase();
+          if (t.includes('PROC') || t === 'P' || t === 'C' || t === 'O' || t === '01') return 'procedimento';
+          if (t.includes('TAXA')) return 'taxa';
+          if (t.includes('MAT')) return 'material';
+          if (t.includes('MED') || t.includes('MEDICAMENTO')) return 'medicamento';
+          if (t.includes('DIAR')) return 'diaria';
+          return 'outros';
+        };
+
+        for (const padrao of padroesElegiveis) {
+          const itensAssociadosFiltrados = padrao.itensAssociados
+            .filter(a => a.frequencia >= input.frequenciaMinima);
+
+          if (itensAssociadosFiltrados.length === 0) continue;
+
+          // Criar a regra
+          const regraId = await db.createRegraNegocio({
+            convenioId: input.convenioId || null,
+            estabelecimentoId: input.estabelecimentoId,
+            nome: `Padrão Tasy: ${padrao.descricao || padrao.codigoProcedimento}`,
+            descricao: `Regra gerada automaticamente a partir de ${padrao.contasComItem} contas do Tasy. Frequência: ${padrao.frequenciaPercentual}%. Valor médio: R$ ${padrao.valorTotalMedio.toFixed(2)}`,
+            codigoProcedimentoPrincipal: padrao.codigoProcedimento,
+            descricaoProcedimentoPrincipal: padrao.descricao || null,
+            tipoVerificacao: 'deve_conter',
+            acaoInconsistencia: 'alerta',
+            prioridade: padrao.frequenciaPercentual >= 50 ? 8 : padrao.frequenciaPercentual >= 25 ? 5 : 3,
+          } as any);
+
+          if (!regraId) continue;
+          criadas++;
+
+          // Adicionar itens associados
+          for (const item of itensAssociadosFiltrados) {
+            await db.addItemRegraNegocio({
+              regraId,
+              codigoItem: item.codigo,
+              descricaoItem: item.descricao || null,
+              tipoItem: mapTipoItem(item.tipo),
+              quantidadeMinima: Math.max(1, Math.floor(item.quantidadeMedia)),
+              quantidadeMaxima: Math.ceil(item.quantidadeMedia * 2),
+              valorEsperado: item.valorUnitarioMedio > 0 ? String(item.valorUnitarioMedio.toFixed(2)) : null,
+              toleranciaValor: item.valorUnitarioMedio > 0 ? String((item.valorUnitarioMedio * 0.2).toFixed(2)) : null,
+              obrigatorio: item.frequencia >= 70 ? 'sim' : 'nao',
+            } as any);
+            itensAdicionados++;
+          }
+        }
+
+        return {
+          regrasCriadas: criadas,
+          itensAdicionados,
+          totalPadroesAnalisados: padroesElegiveis.length,
+        };
+      }),
   }),
 
   // ==================== ALERTAS DE DIVERGÊNCIA ====================

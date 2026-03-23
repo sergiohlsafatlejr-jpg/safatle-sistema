@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import { 
   Plus, 
   Trash2, 
@@ -25,14 +28,23 @@ import {
   Bed,
   Wrench,
   MoreHorizontal,
-  Copy
+  Copy,
+  Sparkles,
+  Loader2,
+  Database,
+  TrendingUp
 } from "lucide-react";
 
 export default function RegrasNegocio() {
+  const { estabelecimentoAtual } = useEstabelecimento();
+  const estabelecimentoId = estabelecimentoAtual?.id || 0;
   const [convenioId, setConvenioId] = useState<number | undefined>();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedRegra, setSelectedRegra] = useState<any>(null);
+  const [showTasyDialog, setShowTasyDialog] = useState(false);
+  const [tasyFrequenciaMinima, setTasyFrequenciaMinima] = useState(15);
+  const [tasyPadroesSelecionados, setTasyPadroesSelecionados] = useState<Set<string>>(new Set());
   
   // Form states
   const [nome, setNome] = useState("");
@@ -67,6 +79,60 @@ export default function RegrasNegocio() {
     convenioId,
     ativo: "sim"
   });
+
+  // Preview dos padrões Tasy
+  const { data: previewTasy, isLoading: isLoadingPreview, refetch: refetchPreview } = trpc.regrasNegocio.previewPadroesTasy.useQuery(
+    {
+      estabelecimentoId,
+      convenioId,
+      frequenciaMinima: tasyFrequenciaMinima,
+    },
+    { enabled: showTasyDialog && estabelecimentoId > 0 }
+  );
+
+  // Mutation para gerar regras Tasy
+  const gerarRegrasTasyMutation = trpc.regrasNegocio.gerarRegrasDosPadroesTasy.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.regrasCriadas} regras criadas com ${result.itensAdicionados} itens!`);
+      setShowTasyDialog(false);
+      setTasyPadroesSelecionados(new Set());
+      refetchRegras();
+    },
+    onError: (error) => {
+      toast.error(`Erro ao gerar regras: ${error.message}`);
+    }
+  });
+
+  const handleGerarRegrasTasy = () => {
+    if (tasyPadroesSelecionados.size === 0) {
+      toast.error("Selecione pelo menos um padrão para gerar regras");
+      return;
+    }
+    gerarRegrasTasyMutation.mutate({
+      estabelecimentoId,
+      convenioId,
+      frequenciaMinima: tasyFrequenciaMinima,
+      padroesSelecionados: Array.from(tasyPadroesSelecionados),
+    });
+  };
+
+  const togglePadraoSelecionado = (codigo: string) => {
+    setTasyPadroesSelecionados(prev => {
+      const next = new Set(prev);
+      if (next.has(codigo)) next.delete(codigo);
+      else next.add(codigo);
+      return next;
+    });
+  };
+
+  const toggleTodosPadroes = () => {
+    if (!previewTasy?.padroesElegiveis) return;
+    if (tasyPadroesSelecionados.size === previewTasy.padroesElegiveis.length) {
+      setTasyPadroesSelecionados(new Set());
+    } else {
+      setTasyPadroesSelecionados(new Set(previewTasy.padroesElegiveis.map(p => p.codigoProcedimento)));
+    }
+  };
 
   // Mutations
   const createMutation = trpc.regrasNegocio.create.useMutation({
@@ -226,10 +292,23 @@ export default function RegrasNegocio() {
               Configure regras de composição de contas para validação automática
             </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Regra
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTasyPadroesSelecionados(new Set());
+                setShowTasyDialog(true);
+              }}
+              disabled={estabelecimentoId === 0}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Gerar dos Padrões Tasy
+            </Button>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Regra
+            </Button>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -693,6 +772,153 @@ export default function RegrasNegocio() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Dialog de Geração Tasy */}
+      <Dialog open={showTasyDialog} onOpenChange={setShowTasyDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-yellow-500" />
+              Gerar Regras a partir dos Padrões Tasy
+            </DialogTitle>
+            <DialogDescription>
+              Analise os padrões de composição das contas do Tasy e gere regras automaticamente.
+              {previewTasy && (
+                <span className="block mt-1">
+                  Analisadas <strong>{previewTasy.totalContas.toLocaleString('pt-BR')}</strong> contas com <strong>{previewTasy.totalItens.toLocaleString('pt-BR')}</strong> itens.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Filtro de frequência mínima */}
+            <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Frequência Mínima: {tasyFrequenciaMinima}%</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Só incluir itens que aparecem em pelo menos {tasyFrequenciaMinima}% das contas
+                </p>
+                <Slider
+                  value={[tasyFrequenciaMinima]}
+                  onValueChange={([v]) => setTasyFrequenciaMinima(v)}
+                  min={5}
+                  max={80}
+                  step={5}
+                  className="mt-2"
+                />
+              </div>
+              <div className="text-right">
+                <Badge variant="secondary" className="text-lg px-3 py-1">
+                  {previewTasy?.totalPadroes || 0} padrões
+                </Badge>
+              </div>
+            </div>
+
+            {/* Lista de padrões */}
+            {isLoadingPreview ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Analisando padrões...</span>
+              </div>
+            ) : previewTasy?.padroesElegiveis && previewTasy.padroesElegiveis.length > 0 ? (
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={tasyPadroesSelecionados.size === previewTasy.padroesElegiveis.length}
+                          onCheckedChange={toggleTodosPadroes}
+                        />
+                      </TableHead>
+                      <TableHead>Procedimento</TableHead>
+                      <TableHead className="text-center">Frequência</TableHead>
+                      <TableHead className="text-center">Ocorrências</TableHead>
+                      <TableHead className="text-center">Itens Associados</TableHead>
+                      <TableHead className="text-right">Valor Médio</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {previewTasy.padroesElegiveis.map((padrao) => (
+                      <TableRow key={padrao.codigoProcedimento} className="cursor-pointer" onClick={() => togglePadraoSelecionado(padrao.codigoProcedimento)}>
+                        <TableCell>
+                          <Checkbox
+                            checked={tasyPadroesSelecionados.has(padrao.codigoProcedimento)}
+                            onCheckedChange={() => togglePadraoSelecionado(padrao.codigoProcedimento)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <code className="text-xs bg-muted px-1 rounded">{padrao.codigoProcedimento}</code>
+                            <p className="text-sm font-medium mt-0.5">{padrao.descricao || 'Sem descrição'}</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {padrao.itensAssociados.slice(0, 4).map((item) => (
+                                <Badge key={item.codigo} variant="outline" className="text-xs">
+                                  {item.descricao || item.codigo} ({item.frequencia}%)
+                                </Badge>
+                              ))}
+                              {padrao.itensAssociados.length > 4 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{padrao.itensAssociados.length - 4} mais
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <TrendingUp className="h-3 w-3 text-green-500" />
+                            <span className="font-medium">{padrao.frequenciaPercentual}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">{padrao.totalOcorrencias}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{padrao.itensAssociados.length}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          R$ {padrao.valorTotalMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum padrão encontrado com os filtros atuais</p>
+                <p className="text-sm">Tente reduzir a frequência mínima ou selecionar outro convênio</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {tasyPadroesSelecionados.size > 0 && (
+                <span>{tasyPadroesSelecionados.size} padrão(ões) selecionado(s)</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowTasyDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGerarRegrasTasy}
+                disabled={gerarRegrasTasyMutation.isPending || tasyPadroesSelecionados.size === 0}
+              >
+                {gerarRegrasTasyMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Gerando...</>
+                ) : (
+                  <><Sparkles className="mr-2 h-4 w-4" />Gerar {tasyPadroesSelecionados.size} Regra(s)</>
+                )}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de Edição */}
       <Dialog open={showEditDialog} onOpenChange={(open) => {
         setShowEditDialog(open);
