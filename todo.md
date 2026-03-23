@@ -3356,3 +3356,17 @@
 - [x] Criar script de parsing inteligente para tratar vírgulas decimais e descrições com vírgulas
 - [x] Importar dados do CSV para a tabela
 - [x] Validar dados importados (contagem, valores, integridade)
+
+## Unificação tasy_faturado_staging com Conta Convênio
+- [ ] Mapear estrutura das tabelas envolvidas (tasy_faturado_staging, faturamento_unificado, contas_convenio_resumo, contas_convenio_itens)
+- [ ] Definir chave de cruzamento entre tasy_faturado_staging e faturamento_unificado
+- [ ] Implementar script/query de unificação filtrando apenas itens presentes na faturamento_unificado
+- [ ] Popular tabela de Conta Convênio com dados unificados
+- [ ] Validar dados unificados (contagem, valores, integridade)
+
+## Popular Conta Convênio para Hemolabor/Ipasgo 2025/12
+- [x] Reverter alterações indevidas na faturamento_unificado (glosa/motivo)
+- [x] Mapear colunas de contas_convenio_resumo e contas_convenio_itens
+- [x] Criar script para popular contas_convenio_resumo agrupando por conta do staging
+- [x] Criar script para popular contas_convenio_itens com itens que existem na faturamento_unificado
+- [x] Validar dados populados na Conta Convênio
