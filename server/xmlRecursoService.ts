@@ -801,7 +801,6 @@ export async function guiasGlosadasDisponiveis(params: {
     LEFT JOIN faturamento_unificado fu ON ca.faturamentoUnificadoId = fu.id
     ${whereClause}
     GROUP BY ca.numeroGuia, ca.convenio, ca.convenioId, ca.competencia, ca.estabelecimentoId
-    HAVING SUM(CASE WHEN ca.statusConciliacao = 'glosado' AND ca.statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) > 0
     ORDER BY ca.competencia DESC, ca.numeroGuia
   `));
 

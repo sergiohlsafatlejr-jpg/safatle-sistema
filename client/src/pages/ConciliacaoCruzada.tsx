@@ -746,7 +746,7 @@ export default function ConciliacaoCruzada() {
             </TabsTrigger>
             <TabsTrigger value="xml_recurso" className="flex items-center gap-2">
               <FileCode className="w-4 h-4" />
-              XML Recurso
+              XML Retorno
               {guiasGlosadas && guiasGlosadas.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">
                   {guiasGlosadas.filter((g: any) => !Number(g.xmlGerado)).length}
@@ -1431,7 +1431,7 @@ export default function ConciliacaoCruzada() {
               <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200">
                 <CardContent className="p-4 text-center">
                   <Ban className="w-6 h-6 mx-auto text-purple-600 mb-1" />
-                  <p className="text-xs text-muted-foreground">Guias Glosadas</p>
+                  <p className="text-xs text-muted-foreground">Total de Guias</p>
                   <p className="text-2xl font-bold text-purple-600">{guiasGlosadas?.length || 0}</p>
                 </CardContent>
               </Card>
@@ -1452,8 +1452,8 @@ export default function ConciliacaoCruzada() {
               <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
                 <CardContent className="p-4 text-center">
                   <DollarSign className="w-6 h-6 mx-auto text-blue-600 mb-1" />
-                  <p className="text-xs text-muted-foreground">Valor Total Glosado</p>
-                  <p className="text-lg font-bold text-blue-600">{formatarMoeda(guiasGlosadas?.reduce((sum: number, g: any) => sum + Number(g.valorGlosa || 0), 0) || 0)}</p>
+                  <p className="text-xs text-muted-foreground">Valor Total Faturado</p>
+                  <p className="text-lg font-bold text-blue-600">{formatarMoeda(guiasGlosadas?.reduce((sum: number, g: any) => sum + Number(g.valorFaturado || 0), 0) || 0)}</p>
                 </CardContent>
               </Card>
             </div>
@@ -1493,7 +1493,7 @@ export default function ConciliacaoCruzada() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Ban className="w-5 h-5 text-purple-600" />
-                    Guias Glosadas
+                    Guias Disponíveis para XML
                   </CardTitle>
                   <div className="flex gap-2">
                     <Button
@@ -1549,6 +1549,7 @@ export default function ConciliacaoCruzada() {
                           <th className="text-left p-2 font-medium">Protocolo</th>
                           <th className="text-center p-2 font-medium">Itens</th>
                           <th className="text-right p-2 font-medium">Valor Faturado</th>
+                          <th className="text-right p-2 font-medium">Valor Recebido</th>
                           <th className="text-right p-2 font-medium">Valor Glosado</th>
                           <th className="text-center p-2 font-medium">XML</th>
                           <th className="text-center p-2 font-medium">Ações</th>
@@ -1592,6 +1593,7 @@ export default function ConciliacaoCruzada() {
                               <td className="p-2 text-sm font-mono">{guia.protocoloXml || guia.protocoloRetorno || '-'}</td>
                               <td className="p-2 text-center">{guia.totalItens}</td>
                               <td className="p-2 text-right text-blue-600 font-medium">{formatarMoeda(Number(guia.valorFaturado))}</td>
+                              <td className="p-2 text-right text-green-600 font-medium">{formatarMoeda(Number(guia.valorPago))}</td>
                               <td className="p-2 text-right text-red-600 font-medium">{formatarMoeda(Number(guia.valorGlosa))}</td>
                               <td className="p-2 text-center">
                                 {xmlGerado ? (
@@ -1629,8 +1631,8 @@ export default function ConciliacaoCruzada() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Ban className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma guia glosada encontrada.</p>
-                    <p className="text-sm">Execute a conciliação automática e marque os itens como glosa primeiro.</p>
+                    <p>Nenhuma guia conciliada encontrada.</p>
+                    <p className="text-sm">Execute a conciliação automática primeiro.</p>
                   </div>
                 )}
               </CardContent>

@@ -3319,3 +3319,8 @@
 - [x] Duplicação estava na contas_convenio_itens (3 cópias com arquivoId diferentes)
 - [x] Corrigido: exclusão de arquivo, reimportação e reprocessamento agora limpam contas_convenio_itens + recalculam resumos
 - [x] Dados órfãos limpos do banco (arquivos 1800001, 1800002, 1560009, 1620002, 1740030, 1770014)
+
+## XML de Retorno para Reimportação no Sistema de Gestão
+- [x] Gerar XML de retorno com todos os itens conciliados (não apenas glosados) - removido HAVING que filtrava só glosados
+- [x] XML inclui itens conciliados para reimportação no sistema de gestão (exceto terceiros)
+- [x] Aba renomeada para "XML Retorno" e disponível para todas as guias conciliadas
