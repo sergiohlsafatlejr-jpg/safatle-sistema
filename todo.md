@@ -3497,3 +3497,18 @@
 ## Melhoria Resumo por Convênio - Itens Detalhados (24/03/2026 - 3)
 - [x] Na aba Resumo por Convênio, ao clicar em um convênio, expandir/mostrar os itens cadastrados com custo unitário vs valor faturado unitário
 - [x] Mostrar resultado lucro/prejuízo por item dentro do convênio selecionado (com Margem Unit., Custo Total, Vlr Faturado Total, Margem Total)
+
+## Dashboard Samaritano (24/03/2026 - 4)
+- [x] Criar endpoint backend para dados do dashboard (evolução mensal, top convênios, top setores, KPIs)
+- [x] Implementar KPIs visuais: Total Faturado, Total Custo, Margem, Ticket Médio, Total Contas, Itens Únicos
+- [x] Gráfico evolução mensal: Custo vs Valor Faturado por competência (ComposedChart com barras + linha de margem)
+- [x] Gráfico top convênios: ranking horizontal por faturamento e custo
+- [x] Gráfico top setores: ranking horizontal por faturamento e custo
+- [x] Gráfico distribuição por tipo de item (PieChart donut)
+- [x] Gráfico evolução top 5 convênios (LineChart)
+- [x] Gráfico ticket médio + volume de contas (ComposedChart)
+- [x] Tabela resumo por convênio com margem e resultado
+- [x] Tabela resumo por setor com margem e resultado
+- [x] Filtros de competência e convênio no dashboard
+- [x] Integrar como nova aba "Dashboard" na página de Relatório de Custos (apenas Samaritano)
+- [x] Testes vitest para o endpoint do dashboard (5 testes passando)

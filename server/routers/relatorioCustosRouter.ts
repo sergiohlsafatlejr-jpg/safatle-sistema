@@ -18,6 +18,7 @@ import {
   buscarDetalheContaCustoSamaritano,
   buscarCustosPorSetorSamaritano,
 } from "../relatorioCustosSamaritano";
+import { buscarDashboardSamaritano } from "../dashboardSamaritano";
 
 // ID do estabelecimento Samaritano
 const SAMARITANO_ID = 2280016;
@@ -157,6 +158,22 @@ export const relatorioCustosRouter = router({
         return buscarDetalheContaCustoSamaritano(input.estabelecimentoId, input.numconta);
       }
       return buscarDetalheContaCusto(input.estabelecimentoId, input.numconta);
+    }),
+
+  dashboardSamaritano: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { estabelecimentoId, ...filtros } = input;
+      if (!isSamaritano(estabelecimentoId)) {
+        throw new Error("Dashboard Samaritano disponível apenas para o Hospital Samaritano");
+      }
+      return buscarDashboardSamaritano(estabelecimentoId, filtros);
     }),
 
   custosPorSetor: protectedProcedure

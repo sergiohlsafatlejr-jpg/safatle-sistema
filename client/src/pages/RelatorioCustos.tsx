@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardCustos from "@/components/DashboardCustos";
+import DashboardSamaritano from "@/components/DashboardSamaritano";
 import ComparacaoCustoConvenio from "@/components/ComparacaoCustoConvenio";
 import CustosPorConvenio from "@/components/CustosPorConvenio";
 import CustosPorConta from "@/components/CustosPorConta";
@@ -47,16 +48,16 @@ export default function RelatorioCustos() {
   // Samaritano = 2280016 - usa fonte de dados diferente (MySQL staging)
   const isSamaritano = estabelecimentoId === 2280016;
 
-  // Tab state - Samaritano não tem Dashboard/Comparação/Tabela Detalhada
-  const [activeTab, setActiveTab] = useState(isSamaritano ? "custosConta" : "dashboard");
+  // Tab state - Samaritano tem seu próprio Dashboard
+  const [activeTab, setActiveTab] = useState(isSamaritano ? "dashboardSamaritano" : "dashboard");
 
   // Resetar tab quando mudar de estabelecimento
   useEffect(() => {
     if (isSamaritano && (activeTab === "dashboard" || activeTab === "comparacao" || activeTab === "tabela")) {
-      setActiveTab("custosConta");
+      setActiveTab("dashboardSamaritano");
     }
-    if (!isSamaritano && activeTab === "custosConta" && estabelecimentoId > 0) {
-      // Manter na aba atual se é válida para Hemolabor
+    if (!isSamaritano && (activeTab === "dashboardSamaritano") && estabelecimentoId > 0) {
+      setActiveTab("dashboard");
     }
   }, [isSamaritano, estabelecimentoId]);
 
@@ -346,6 +347,12 @@ export default function RelatorioCustos() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
+            {isSamaritano && (
+              <TabsTrigger value="dashboardSamaritano" className="gap-1.5">
+                <BarChart3 className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+            )}
             {!isSamaritano && (
               <TabsTrigger value="dashboard" className="gap-1.5">
                 <BarChart3 className="h-4 w-4" />
@@ -658,6 +665,11 @@ export default function RelatorioCustos() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* ======== ABA DASHBOARD SAMARITANO ======== */}
+          <TabsContent value="dashboardSamaritano" className="space-y-4 mt-4">
+            <DashboardSamaritano estabelecimentoId={estabelecimentoId} />
           </TabsContent>
 
           {/* ======== ABA CUSTOS POR CONTA ======== */}
