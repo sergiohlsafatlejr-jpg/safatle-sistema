@@ -3430,3 +3430,11 @@
 - [x] Erro na conciliação: "Unexpected token '<', '<!DOCTYPE '... is not valid JSON" (resolvido: mesmo problema de cache de compilação)
 - [x] Adicionado índice composto idx_fatur_estab_convenio para otimizar queries
 - [x] Adicionado índice composto idx_conciliados_estab_comp para otimizar queries de conciliação
+
+## Limpeza de dados duplicados XML_TISS do Hemolabor
+- [x] Analisar duplicatas XML_TISS (enviados) no Hemolabor: 228 arquivos, 22.038 faturamento_tiss, 22.038 faturamento_unificado, 22.020 conciliados
+- [x] Limpar conciliados_automatico do Hemolabor (22.020 registros)
+- [x] Limpar faturamento_unificado XML_TISS do Hemolabor (22.038 registros)
+- [x] Limpar faturamento_tiss do Hemolabor (22.038 registros)
+- [x] Limpar arquivos enviados do Hemolabor (228 registros)
+- [x] Validar dados após limpeza: TASY_STAGING preservado (1.337.761), retorno preservado (1)
