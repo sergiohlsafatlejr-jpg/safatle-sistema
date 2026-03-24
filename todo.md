@@ -3512,3 +3512,9 @@
 - [x] Filtros de competência e convênio no dashboard
 - [x] Integrar como nova aba "Dashboard" na página de Relatório de Custos (apenas Samaritano)
 - [x] Testes vitest para o endpoint do dashboard (5 testes passando)
+
+## Bug - Divergência Valores Conta Convênio vs Rel BI (24/03/2026)
+- [x] Investigar diferença: Conta Convênio Unimed Jan/2026 Estab 3 = R$ 417.819,46 vs Rel BI Faturado = R$ 436.025,18 (causa: 3 guias de internação longa com itens em 2 competências)
+- [x] Identificar fonte de dados de cada tela (contas_convenio_resumo vs faturamento_tiss) e corrigir inconsistência
+- [x] Corrigir para que ambas as telas mostrem valores consistentes (JOIN com contas_convenio_resumo para usar competência da conta)
+- [x] Corrigir Rel BI getDadosBI: usar competência da conta/importação como base + mapeamento snake_case → camelCase

@@ -13084,38 +13084,58 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   const todosConvenios = await db.select().from(convenios);
   const convenioMap = new Map(todosConvenios.map(c => [c.id, c.nome]));
 
-  // ===== BUSCAR FATURAMENTO diretamente da faturamento_tiss por competencia =====
-  const faturamentoConditions: any[] = [];
-  
-  if (estabelecimentoId && estabelecimentoId > 0) {
-    faturamentoConditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
-  }
-  
-  if (convenioId) {
-    faturamentoConditions.push(eq(faturamentoTiss.convenioId, convenioId));
-  }
-
-  if (competenciaFiltro) {
-    faturamentoConditions.push(eq(faturamentoTiss.competencia, competenciaFiltro));
-  } else if (anoReferencia) {
-    // Filtrar por ano: competencia LIKE 'AAAA/%'
-    faturamentoConditions.push(sql`${faturamentoTiss.competencia} LIKE ${anoReferencia + '/%'}`);
-  }
-
+  // ===== BUSCAR FATURAMENTO via JOIN com contas_convenio_resumo para usar competência da conta =====
+  // A competência base é a da conta (importação/sistema do hospital), não a do item individual.
+  // Isso garante consistência com a tela Conta Convênio.
   let itensFaturados: any[] = [];
-  if (faturamentoConditions.length > 0) {
-    itensFaturados = await db
-      .select()
-      .from(faturamentoTiss)
-      .where(and(...faturamentoConditions));
+  
+  if (competenciaFiltro || anoReferencia) {
+    // Filtrar por competência da CONTA (via contas_convenio_resumo)
+    // JOIN faturamento_tiss com contas_convenio_resumo pela guia
+    // Pega TODOS os itens das guias que pertencem a contas da competência selecionada
+    const sqlParts: string[] = [
+      'SELECT ft.* FROM faturamento_tiss ft',
+      'INNER JOIN contas_convenio_resumo ccr ON ccr.numeroConta = ft.numero_guia_prestador AND ccr.estabelecimentoId = ft.estabelecimentoId',
+      'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
+    ];
+    if (convenioId) sqlParts.push('AND ft.convenioId = ' + convenioId);
+    if (competenciaFiltro) sqlParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
+    else if (anoReferencia) sqlParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
+    
+    const rawResult = await db.execute(sql.raw(sqlParts.join(' ')));
+    // sql.raw retorna colunas em snake_case, mas o código espera camelCase
+    // Mapear para manter compatibilidade com o restante da função
+    const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const rawRows = (rawResult as any)[0] || [];
+    itensFaturados = rawRows.map((row: any) => {
+      const mapped: any = {};
+      for (const key of Object.keys(row)) {
+        mapped[snakeToCamel(key)] = row[key];
+      }
+      return mapped;
+    });
   } else {
-    // Sem filtros específicos, buscar tudo do estabelecimento
-    itensFaturados = await db
-      .select()
-      .from(faturamentoTiss)
-      .where(estabelecimentoId && estabelecimentoId > 0 
-        ? eq(faturamentoTiss.estabelecimentoId, estabelecimentoId)
-        : sql`1=1`);
+    // Sem filtro de competência - buscar tudo do estabelecimento
+    const faturamentoConditions: any[] = [];
+    if (estabelecimentoId && estabelecimentoId > 0) {
+      faturamentoConditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
+    }
+    if (convenioId) {
+      faturamentoConditions.push(eq(faturamentoTiss.convenioId, convenioId));
+    }
+    if (faturamentoConditions.length > 0) {
+      itensFaturados = await db
+        .select()
+        .from(faturamentoTiss)
+        .where(and(...faturamentoConditions));
+    } else {
+      itensFaturados = await db
+        .select()
+        .from(faturamentoTiss)
+        .where(estabelecimentoId && estabelecimentoId > 0 
+          ? eq(faturamentoTiss.estabelecimentoId, estabelecimentoId)
+          : sql`1=1`);
+    }
   }
 
   console.log('[getDadosBI] Itens faturados encontrados:', itensFaturados.length);
