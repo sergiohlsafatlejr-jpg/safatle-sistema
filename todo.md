@@ -3459,3 +3459,10 @@
 - [x] Adicionar logs de progresso detalhados no job manager (tempo por competência, itens processados)
 - [x] Melhorar display de progresso no frontend (itens processados, tempo decorrido)
 - [x] 25 testes passando
+
+## URGENTE: Otimização Drástica da Conciliação (24/03/2026 - 5)
+- [x] Reescrever INSERT: MEGA_BATCH de 5000 (antes 500) = 30 queries em vez de 300 por competência
+- [x] Reescrever UPDATE: agrupa todos IDs por status, 1 UPDATE por status (max 5 queries) em chunks de 10k
+- [x] Fallback automático: mega-batch → sub-batch 500 → individual
+- [x] 25 testes passando
+- [ ] Testar com competência individual do Hemolabor (aguardando usuário)

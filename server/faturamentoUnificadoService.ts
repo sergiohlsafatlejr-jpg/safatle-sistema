@@ -1387,72 +1387,80 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // PASSO 6: INSERT em batch na tabela conciliados_automatico
+  // PASSO 6: INSERT em MEGA-BATCH na tabela conciliados_automatico
+  // Usa batches de 5000 para minimizar roundtrips ao banco
   // (conciliações anteriores já foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
-  const BATCH_SIZE = 500;
+  const MEGA_BATCH = 5000;
   const esc = (v: string | null | undefined) => {
     if (v === null || v === undefined || v === '') return 'NULL';
-    // Sanitizar string: remover caracteres de controle, escapar backslash e aspas
     const sanitized = String(v)
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // remover chars de controle
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
       .replace(/\\/g, '\\\\')
       .replace(/'/g, "''")
-      .substring(0, 500); // limitar tamanho
+      .substring(0, 500);
     return `'${sanitized}'`;
   };
-  for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
-    const batch = inserts.slice(i, i + BATCH_SIZE);
 
-    const values = batch.map(r => {
-      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${esc((r as any).codigoPrestadorExecutante)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
-    }).join(',\n');
+  const toRow = (r: typeof inserts[0]) =>
+    `(${r.faturamentoUnificadoId},${params.estabelecimentoId},${esc(r.contaNumero)},${esc(r.numeroGuia)},${esc(r.pacienteNome)},${esc(r.convenio)},${r.convenioId??'NULL'},${esc(r.competencia)},${esc(r.codigoItem)},${esc(r.codigoItemTuss)},${esc(r.descricaoItem)},${esc(r.tipoItem)},${esc(r.origemSistema)},${esc(r.dataExecucao)},${esc((r as any).codigoPrestadorExecutante)},${r.valorFaturado},${r.quantidade},${r.recebimentoId??'NULL'},${r.recebimentoOrigem?esc(r.recebimentoOrigem):'NULL'},${r.valorPago},${r.valorGlosa},${esc(r.codigoGlosa)},${esc(r.motivoGlosa)},${esc(r.statusConciliacao)},${r.metodoConciliacao?esc(r.metodoConciliacao):'NULL'},${r.diferenca},${r.percentualDiferenca},${tolerancia},NOW())`;
 
-    const insertQuery = `
-      INSERT INTO conciliados_automatico 
-        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, codigoPrestadorExecutante, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
-      VALUES ${values}
-    `;
+  const INSERT_COLS = `(faturamentoUnificadoId,estabelecimentoId,contaNumero,numeroGuia,pacienteNome,convenio,convenioId,competencia,codigoItem,codigoItemTuss,descricaoItem,tipoItem,origemSistema,dataExecucao,codigoPrestadorExecutante,valorFaturado,quantidade,recebimentoId,recebimentoOrigem,valorPago,valorGlosa,codigoGlosa,motivoGlosa,statusConciliacao,metodoConciliacao,diferenca,percentualDiferenca,toleranciaUsada,criadoEm)`;
+
+  console.log(`[Conciliacao] Inserindo ${inserts.length} registros em batches de ${MEGA_BATCH}...`);
+  const t0 = Date.now();
+
+  for (let i = 0; i < inserts.length; i += MEGA_BATCH) {
+    const batch = inserts.slice(i, i + MEGA_BATCH);
+    const values = batch.map(toRow).join(',');
     try {
-      await db.execute(sql.raw(insertQuery));
+      await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${values}`));
     } catch (err: any) {
-      console.error(`[Conciliacao] Erro no batch ${i}-${i+BATCH_SIZE}: ${err.message?.substring(0, 200)}`);
-      // Tentar inserir um a um
-      for (const r of batch) {
+      console.error(`[Conciliacao] Erro mega-batch ${i}: ${err.message?.substring(0, 200)}. Tentando sub-batches...`);
+      // Fallback: sub-batches de 500
+      for (let j = 0; j < batch.length; j += 500) {
+        const sub = batch.slice(j, j + 500);
         try {
-          const singleValue = `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${esc((r as any).codigoPrestadorExecutante)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
-          await db.execute(sql.raw(`INSERT INTO conciliados_automatico (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, codigoPrestadorExecutante, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm) VALUES ${singleValue}`));
-        } catch (innerErr: any) {
-          console.error(`[Conciliacao] Erro individual id=${r.faturamentoUnificadoId}: ${innerErr.message?.substring(0, 100)}`);
+          await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${sub.map(toRow).join(',')}`));
+        } catch (subErr: any) {
+          console.error(`[Conciliacao] Erro sub-batch ${i+j}: ${subErr.message?.substring(0, 100)}`);
+          // Último recurso: um a um
+          for (const r of sub) {
+            try {
+              await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${toRow(r)}`));
+            } catch (e: any) {
+              console.error(`[Conciliacao] Erro id=${r.faturamentoUnificadoId}: ${e.message?.substring(0, 80)}`);
+            }
+          }
         }
       }
     }
   }
+  console.log(`[Conciliacao] INSERT concluído em ${((Date.now()-t0)/1000).toFixed(1)}s`);
 
   // -------------------------------------------------------
-  // PASSO 7: Atualizar statusConciliacao no faturamento_unificado
-  // Para que os itens já processados não sejam re-processados
+  // PASSO 7: UPDATE em massa do statusConciliacao no faturamento_unificado
+  // Agrupa TODOS os IDs por status e faz 1 UPDATE por status (max ~5 queries)
   // -------------------------------------------------------
-  const UPDATE_BATCH_SIZE = 2000;
-  for (let i = 0; i < inserts.length; i += UPDATE_BATCH_SIZE) {
-    const batch = inserts.slice(i, i + UPDATE_BATCH_SIZE);
-    
-    // Agrupar por status para fazer UPDATEs mais eficientes
-    const porStatus = new Map<string, number[]>();
-    for (const ins of batch) {
-      const status = ins.statusConciliacao;
-      if (!porStatus.has(status)) porStatus.set(status, []);
-      porStatus.get(status)!.push(ins.faturamentoUnificadoId);
-    }
-    
-    for (const [status, ids] of porStatus) {
-      if (ids.length === 0) continue;
-      const idsStr = ids.join(',');
+  const t1 = Date.now();
+  const porStatus = new Map<string, number[]>();
+  for (const ins of inserts) {
+    const st = ins.statusConciliacao;
+    if (!porStatus.has(st)) porStatus.set(st, []);
+    porStatus.get(st)!.push(ins.faturamentoUnificadoId);
+  }
+
+  for (const [status, ids] of porStatus) {
+    if (ids.length === 0) continue;
+    // Processar em chunks de 10000 IDs para evitar query muito longa
+    for (let i = 0; i < ids.length; i += 10000) {
+      const chunk = ids.slice(i, i + 10000);
       await db.execute(sql.raw(
-        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${idsStr})`
+        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${chunk.join(',')})`
       ));
     }
   }
+  console.log(`[Conciliacao] UPDATE concluído em ${((Date.now()-t1)/1000).toFixed(1)}s`);
 
   return resultado;
 }
