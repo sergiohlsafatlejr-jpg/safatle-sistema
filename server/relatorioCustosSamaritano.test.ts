@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the db module
+// Mock the db module - MySQL/Drizzle returns [rows, fields] format
 const mockExecute = vi.fn();
 vi.mock("./db", () => ({
   getDb: vi.fn().mockResolvedValue({
@@ -22,6 +22,11 @@ import {
   buscarCustosPorSetorSamaritano,
 } from "./relatorioCustosSamaritano";
 
+// Helper: MySQL format [rows, fields]
+function mysqlResult(rows: any[]) {
+  return [rows, []]; // [rows, fields]
+}
+
 describe("relatorioCustosSamaritano", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -30,50 +35,42 @@ describe("relatorioCustosSamaritano", () => {
   describe("buscarCustosPorConvenioSamaritano", () => {
     it("deve retornar dados estruturados com kpis, resumoPorConvenio e itensDetalhados", async () => {
       // Mock convenios
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          { convenio: "Ipasgo Novo", codplaco: "IP01" },
-          { convenio: "Unimed Goiânia", codplaco: "UN01" },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { convenio: "Ipasgo Novo", codplaco: "IP01" },
+        { convenio: "Unimed Goiânia", codplaco: "UN01" },
+      ]));
       // Mock competencias
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          { competencia: "2026/03" },
-          { competencia: "2026/02" },
-          { competencia: "2026/01" },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { competencia: "2026/03" },
+        { competencia: "2026/02" },
+        { competencia: "2026/01" },
+      ]));
       // Mock detalhado
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            codprod: "1001",
-            descricao: "Consulta Médica",
-            tipoitem: "CO",
-            convenio: "Ipasgo Novo",
-            codplaco: "IP01",
-            total_quantidade: 10,
-            total_cobrado: 1500.00,
-            total_vlcusto: 800.00,
-            total_custo_estoque: 900.00,
-            num_lancamentos: 10,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          codprod: "1001",
+          descricao: "Consulta Médica",
+          tipoitem: "CO",
+          convenio: "Ipasgo Novo",
+          codplaco: "IP01",
+          total_quantidade: 10,
+          total_cobrado: 1500.00,
+          total_vlcusto: 800.00,
+          total_custo_estoque: 900.00,
+          num_lancamentos: 10,
+        },
+      ]));
       // Mock resumo
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            convenio: "Ipasgo Novo",
-            codplaco: "IP01",
-            total_lancamentos: 50,
-            total_faturado: 15000.00,
-            total_vlcusto: 8000.00,
-            total_custo_estoque: 9000.00,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          convenio: "Ipasgo Novo",
+          codplaco: "IP01",
+          total_lancamentos: 50,
+          total_faturado: 15000.00,
+          total_vlcusto: 8000.00,
+          total_custo_estoque: 9000.00,
+        },
+      ]));
 
       const result = await buscarCustosPorConvenioSamaritano(2280016, {});
 
@@ -98,47 +95,45 @@ describe("relatorioCustosSamaritano", () => {
 
     it("deve aplicar filtros de competência e convênio", async () => {
       // Mock all 4 queries
-      mockExecute.mockResolvedValue({ rows: [] });
+      mockExecute.mockResolvedValue(mysqlResult([]));
 
       await buscarCustosPorConvenioSamaritano(2280016, {
         competencia: "2026/01",
         convenio: "Ipasgo Novo",
       });
 
-      // Verify the detalhado query includes filters (uses ? placeholders)
+      // Verify the detalhado query includes filters
       expect(mockExecute).toHaveBeenCalledTimes(4);
       const detalhadoCall = mockExecute.mock.calls[2][0];
-      expect(detalhadoCall).toContain("competencia = ?");
-      expect(detalhadoCall).toContain("convenio = ?");
+      expect(detalhadoCall).toContain("competencia = '2026/01'");
+      expect(detalhadoCall).toContain("convenio = 'Ipasgo Novo'");
     });
   });
 
   describe("buscarCustosPorContaSamaritano", () => {
     it("deve retornar contas agrupadas com kpis", async () => {
       // Mock convenios
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ convenio: "Ipasgo Novo", codplaco: "IP01" }],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { convenio: "Ipasgo Novo", codplaco: "IP01" },
+      ]));
       // Mock competencias
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ competencia: "2026/01" }],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { competencia: "2026/01" },
+      ]));
       // Mock contas
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            numconta: 12345,
-            paciente: "João Silva",
-            convenio: "Ipasgo Novo",
-            codplaco: "IP01",
-            data_execucao: "2026-01-15",
-            total_itens: 5,
-            total_cobrado: 2000.00,
-            total_vlcusto: 1200.00,
-            total_custo_estoque: 1300.00,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          numconta: 12345,
+          paciente: "João Silva",
+          convenio: "Ipasgo Novo",
+          codplaco: "IP01",
+          data_execucao: "2026-01-15",
+          total_itens: 5,
+          total_cobrado: 2000.00,
+          total_vlcusto: 1200.00,
+          total_custo_estoque: 1300.00,
+        },
+      ]));
 
       const result = await buscarCustosPorContaSamaritano(2280016, {});
 
@@ -157,38 +152,36 @@ describe("relatorioCustosSamaritano", () => {
 
   describe("buscarDetalheContaCustoSamaritano", () => {
     it("deve retornar detalhes de uma conta específica", async () => {
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            codprod: "1001",
-            descricao: "Consulta",
-            tipoitem: "CO",
-            paciente: "Maria",
-            convenio: "Unimed",
-            codplaco: "UN01",
-            setor: "Ambulatório",
-            data_execucao: "2026-01-10",
-            quantidade: 1,
-            total_cobrado: 200.00,
-            total_vlcusto: 100.00,
-            total_custo_estoque: 120.00,
-          },
-          {
-            codprod: "2002",
-            descricao: "Exame Sangue",
-            tipoitem: "EX",
-            paciente: "Maria",
-            convenio: "Unimed",
-            codplaco: "UN01",
-            setor: "Laboratório",
-            data_execucao: "2026-01-10",
-            quantidade: 3,
-            total_cobrado: 150.00,
-            total_vlcusto: 80.00,
-            total_custo_estoque: 90.00,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          codprod: "1001",
+          descricao: "Consulta",
+          tipoitem: "CO",
+          paciente: "Maria",
+          convenio: "Unimed",
+          codplaco: "UN01",
+          setor: "Ambulatório",
+          data_execucao: "2026-01-10",
+          quantidade: 1,
+          total_cobrado: 200.00,
+          total_vlcusto: 100.00,
+          total_custo_estoque: 120.00,
+        },
+        {
+          codprod: "2002",
+          descricao: "Exame Sangue",
+          tipoitem: "EX",
+          paciente: "Maria",
+          convenio: "Unimed",
+          codplaco: "UN01",
+          setor: "Laboratório",
+          data_execucao: "2026-01-10",
+          quantidade: 3,
+          total_cobrado: 150.00,
+          total_vlcusto: 80.00,
+          total_custo_estoque: 90.00,
+        },
+      ]));
 
       const result = await buscarDetalheContaCustoSamaritano(2280016, "12345");
 
@@ -204,7 +197,7 @@ describe("relatorioCustosSamaritano", () => {
     });
 
     it("deve retornar null se conta não encontrada", async () => {
-      mockExecute.mockResolvedValueOnce({ rows: [] });
+      mockExecute.mockResolvedValueOnce(mysqlResult([]));
 
       const result = await buscarDetalheContaCustoSamaritano(2280016, "99999");
       expect(result).toBeNull();
@@ -214,59 +207,54 @@ describe("relatorioCustosSamaritano", () => {
   describe("buscarCustosPorSetorSamaritano", () => {
     it("deve retornar resumo por setor com kpis", async () => {
       // Mock convenios
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ convenio: "Ipasgo Novo", codplaco: "IP01" }],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { convenio: "Ipasgo Novo", codplaco: "IP01" },
+      ]));
       // Mock competencias
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ competencia: "2026/01" }],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { competencia: "2026/01" },
+      ]));
       // Mock setores
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ setor: "Ambulatório" }, { setor: "Bloco Cirúrgico" }],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        { setor: "Ambulatório" },
+        { setor: "Bloco Cirúrgico" },
+      ]));
       // Mock resumo por setor
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            setor: "Ambulatório",
-            total_lancamentos: 100,
-            total_itens: 30,
-            total_contas: 20,
-            total_faturado: 50000.00,
-            total_vlcusto: 30000.00,
-            total_custo_estoque: 35000.00,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          setor: "Ambulatório",
+          total_lancamentos: 100,
+          total_itens: 30,
+          total_contas: 20,
+          total_faturado: 50000.00,
+          total_vlcusto: 30000.00,
+          total_custo_estoque: 35000.00,
+        },
+      ]));
       // Mock top itens por setor
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            setor: "Ambulatório",
-            descricao: "Consulta",
-            quantidade: 50,
-            custo_total: 5000.00,
-            valor_cobrado: 7500.00,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          setor: "Ambulatório",
+          descricao: "Consulta",
+          quantidade: 50,
+          custo_total: 5000.00,
+          valor_cobrado: 7500.00,
+        },
+      ]));
       // Mock detalhado
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          {
-            codprod: "1001",
-            descricao: "Consulta",
-            tipoitem: "CO",
-            setor: "Ambulatório",
-            total_quantidade: 50,
-            total_cobrado: 7500.00,
-            total_vlcusto: 3000.00,
-            total_custo_estoque: 5000.00,
-            num_lancamentos: 50,
-          },
-        ],
-      });
+      mockExecute.mockResolvedValueOnce(mysqlResult([
+        {
+          codprod: "1001",
+          descricao: "Consulta",
+          tipoitem: "CO",
+          setor: "Ambulatório",
+          total_quantidade: 50,
+          total_cobrado: 7500.00,
+          total_vlcusto: 3000.00,
+          total_custo_estoque: 5000.00,
+          num_lancamentos: 50,
+        },
+      ]));
 
       const result = await buscarCustosPorSetorSamaritano(2280016, {});
 

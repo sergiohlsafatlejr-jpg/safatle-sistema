@@ -14,11 +14,44 @@ import { sql } from "drizzle-orm";
 // ID do estabelecimento Samaritano
 const SAMARITANO_ID = 2280016;
 
+/**
+ * Helper: db.execute(sql.raw(...)) no MySQL/Drizzle retorna [rows, fields].
+ * Esta função extrai as rows de forma segura.
+ */
+function extractRows(result: any): any[] {
+  // MySQL2 + Drizzle: result = [rows, fields]
+  if (Array.isArray(result) && result.length >= 1 && Array.isArray(result[0])) {
+    return result[0];
+  }
+  // Caso já seja { rows: [...] } (PostgreSQL style)
+  if (result && Array.isArray(result.rows)) {
+    return result.rows;
+  }
+  // Caso já seja um array direto
+  if (Array.isArray(result)) {
+    return result;
+  }
+  return [];
+}
+
 // Tipo de atendimento labels
 const TIPO_ATEND_LABEL: Record<string, string> = {
   I: "Internação",
   A: "Ambulatorial",
   E: "Emergência",
+};
+
+const TIPO_ITEM_LABEL: Record<string, string> = {
+  IC: "Internação Clínica",
+  IG: "Internação Cirúrgica",
+  BH: "Banco de Horas",
+  BO: "Bloco",
+  CO: "Consulta",
+  EX: "Exame",
+  PQ: "Pequena Cirurgia",
+  PR: "Procedimento",
+  RE: "Reembolso",
+  SV: "Serviço",
 };
 
 // ============================================================
@@ -34,26 +67,22 @@ export async function buscarCustosPorConvenioSamaritano(
 
   // Build WHERE conditions
   const conditions: string[] = [`estabelecimentoId = ${SAMARITANO_ID}`];
-  const params: any[] = [];
 
   if (filtros.competencia) {
-    conditions.push(`competencia = ?`);
-    params.push(filtros.competencia);
+    conditions.push(`competencia = '${filtros.competencia.replace(/'/g, "''")}'`);
   }
 
   if (filtros.convenio) {
-    conditions.push(`convenio = ?`);
-    params.push(filtros.convenio);
+    conditions.push(`convenio = '${filtros.convenio.replace(/'/g, "''")}'`);
   }
 
   if (filtros.tipoItem) {
-    conditions.push(`codserv = ?`);
-    params.push(filtros.tipoItem);
+    conditions.push(`codserv = '${filtros.tipoItem.replace(/'/g, "''")}'`);
   }
 
   if (filtros.busca) {
-    conditions.push(`(descricao LIKE ? OR codprod LIKE ?)`);
-    params.push(`%${filtros.busca}%`, `%${filtros.busca}%`);
+    const b = filtros.busca.replace(/'/g, "''");
+    conditions.push(`(descricao LIKE '%${b}%' OR codprod LIKE '%${b}%')`);
   }
 
   const whereClause = conditions.join(" AND ");
@@ -62,7 +91,7 @@ export async function buscarCustosPorConvenioSamaritano(
   const conveniosRaw = await db.execute(
     sql.raw(`SELECT DISTINCT convenio, codplaco FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} ORDER BY convenio`)
   );
-  const conveniosDisponiveis = (conveniosRaw.rows as any[]).map((r: any) => ({
+  const conveniosDisponiveis = extractRows(conveniosRaw).map((r: any) => ({
     codplaco: r.codplaco || r.convenio,
     nome: r.convenio,
   }));
@@ -71,7 +100,7 @@ export async function buscarCustosPorConvenioSamaritano(
   const compRaw = await db.execute(
     sql.raw(`SELECT DISTINCT competencia FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} AND competencia IS NOT NULL ORDER BY competencia DESC`)
   );
-  const competenciasDisponiveis = (compRaw.rows as any[]).map((r: any) => r.competencia);
+  const competenciasDisponiveis = extractRows(compRaw).map((r: any) => r.competencia);
 
   // 3. Itens detalhados por convênio
   const detalhadoSql = `
@@ -92,22 +121,10 @@ export async function buscarCustosPorConvenioSamaritano(
     ORDER BY total_cobrado DESC
     LIMIT 1000
   `;
-  const detalhadoResult = await db.execute(sql.raw(detalhadoSql));
+  const detalhadoResultRaw = await db.execute(sql.raw(detalhadoSql));
+  const detalhadoRows = extractRows(detalhadoResultRaw);
 
-  const TIPO_ITEM_LABEL: Record<string, string> = {
-    IC: "Internação Clínica",
-    IG: "Internação Cirúrgica",
-    BH: "Banco de Horas",
-    BO: "Bloco",
-    CO: "Consulta",
-    EX: "Exame",
-    PQ: "Pequena Cirurgia",
-    PR: "Procedimento",
-    RE: "Reembolso",
-    SV: "Serviço",
-  };
-
-  const itensDetalhados = (detalhadoResult.rows as any[]).map((row: any) => {
+  const itensDetalhados = detalhadoRows.map((row: any) => {
     const quantidade = Number(row.total_quantidade || 0);
     const valorCobradoTotal = Number(row.total_cobrado || 0);
     const vlcusto = Number(row.total_vlcusto || 0);
@@ -194,9 +211,10 @@ export async function buscarCustosPorConvenioSamaritano(
     GROUP BY convenio, codplaco
     ORDER BY total_faturado DESC
   `;
-  const resumoResult = await db.execute(sql.raw(resumoSql));
+  const resumoResultRaw = await db.execute(sql.raw(resumoSql));
+  const resumoRows = extractRows(resumoResultRaw);
 
-  const resumoPorConvenio = (resumoResult.rows as any[]).map((r: any) => {
+  const resumoPorConvenio = resumoRows.map((r: any) => {
     const totalFaturado = Number(r.total_faturado || 0);
     const totalCustoEstoque = Number(r.total_custo_estoque || 0);
     const totalVlcusto = Number(r.total_vlcusto || 0);
@@ -281,15 +299,16 @@ export async function buscarCustosPorContaSamaritano(
   const conditions: string[] = [`estabelecimentoId = ${SAMARITANO_ID}`];
 
   if (filtros.competencia) {
-    conditions.push(`competencia = '${filtros.competencia}'`);
+    conditions.push(`competencia = '${filtros.competencia.replace(/'/g, "''")}'`);
   }
 
   if (filtros.convenio) {
-    conditions.push(`convenio = '${filtros.convenio}'`);
+    conditions.push(`convenio = '${filtros.convenio.replace(/'/g, "''")}'`);
   }
 
   if (filtros.busca) {
-    conditions.push(`(CAST(numconta AS CHAR) LIKE '%${filtros.busca}%' OR nome LIKE '%${filtros.busca}%')`);
+    const b = filtros.busca.replace(/'/g, "''");
+    conditions.push(`(CAST(numconta AS CHAR) LIKE '%${b}%' OR nome LIKE '%${b}%')`);
   }
 
   const whereClause = conditions.join(" AND ");
@@ -298,7 +317,7 @@ export async function buscarCustosPorContaSamaritano(
   const conveniosRaw = await db.execute(
     sql.raw(`SELECT DISTINCT convenio, codplaco FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} ORDER BY convenio`)
   );
-  const conveniosDisponiveis = (conveniosRaw.rows as any[]).map((r: any) => ({
+  const conveniosDisponiveis = extractRows(conveniosRaw).map((r: any) => ({
     codplaco: r.codplaco || r.convenio,
     nome: r.convenio,
   }));
@@ -307,7 +326,7 @@ export async function buscarCustosPorContaSamaritano(
   const compRaw = await db.execute(
     sql.raw(`SELECT DISTINCT competencia FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} AND competencia IS NOT NULL ORDER BY competencia DESC`)
   );
-  const competenciasDisponiveis = (compRaw.rows as any[]).map((r: any) => r.competencia);
+  const competenciasDisponiveis = extractRows(compRaw).map((r: any) => r.competencia);
 
   // Contas agrupadas
   const mainSql = `
@@ -327,7 +346,8 @@ export async function buscarCustosPorContaSamaritano(
     ORDER BY total_cobrado DESC
     LIMIT 500
   `;
-  const mainResult = await db.execute(sql.raw(mainSql));
+  const mainResultRaw = await db.execute(sql.raw(mainSql));
+  const mainRows = extractRows(mainResultRaw);
 
   let custoTotalGeral = 0;
   let valorCobradoGeral = 0;
@@ -335,7 +355,7 @@ export async function buscarCustosPorContaSamaritano(
   let contasComPrejuizo = 0;
   let totalItensGeral = 0;
 
-  const contas = (mainResult.rows as any[]).map((row: any) => {
+  const contas = mainRows.map((row: any) => {
     const totalCobrado = Number(row.total_cobrado || 0);
     const totalCustoEstoque = Number(row.total_custo_estoque || 0);
     const totalVlcusto = Number(row.total_vlcusto || 0);
@@ -410,19 +430,6 @@ export async function buscarDetalheContaCustoSamaritano(
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
 
-  const TIPO_ITEM_LABEL: Record<string, string> = {
-    IC: "Internação Clínica",
-    IG: "Internação Cirúrgica",
-    BH: "Banco de Horas",
-    BO: "Bloco",
-    CO: "Consulta",
-    EX: "Exame",
-    PQ: "Pequena Cirurgia",
-    PR: "Procedimento",
-    RE: "Reembolso",
-    SV: "Serviço",
-  };
-
   const itensSql = `
     SELECT
       codprod,
@@ -441,9 +448,10 @@ export async function buscarDetalheContaCustoSamaritano(
     WHERE numconta = ${numconta} AND estabelecimentoId = ${SAMARITANO_ID}
     ORDER BY descricao
   `;
-  const itensResult = await db.execute(sql.raw(itensSql));
+  const itensResultRaw = await db.execute(sql.raw(itensSql));
+  const itensRows = extractRows(itensResultRaw);
 
-  if ((itensResult.rows as any[]).length === 0) return null;
+  if (itensRows.length === 0) return null;
 
   let custoTotal = 0;
   let valorCobrado = 0;
@@ -455,7 +463,7 @@ export async function buscarDetalheContaCustoSamaritano(
   let codplaco = "";
   let dataExecucao = "";
 
-  const itens = (itensResult.rows as any[]).map((row: any) => {
+  const itens = itensRows.map((row: any) => {
     const quantidade = Number(row.quantidade || 0);
     const vltotreais = Number(row.total_cobrado || 0);
     const vlcusto = Number(row.total_vlcusto || 0);
@@ -527,19 +535,20 @@ export async function buscarCustosPorSetorSamaritano(
   const conditions: string[] = [`estabelecimentoId = ${SAMARITANO_ID}`];
 
   if (filtros.competencia) {
-    conditions.push(`competencia = '${filtros.competencia}'`);
+    conditions.push(`competencia = '${filtros.competencia.replace(/'/g, "''")}'`);
   }
 
   if (filtros.convenio) {
-    conditions.push(`convenio = '${filtros.convenio}'`);
+    conditions.push(`convenio = '${filtros.convenio.replace(/'/g, "''")}'`);
   }
 
   if (filtros.setor) {
-    conditions.push(`setor = '${filtros.setor}'`);
+    conditions.push(`setor = '${filtros.setor.replace(/'/g, "''")}'`);
   }
 
   if (filtros.busca) {
-    conditions.push(`(descricao LIKE '%${filtros.busca}%' OR codprod LIKE '%${filtros.busca}%')`);
+    const b = filtros.busca.replace(/'/g, "''");
+    conditions.push(`(descricao LIKE '%${b}%' OR codprod LIKE '%${b}%')`);
   }
 
   const whereClause = conditions.join(" AND ");
@@ -548,7 +557,7 @@ export async function buscarCustosPorSetorSamaritano(
   const conveniosRaw = await db.execute(
     sql.raw(`SELECT DISTINCT convenio, codplaco FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} ORDER BY convenio`)
   );
-  const conveniosDisponiveis = (conveniosRaw.rows as any[]).map((r: any) => ({
+  const conveniosDisponiveis = extractRows(conveniosRaw).map((r: any) => ({
     codplaco: r.codplaco || r.convenio,
     nome: r.convenio,
   }));
@@ -557,13 +566,13 @@ export async function buscarCustosPorSetorSamaritano(
   const compRaw = await db.execute(
     sql.raw(`SELECT DISTINCT competencia FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} AND competencia IS NOT NULL ORDER BY competencia DESC`)
   );
-  const competenciasDisponiveis = (compRaw.rows as any[]).map((r: any) => r.competencia);
+  const competenciasDisponiveis = extractRows(compRaw).map((r: any) => r.competencia);
 
   // Setores disponíveis
   const setoresRaw = await db.execute(
     sql.raw(`SELECT DISTINCT setor FROM samaritano_custo_staging WHERE estabelecimentoId = ${SAMARITANO_ID} AND setor IS NOT NULL ORDER BY setor`)
   );
-  const setoresDisponiveis = (setoresRaw.rows as any[]).map((r: any) => r.setor);
+  const setoresDisponiveis = extractRows(setoresRaw).map((r: any) => r.setor);
 
   // Resumo por setor
   const resumoSql = `
@@ -580,7 +589,8 @@ export async function buscarCustosPorSetorSamaritano(
     GROUP BY setor
     ORDER BY total_faturado DESC
   `;
-  const resumoResult = await db.execute(sql.raw(resumoSql));
+  const resumoResultRaw = await db.execute(sql.raw(resumoSql));
+  const resumoRows = extractRows(resumoResultRaw);
 
   // Top itens por setor
   const topItensSql = `
@@ -595,10 +605,11 @@ export async function buscarCustosPorSetorSamaritano(
     GROUP BY setor, descricao
     ORDER BY custo_total DESC
   `;
-  const topItensResult = await db.execute(sql.raw(topItensSql));
+  const topItensResultRaw = await db.execute(sql.raw(topItensSql));
+  const topItensRows = extractRows(topItensResultRaw);
 
   const topItensPorSetorMap = new Map<string, any[]>();
-  for (const row of (topItensResult.rows as any[])) {
+  for (const row of topItensRows) {
     const setor = row.setor || "Sem Setor";
     const custoTotal = Number(row.custo_total || 0);
     const valorCobrado = Number(row.valor_cobrado || 0);
@@ -623,7 +634,7 @@ export async function buscarCustosPorSetorSamaritano(
   let setoresComPrejuizo = 0;
   let totalLancamentos = 0;
 
-  const resumoPorSetor = (resumoResult.rows as any[]).map((r: any) => {
+  const resumoPorSetor = resumoRows.map((r: any) => {
     const setor = r.setor || "Sem Setor";
     const totalFaturado = Number(r.total_faturado || 0);
     const totalCustoEstoque = Number(r.total_custo_estoque || 0);
@@ -671,22 +682,10 @@ export async function buscarCustosPorSetorSamaritano(
     ORDER BY total_cobrado DESC
     LIMIT 1000
   `;
-  const detalhadoResult = await db.execute(sql.raw(detalhadoSql));
+  const detalhadoResultRaw = await db.execute(sql.raw(detalhadoSql));
+  const detalhadoRows = extractRows(detalhadoResultRaw);
 
-  const TIPO_ITEM_LABEL: Record<string, string> = {
-    IC: "Internação Clínica",
-    IG: "Internação Cirúrgica",
-    BH: "Banco de Horas",
-    BO: "Bloco",
-    CO: "Consulta",
-    EX: "Exame",
-    PQ: "Pequena Cirurgia",
-    PR: "Procedimento",
-    RE: "Reembolso",
-    SV: "Serviço",
-  };
-
-  const itensDetalhados = (detalhadoResult.rows as any[]).map((row: any) => {
+  const itensDetalhados = detalhadoRows.map((row: any) => {
     const quantidade = Number(row.total_quantidade || 0);
     const valorCobradoTotal = Number(row.total_cobrado || 0);
     const vlcusto = Number(row.total_vlcusto || 0);

@@ -3485,3 +3485,6 @@
 - [x] Adaptar frontend - mostrar badge "Fonte: Importação Excel" para Samaritano
 - [x] Criar testes vitest para módulo Samaritano (6 testes passando)
 - [x] Testar e salvar checkpoint
+
+## Bug - Rel. Custos Samaritano (24/03/2026)
+- [x] Corrigir erro "Cannot read properties of undefined (reading 'map')" na página /relatorio-custos ao selecionar Samaritano (causa: MySQL/Drizzle retorna [rows, fields] em vez de {rows}, criado extractRows helper)
