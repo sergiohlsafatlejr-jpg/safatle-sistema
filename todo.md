@@ -3466,3 +3466,10 @@
 - [x] Fallback automático: mega-batch → sub-batch 500 → individual
 - [x] 25 testes passando
 - [ ] Testar com competência individual do Hemolabor (aguardando usuário)
+
+## Filtro inteligente: conciliar apenas competências com demonstrativo (24/03/2026 - 6)
+- [x] Identificar quais competências têm demonstrativos de retorno (via JOIN arquivos + recebimentos_excel)
+- [x] Alterar job manager para filtrar competências sem demonstrativo (query com direcao='retornado')
+- [x] Informar ao usuário quais competências foram puladas (toast.warning com duração 10s)
+- [x] Frontend trata resultado com 0 itens processados (mostra mensagem informativa)
+- [x] 25 testes passando

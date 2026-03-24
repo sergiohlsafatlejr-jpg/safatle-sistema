@@ -111,19 +111,42 @@ async function executarJobBackground(jobId: string): Promise<void> {
       job.status = 'concluido';
       job.finalizadoEm = Date.now();
     } else {
-      // Sem competência: buscar todas e processar uma a uma
-      // Importar getDb para buscar competências
+      // Sem competência: buscar apenas competências que tenham demonstrativos de retorno
       const { getDb } = await import("./db");
       const { sql } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new Error("Database não disponível");
       
-      const [compRows] = await db.execute(sql.raw(
+      // FILTRO INTELIGENTE: buscar competências que têm demonstrativos de retorno importados
+      const [compComDemonstrativo] = await db.execute(sql.raw(
+        `SELECT DISTINCT DATE_FORMAT(a.dataReferencia, '%Y/%m') as competencia
+         FROM arquivos a
+         JOIN recebimentos_excel re ON re.arquivo_id = a.id
+         WHERE a.estabelecimentoId = ${job.params.estabelecimentoId}
+         AND a.direcao = 'retornado'
+         ORDER BY competencia`
+      ));
+      const competenciasComRetorno = (compComDemonstrativo as unknown as any[]).map((r: any) => r.competencia).filter(Boolean);
+      
+      // Buscar todas as competências do faturamento para informar quais foram puladas
+      const [todasComp] = await db.execute(sql.raw(
         `SELECT DISTINCT competencia FROM faturamento_unificado WHERE estabelecimentoId = ${job.params.estabelecimentoId} ORDER BY competencia`
       ));
-      const competencias = (compRows as unknown as any[]).map((r: any) => r.competencia).filter(Boolean);
+      const todasCompetencias = (todasComp as unknown as any[]).map((r: any) => r.competencia).filter(Boolean);
+      const competenciasPuladas = todasCompetencias.filter((c: string) => !competenciasComRetorno.includes(c));
+      
+      if (competenciasPuladas.length > 0) {
+        console.log(`[ConciliacaoJob] Pulando ${competenciasPuladas.length} competências sem demonstrativo: ${competenciasPuladas.join(', ')}`);
+      }
+      
+      const competencias = competenciasComRetorno;
       
       if (competencias.length === 0) {
+        const msg = todasCompetencias.length > 0
+          ? `Nenhuma competência possui demonstrativo de retorno importado. ${todasCompetencias.length} competências disponíveis (${todasCompetencias.join(', ')}), mas nenhuma tem demonstrativo. Importe demonstrativos de retorno antes de conciliar.`
+          : 'Nenhuma competência encontrada no faturamento unificado.';
+        console.log(`[ConciliacaoJob] ${msg}`);
+        job.erro = msg;
         job.resultado = {
           totalProcessados: 0,
           totalConciliados: 0,
@@ -140,10 +163,16 @@ async function executarJobBackground(jobId: string): Promise<void> {
             conciliadosPorCarteiraCodigo: 0,
           },
           divergencias: [],
-        };
+          competenciasPuladas: todasCompetencias,
+        } as any;
         job.status = 'concluido';
         job.finalizadoEm = Date.now();
         return;
+      }
+      
+      console.log(`[ConciliacaoJob] Processando ${competencias.length} competências com demonstrativo: ${competencias.join(', ')}`);
+      if (competenciasPuladas.length > 0) {
+        console.log(`[ConciliacaoJob] ${competenciasPuladas.length} competências sem demonstrativo serão ignoradas: ${competenciasPuladas.join(', ')}`);
       }
       
       job.progresso.competenciasTotal = competencias.length;

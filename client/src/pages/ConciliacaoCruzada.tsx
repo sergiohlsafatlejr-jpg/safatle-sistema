@@ -299,15 +299,22 @@ export default function ConciliacaoCruzada() {
   useEffect(() => {
     if (!statusJob || !conciliacaoEmAndamento) return;
     
-    if (statusJob.status === 'concluido' && statusJob.resultado) {
+    if (statusJob.status === 'concluido') {
       setConciliacaoEmAndamento(false);
-      setResultadoConciliacao(statusJob.resultado);
-      setModalResultadoAberto(true);
-      const r = statusJob.resultado;
-      toast.success(`Conciliação concluída: ${r.totalConciliados} conciliados, ${r.totalDivergentes} divergentes, ${r.totalNaoRecebidos} glosados${r.totalTerceiros ? `, ${r.totalTerceiros} terceiros` : ''}`);
-      refetch();
-      refetchGuiasConciliadas();
-      refetchResumo();
+      if (statusJob.resultado && statusJob.resultado.totalProcessados > 0) {
+        setResultadoConciliacao(statusJob.resultado);
+        setModalResultadoAberto(true);
+        const r = statusJob.resultado;
+        toast.success(`Conciliação concluída: ${r.totalConciliados} conciliados, ${r.totalDivergentes} divergentes, ${r.totalNaoRecebidos} glosados${r.totalTerceiros ? `, ${r.totalTerceiros} terceiros` : ''}`);
+        refetch();
+        refetchGuiasConciliadas();
+        refetchResumo();
+      } else if (statusJob.erro) {
+        // Concluído mas com mensagem informativa (ex: sem demonstrativos)
+        toast.warning(statusJob.erro, { duration: 10000 });
+      } else {
+        toast.info('Conciliação concluída: nenhum item processado.');
+      }
     } else if (statusJob.status === 'erro') {
       setConciliacaoEmAndamento(false);
       toast.error(`Erro na conciliação: ${statusJob.erro || 'Erro desconhecido'}`);
