@@ -7,6 +7,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as faturamentoService from "../faturamentoUnificadoService";
 import * as xmlRecursoService from "../xmlRecursoService";
+import { iniciarJobConciliacao, consultarJob, jobEmAndamento } from "../conciliacaoJobManager";
 import { convenioEstabelecimentoPrestador } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
@@ -192,8 +193,8 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Executar conciliacao automatica
-   * Cruza faturamento_unificado com recebimentos_excel
+   * Executar conciliacao automatica (assíncrono)
+   * Dispara job em background e retorna jobId para polling
    */
   conciliarAutomaticamente: protectedProcedure
     .input(z.object({
@@ -203,7 +204,35 @@ export const faturamentoUnificadoRouter = router({
       toleranciaPercentual: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      return await faturamentoService.executarConciliacaoAutomatica(input);
+      // Verificar se já há um job em andamento
+      const existente = jobEmAndamento(input.estabelecimentoId);
+      if (existente) {
+        return { jobId: existente.id, mensagem: 'Conciliação já em andamento' };
+      }
+      const jobId = iniciarJobConciliacao(input);
+      return { jobId, mensagem: 'Conciliação iniciada em background' };
+    }),
+
+  /**
+   * Consultar status do job de conciliação
+   */
+  statusConciliacao: protectedProcedure
+    .input(z.object({
+      jobId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const job = consultarJob(input.jobId);
+      if (!job) {
+        return { status: 'nao_encontrado' as const, progresso: null, resultado: null, erro: 'Job não encontrado' };
+      }
+      return {
+        status: job.status,
+        progresso: job.progresso,
+        resultado: job.resultado,
+        erro: job.erro,
+        iniciadoEm: job.iniciadoEm,
+        finalizadoEm: job.finalizadoEm,
+      };
     }),
 
   /**

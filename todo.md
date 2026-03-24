@@ -3444,3 +3444,11 @@
 - [x] Conciliação retorna "Service Unavailable": otimizado para processar em lotes por competência (sempre, com try/catch por lote)
 - [x] Ajustar popularTudo para incluir contagem de dados TASY_STAGING no resultado
 - [x] Ajustar conciliação para funcionar com dados TASY_STAGING (busca todas competências, não só pendentes)
+
+## Bug Resolvido: Service Unavailable na Conciliação Hemolabor (24/03/2026 - 3)
+- [x] Conciliação ainda dava "Service Unavailable" mesmo com processamento por competência
+- [x] Causa: timeout do proxy reverso (~60s) com 1.3M registros
+- [x] Solução: processamento assíncrono em background com job manager
+- [x] Frontend com polling de progresso (competência atual, total processado)
+- [x] Job manager com Map em memória, auto-limpeza de jobs antigos
+- [x] 25 testes unitários passando (incluindo testes do job manager)

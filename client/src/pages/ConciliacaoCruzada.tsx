@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -67,6 +67,10 @@ export default function ConciliacaoCruzada() {
   // Modal de resultado da conciliacao
   const [modalResultadoAberto, setModalResultadoAberto] = useState(false);
   const [resultadoConciliacao, setResultadoConciliacao] = useState<any>(null);
+
+  // Job de conciliação assíncrona
+  const [conciliacaoJobId, setConciliacaoJobId] = useState<string | null>(null);
+  const [conciliacaoEmAndamento, setConciliacaoEmAndamento] = useState(false);
 
   // Geração de XML de recurso
   const [guiasSelecionadasXml, setGuiasSelecionadasXml] = useState<Set<string>>(new Set());
@@ -272,16 +276,43 @@ export default function ConciliacaoCruzada() {
   });
 
   const conciliarAuto = trpc.faturamentoUnificado.conciliarAutomaticamente.useMutation({
-    onSuccess: (data) => {
-      setResultadoConciliacao(data);
-      setModalResultadoAberto(true);
-      toast.success(`Conciliação concluída: ${data.totalConciliados} conciliados, ${data.totalDivergentes} divergentes, ${data.totalNaoRecebidos} glosados${data.totalTerceiros ? `, ${data.totalTerceiros} terceiros` : ''}`);
-      refetch();
-      refetchGuiasConciliadas();
-      refetchResumo();
+    onSuccess: (data: any) => {
+      if (data.jobId) {
+        setConciliacaoJobId(data.jobId);
+        setConciliacaoEmAndamento(true);
+        toast.info('Conciliação iniciada em background. Acompanhe o progresso...');
+      }
     },
     onError: (err) => toast.error(`Erro na conciliação: ${err.message}`),
   });
+
+  // Polling do status do job de conciliação
+  const { data: statusJob } = trpc.faturamentoUnificado.statusConciliacao.useQuery(
+    { jobId: conciliacaoJobId || '' },
+    {
+      enabled: !!conciliacaoJobId && conciliacaoEmAndamento,
+      refetchInterval: conciliacaoEmAndamento ? 3000 : false,
+    }
+  );
+
+  // Reagir ao status do job
+  useEffect(() => {
+    if (!statusJob || !conciliacaoEmAndamento) return;
+    
+    if (statusJob.status === 'concluido' && statusJob.resultado) {
+      setConciliacaoEmAndamento(false);
+      setResultadoConciliacao(statusJob.resultado);
+      setModalResultadoAberto(true);
+      const r = statusJob.resultado;
+      toast.success(`Conciliação concluída: ${r.totalConciliados} conciliados, ${r.totalDivergentes} divergentes, ${r.totalNaoRecebidos} glosados${r.totalTerceiros ? `, ${r.totalTerceiros} terceiros` : ''}`);
+      refetch();
+      refetchGuiasConciliadas();
+      refetchResumo();
+    } else if (statusJob.status === 'erro') {
+      setConciliacaoEmAndamento(false);
+      toast.error(`Erro na conciliação: ${statusJob.erro || 'Erro desconhecido'}`);
+    }
+  }, [statusJob?.status, statusJob?.resultado]);
 
   const resetarConc = trpc.faturamentoUnificado.resetarConciliacao.useMutation({
     onSuccess: (data) => {
@@ -560,10 +591,14 @@ export default function ConciliacaoCruzada() {
             <Button 
               className="bg-primary hover:bg-primary/90"
               onClick={executarConciliacaoAutomatica}
-              disabled={conciliarAuto.isPending}
+              disabled={conciliarAuto.isPending || conciliacaoEmAndamento}
             >
-              {conciliarAuto.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-              {conciliarAuto.isPending ? "Conciliando..." : "Conciliar Automaticamente"}
+              {(conciliarAuto.isPending || conciliacaoEmAndamento) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+              {conciliacaoEmAndamento && statusJob?.progresso 
+                ? `Conciliando ${statusJob.progresso.competenciaAtual || ''} (${statusJob.progresso.competenciasProcessadas}/${statusJob.progresso.competenciasTotal})...`
+                : conciliarAuto.isPending 
+                  ? "Iniciando..." 
+                  : "Conciliar Automaticamente"}
             </Button>
             <Button 
               variant="outline" 

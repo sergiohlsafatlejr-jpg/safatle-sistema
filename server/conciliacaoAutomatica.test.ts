@@ -14,7 +14,9 @@ import {
 } from "./faturamentoUnificadoService";
 
 /**
- * Sequência de queries quando competencia É fornecida:
+ * Sequência de queries na executarConciliacaoAutomatica:
+ * (O processamento em lotes por competência agora é feito pelo conciliacaoJobManager)
+ * 
  * 1. DELETE conciliados_automatico (PASSO 0.5)
  * 2. SELECT faturamento_unificado (PASSO 1)
  * 3. SELECT prestadores próprios (PASSO 1.5) - só se faturamento não vazio
@@ -22,11 +24,6 @@ import {
  * 5. SELECT vinculacao_codigos (PASSO 3) - só se faturamento não vazio
  * 6. INSERT conciliados_automatico (PASSO 6) - batches
  * 7. UPDATE faturamento_unificado (PASSO 7) - batches
- *
- * Sequência quando competencia NÃO é fornecida:
- * 1. SELECT DISTINCT competencia (batch check)
- * Se > 1 competência: chama recursivamente para cada uma
- * Se <= 1: segue fluxo normal (DELETE, SELECT fat, etc.)
  */
 
 describe("conciliacaoAutomatica", () => {
@@ -37,8 +34,6 @@ describe("conciliacaoAutomatica", () => {
 
   describe("executarConciliacaoAutomatica", () => {
     it("deve retornar resultado vazio quando nao ha itens de faturamento", async () => {
-      // Sem competencia: query competencias (retorna 1 só, não faz batch)
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE conciliações anteriores (PASSO 0.5)
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // SELECT faturamento retorna vazio
@@ -46,6 +41,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(0);
@@ -55,8 +51,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve conciliar itens com match exato por guia + codigo", async () => {
-      // Sem competencia: query competencias (retorna 1 só)
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE conciliações anteriores (PASSO 0.5)
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // SELECT faturamento
@@ -97,6 +91,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
@@ -107,8 +102,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve marcar como divergente quando valores sao diferentes", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento
@@ -148,18 +141,16 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
       expect(result.totalConciliados).toBe(0);
       // Item com glosa explícita e valor pago < faturado = glosado (não divergente)
-      // A lógica classifica como glosado quando valorGlosa > 0 e valorPago < valorFaturado
       expect(result.totalProcessados).toBe(1);
     });
 
     it("deve marcar como nao_recebido quando nao ha match", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento
@@ -187,6 +178,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
@@ -195,8 +187,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar match por codigo TUSS quando codigo direto nao encontra", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento com codigoItemTuss diferente do codigoItem
@@ -236,6 +226,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
@@ -244,8 +235,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar vinculacao de codigos (de-para) quando match direto falha", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento
@@ -291,6 +280,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
@@ -299,8 +289,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve usar match por paciente + codigo como fallback", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento - guia diferente do recebimento
@@ -340,6 +328,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(1);
@@ -348,8 +337,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve aceitar tolerancia percentual customizada", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento
@@ -387,19 +374,17 @@ describe("conciliacaoAutomatica", () => {
       // Vinculacao
       mockExecute.mockResolvedValueOnce([[]]);
 
-      // Com tolerancia de 5%, deve conciliar (glosa explícita mas dentro da tolerância)
+      // Com tolerancia de 5%, mas glosa explícita classifica como glosado
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
         toleranciaPercentual: 5,
       });
 
-      // Com glosa explícita (valorGlosa > 0 e valorPago < valorFaturado), classifica como glosado
       expect(result.totalProcessados).toBe(1);
     });
 
     it("deve processar multiplos itens em batch", async () => {
-      // Sem competencia: query competencias
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // Faturamento - 3 itens
@@ -420,6 +405,7 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
       });
 
       expect(result.totalProcessados).toBe(3);
@@ -430,7 +416,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve filtrar por competencia quando fornecida", async () => {
-      // Com competencia: NÃO faz query de competências, vai direto para DELETE
       // DELETE conciliações anteriores
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // SELECT faturamento retorna vazio
@@ -445,8 +430,6 @@ describe("conciliacaoAutomatica", () => {
     });
 
     it("deve filtrar por convenioId quando fornecido", async () => {
-      // Sem competencia: query competencias primeiro
-      mockExecute.mockResolvedValueOnce([[{ competencia: '2025-12' }]]);
       // DELETE conciliações anteriores
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // SELECT faturamento retorna vazio
@@ -454,7 +437,22 @@ describe("conciliacaoAutomatica", () => {
 
       const result = await executarConciliacaoAutomatica({
         estabelecimentoId: 1,
+        competencia: "2025-12",
         convenioId: 10,
+      });
+
+      expect(result.totalProcessados).toBe(0);
+    });
+
+    it("deve processar sem competencia (sem batch - agora feito pelo job manager)", async () => {
+      // Sem competencia: vai direto para DELETE + SELECT (sem batch)
+      // DELETE conciliações anteriores
+      mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
+      // SELECT faturamento retorna vazio
+      mockExecute.mockResolvedValueOnce([[]]);
+
+      const result = await executarConciliacaoAutomatica({
+        estabelecimentoId: 1,
       });
 
       expect(result.totalProcessados).toBe(0);
@@ -542,8 +540,6 @@ describe("glosarItens e reverterGlosa com divergentes", () => {
 
   it("glosarItens deve aceitar itens e retornar contagem de atualizados", async () => {
     const { glosarItens } = await import("./faturamentoUnificadoService");
-    // O mock precisa retornar [{ affectedRows: 3 }] para a primeira chamada
-    // E o default [[] ] para as demais
     mockExecute.mockReset();
     mockExecute.mockResolvedValueOnce([{ affectedRows: 3 }]);
 
@@ -622,5 +618,45 @@ describe("glosarItens e reverterGlosa com divergentes", () => {
     });
 
     expect(result.atualizados).toBe(0);
+  });
+});
+
+describe("conciliacaoJobManager", () => {
+  it("deve iniciar job e retornar jobId", async () => {
+    const { iniciarJobConciliacao, consultarJob } = await import("./conciliacaoJobManager");
+    
+    const jobId = iniciarJobConciliacao({
+      estabelecimentoId: 1,
+      competencia: "2025-12",
+    });
+
+    expect(jobId).toBeTruthy();
+    expect(typeof jobId).toBe("string");
+    expect(jobId.startsWith("conc_")).toBe(true);
+
+    const job = consultarJob(jobId);
+    expect(job).toBeTruthy();
+    expect(job!.params.estabelecimentoId).toBe(1);
+    expect(job!.params.competencia).toBe("2025-12");
+  });
+
+  it("deve detectar job em andamento para o mesmo estabelecimento", async () => {
+    const { iniciarJobConciliacao, jobEmAndamento } = await import("./conciliacaoJobManager");
+    
+    iniciarJobConciliacao({
+      estabelecimentoId: 99,
+      competencia: "2025-12",
+    });
+
+    const existente = jobEmAndamento(99);
+    expect(existente).toBeTruthy();
+    expect(existente!.params.estabelecimentoId).toBe(99);
+  });
+
+  it("deve retornar null para job inexistente", async () => {
+    const { consultarJob } = await import("./conciliacaoJobManager");
+    
+    const job = consultarJob("job_inexistente");
+    expect(job).toBeNull();
   });
 });

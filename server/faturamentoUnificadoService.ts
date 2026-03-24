@@ -841,63 +841,9 @@ export async function executarConciliacaoAutomatica(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // Se não há filtro de competência, processar em lotes por competência
-  // para evitar timeout com muitos itens (1M+ registros)
-  if (!params.competencia) {
-    const [compRows] = await db.execute(sql.raw(
-      `SELECT DISTINCT competencia FROM faturamento_unificado WHERE estabelecimentoId = ${params.estabelecimentoId} ORDER BY competencia`
-    ));
-    const competencias = (compRows as unknown as any[]).map((r: any) => r.competencia).filter(Boolean);
-    
-    if (competencias.length >= 1) {
-      // Processar cada competência separadamente e agregar resultados
-      const resultadoTotal: ConciliacaoResultado = {
-        totalProcessados: 0,
-        totalConciliados: 0,
-        totalDivergentes: 0,
-        totalNaoRecebidos: 0,
-        totalGlosados: 0,
-        totalTerceiros: 0,
-        totalJaConciliados: 0,
-        detalhes: {
-          conciliadosPorGuiaCodigo: 0,
-          conciliadosPorGuiaCodigoTuss: 0,
-          conciliadosPorVinculacao: 0,
-          conciliadosPorPacienteCodigo: 0,
-          conciliadosPorCarteiraCodigo: 0,
-        },
-        divergencias: [],
-      };
-      
-      for (const comp of competencias) {
-        try {
-          const parcial = await executarConciliacaoAutomatica({
-            ...params,
-            competencia: comp,
-          });
-          resultadoTotal.totalProcessados += parcial.totalProcessados;
-          resultadoTotal.totalConciliados += parcial.totalConciliados;
-          resultadoTotal.totalDivergentes += parcial.totalDivergentes;
-          resultadoTotal.totalNaoRecebidos += parcial.totalNaoRecebidos;
-          resultadoTotal.totalTerceiros += parcial.totalTerceiros;
-          resultadoTotal.totalJaConciliados += parcial.totalJaConciliados;
-          resultadoTotal.detalhes.conciliadosPorGuiaCodigo += parcial.detalhes.conciliadosPorGuiaCodigo;
-          resultadoTotal.detalhes.conciliadosPorGuiaCodigoTuss += parcial.detalhes.conciliadosPorGuiaCodigoTuss;
-          resultadoTotal.detalhes.conciliadosPorVinculacao += parcial.detalhes.conciliadosPorVinculacao;
-          resultadoTotal.detalhes.conciliadosPorPacienteCodigo += parcial.detalhes.conciliadosPorPacienteCodigo;
-          resultadoTotal.detalhes.conciliadosPorCarteiraCodigo += parcial.detalhes.conciliadosPorCarteiraCodigo;
-          resultadoTotal.divergencias.push(...parcial.divergencias.slice(0, 10));
-        } catch (err) {
-          console.error(`Erro ao conciliar competência ${comp}:`, err);
-          // Continua com as próximas competências
-        }
-      }
-      
-      // Limitar divergências totais
-      resultadoTotal.divergencias = resultadoTotal.divergencias.slice(0, 100);
-      return resultadoTotal;
-    }
-  }
+  // NOTA: O processamento em lotes por competência agora é feito pelo
+  // conciliacaoJobManager.ts (processamento assíncrono em background).
+  // Esta função processa UMA competência por vez.
 
   const tolerancia = params.toleranciaPercentual ?? 1; // 1% de tolerância por padrão
 
