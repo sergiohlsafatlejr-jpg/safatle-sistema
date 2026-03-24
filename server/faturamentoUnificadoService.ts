@@ -878,9 +878,23 @@ export async function executarConciliacaoAutomatica(params: {
   };
 
   // -------------------------------------------------------
-  // PASSO 1: Buscar itens pendentes do faturamento_unificado
+  // PASSO 0.5: Deletar conciliações anteriores para evitar duplicatas
   // -------------------------------------------------------
-  let whereFat = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId} AND fu.statusConciliacao = 'pendente'`;
+  let whereDelete = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia) {
+    whereDelete += ` AND competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
+  }
+  if (params.convenioId) {
+    whereDelete += ` AND convenioId = ${params.convenioId}`;
+  }
+  await db.execute(sql.raw(`DELETE FROM conciliados_automatico ${whereDelete}`));
+
+  // -------------------------------------------------------
+  // PASSO 1: Buscar itens do faturamento_unificado para conciliação
+  // Busca todos os itens (não apenas pendentes) pois a conciliação anterior
+  // foi deletada acima
+  // -------------------------------------------------------
+  let whereFat = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
     whereFat += ` AND fu.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
   }
@@ -1386,13 +1400,23 @@ export async function executarConciliacaoAutomatica(params: {
 
   // -------------------------------------------------------
   // PASSO 6: INSERT em batch na tabela conciliados_automatico
+  // (conciliações anteriores já foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
-  const BATCH_SIZE = 50; // Reduzido para evitar queries muito longas com muitas colunas
+  const BATCH_SIZE = 20;
+  const esc = (v: string | null | undefined) => {
+    if (v === null || v === undefined || v === '') return 'NULL';
+    // Sanitizar string: remover caracteres de controle, escapar backslash e aspas
+    const sanitized = String(v)
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // remover chars de controle
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "''")
+      .substring(0, 500); // limitar tamanho
+    return `'${sanitized}'`;
+  };
   for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
     const batch = inserts.slice(i, i + BATCH_SIZE);
 
     const values = batch.map(r => {
-      const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
       return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${esc((r as any).codigoPrestadorExecutante)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
     }).join(',\n');
 
@@ -1401,7 +1425,20 @@ export async function executarConciliacaoAutomatica(params: {
         (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, codigoPrestadorExecutante, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
       VALUES ${values}
     `;
-    await db.execute(sql.raw(insertQuery));
+    try {
+      await db.execute(sql.raw(insertQuery));
+    } catch (err: any) {
+      console.error(`[Conciliacao] Erro no batch ${i}-${i+BATCH_SIZE}: ${err.message?.substring(0, 200)}`);
+      // Tentar inserir um a um
+      for (const r of batch) {
+        try {
+          const singleValue = `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${esc((r as any).codigoPrestadorExecutante)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
+          await db.execute(sql.raw(`INSERT INTO conciliados_automatico (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, codigoPrestadorExecutante, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm) VALUES ${singleValue}`));
+        } catch (innerErr: any) {
+          console.error(`[Conciliacao] Erro individual id=${r.faturamentoUnificadoId}: ${innerErr.message?.substring(0, 100)}`);
+        }
+      }
+    }
   }
 
   // -------------------------------------------------------

@@ -3392,3 +3392,26 @@
 - [x] Exibir preview dos padrões encontrados antes de criar as regras
 - [x] Criar regras automaticamente com itens associados, quantidades e valores
 - [x] Testar geração e validar regras criadas
+
+## Popular Conta Convênio para todas as competências (07/2025 a 03/2026)
+- [ ] Identificar quais competências e convênios existem no staging
+- [ ] Popular contas_convenio_resumo e contas_convenio_itens para cada competência
+- [ ] Validar dados populados
+
+## Gerar Padrões de Cobrança com base completa (1.3M registros)
+- [ ] Executar análise de padrões com todos os dados do staging
+- [ ] Salvar padrões atualizados na tabela padroesCobranca
+
+## Executar Conciliação Cruzada para novas competências
+- [ ] Verificar quais competências têm dados na faturamento_unificado
+- [ ] Executar conciliação automática para cada competência
+- [ ] Validar resultados da conciliação
+
+## Correções na Conciliação Automática (Março 2026)
+- [x] Corrigir duplicatas na conciliados_automatico (200 registros duplicados em 2026/01)
+- [x] Adicionar DELETE de conciliações anteriores (PASSO 0.5) antes de re-processar
+- [x] Buscar todos os itens (não apenas pendentes) na re-execução da conciliação
+- [x] Melhorar sanitização de strings no INSERT (remover chars de controle, limitar tamanho)
+- [x] Atualizar testes unitários para refletir nova sequência de queries
+- [x] Limpar 600 registros duplicados do banco (2026/01)
+- [ ] 18 itens com pacienteNome NULL faltando na conciliados_automatico (serão processados na próxima execução)
