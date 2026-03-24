@@ -211,6 +211,38 @@ export async function popularDeTasy(
 }
 
 // ============================================================
+// CONTAGEM DE DADOS TASY STAGING (já populados via importação)
+// ============================================================
+
+/**
+ * Conta os dados TASY_STAGING já existentes na faturamento_unificado.
+ * Os dados do tasy_faturado_staging são importados diretamente para a
+ * faturamento_unificado via processo de importação, não precisam ser
+ * re-populados como Warleine ou XML_TISS.
+ */
+export async function contarTasyStaging(
+  estabelecimentoId: number,
+  competencia?: string
+): Promise<{ total: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const compFilter = competencia
+    ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`
+    : '';
+
+  const countQuery = `
+    SELECT COUNT(*) as total FROM faturamento_unificado 
+    WHERE origemSistema = 'TASY_STAGING' AND estabelecimentoId = ${estabelecimentoId}
+    ${compFilter}
+  `;
+  const [countResult] = await db.execute(sql.raw(countQuery));
+  const total = (countResult as any)?.[0]?.total || 0;
+
+  return { total: Number(total) };
+}
+
+// ============================================================
 // POPULAÇÃO A PARTIR DO XML TISS (faturamento_tiss)
 // ============================================================
 
@@ -316,21 +348,24 @@ export async function popularDeXmlTiss(
 // ============================================================
 
 /**
- * Popula faturamento_unificado a partir de ambas as fontes:
+ * Popula faturamento_unificado a partir de todas as fontes:
  * - WARLEINE (integ_faturado): dados do faturamento do hospital
  * - XML_TISS (faturamento_tiss): dados dos XMLs enviados aos convênios
+ * - TASY_STAGING: dados já importados do Tasy (apenas contagem, não re-popula)
  */
 export async function popularFaturamentoUnificado(
   estabelecimentoId: number,
   competencia?: string
-): Promise<{ warleine: { inseridos: number; total: number }; xmlTiss: { inseridos: number; total: number }; totalGeral: number }> {
+): Promise<{ warleine: { inseridos: number; total: number }; xmlTiss: { inseridos: number; total: number }; tasyStaging: { total: number }; totalGeral: number }> {
   const warleine = await popularDeIntegFaturado(estabelecimentoId, competencia);
   const xmlTiss = await popularDeXmlTiss(estabelecimentoId, competencia);
+  const tasyStaging = await contarTasyStaging(estabelecimentoId, competencia);
 
   return {
     warleine,
     xmlTiss,
-    totalGeral: warleine.total + xmlTiss.total,
+    tasyStaging,
+    totalGeral: warleine.total + xmlTiss.total + tasyStaging.total,
   };
 }
 
@@ -762,6 +797,7 @@ interface ConciliacaoResultado {
   totalDivergentes: number;
   totalNaoRecebidos: number;
   totalGlosados: number;
+  totalTerceiros: number;
   totalJaConciliados: number;
   detalhes: {
     conciliadosPorGuiaCodigo: number;
@@ -805,54 +841,9 @@ export async function executarConciliacaoAutomatica(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // Se não há filtro de competência, processar em lotes por competência
-  // para evitar timeout com muitos itens
-  if (!params.competencia) {
-    const [compRows] = await db.execute(sql.raw(
-      `SELECT DISTINCT competencia FROM faturamento_unificado WHERE estabelecimentoId = ${params.estabelecimentoId} AND statusConciliacao = 'pendente' ORDER BY competencia`
-    ));
-    const competencias = (compRows as unknown as any[]).map((r: any) => r.competencia).filter(Boolean);
-    
-    if (competencias.length > 1) {
-      // Processar cada competência separadamente e agregar resultados
-      const resultadoTotal: ConciliacaoResultado = {
-        totalProcessados: 0,
-        totalConciliados: 0,
-        totalDivergentes: 0,
-        totalNaoRecebidos: 0,
-        totalGlosados: 0,
-        totalJaConciliados: 0,
-        detalhes: {
-          conciliadosPorGuiaCodigo: 0,
-          conciliadosPorGuiaCodigoTuss: 0,
-          conciliadosPorVinculacao: 0,
-          conciliadosPorPacienteCodigo: 0,
-          conciliadosPorCarteiraCodigo: 0,
-        },
-        divergencias: [],
-      };
-      
-      for (const comp of competencias) {
-        const parcial = await executarConciliacaoAutomatica({
-          ...params,
-          competencia: comp,
-        });
-        resultadoTotal.totalProcessados += parcial.totalProcessados;
-        resultadoTotal.totalConciliados += parcial.totalConciliados;
-        resultadoTotal.totalDivergentes += parcial.totalDivergentes;
-        resultadoTotal.totalNaoRecebidos += parcial.totalNaoRecebidos;
-        resultadoTotal.totalJaConciliados += parcial.totalJaConciliados;
-        resultadoTotal.detalhes.conciliadosPorGuiaCodigo += parcial.detalhes.conciliadosPorGuiaCodigo;
-        resultadoTotal.detalhes.conciliadosPorGuiaCodigoTuss += parcial.detalhes.conciliadosPorGuiaCodigoTuss;
-        resultadoTotal.detalhes.conciliadosPorVinculacao += parcial.detalhes.conciliadosPorVinculacao;
-        resultadoTotal.detalhes.conciliadosPorPacienteCodigo += parcial.detalhes.conciliadosPorPacienteCodigo;
-        resultadoTotal.detalhes.conciliadosPorCarteiraCodigo += parcial.detalhes.conciliadosPorCarteiraCodigo;
-        resultadoTotal.divergencias.push(...parcial.divergencias.slice(0, 20)); // limitar divergências
-      }
-      
-      return resultadoTotal;
-    }
-  }
+  // NOTA: O processamento em lotes por competência agora é feito pelo
+  // conciliacaoJobManager.ts (processamento assíncrono em background).
+  // Esta função processa UMA competência por vez.
 
   const tolerancia = params.toleranciaPercentual ?? 1; // 1% de tolerância por padrão
 
@@ -862,6 +853,7 @@ export async function executarConciliacaoAutomatica(params: {
     totalDivergentes: 0,
     totalNaoRecebidos: 0,
     totalGlosados: 0,
+    totalTerceiros: 0,
     totalJaConciliados: 0,
     detalhes: {
       conciliadosPorGuiaCodigo: 0,
@@ -874,9 +866,23 @@ export async function executarConciliacaoAutomatica(params: {
   };
 
   // -------------------------------------------------------
-  // PASSO 1: Buscar itens pendentes do faturamento_unificado
+  // PASSO 0.5: Deletar conciliações anteriores para evitar duplicatas
   // -------------------------------------------------------
-  let whereFat = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId} AND fu.statusConciliacao = 'pendente'`;
+  let whereDelete = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia) {
+    whereDelete += ` AND competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
+  }
+  if (params.convenioId) {
+    whereDelete += ` AND convenioId = ${params.convenioId}`;
+  }
+  await db.execute(sql.raw(`DELETE FROM conciliados_automatico ${whereDelete}`));
+
+  // -------------------------------------------------------
+  // PASSO 1: Buscar itens do faturamento_unificado para conciliação
+  // Busca todos os itens (não apenas pendentes) pois a conciliação anterior
+  // foi deletada acima
+  // -------------------------------------------------------
+  let whereFat = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
     whereFat += ` AND fu.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
   }
@@ -904,6 +910,17 @@ export async function executarConciliacaoAutomatica(params: {
   if (itensFaturamento.length === 0) {
     return resultado;
   }
+
+  // -------------------------------------------------------
+  // PASSO 1.5: Buscar códigos de prestadores PRÓPRIOS cadastrados
+  // Itens cujo codigoPrestadorExecutante NÃO está entre os próprios
+  // são considerados terceiros e não devem ser glosados
+  // -------------------------------------------------------
+  const [propriosRows] = await db.execute(sql.raw(
+    `SELECT DISTINCT codigoPrestador FROM convenioEstabelecimentoPrestador 
+     WHERE estabelecimentoId = ${params.estabelecimentoId} AND tipoPrestador = 'proprio' AND ativo = 'sim'`
+  ));
+  const codigosProprios = new Set((propriosRows as unknown as any[]).map(r => String(r.codigoPrestador)));
 
   // -------------------------------------------------------
   // PASSO 2: Buscar recebimentos_excel do mesmo estabelecimento/convênio
@@ -1169,9 +1186,41 @@ export async function executarConciliacaoAutomatica(params: {
         case 'carteira_codigo': resultado.detalhes.conciliadosPorCarteiraCodigo++; break;
       }
     } else {
-      // Não encontrou match no demonstrativo: considerar como glosado automaticamente com motivo 5007
-      inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: valorFaturado, statusConciliacao: 'glosado', metodoConciliacao: null, diferenca: valorFaturado, percentualDiferenca: 100, codigoGlosa: '5007' });
-      resultado.totalNaoRecebidos++;
+      // Não encontrou match no demonstrativo
+      // Verificar se o item é de um prestador terceiro
+      // Terceiro = código do prestador executante NÃO está entre os códigos próprios cadastrados
+      // OU código é NULL mas outros itens da mesma guia têm código próprio (indica que este item é de terceiro)
+      const codPrestExec = baseInsert.codigoPrestadorExecutante;
+      let isTerceiro = false;
+      if (codigosProprios.size > 0) {
+        if (codPrestExec && !codigosProprios.has(codPrestExec)) {
+          // Código preenchido e NÃO é próprio → terceiro
+          isTerceiro = true;
+        } else if (!codPrestExec) {
+          // Código NULL: verificar se outros itens da mesma guia têm código próprio
+          // Se sim, este item provavelmente é de um médico terceiro cujo código não foi extraído
+          const mesmaGuia = itensFaturamento.filter((f: any) => 
+            String(f.numeroGuia) === String(baseInsert.numeroGuia)
+          );
+          const temProprioNaGuia = mesmaGuia.some((f: any) => {
+            const cod = f.codigoPrestadorExecutante ? String(f.codigoPrestadorExecutante) : null;
+            return cod && codigosProprios.has(cod);
+          });
+          if (temProprioNaGuia) {
+            isTerceiro = true;
+          }
+        }
+      }
+      
+      if (isTerceiro) {
+        // Item de terceiro: convênio paga diretamente ao terceiro, não é glosa
+        inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: 0, statusConciliacao: 'terceiro', metodoConciliacao: null, diferenca: 0, percentualDiferenca: 0, codigoGlosa: null });
+        resultado.totalTerceiros = (resultado.totalTerceiros || 0) + 1;
+      } else {
+        // Item próprio sem match: considerar como glosado automaticamente com motivo 5007
+        inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: valorFaturado, statusConciliacao: 'glosado', metodoConciliacao: null, diferenca: valorFaturado, percentualDiferenca: 100, codigoGlosa: '5007' });
+        resultado.totalNaoRecebidos++;
+      }
     }
   }
 
@@ -1338,49 +1387,80 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // PASSO 6: INSERT em batch na tabela conciliados_automatico
+  // PASSO 6: INSERT em MEGA-BATCH na tabela conciliados_automatico
+  // Usa batches de 5000 para minimizar roundtrips ao banco
+  // (conciliações anteriores já foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
-  const BATCH_SIZE = 50; // Reduzido para evitar queries muito longas com muitas colunas
-  for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
-    const batch = inserts.slice(i, i + BATCH_SIZE);
+  const MEGA_BATCH = 5000;
+  const esc = (v: string | null | undefined) => {
+    if (v === null || v === undefined || v === '') return 'NULL';
+    const sanitized = String(v)
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "''")
+      .substring(0, 500);
+    return `'${sanitized}'`;
+  };
 
-    const values = batch.map(r => {
-      const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}'` : 'NULL';
-      return `(${r.faturamentoUnificadoId}, ${params.estabelecimentoId}, ${esc(r.contaNumero)}, ${esc(r.numeroGuia)}, ${esc(r.pacienteNome)}, ${esc(r.convenio)}, ${r.convenioId ?? 'NULL'}, ${esc(r.competencia)}, ${esc(r.codigoItem)}, ${esc(r.codigoItemTuss)}, ${esc(r.descricaoItem)}, ${esc(r.tipoItem)}, ${esc(r.origemSistema)}, ${esc(r.dataExecucao)}, ${esc((r as any).codigoPrestadorExecutante)}, ${r.valorFaturado}, ${r.quantidade}, ${r.recebimentoId ?? 'NULL'}, ${r.recebimentoOrigem ? esc(r.recebimentoOrigem) : 'NULL'}, ${r.valorPago}, ${r.valorGlosa}, ${esc(r.codigoGlosa)}, ${esc(r.motivoGlosa)}, ${esc(r.statusConciliacao)}, ${r.metodoConciliacao ? esc(r.metodoConciliacao) : 'NULL'}, ${r.diferenca}, ${r.percentualDiferenca}, ${tolerancia}, NOW())`;
-    }).join(',\n');
+  const toRow = (r: typeof inserts[0]) =>
+    `(${r.faturamentoUnificadoId},${params.estabelecimentoId},${esc(r.contaNumero)},${esc(r.numeroGuia)},${esc(r.pacienteNome)},${esc(r.convenio)},${r.convenioId??'NULL'},${esc(r.competencia)},${esc(r.codigoItem)},${esc(r.codigoItemTuss)},${esc(r.descricaoItem)},${esc(r.tipoItem)},${esc(r.origemSistema)},${esc(r.dataExecucao)},${esc((r as any).codigoPrestadorExecutante)},${r.valorFaturado},${r.quantidade},${r.recebimentoId??'NULL'},${r.recebimentoOrigem?esc(r.recebimentoOrigem):'NULL'},${r.valorPago},${r.valorGlosa},${esc(r.codigoGlosa)},${esc(r.motivoGlosa)},${esc(r.statusConciliacao)},${r.metodoConciliacao?esc(r.metodoConciliacao):'NULL'},${r.diferenca},${r.percentualDiferenca},${tolerancia},NOW())`;
 
-    const insertQuery = `
-      INSERT INTO conciliados_automatico 
-        (faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia, pacienteNome, convenio, convenioId, competencia, codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema, dataExecucao, codigoPrestadorExecutante, valorFaturado, quantidade, recebimentoId, recebimentoOrigem, valorPago, valorGlosa, codigoGlosa, motivoGlosa, statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, toleranciaUsada, criadoEm)
-      VALUES ${values}
-    `;
-    await db.execute(sql.raw(insertQuery));
+  const INSERT_COLS = `(faturamentoUnificadoId,estabelecimentoId,contaNumero,numeroGuia,pacienteNome,convenio,convenioId,competencia,codigoItem,codigoItemTuss,descricaoItem,tipoItem,origemSistema,dataExecucao,codigoPrestadorExecutante,valorFaturado,quantidade,recebimentoId,recebimentoOrigem,valorPago,valorGlosa,codigoGlosa,motivoGlosa,statusConciliacao,metodoConciliacao,diferenca,percentualDiferenca,toleranciaUsada,criadoEm)`;
+
+  console.log(`[Conciliacao] Inserindo ${inserts.length} registros em batches de ${MEGA_BATCH}...`);
+  const t0 = Date.now();
+
+  for (let i = 0; i < inserts.length; i += MEGA_BATCH) {
+    const batch = inserts.slice(i, i + MEGA_BATCH);
+    const values = batch.map(toRow).join(',');
+    try {
+      await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${values}`));
+    } catch (err: any) {
+      console.error(`[Conciliacao] Erro mega-batch ${i}: ${err.message?.substring(0, 200)}. Tentando sub-batches...`);
+      // Fallback: sub-batches de 500
+      for (let j = 0; j < batch.length; j += 500) {
+        const sub = batch.slice(j, j + 500);
+        try {
+          await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${sub.map(toRow).join(',')}`));
+        } catch (subErr: any) {
+          console.error(`[Conciliacao] Erro sub-batch ${i+j}: ${subErr.message?.substring(0, 100)}`);
+          // Último recurso: um a um
+          for (const r of sub) {
+            try {
+              await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${toRow(r)}`));
+            } catch (e: any) {
+              console.error(`[Conciliacao] Erro id=${r.faturamentoUnificadoId}: ${e.message?.substring(0, 80)}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  console.log(`[Conciliacao] INSERT concluído em ${((Date.now()-t0)/1000).toFixed(1)}s`);
+
+  // -------------------------------------------------------
+  // PASSO 7: UPDATE em massa do statusConciliacao no faturamento_unificado
+  // Agrupa TODOS os IDs por status e faz 1 UPDATE por status (max ~5 queries)
+  // -------------------------------------------------------
+  const t1 = Date.now();
+  const porStatus = new Map<string, number[]>();
+  for (const ins of inserts) {
+    const st = ins.statusConciliacao;
+    if (!porStatus.has(st)) porStatus.set(st, []);
+    porStatus.get(st)!.push(ins.faturamentoUnificadoId);
   }
 
-  // -------------------------------------------------------
-  // PASSO 7: Atualizar statusConciliacao no faturamento_unificado
-  // Para que os itens já processados não sejam re-processados
-  // -------------------------------------------------------
-  const UPDATE_BATCH_SIZE = 500;
-  for (let i = 0; i < inserts.length; i += UPDATE_BATCH_SIZE) {
-    const batch = inserts.slice(i, i + UPDATE_BATCH_SIZE);
-    
-    // Agrupar por status para fazer UPDATEs mais eficientes
-    const porStatus = new Map<string, number[]>();
-    for (const ins of batch) {
-      const status = ins.statusConciliacao;
-      if (!porStatus.has(status)) porStatus.set(status, []);
-      porStatus.get(status)!.push(ins.faturamentoUnificadoId);
-    }
-    
-    for (const [status, ids] of porStatus) {
-      if (ids.length === 0) continue;
-      const idsStr = ids.join(',');
+  for (const [status, ids] of porStatus) {
+    if (ids.length === 0) continue;
+    // Processar em chunks de 10000 IDs para evitar query muito longa
+    for (let i = 0; i < ids.length; i += 10000) {
+      const chunk = ids.slice(i, i + 10000);
       await db.execute(sql.raw(
-        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${idsStr})`
+        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${chunk.join(',')})`
       ));
     }
   }
+  console.log(`[Conciliacao] UPDATE concluído em ${((Date.now()-t1)/1000).toFixed(1)}s`);
 
   return resultado;
 }
@@ -1510,6 +1590,7 @@ export async function resumoConciliadosAutomatico(params: {
   totalConciliados: number;
   totalDivergentes: number;
   totalNaoRecebidos: number;
+  totalTerceiros: number;
   valorTotalFaturado: number;
   valorTotalPago: number;
   valorTotalGlosa: number;
@@ -1546,6 +1627,7 @@ export async function resumoConciliadosAutomatico(params: {
     totalConciliados: 0,
     totalDivergentes: 0,
     totalNaoRecebidos: 0,
+    totalTerceiros: 0,
     valorTotalFaturado: 0,
     valorTotalPago: 0,
     valorTotalGlosa: 0,
@@ -1568,6 +1650,7 @@ export async function resumoConciliadosAutomatico(params: {
       case 'conciliado': resumo.totalConciliados = count; break;
       case 'divergente': resumo.totalDivergentes = count; break;
       case 'nao_recebido': resumo.totalNaoRecebidos = count; break;
+      case 'terceiro': resumo.totalTerceiros = count; break;
     }
   }
 
@@ -1699,15 +1782,19 @@ export async function resumoConciliadosPorGuia(params: {
       -- Lote e Protocolo do Retorno (demonstrativo) via subquery
       (SELECT d.lote_prestador FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as loteRetorno,
       (SELECT d.protocolo FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as protocoloRetorno,
-      -- Status da guia: se tem algum divergente=divergente, se tem algum nao_recebido=nao_recebido, senão=conciliado
+      -- Status da guia: prioridade: divergente > glosado > nao_recebido > terceiro > conciliado
       CASE
         WHEN SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
+        WHEN SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN 1 ELSE 0 END) > 0 THEN 'glosado'
         WHEN SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
+        WHEN SUM(CASE WHEN ca.statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN ca.statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) = 0 THEN 'terceiro'
         ELSE 'conciliado'
       END as statusGuia,
       SUM(CASE WHEN ca.statusConciliacao = 'conciliado' THEN 1 ELSE 0 END) as itensConciliados,
       SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) as itensDivergentes,
       SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) as itensNaoRecebidos,
+      SUM(CASE WHEN ca.statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) as itensTerceiros,
+      SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN 1 ELSE 0 END) as itensGlosados,
       SUM(CASE WHEN ca.metodoConciliacao = 'agrupamento' THEN 1 ELSE 0 END) as itensAgrupados,
       COUNT(DISTINCT ca.contaNumero) as totalContas,
       MAX(ca.codigoPrestadorExecutante) as codigoPrestadorExecutante

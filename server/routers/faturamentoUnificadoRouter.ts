@@ -7,6 +7,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as faturamentoService from "../faturamentoUnificadoService";
 import * as xmlRecursoService from "../xmlRecursoService";
+import { iniciarJobConciliacao, consultarJob, jobEmAndamento } from "../conciliacaoJobManager";
 import { convenioEstabelecimentoPrestador } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
@@ -192,8 +193,8 @@ export const faturamentoUnificadoRouter = router({
     }),
 
   /**
-   * Executar conciliacao automatica
-   * Cruza faturamento_unificado com recebimentos_excel
+   * Executar conciliacao automatica (assíncrono)
+   * Dispara job em background e retorna jobId para polling
    */
   conciliarAutomaticamente: protectedProcedure
     .input(z.object({
@@ -203,7 +204,35 @@ export const faturamentoUnificadoRouter = router({
       toleranciaPercentual: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      return await faturamentoService.executarConciliacaoAutomatica(input);
+      // Verificar se já há um job em andamento
+      const existente = jobEmAndamento(input.estabelecimentoId);
+      if (existente) {
+        return { jobId: existente.id, mensagem: 'Conciliação já em andamento' };
+      }
+      const jobId = iniciarJobConciliacao(input);
+      return { jobId, mensagem: 'Conciliação iniciada em background' };
+    }),
+
+  /**
+   * Consultar status do job de conciliação
+   */
+  statusConciliacao: protectedProcedure
+    .input(z.object({
+      jobId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const job = consultarJob(input.jobId);
+      if (!job) {
+        return { status: 'nao_encontrado' as const, progresso: null, resultado: null, erro: 'Job não encontrado' };
+      }
+      return {
+        status: job.status,
+        progresso: job.progresso,
+        resultado: job.resultado,
+        erro: job.erro,
+        iniciadoEm: job.iniciadoEm,
+        finalizadoEm: job.finalizadoEm,
+      };
     }),
 
   /**
@@ -454,11 +483,15 @@ export const faturamentoUnificadoRouter = router({
         .select({
           codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador,
           convenioId: convenioEstabelecimentoPrestador.convenioId,
+          tipoPrestador: convenioEstabelecimentoPrestador.tipoPrestador,
         })
         .from(convenioEstabelecimentoPrestador)
         .where(eq(convenioEstabelecimentoPrestador.estabelecimentoId, input.estabelecimentoId));
-      // Retornar lista única de códigos
+      // Retornar lista única de códigos próprios (não terceiros)
+      const codigosProprios = [...new Set(result.filter((r: any) => r.tipoPrestador === 'proprio').map((r: any) => r.codigoPrestador))];
+      const codigosTerceiros = [...new Set(result.filter((r: any) => r.tipoPrestador === 'terceiro').map((r: any) => r.codigoPrestador))];
+      // 'codigos' mantém compatibilidade retroativa (todos os códigos cadastrados)
       const codigos = [...new Set(result.map((r: any) => r.codigoPrestador))];
-      return { codigos, detalhes: result };
+      return { codigos, codigosProprios, codigosTerceiros, detalhes: result };
     }),
 });

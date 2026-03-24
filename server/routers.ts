@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, trackedProtectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { storagePut, storageGet } from "./storage";
 import { parseFile } from "./parsers";
@@ -458,14 +459,59 @@ export const appRouter = router({
             ? estabelecimentosEncontrados[0]
             : null;
           
+          // Identificar prestadores não cadastrados
+          const prestadoresNaoCadastrados = codigosPrestadores.filter(
+            codigo => !estabelecimentosEncontrados.find(e => e.codigoPrestador === codigo)
+          );
+          
+          // Cadastrar automaticamente prestadores não cadastrados como "terceiros"
+          // Usa o mesmo convênio e estabelecimento do prestador principal detectado
+          const prestadoresCadastradosAuto: string[] = [];
+          if (prestadoresNaoCadastrados.length > 0 && estabelecimentoSugerido && input.convenioId) {
+            const { convenioEstabelecimentoPrestador } = await import("../drizzle/schema");
+            const { getDb } = await import("./db");
+            const drizzleDb = await getDb();
+            if (!drizzleDb) throw new Error("Database não disponível");
+            
+            for (const codigo of prestadoresNaoCadastrados) {
+              try {
+                // Verificar se já não existe (pode ter sido cadastrado entre a detecção e agora)
+                const existente = await drizzleDb.select()
+                  .from(convenioEstabelecimentoPrestador)
+                  .where(
+                    and(
+                      eq(convenioEstabelecimentoPrestador.codigoPrestador, codigo),
+                      eq(convenioEstabelecimentoPrestador.convenioId, input.convenioId),
+                      eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentoSugerido.estabelecimentoId)
+                    )
+                  )
+                  .limit(1);
+                
+                if (existente.length === 0) {
+                  await drizzleDb.insert(convenioEstabelecimentoPrestador).values({
+                    convenioId: input.convenioId,
+                    estabelecimentoId: estabelecimentoSugerido.estabelecimentoId,
+                    codigoPrestador: codigo,
+                    nomePrestador: `Terceiro - ${codigo}`,
+                    tipoPrestador: "terceiro",
+                    ativo: "sim",
+                  });
+                  prestadoresCadastradosAuto.push(codigo);
+                  console.log(`[detectarPrestadores] Prestador terceiro cadastrado automaticamente: ${codigo} (conv: ${input.convenioId}, estab: ${estabelecimentoSugerido.estabelecimentoId})`);
+                }
+              } catch (err) {
+                console.error(`[detectarPrestadores] Erro ao cadastrar prestador ${codigo}:`, err);
+              }
+            }
+          }
+          
           return {
             success: true,
             codigosPrestadores,
             estabelecimentosEncontrados,
             estabelecimentoSugerido,
-            prestadoresNaoCadastrados: codigosPrestadores.filter(
-              codigo => !estabelecimentosEncontrados.find(e => e.codigoPrestador === codigo)
-            ),
+            prestadoresNaoCadastrados,
+            prestadoresCadastradosAuto,
           };
         } catch (error) {
           console.error("[detectarPrestadores] Erro:", error);
@@ -545,6 +591,65 @@ export const appRouter = router({
           
           // Excluir faturamento_tiss antigo (para reimportação de XML enviado)
           await db.deleteFaturamentoTissByArquivo(arquivoId);
+          
+          // Excluir contas_convenio_itens antigos deste arquivo
+          try {
+            const { contasConvenioItens: cciTable, contasConvenioResumo: ccrTable } = await import('../drizzle/schema');
+            const { eq, and } = await import('drizzle-orm');
+            const dbReimport = await getDb();
+            if (dbReimport) {
+              // Buscar guias afetadas antes de deletar
+              const guiasAfetadas = await dbReimport.selectDistinct({ 
+                numeroConta: cciTable.numeroConta,
+                estabelecimentoId: cciTable.estabelecimentoId 
+              }).from(cciTable).where(
+                eq(cciTable.arquivoId, arquivoId)
+              );
+              
+              // Deletar itens do arquivo
+              await dbReimport.delete(cciTable).where(
+                eq(cciTable.arquivoId, arquivoId)
+              );
+              
+              // Recalcular resumos das guias afetadas
+              for (const guia of guiasAfetadas) {
+                const itensRestantes = await dbReimport.select().from(cciTable).where(
+                  and(
+                    eq(cciTable.numeroConta, guia.numeroConta),
+                    eq(cciTable.estabelecimentoId, guia.estabelecimentoId),
+                  )
+                );
+                
+                if (itensRestantes.length === 0) {
+                  await dbReimport.delete(ccrTable).where(
+                    and(
+                      eq(ccrTable.numeroConta, guia.numeroConta),
+                      eq(ccrTable.estabelecimentoId, guia.estabelecimentoId),
+                    )
+                  );
+                } else {
+                  let valorTotal = 0;
+                  for (const item of itensRestantes) {
+                    valorTotal += parseFloat(String(item.valorTotal || 0));
+                  }
+                  await dbReimport.update(ccrTable)
+                    .set({
+                      totalItens: itensRestantes.length,
+                      valorTotal: String(valorTotal.toFixed(2)),
+                    })
+                    .where(
+                      and(
+                        eq(ccrTable.numeroConta, guia.numeroConta),
+                        eq(ccrTable.estabelecimentoId, guia.estabelecimentoId),
+                      )
+                    );
+                }
+              }
+              console.log(`[Reimport] contas_convenio limpo para ${guiasAfetadas.length} guias do arquivo ${arquivoId}`);
+            }
+          } catch (ccErr) {
+            console.error('[Reimport] Erro ao limpar contas_convenio:', ccErr);
+          }
           
           // Atualizar registro do arquivo
           await db.updateArquivo(arquivoId, {
@@ -725,6 +830,10 @@ export const appRouter = router({
                         arquivoId: arquivoId,
                         convenioId: input.convenioId,
                         dataReferencia: dataReferenciaUpload || undefined,
+                        // Competência no formato AAAA/MM derivada da dataReferencia do upload
+                        competencia: dataReferenciaUpload 
+                          ? `${dataReferenciaUpload.getUTCFullYear()}/${String(dataReferenciaUpload.getUTCMonth() + 1).padStart(2, '0')}`
+                          : undefined,
                       });
                     }
                   }
@@ -1186,8 +1295,7 @@ export const appRouter = router({
         if (arquivo.userId !== ctx.user.id && ctx.user.role !== 'admin') {
           throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para excluir este arquivo" });
         }
-        
-        // Delete associated faturamento_tiss
+               // Delete associated faturamento_tiss
         await db.deleteFaturamentoTissByArquivo(input.id);
         
         // Delete associated recebimento_tiss (XML retornados)
@@ -1199,11 +1307,71 @@ export const appRouter = router({
         // Delete associated demonstrativo entries
         const demo = await db.deleteDemonstrativoByArquivo(input.id);
         
+        // Delete associated contas_convenio_itens
+        try {
+          const { contasConvenioItens, contasConvenioResumo } = await import('../drizzle/schema');
+          const { eq, and, sql: sqlDrizzle } = await import('drizzle-orm');
+          const dbCC = await getDb();
+          if (dbCC) {
+            // Buscar guias afetadas antes de deletar para recalcular resumos
+            const guiasAfetadas = await dbCC.selectDistinct({ 
+              numeroConta: contasConvenioItens.numeroConta,
+              estabelecimentoId: contasConvenioItens.estabelecimentoId 
+            }).from(contasConvenioItens).where(
+              eq(contasConvenioItens.arquivoId, input.id)
+            );
+            
+            // Deletar itens do arquivo
+            await dbCC.delete(contasConvenioItens).where(
+              eq(contasConvenioItens.arquivoId, input.id)
+            );
+            
+            // Recalcular resumos das guias afetadas
+            for (const guia of guiasAfetadas) {
+              const itensRestantes = await dbCC.select().from(contasConvenioItens).where(
+                and(
+                  eq(contasConvenioItens.numeroConta, guia.numeroConta),
+                  eq(contasConvenioItens.estabelecimentoId, guia.estabelecimentoId),
+                )
+              );
+              
+              if (itensRestantes.length === 0) {
+                // Sem itens restantes: deletar resumo
+                await dbCC.delete(contasConvenioResumo).where(
+                  and(
+                    eq(contasConvenioResumo.numeroConta, guia.numeroConta),
+                    eq(contasConvenioResumo.estabelecimentoId, guia.estabelecimentoId),
+                  )
+                );
+              } else {
+                // Recalcular totais
+                let valorTotal = 0;
+                for (const item of itensRestantes) {
+                  valorTotal += parseFloat(String(item.valorTotal || 0));
+                }
+                await dbCC.update(contasConvenioResumo)
+                  .set({
+                    totalItens: itensRestantes.length,
+                    valorTotal: String(valorTotal.toFixed(2)),
+                  })
+                  .where(
+                    and(
+                      eq(contasConvenioResumo.numeroConta, guia.numeroConta),
+                      eq(contasConvenioResumo.estabelecimentoId, guia.estabelecimentoId),
+                    )
+                  );
+              }
+            }
+            console.log(`[Arquivo Delete] contas_convenio limpo para ${guiasAfetadas.length} guias`);
+          }
+        } catch (ccError) {
+          console.error('[Arquivo Delete] Erro ao limpar contas_convenio:', ccError);
+        }
+        
         // Delete the arquivo record itself
         await db.deleteArquivo(input.id);
         
-        console.log(`[Arquivo Delete] Arquivo ${input.id} (${arquivo.nome}) excluído em cascata: recebimentoTiss=${recTiss}, recebimentosExcel=${recExcel}, demonstrativo=${demo}`);
-        
+        console.log(`[Arquivo Delete] Arquivo ${input.id} (${arquivo.nome}) exclu\u00eddo em cascata: recebimentoTiss=${recTiss}, recebimentosExcel=${recExcel}, demonstrativo=${demo}`);      
         return { success: true };
       }),
 
@@ -1349,6 +1517,35 @@ export const appRouter = router({
             // === REPROCESSAR ARQUIVO DE ENVIO (fluxo original) ===
             await db.deleteFaturamentoTissByArquivo(input.id);
             
+            // Limpar contas_convenio_itens do arquivo
+            try {
+              const { contasConvenioItens: cciR, contasConvenioResumo: ccrR } = await import('../drizzle/schema');
+              const { eq, and } = await import('drizzle-orm');
+              const dbReproc = await getDb();
+              if (dbReproc) {
+                const guiasAf = await dbReproc.selectDistinct({ 
+                  numeroConta: cciR.numeroConta, estabelecimentoId: cciR.estabelecimentoId 
+                }).from(cciR).where(eq(cciR.arquivoId, input.id));
+                await dbReproc.delete(cciR).where(eq(cciR.arquivoId, input.id));
+                for (const g of guiasAf) {
+                  const rest = await dbReproc.select().from(cciR).where(
+                    and(eq(cciR.numeroConta, g.numeroConta), eq(cciR.estabelecimentoId, g.estabelecimentoId))
+                  );
+                  if (rest.length === 0) {
+                    await dbReproc.delete(ccrR).where(
+                      and(eq(ccrR.numeroConta, g.numeroConta), eq(ccrR.estabelecimentoId, g.estabelecimentoId))
+                    );
+                  } else {
+                    let vt = 0;
+                    for (const i of rest) vt += parseFloat(String(i.valorTotal || 0));
+                    await dbReproc.update(ccrR).set({ totalItens: rest.length, valorTotal: String(vt.toFixed(2)) })
+                      .where(and(eq(ccrR.numeroConta, g.numeroConta), eq(ccrR.estabelecimentoId, g.estabelecimentoId)));
+                  }
+                }
+                console.log(`[Reprocessar] contas_convenio limpo para ${guiasAf.length} guias`);
+              }
+            } catch (e) { console.error('[Reprocessar] Erro contas_convenio:', e); }
+            
             console.log('[Reprocessar] Parsing file:', arquivo.nome);
             const parseResult = await parseFile(buffer, arquivo.nome);
             
@@ -1382,6 +1579,10 @@ export const appRouter = router({
                 arquivoId: input.id,
                 convenioId: arquivo.convenioId,
                 dataReferencia: arquivo.dataReferencia || undefined,
+                // Competência no formato AAAA/MM derivada da dataReferencia do arquivo
+                competencia: arquivo.dataReferencia 
+                  ? `${new Date(arquivo.dataReferencia).getUTCFullYear()}/${String(new Date(arquivo.dataReferencia).getUTCMonth() + 1).padStart(2, '0')}`
+                  : undefined,
               }));
               
               await db.insertFaturamentoTissBatch(faturamentoRecords);
@@ -3708,6 +3909,139 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return db.removeItemRegraNegocio(input.id);
+      }),
+
+    // Preview dos padrões Tasy para gerar regras
+    previewPadroesTasy: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+        frequenciaMinima: z.number().default(10),
+      }))
+      .query(async ({ input }) => {
+        const { analisarPadroesCobrancaTasy } = await import("./db");
+        const analise = await analisarPadroesCobrancaTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          competencia: input.competencia,
+        });
+
+        // Filtrar padrões com frequência mínima e que tenham itens associados
+        const padroesElegiveis = analise.padroesComposicao
+          .filter(p => p.frequenciaPercentual >= input.frequenciaMinima && p.itensAssociados.length > 0)
+          .map(p => ({
+            codigoProcedimento: p.codigoProcedimento,
+            descricao: p.descricao,
+            tipo: p.tipo,
+            frequenciaPercentual: p.frequenciaPercentual,
+            totalOcorrencias: p.totalOcorrencias,
+            contasComItem: p.contasComItem,
+            quantidadeMedia: p.quantidadeMedia,
+            quantidadeMin: p.quantidadeMin,
+            quantidadeMax: p.quantidadeMax,
+            valorUnitarioMedio: p.valorUnitarioMedio,
+            valorTotalMedio: p.valorTotalMedio,
+            itensAssociados: p.itensAssociados
+              .filter(a => a.frequencia >= input.frequenciaMinima)
+              .map(a => ({
+                codigo: a.codigo,
+                descricao: a.descricao,
+                tipo: a.tipo,
+                frequencia: a.frequencia,
+                quantidadeMedia: a.quantidadeMedia,
+                valorUnitarioMedio: a.valorUnitarioMedio,
+              })),
+          }))
+          .filter(p => p.itensAssociados.length > 0);
+
+        return {
+          padroesElegiveis,
+          totalContas: analise.totalContas,
+          totalItens: analise.totalItens,
+          totalPadroes: padroesElegiveis.length,
+        };
+      }),
+
+    // Gerar regras de negócio a partir dos padrões Tasy
+    gerarRegrasDosPadroesTasy: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        convenioId: z.number().optional(),
+        competencia: z.string().optional(),
+        frequenciaMinima: z.number().default(10),
+        padroesSelecionados: z.array(z.string()).optional(), // códigos dos procedimentos a incluir
+      }))
+      .mutation(async ({ input }) => {
+        const { analisarPadroesCobrancaTasy } = await import("./db");
+        const analise = await analisarPadroesCobrancaTasy({
+          estabelecimentoId: input.estabelecimentoId,
+          convenioId: input.convenioId,
+          competencia: input.competencia,
+        });
+
+        const padroesElegiveis = analise.padroesComposicao
+          .filter(p => p.frequenciaPercentual >= input.frequenciaMinima && p.itensAssociados.length > 0)
+          .filter(p => !input.padroesSelecionados || input.padroesSelecionados.includes(p.codigoProcedimento))
+          .filter(p => p.itensAssociados.filter(a => a.frequencia >= input.frequenciaMinima).length > 0);
+
+        let criadas = 0;
+        let itensAdicionados = 0;
+
+        const mapTipoItem = (tipo: string): "procedimento" | "taxa" | "material" | "medicamento" | "diaria" | "outros" => {
+          const t = tipo.toUpperCase();
+          if (t.includes('PROC') || t === 'P' || t === 'C' || t === 'O' || t === '01') return 'procedimento';
+          if (t.includes('TAXA')) return 'taxa';
+          if (t.includes('MAT')) return 'material';
+          if (t.includes('MED') || t.includes('MEDICAMENTO')) return 'medicamento';
+          if (t.includes('DIAR')) return 'diaria';
+          return 'outros';
+        };
+
+        for (const padrao of padroesElegiveis) {
+          const itensAssociadosFiltrados = padrao.itensAssociados
+            .filter(a => a.frequencia >= input.frequenciaMinima);
+
+          if (itensAssociadosFiltrados.length === 0) continue;
+
+          // Criar a regra
+          const regraId = await db.createRegraNegocio({
+            convenioId: input.convenioId || null,
+            estabelecimentoId: input.estabelecimentoId,
+            nome: `Padrão Tasy: ${padrao.descricao || padrao.codigoProcedimento}`,
+            descricao: `Regra gerada automaticamente a partir de ${padrao.contasComItem} contas do Tasy. Frequência: ${padrao.frequenciaPercentual}%. Valor médio: R$ ${padrao.valorTotalMedio.toFixed(2)}`,
+            codigoProcedimentoPrincipal: padrao.codigoProcedimento,
+            descricaoProcedimentoPrincipal: padrao.descricao || null,
+            tipoVerificacao: 'deve_conter',
+            acaoInconsistencia: 'alerta',
+            prioridade: padrao.frequenciaPercentual >= 50 ? 8 : padrao.frequenciaPercentual >= 25 ? 5 : 3,
+          } as any);
+
+          if (!regraId) continue;
+          criadas++;
+
+          // Adicionar itens associados
+          for (const item of itensAssociadosFiltrados) {
+            await db.addItemRegraNegocio({
+              regraId,
+              codigoItem: item.codigo,
+              descricaoItem: item.descricao || null,
+              tipoItem: mapTipoItem(item.tipo),
+              quantidadeMinima: Math.max(1, Math.floor(item.quantidadeMedia)),
+              quantidadeMaxima: Math.ceil(item.quantidadeMedia * 2),
+              valorEsperado: item.valorUnitarioMedio > 0 ? String(item.valorUnitarioMedio.toFixed(2)) : null,
+              toleranciaValor: item.valorUnitarioMedio > 0 ? String((item.valorUnitarioMedio * 0.2).toFixed(2)) : null,
+              obrigatorio: item.frequencia >= 70 ? 'sim' : 'nao',
+            } as any);
+            itensAdicionados++;
+          }
+        }
+
+        return {
+          regrasCriadas: criadas,
+          itensAdicionados,
+          totalPadroesAnalisados: padroesElegiveis.length,
+        };
       }),
   }),
 
@@ -6701,6 +7035,38 @@ export const appRouter = router({
       .input(z.object({ arquivoId: z.number() }))
       .mutation(async ({ input }) => {
         const deleted = await db.deleteFaturamentoTissByArquivo(input.arquivoId);
+        
+        // Limpar contas_convenio_itens também
+        try {
+          const { contasConvenioItens: cciT, contasConvenioResumo: ccrT } = await import('../drizzle/schema');
+          const { eq, and } = await import('drizzle-orm');
+          const dbExcl = await getDb();
+          if (dbExcl) {
+            const guiasAfetadas = await dbExcl.selectDistinct({ 
+              numeroConta: cciT.numeroConta,
+              estabelecimentoId: cciT.estabelecimentoId 
+            }).from(cciT).where(eq(cciT.arquivoId, input.arquivoId));
+            
+            await dbExcl.delete(cciT).where(eq(cciT.arquivoId, input.arquivoId));
+            
+            for (const guia of guiasAfetadas) {
+              const restantes = await dbExcl.select().from(cciT).where(
+                and(eq(cciT.numeroConta, guia.numeroConta), eq(cciT.estabelecimentoId, guia.estabelecimentoId))
+              );
+              if (restantes.length === 0) {
+                await dbExcl.delete(ccrT).where(
+                  and(eq(ccrT.numeroConta, guia.numeroConta), eq(ccrT.estabelecimentoId, guia.estabelecimentoId))
+                );
+              } else {
+                let vt = 0;
+                for (const i of restantes) vt += parseFloat(String(i.valorTotal || 0));
+                await dbExcl.update(ccrT).set({ totalItens: restantes.length, valorTotal: String(vt.toFixed(2)) })
+                  .where(and(eq(ccrT.numeroConta, guia.numeroConta), eq(ccrT.estabelecimentoId, guia.estabelecimentoId)));
+              }
+            }
+          }
+        } catch (e) { console.error('[excluirPorArquivo] Erro contas_convenio:', e); }
+        
         return { success: true, deleted };
       }),
   }),

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -68,6 +68,10 @@ export default function ConciliacaoCruzada() {
   const [modalResultadoAberto, setModalResultadoAberto] = useState(false);
   const [resultadoConciliacao, setResultadoConciliacao] = useState<any>(null);
 
+  // Job de conciliação assíncrona
+  const [conciliacaoJobId, setConciliacaoJobId] = useState<string | null>(null);
+  const [conciliacaoEmAndamento, setConciliacaoEmAndamento] = useState(false);
+
   // Geração de XML de recurso
   const [guiasSelecionadasXml, setGuiasSelecionadasXml] = useState<Set<string>>(new Set());
   const [modalXmlAberto, setModalXmlAberto] = useState(false);
@@ -126,11 +130,16 @@ export default function ConciliacaoCruzada() {
   const [filtroPrestador, setFiltroPrestador] = useState<'todos' | 'proprio' | 'terceiro'>('todos');
 
   // Função para verificar se uma guia é de terceiro
+  // Terceiro = código do prestador executante NÃO está entre os códigos PRÓPRIOS cadastrados
   const isTerceiro = useCallback((guia: any) => {
-    if (!codigosPrestador?.codigos?.length) return false; // Se não tem códigos cadastrados, não pode separar
+    // Primeiro: verificar pelo statusGuia se disponível (vem do backend)
+    if (guia.statusGuia === 'terceiro') return true;
+    // Segundo: verificar pelo código do prestador executante vs próprios
+    if (!codigosPrestador?.codigosProprios?.length) return false;
     const codExec = guia.codigoPrestadorExecutante;
-    if (!codExec) return false; // Se não tem código, assume que é próprio (dados antigos)
-    return !codigosPrestador.codigos.includes(codExec);
+    if (!codExec) return false;
+    // Se o código NÃO está nos próprios, é terceiro
+    return !codigosPrestador.codigosProprios.includes(codExec);
   }, [codigosPrestador]);
 
   // ===== QUERIES PARA ABA XML RECURSO =====
@@ -247,7 +256,11 @@ export default function ConciliacaoCruzada() {
 
   const popularTudo = trpc.faturamentoUnificado.popularTudo.useMutation({
     onSuccess: (data) => {
-      toast.success(`Faturamento unificado atualizado: ${data.warleine.inseridos} itens Warleine + ${data.xmlTiss.inseridos} itens XML TISS`);
+      const partes = [];
+      if (data.warleine.total > 0) partes.push(`${data.warleine.total} Warleine`);
+      if (data.xmlTiss.total > 0) partes.push(`${data.xmlTiss.total} XML TISS`);
+      if (data.tasyStaging?.total > 0) partes.push(`${data.tasyStaging.total} Tasy`);
+      toast.success(`Faturamento unificado: ${partes.join(' + ')} = ${data.totalGeral} itens`);
       refetch();
     },
     onError: (err) => toast.error(`Erro ao popular: ${err.message}`),
@@ -263,16 +276,50 @@ export default function ConciliacaoCruzada() {
   });
 
   const conciliarAuto = trpc.faturamentoUnificado.conciliarAutomaticamente.useMutation({
-    onSuccess: (data) => {
-      setResultadoConciliacao(data);
-      setModalResultadoAberto(true);
-      toast.success(`Conciliação concluída: ${data.totalConciliados} conciliados, ${data.totalDivergentes} divergentes, ${data.totalNaoRecebidos} não recebidos`);
-      refetch();
-      refetchGuiasConciliadas();
-      refetchResumo();
+    onSuccess: (data: any) => {
+      if (data.jobId) {
+        setConciliacaoJobId(data.jobId);
+        setConciliacaoEmAndamento(true);
+        toast.info('Conciliação iniciada em background. Acompanhe o progresso...');
+      }
     },
     onError: (err) => toast.error(`Erro na conciliação: ${err.message}`),
   });
+
+  // Polling do status do job de conciliação
+  const { data: statusJob } = trpc.faturamentoUnificado.statusConciliacao.useQuery(
+    { jobId: conciliacaoJobId || '' },
+    {
+      enabled: !!conciliacaoJobId && conciliacaoEmAndamento,
+      refetchInterval: conciliacaoEmAndamento ? 3000 : false,
+    }
+  );
+
+  // Reagir ao status do job
+  useEffect(() => {
+    if (!statusJob || !conciliacaoEmAndamento) return;
+    
+    if (statusJob.status === 'concluido') {
+      setConciliacaoEmAndamento(false);
+      if (statusJob.resultado && statusJob.resultado.totalProcessados > 0) {
+        setResultadoConciliacao(statusJob.resultado);
+        setModalResultadoAberto(true);
+        const r = statusJob.resultado;
+        toast.success(`Conciliação concluída: ${r.totalConciliados} conciliados, ${r.totalDivergentes} divergentes, ${r.totalNaoRecebidos} glosados${r.totalTerceiros ? `, ${r.totalTerceiros} terceiros` : ''}`);
+        refetch();
+        refetchGuiasConciliadas();
+        refetchResumo();
+      } else if (statusJob.erro) {
+        // Concluído mas com mensagem informativa (ex: sem demonstrativos)
+        toast.warning(statusJob.erro, { duration: 10000 });
+      } else {
+        toast.info('Conciliação concluída: nenhum item processado.');
+      }
+    } else if (statusJob.status === 'erro') {
+      setConciliacaoEmAndamento(false);
+      toast.error(`Erro na conciliação: ${statusJob.erro || 'Erro desconhecido'}`);
+    }
+  }, [statusJob?.status, statusJob?.resultado]);
 
   const resetarConc = trpc.faturamentoUnificado.resetarConciliacao.useMutation({
     onSuccess: (data) => {
@@ -360,6 +407,8 @@ export default function ConciliacaoCruzada() {
         return <Badge className="bg-red-500 hover:bg-red-600"><XCircle className="w-3 h-3 mr-1" /> Não Recebido</Badge>;
       case 'glosado':
         return <Badge className="bg-purple-600 hover:bg-purple-700"><Ban className="w-3 h-3 mr-1" /> Glosado</Badge>;
+      case 'terceiro':
+        return <Badge className="bg-orange-500 hover:bg-orange-600"><ExternalLink className="w-3 h-3 mr-1" /> Terceiro</Badge>;
       case 'pendente':
       default:
         return <Badge className="bg-gray-500 hover:bg-gray-600"><Clock className="w-3 h-3 mr-1" /> Pendente</Badge>;
@@ -549,10 +598,14 @@ export default function ConciliacaoCruzada() {
             <Button 
               className="bg-primary hover:bg-primary/90"
               onClick={executarConciliacaoAutomatica}
-              disabled={conciliarAuto.isPending}
+              disabled={conciliarAuto.isPending || conciliacaoEmAndamento}
             >
-              {conciliarAuto.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-              {conciliarAuto.isPending ? "Conciliando..." : "Conciliar Automaticamente"}
+              {(conciliarAuto.isPending || conciliacaoEmAndamento) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+              {conciliacaoEmAndamento && statusJob?.progresso 
+                ? `Conciliando ${statusJob.progresso.competenciaAtual || ''} (${statusJob.progresso.competenciasProcessadas}/${statusJob.progresso.competenciasTotal}) - ${(statusJob.progresso.itensProcessados || 0).toLocaleString('pt-BR')} itens${statusJob.progresso.tempoDecorrido ? ` - ${Math.floor(statusJob.progresso.tempoDecorrido / 60)}min${statusJob.progresso.tempoDecorrido % 60}s` : ''}...`
+                : conciliarAuto.isPending 
+                  ? "Iniciando..." 
+                  : "Conciliar Automaticamente"}
             </Button>
             <Button 
               variant="outline" 
@@ -624,6 +677,7 @@ export default function ConciliacaoCruzada() {
                     <SelectItem value="divergente">Divergente</SelectItem>
                     <SelectItem value="nao_recebido">Não Recebido</SelectItem>
                     <SelectItem value="glosado">Glosado</SelectItem>
+                    <SelectItem value="terceiro">Terceiro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -738,7 +792,7 @@ export default function ConciliacaoCruzada() {
             </TabsTrigger>
             <TabsTrigger value="xml_recurso" className="flex items-center gap-2">
               <FileCode className="w-4 h-4" />
-              XML Recurso
+              XML Retorno
               {guiasGlosadas && guiasGlosadas.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">
                   {guiasGlosadas.filter((g: any) => !Number(g.xmlGerado)).length}
@@ -997,7 +1051,7 @@ export default function ConciliacaoCruzada() {
               /* Lista de guias agrupadas */
               <>
                 {/* Cards de Resumo da Conciliação */}
-                {resumoConciliados && (resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos) > 0 ? (
+                {resumoConciliados && (resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos + (resumoConciliados.totalTerceiros || 0)) > 0 ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
@@ -1039,6 +1093,21 @@ export default function ConciliacaoCruzada() {
                         </CardContent>
                       </Card>
 
+                      {(resumoConciliados.totalTerceiros || 0) > 0 && (
+                        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm opacity-80">Terceiros</p>
+                                <p className="text-2xl font-bold">{resumoConciliados.totalTerceiros}</p>
+                                <p className="text-xs opacity-70">Pago direto ao terceiro</p>
+                              </div>
+                              <ExternalLink className="w-10 h-10 opacity-50" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
@@ -1055,7 +1124,7 @@ export default function ConciliacaoCruzada() {
 
                     {/* Barra de progresso */}
                     {(() => {
-                      const total = resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos;
+                      const total = resumoConciliados.totalConciliados + resumoConciliados.totalDivergentes + resumoConciliados.totalNaoRecebidos + (resumoConciliados.totalTerceiros || 0);
                       if (total === 0) return null;
                       return (
                         <div className="space-y-2">
@@ -1078,11 +1147,18 @@ export default function ConciliacaoCruzada() {
                                 {((resumoConciliados.totalNaoRecebidos / total) * 100).toFixed(0)}%
                               </div>
                             )}
+                            {(resumoConciliados.totalTerceiros || 0) > 0 && (
+                              <div className="bg-orange-500 flex items-center justify-center text-white text-xs font-medium"
+                                style={{ width: `${((resumoConciliados.totalTerceiros || 0) / total) * 100}%` }}>
+                                {(((resumoConciliados.totalTerceiros || 0) / total) * 100).toFixed(0)}%
+                              </div>
+                            )}
                           </div>
                           <div className="flex gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Conciliado</span>
                             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /> Divergente</span>
                             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Não Recebido</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /> Terceiro</span>
                           </div>
                         </div>
                       );
@@ -1135,8 +1211,9 @@ export default function ConciliacaoCruzada() {
                             <tbody>
                               {guiasConciliadas.map((guia: any, index: number) => (
                                 <tr key={`${guia.guia}-${index}`} className={`border-b hover:bg-muted/50 cursor-pointer ${
+                                  guia.statusGuia === 'terceiro' ? 'bg-orange-50/50 dark:bg-orange-950/20' :
                                   guia.statusGuia === 'divergente' ? 'bg-yellow-50/50 dark:bg-yellow-950/20' :
-                                  guia.statusGuia === 'nao_recebido' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
+                                  guia.statusGuia === 'nao_recebido' || guia.statusGuia === 'glosado' ? 'bg-red-50/50 dark:bg-red-950/20' : ''
                                 }`} onClick={() => setGuiaConciliadaSelecionada(guia)}>
                                   <td className="p-3 font-mono text-sm font-medium">{guia.guia || '-'}</td>
                                   <td className="p-3 text-sm max-w-[200px] truncate" title={guia.pacienteNome}>
@@ -1160,11 +1237,13 @@ export default function ConciliacaoCruzada() {
                                   </td>
                                   <td className="p-3 text-center">
                                     <span className="text-sm">{guia.totalItens}</span>
-                                    {(Number(guia.itensDivergentes) > 0 || Number(guia.itensNaoRecebidos) > 0) && (
+                                    {(Number(guia.itensDivergentes) > 0 || Number(guia.itensNaoRecebidos) > 0 || Number(guia.itensTerceiros) > 0 || Number(guia.itensGlosados) > 0) && (
                                       <div className="flex gap-1 justify-center mt-0.5">
                                         {Number(guia.itensConciliados) > 0 && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" title={`${guia.itensConciliados} OK`} />}
                                         {Number(guia.itensDivergentes) > 0 && <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" title={`${guia.itensDivergentes} div.`} />}
                                         {Number(guia.itensNaoRecebidos) > 0 && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" title={`${guia.itensNaoRecebidos} N/R`} />}
+                                        {Number(guia.itensTerceiros) > 0 && <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" title={`${guia.itensTerceiros} terceiro(s)`} />}
+                                        {Number(guia.itensGlosados) > 0 && <span className="w-2 h-2 rounded-full bg-red-700 inline-block" title={`${guia.itensGlosados} glosado(s)`} />}
                                       </div>
                                     )}
                                   </td>
@@ -1398,7 +1477,7 @@ export default function ConciliacaoCruzada() {
               <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200">
                 <CardContent className="p-4 text-center">
                   <Ban className="w-6 h-6 mx-auto text-purple-600 mb-1" />
-                  <p className="text-xs text-muted-foreground">Guias Glosadas</p>
+                  <p className="text-xs text-muted-foreground">Total de Guias</p>
                   <p className="text-2xl font-bold text-purple-600">{guiasGlosadas?.length || 0}</p>
                 </CardContent>
               </Card>
@@ -1419,8 +1498,8 @@ export default function ConciliacaoCruzada() {
               <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
                 <CardContent className="p-4 text-center">
                   <DollarSign className="w-6 h-6 mx-auto text-blue-600 mb-1" />
-                  <p className="text-xs text-muted-foreground">Valor Total Glosado</p>
-                  <p className="text-lg font-bold text-blue-600">{formatarMoeda(guiasGlosadas?.reduce((sum: number, g: any) => sum + Number(g.valorGlosa || 0), 0) || 0)}</p>
+                  <p className="text-xs text-muted-foreground">Valor Total Faturado</p>
+                  <p className="text-lg font-bold text-blue-600">{formatarMoeda(guiasGlosadas?.reduce((sum: number, g: any) => sum + Number(g.valorFaturado || 0), 0) || 0)}</p>
                 </CardContent>
               </Card>
             </div>
@@ -1460,14 +1539,14 @@ export default function ConciliacaoCruzada() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Ban className="w-5 h-5 text-purple-600" />
-                    Guias Glosadas
+                    Guias Disponíveis para XML
                   </CardTitle>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const naoGeradas = guiasGlosadas?.filter((g: any) => !Number(g.xmlGerado) && !isTerceiro(g)).map((g: any) => String(g.numeroGuia)) || [];
+                        const naoGeradas = guiasGlosadas?.filter((g: any) => !Number(g.xmlGerado)).map((g: any) => String(g.numeroGuia)) || [];
                         setGuiasSelecionadasXml(new Set(naoGeradas));
                       }}
                     >
@@ -1477,7 +1556,7 @@ export default function ConciliacaoCruzada() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const todas = guiasGlosadas?.filter((g: any) => !isTerceiro(g)).map((g: any) => String(g.numeroGuia)) || [];
+                        const todas = guiasGlosadas?.map((g: any) => String(g.numeroGuia)) || [];
                         setGuiasSelecionadasXml(new Set(todas));
                       }}
                     >
@@ -1498,10 +1577,10 @@ export default function ConciliacaoCruzada() {
                         <tr className="border-b bg-muted/50">
                           <th className="p-2 w-10">
                             <Checkbox
-                              checked={guiasSelecionadasXml.size > 0 && guiasSelecionadasXml.size === guiasGlosadas.filter((g: any) => !isTerceiro(g)).length}
+                              checked={guiasSelecionadasXml.size > 0 && guiasSelecionadasXml.size === guiasGlosadas.length}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  const todas = guiasGlosadas.filter((g: any) => !isTerceiro(g)).map((g: any) => String(g.numeroGuia));
+                                  const todas = guiasGlosadas.map((g: any) => String(g.numeroGuia));
                                   setGuiasSelecionadasXml(new Set(todas));
                                 } else {
                                   setGuiasSelecionadasXml(new Set());
@@ -1516,6 +1595,7 @@ export default function ConciliacaoCruzada() {
                           <th className="text-left p-2 font-medium">Protocolo</th>
                           <th className="text-center p-2 font-medium">Itens</th>
                           <th className="text-right p-2 font-medium">Valor Faturado</th>
+                          <th className="text-right p-2 font-medium">Valor Recebido</th>
                           <th className="text-right p-2 font-medium">Valor Glosado</th>
                           <th className="text-center p-2 font-medium">XML</th>
                           <th className="text-center p-2 font-medium">Ações</th>
@@ -1533,19 +1613,15 @@ export default function ConciliacaoCruzada() {
                           return (
                             <tr key={guiaKey} className={`border-b hover:bg-muted/30 ${terceiro ? 'bg-orange-50/50 dark:bg-orange-950/20' : ''} ${xmlGerado ? 'bg-green-50/50 dark:bg-green-950/20' : ''}`}>
                               <td className="p-2">
-                                {!terceiro ? (
-                                  <Checkbox
-                                    checked={guiasSelecionadasXml.has(guiaKey)}
-                                    onCheckedChange={(checked) => {
-                                      const newSet = new Set(guiasSelecionadasXml);
-                                      if (checked) newSet.add(guiaKey);
-                                      else newSet.delete(guiaKey);
-                                      setGuiasSelecionadasXml(newSet);
-                                    }}
-                                  />
-                                ) : (
-                                  <span className="text-muted-foreground text-xs" title="Terceiros não podem ser incluídos no XML">-</span>
-                                )}
+                                <Checkbox
+                                  checked={guiasSelecionadasXml.has(guiaKey)}
+                                  onCheckedChange={(checked) => {
+                                    const newSet = new Set(guiasSelecionadasXml);
+                                    if (checked) newSet.add(guiaKey);
+                                    else newSet.delete(guiaKey);
+                                    setGuiasSelecionadasXml(newSet);
+                                  }}
+                                />
                               </td>
                               <td className="p-2 font-mono text-sm font-medium">
                                 {guia.numeroGuia}
@@ -1559,6 +1635,7 @@ export default function ConciliacaoCruzada() {
                               <td className="p-2 text-sm font-mono">{guia.protocoloXml || guia.protocoloRetorno || '-'}</td>
                               <td className="p-2 text-center">{guia.totalItens}</td>
                               <td className="p-2 text-right text-blue-600 font-medium">{formatarMoeda(Number(guia.valorFaturado))}</td>
+                              <td className="p-2 text-right text-green-600 font-medium">{formatarMoeda(Number(guia.valorPago))}</td>
                               <td className="p-2 text-right text-red-600 font-medium">{formatarMoeda(Number(guia.valorGlosa))}</td>
                               <td className="p-2 text-center">
                                 {xmlGerado ? (
@@ -1596,8 +1673,8 @@ export default function ConciliacaoCruzada() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Ban className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma guia glosada encontrada.</p>
-                    <p className="text-sm">Execute a conciliação automática e marque os itens como glosa primeiro.</p>
+                    <p>Nenhuma guia conciliada encontrada.</p>
+                    <p className="text-sm">Execute a conciliação automática primeiro.</p>
                   </div>
                 )}
               </CardContent>
@@ -1922,10 +1999,18 @@ export default function ConciliacaoCruzada() {
                   </Card>
                   <Card className="bg-red-50 dark:bg-red-950">
                     <CardContent className="p-3 text-center">
-                      <p className="text-xs text-muted-foreground">Não Recebidos</p>
+                      <p className="text-xs text-muted-foreground">Glosados</p>
                       <p className="text-2xl font-bold text-red-600">{resultadoConciliacao.totalNaoRecebidos}</p>
                     </CardContent>
                   </Card>
+                  {(resultadoConciliacao.totalTerceiros || 0) > 0 && (
+                    <Card className="bg-orange-50 dark:bg-orange-950">
+                      <CardContent className="p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Terceiros</p>
+                        <p className="text-2xl font-bold text-orange-600">{resultadoConciliacao.totalTerceiros}</p>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 {/* Métodos de matching */}

@@ -945,12 +945,22 @@ function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
   // Extract medico from equipeSadt or identEquipe/identificacaoEquipe
   let nomeMedico: string | undefined;
   let crmMedico: string | undefined;
+  let codigoPrestadorExecutanteProc: string | undefined;
   
   // Try equipeSadt first (guiaSP-SADT)
   const equipeSadt = record["equipeSadt"] as Record<string, unknown> | undefined;
   if (equipeSadt) {
     nomeMedico = getTextValue(equipeSadt["nomeProf"]) || getTextValue(equipeSadt["nomeProfissional"]);
     crmMedico = getTextValue(equipeSadt["numeroConselhoProfissional"]);
+    // Extrair código do prestador executante do procedimento (codProfissional)
+    const codProfissional = equipeSadt["codProfissional"] as Record<string, unknown> | undefined;
+    if (codProfissional) {
+      codigoPrestadorExecutanteProc = getTextValue(codProfissional["codigoPrestadorNaOperadora"]);
+    }
+    // Fallback: tentar diretamente no equipeSadt
+    if (!codigoPrestadorExecutanteProc) {
+      codigoPrestadorExecutanteProc = getTextValue(equipeSadt["codigoPrestadorNaOperadora"]);
+    }
   }
   
   // Try identEquipe (guiaResumoInternacao)
@@ -968,6 +978,16 @@ function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
       if (identificacaoEquipe) {
         nomeMedico = getTextValue(identificacaoEquipe["nomeProf"]) || getTextValue(identificacaoEquipe["nomeProfissional"]);
         crmMedico = getTextValue(identificacaoEquipe["numeroConselhoProfissional"]);
+        // Extrair código do prestador executante do identEquipe
+        if (!codigoPrestadorExecutanteProc) {
+          const codProfissional = identificacaoEquipe["codProfissional"] as Record<string, unknown> | undefined;
+          if (codProfissional) {
+            codigoPrestadorExecutanteProc = getTextValue(codProfissional["codigoPrestadorNaOperadora"]);
+          }
+          if (!codigoPrestadorExecutanteProc) {
+            codigoPrestadorExecutanteProc = getTextValue(identificacaoEquipe["codigoPrestadorNaOperadora"]);
+          }
+        }
       }
     }
   }
@@ -981,6 +1001,7 @@ function extractProcedimentoFromNode(node: unknown): ParsedProcedimento | null {
     dataExecucao,
     nomeMedico,
     crmMedico,
+    codigoPrestadorExecutante: codigoPrestadorExecutanteProc,
     dadosExtras: record,
   };
 }

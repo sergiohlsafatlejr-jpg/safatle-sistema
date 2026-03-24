@@ -63,6 +63,7 @@ export const convenioEstabelecimentoPrestador = mysqlTable("convenioEstabelecime
   estabelecimentoId: int("estabelecimentoId").notNull(),
   codigoPrestador: varchar("codigoPrestador", { length: 50 }).notNull(), // Código do prestador na operadora (CNPJ ou código interno)
   nomePrestador: varchar("nomePrestador", { length: 255 }), // Nome amigável do prestador (opcional)
+  tipoPrestador: mysqlEnum("tipoPrestador", ["proprio", "terceiro"]).default("proprio").notNull(), // Tipo: próprio (hospital) ou terceiro (médico/profissional externo)
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -2196,6 +2197,9 @@ export const faturamentoTiss = mysqlTable("faturamento_tiss", {
   // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
 
+  // Competência no formato AAAA/MM (derivada da dataReferencia do arquivo)
+  competencia: varchar("competencia", { length: 7 }),
+
   // Código do prestador executante (codigoPrestadorNaOperadora do XML)
   codigoPrestadorExecutante: varchar("codigo_prestador_executante", { length: 50 }),
 
@@ -4273,3 +4277,102 @@ export const propostaItens = mysqlTable("proposta_itens", {
 
 export type PropostaItem = typeof propostaItens.$inferSelect;
 export type InsertPropostaItem = typeof propostaItens.$inferInsert;
+
+
+// ============================================================
+// TASY FATURADO STAGING - Importação bruta de dados Tasy
+// ============================================================
+
+/**
+ * Tabela TASY.FATURADO.STAGING
+ * Armazena dados brutos importados do CSV do Tasy (Hemolabor/Ipasgo/etc.)
+ * Campos de valor armazenados como TEXT para preservar formato original
+ * (o CSV usa vírgula como separador decimal E como separador de campos)
+ */
+export const tasyFaturadoStaging = mysqlTable("tasy_faturado_staging", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Identificação da importação
+  importacaoId: int("importacaoId"), // Referência à importação que trouxe este registro
+  estabelecimentoId: int("estabelecimentoId"),
+  
+  // Campos do CSV (0-38: campos fixos)
+  estabelecimento: varchar("estabelecimento", { length: 255 }),       // 0
+  sequencia: varchar("sequencia", { length: 100 }),                   // 1
+  convenio: varchar("convenio", { length: 255 }),                     // 2
+  prod: varchar("prod", { length: 100 }),                             // 3
+  competencia: varchar("competencia", { length: 20 }),                // 4
+  dtReferencia: varchar("dtReferencia", { length: 50 }),              // 5
+  entrega: varchar("entrega", { length: 50 }),                        // 6
+  protocolo: varchar("protocolo", { length: 100 }),                   // 7
+  nrProtocolo: varchar("nrProtocolo", { length: 100 }),               // 8
+  nrTitulo: varchar("nrTitulo", { length: 100 }),                     // 9
+  nmUsuario: varchar("nmUsuario", { length: 255 }),                   // 10
+  dtAtualizacao: varchar("dtAtualizacao", { length: 50 }),            // 11
+  statusProt: varchar("statusProt", { length: 100 }),                 // 12
+  tipoProt: varchar("tipoProt", { length: 100 }),                     // 13
+  docConvenio: varchar("docConvenio", { length: 100 }),               // 14
+  atend: varchar("atend", { length: 50 }),                            // 15
+  entrada: varchar("entrada", { length: 50 }),                        // 16
+  stEntrada: varchar("stEntrada", { length: 100 }),                   // 17
+  conta: varchar("conta", { length: 50 }),                            // 18
+  autorizacao: varchar("autorizacao", { length: 100 }),               // 19
+  senha: varchar("senha", { length: 100 }),                           // 20
+  dtInicio: varchar("dtInicio", { length: 50 }),                      // 21
+  dtFim: varchar("dtFim", { length: 50 }),                            // 22
+  encerramento: varchar("encerramento", { length: 50 }),              // 23
+  matricula: varchar("matricula", { length: 100 }),                   // 24
+  paciente: varchar("paciente", { length: 255 }),                     // 25
+  cdMotivoExcConta: varchar("cdMotivoExcConta", { length: 100 }),     // 26
+  dsComplMotivoExcon: text("dsComplMotivoExcon"),                     // 27
+  tipo: varchar("tipo", { length: 100 }),                             // 28
+  tipoItem: varchar("tipoItem", { length: 100 }),                    // 29
+  setor: varchar("setor", { length: 255 }),                           // 30
+  profExec: varchar("profExec", { length: 255 }),                     // 31
+  crm: varchar("crm", { length: 50 }),                                // 32
+  cdItem: varchar("cdItem", { length: 50 }),                          // 33
+  cdItemTuss: varchar("cdItemTuss", { length: 50 }),                  // 34
+  dtItem: varchar("dtItem", { length: 50 }),                          // 35
+  descricao: text("descricao"),                                       // 36
+  credito: varchar("credito", { length: 10 }),                        // 37
+  qtd: varchar("qtd", { length: 20 }),                                // 38
+  
+  // Campos de valor (39-45) - armazenados como TEXT para preservar formato original
+  // Os valores no CSV usam vírgula decimal (ex: "11,02") que conflita com separador CSV
+  // Armazenamos o bloco bruto de valores para parsing posterior
+  valoresRaw: text("valoresRaw"),  // Campos 39-45 concatenados com pipe: "11,02|0|0|0|11,02|0|0"
+  
+  // Campos de valor parseados (preenchidos quando possível)
+  vlProduzido: decimal("vlProduzido", { precision: 14, scale: 2 }),
+  vlMedico: decimal("vlMedico", { precision: 14, scale: 2 }),
+  aReceber: decimal("aReceber", { precision: 14, scale: 2 }),
+  vlPago: decimal("vlPago", { precision: 14, scale: 2 }),
+  vlGlosa: decimal("vlGlosa", { precision: 14, scale: 2 }),
+  vlAmaior: decimal("vlAmaior", { precision: 14, scale: 2 }),
+  tReceb: decimal("tReceb", { precision: 14, scale: 2 }),
+  
+  // Campos finais (46-49)
+  motivoGlosa: text("motivoGlosa"),                                   // 46
+  retorno: varchar("retorno", { length: 50 }),                        // 47
+  pgto: varchar("pgto", { length: 20 }),                              // 48 - Competência do pagamento
+  dtPgto: varchar("dtPgto", { length: 50 }),                          // 49 - Data do pagamento
+  
+  // Metadados
+  linhaOriginal: int("linhaOriginal"), // Número da linha no CSV original
+  parseStatus: mysqlEnum("parseStatus", ["ok", "ambiguo", "erro"]).default("ok").notNull(),
+  parseNotas: text("parseNotas"), // Notas sobre problemas de parsing
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  importacaoIdx: index("idx_tfs_importacao").on(table.importacaoId),
+  estabIdx: index("idx_tfs_estab").on(table.estabelecimentoId),
+  convenioIdx: index("idx_tfs_convenio").on(table.convenio),
+  competenciaIdx: index("idx_tfs_competencia").on(table.competencia),
+  sequenciaIdx: index("idx_tfs_sequencia").on(table.sequencia),
+  contaIdx: index("idx_tfs_conta").on(table.conta),
+  atendIdx: index("idx_tfs_atend").on(table.atend),
+  parseStatusIdx: index("idx_tfs_parse_status").on(table.parseStatus),
+}));
+
+export type TasyFaturadoStaging = typeof tasyFaturadoStaging.$inferSelect;
+export type InsertTasyFaturadoStaging = typeof tasyFaturadoStaging.$inferInsert;

@@ -350,6 +350,13 @@
 - [x] Testar com a guia 66883762 e código 1902776626
 
 
+## Classificação de Terceiros na Conciliação
+- [x] Itens de terceiros não encontrados no retorno devem ser marcados como "terceiro" em vez de "glosado" na conciliação automática
+- [x] Itens de terceiros não devem entrar no XML de recurso de glosa
+- [x] Frontend deve exibir itens de terceiros separadamente (não como glosados)
+- [x] Novo status "terceiro" no enum statusConciliacao
+
+
 ## Coluna de Lote na Tela de Comparativo
 - [x] Adicionar campo numeroLote na interface ItemConciliacao
 - [x] Exibir coluna Lote na tabela de comparativo
@@ -3299,3 +3306,220 @@
 - [x] Corrigir formato de datas incorreto em todo o sistema (garantir DD/MM/AAAA)
 - [x] Exportar código para GitHub (repositório hospital_file_manager)
 - [x] Criar CONTRIBUTING.md com instruções de setup local para onboarding de novos desenvolvedores
+- [x] Investigar e corrigir por que a guia 17007812 não aparece na conciliação cruzada após Popular Dados e Conciliar Automático (causa: competência errada 2026-12, corrigida para 2025-12)
+- [x] Implementar cadastro automático de prestadores não cadastrados como terceiros durante o upload de XML
+
+## Bug: Terceiros ainda aparecendo como glosados
+- [x] Investigar por que item 20104294 (Erich Pires Marota) na guia 17007812 ainda aparece como glosado
+- [x] Corrigir lógica de classificação de terceiros na conciliação automática (causa: nenhum terceiro cadastrado, invertida lógica para usar códigos próprios)
+- [x] Bug persistente: guia 17007116 item 20104294 - causa: codigoPrestadorExecutante NULL no faturamento_tiss. Corrigido parser para extrair do equipeSadt + lógica de fallback na conciliação (NULL com itens próprios na mesma guia = terceiro)
+
+## Bug: Duplicação de itens ao reimportar XML
+- [x] Guia 17007812 mostrando 42 itens com R$ 93.146,43 (duplicado) - causa: contas_convenio_itens não era limpa ao excluir/reimportar arquivo
+- [x] Duplicação estava na contas_convenio_itens (3 cópias com arquivoId diferentes)
+- [x] Corrigido: exclusão de arquivo, reimportação e reprocessamento agora limpam contas_convenio_itens + recalculam resumos
+- [x] Dados órfãos limpos do banco (arquivos 1800001, 1800002, 1560009, 1620002, 1740030, 1770014)
+
+## XML de Retorno para Reimportação no Sistema de Gestão
+- [x] Gerar XML de retorno com todos os itens conciliados (não apenas glosados) - removido HAVING que filtrava só glosados
+- [x] XML inclui itens conciliados para reimportação no sistema de gestão (exceto terceiros)
+- [x] Aba renomeada para "XML Retorno" e disponível para todas as guias conciliadas
+
+## Seleção de todas as guias no XML Retorno
+- [x] Permitir selecionar guias com badge "Terceiro" na aba XML Retorno (checkbox desbloqueado)
+- [x] Botão "Selecionar Todas" e "Selecionar Todas Pendentes" incluem todas as guias
+- [x] Gerar XML de todas as guias do lote de uma vez (itens de terceiros excluídos automaticamente no backend)
+
+## Análise: Divergência de valores Conta Convênio vs BI
+- [ ] Investigar por que Unimed mostra R$ 200.918,67 na Conta Convênio e R$ 292.790,41 no BI
+- [ ] Verificar se a divergência ocorre em outros convênios (Ipasgo, Vivacom, Saude Caixa)
+- [ ] Identificar causa raiz (tabelas diferentes, filtros diferentes, dados duplicados, etc.)
+- [ ] Corrigir se necessário para que ambas as telas mostrem valores consistentes
+
+## Padronização de Competência MM/AAAA em todo o sistema
+- [x] Mapear como cada tabela armazena competência (faturamento_tiss, contas_convenio_resumo, recebimento_geral, faturamento_unificado, etc.)
+- [x] Adicionar campo competencia na tabela faturamento_tiss (atualmente usa dataReferencia do arquivo)
+- [x] Padronizar formato de competência como AAAA/MM em todas as tabelas
+- [x] Atualizar getDadosBI para filtrar por campo competencia em vez de dataReferencia do arquivo
+- [x] Atualizar queries de Conta Convênio para usar mesma lógica de competência
+- [ ] Atualizar queries de Conciliação Cruzada para usar mesma lógica de competência
+- [ ] Atualizar queries de Demonstrativo para usar mesma lógica de competência
+- [ ] Atualizar queries de recebimento_geral para usar formato padronizado
+- [x] Garantir que importação de XML popule campo competencia corretamente
+- [x] Corrigir dados existentes no banco para preencher competência onde está faltando
+- [x] Escrever testes para validar consistência de valores entre telas
+- [x] Validar que BI e Conta Convênio mostram os mesmos valores para mesmo filtro
+
+## Tabela TASY.FATURADO.STAGING
+- [x] Analisar estrutura do CSV hemolaboripasgo12-2025 (50 colunas, vírgula decimal)
+- [x] Criar tabela tasy_faturado_staging no schema Drizzle com todos os 50 campos
+- [x] Criar script de parsing inteligente para tratar vírgulas decimais e descrições com vírgulas
+- [x] Importar dados do CSV para a tabela
+- [x] Validar dados importados (contagem, valores, integridade)
+
+## Unificação tasy_faturado_staging com Conta Convênio
+- [ ] Mapear estrutura das tabelas envolvidas (tasy_faturado_staging, faturamento_unificado, contas_convenio_resumo, contas_convenio_itens)
+- [ ] Definir chave de cruzamento entre tasy_faturado_staging e faturamento_unificado
+- [ ] Implementar script/query de unificação filtrando apenas itens presentes na faturamento_unificado
+- [ ] Popular tabela de Conta Convênio com dados unificados
+- [ ] Validar dados unificados (contagem, valores, integridade)
+
+## Popular Conta Convênio para Hemolabor/Ipasgo 2025/12
+- [x] Reverter alterações indevidas na faturamento_unificado (glosa/motivo)
+- [x] Mapear colunas de contas_convenio_resumo e contas_convenio_itens
+- [x] Criar script para popular contas_convenio_resumo agrupando por conta do staging
+- [x] Criar script para popular contas_convenio_itens com itens que existem na faturamento_unificado
+- [x] Validar dados populados na Conta Convênio
+
+## Padrões de Cobrança para Hemolabor/Ipasgo
+- [x] Analisar como padrões de cobrança são criados atualmente no sistema
+- [x] Gerar padrões de composição (quais itens acompanham cada procedimento principal)
+- [x] Gerar padrões de preços (média, min, max por código de item)
+- [x] Gerar padrões de quantidade (média, min, max por código de item)
+- [x] Gerar padrões por médico (itens típicos cobrados por cada profissional)
+- [x] Validar padrões gerados
+
+## Integrar Hemolabor na Conciliação Cruzada
+- [x] Analisar como a conciliação cruzada funciona atualmente
+- [x] Garantir que contas Hemolabor apareçam na conciliação cruzada
+- [x] Testar processo de comparação faturado vs recebido para Hemolabor
+- [x] Validar integração
+
+## Gerar Regras Automaticamente a partir dos Padrões Tasy
+- [x] Criar endpoint backend gerarRegrasDosPadroesTasy que analisa contas e cria regras
+- [x] Adicionar botão "Gerar Regras dos Padrões Tasy" na tela de Regras de Negócio
+- [x] Criar dialog com filtros (estabelecimento, convênio, competência, frequência mínima)
+- [x] Exibir preview dos padrões encontrados antes de criar as regras
+- [x] Criar regras automaticamente com itens associados, quantidades e valores
+- [x] Testar geração e validar regras criadas
+
+## Popular Conta Convênio para todas as competências (07/2025 a 03/2026)
+- [ ] Identificar quais competências e convênios existem no staging
+- [ ] Popular contas_convenio_resumo e contas_convenio_itens para cada competência
+- [ ] Validar dados populados
+
+## Gerar Padrões de Cobrança com base completa (1.3M registros)
+- [ ] Executar análise de padrões com todos os dados do staging
+- [ ] Salvar padrões atualizados na tabela padroesCobranca
+
+## Executar Conciliação Cruzada para novas competências
+- [ ] Verificar quais competências têm dados na faturamento_unificado
+- [ ] Executar conciliação automática para cada competência
+- [ ] Validar resultados da conciliação
+
+## Correções na Conciliação Automática (Março 2026)
+- [x] Corrigir duplicatas na conciliados_automatico (200 registros duplicados em 2026/01)
+- [x] Adicionar DELETE de conciliações anteriores (PASSO 0.5) antes de re-processar
+- [x] Buscar todos os itens (não apenas pendentes) na re-execução da conciliação
+- [x] Melhorar sanitização de strings no INSERT (remover chars de controle, limitar tamanho)
+- [x] Atualizar testes unitários para refletir nova sequência de queries
+- [x] Limpar 600 registros duplicados do banco (2026/01)
+- [ ] 18 itens com pacienteNome NULL faltando na conciliados_automatico (serão processados na próxima execução)
+
+## Popular faturamento_unificado via tasy_faturado_staging (07/2025 a 03/2026)
+- [x] Analisar estrutura da tasy_faturado_staging vs faturamento_unificado
+- [x] Mapear campos entre as duas tabelas (31 campos mapeados)
+- [x] Mapear convênios (19 convênios com match, 27 sem cadastro ficam com convenioId NULL)
+- [x] Executar migração INSERT...SELECT para 9 competências (07/2025 a 03/2026)
+- [x] Validar dados migrados: 1.337.761 registros = 100% match com staging
+- [x] Total faturado migrado: R$ 70.711.689,72
+- [ ] Criar endpoint no backend para futuras migrações automatizadas
+
+## Bugs Reportados (24/03/2026)
+- [x] Convênios não carregam na tela do Hemolabor após popular dados (resolvido: cache de compilação antigo, restart corrigiu)
+- [x] Erro na conciliação: "Unexpected token '<', '<!DOCTYPE '... is not valid JSON" (resolvido: mesmo problema de cache de compilação)
+- [x] Adicionado índice composto idx_fatur_estab_convenio para otimizar queries
+- [x] Adicionado índice composto idx_conciliados_estab_comp para otimizar queries de conciliação
+
+## Limpeza de dados duplicados XML_TISS do Hemolabor
+- [x] Analisar duplicatas XML_TISS (enviados) no Hemolabor: 228 arquivos, 22.038 faturamento_tiss, 22.038 faturamento_unificado, 22.020 conciliados
+- [x] Limpar conciliados_automatico do Hemolabor (22.020 registros)
+- [x] Limpar faturamento_unificado XML_TISS do Hemolabor (22.038 registros)
+- [x] Limpar faturamento_tiss do Hemolabor (22.038 registros)
+- [x] Limpar arquivos enviados do Hemolabor (228 registros)
+- [x] Validar dados após limpeza: TASY_STAGING preservado (1.337.761), retorno preservado (1)
+
+## Bugs: Popular Dados e Conciliação Hemolabor (24/03/2026 - 2)
+- [x] Popular Dados retorna 0 itens para Hemolabor: agora conta dados TASY_STAGING existentes e exibe no toast
+- [x] Conciliação retorna "Service Unavailable": otimizado para processar em lotes por competência (sempre, com try/catch por lote)
+- [x] Ajustar popularTudo para incluir contagem de dados TASY_STAGING no resultado
+- [x] Ajustar conciliação para funcionar com dados TASY_STAGING (busca todas competências, não só pendentes)
+
+## Bug Resolvido: Service Unavailable na Conciliação Hemolabor (24/03/2026 - 3)
+- [x] Conciliação ainda dava "Service Unavailable" mesmo com processamento por competência
+- [x] Causa: timeout do proxy reverso (~60s) com 1.3M registros
+- [x] Solução: processamento assíncrono em background com job manager
+- [x] Frontend com polling de progresso (competência atual, total processado)
+- [x] Job manager com Map em memória, auto-limpeza de jobs antigos
+- [x] 25 testes unitários passando (incluindo testes do job manager)
+
+## Otimização de Performance da Conciliação (24/03/2026 - 4)
+- [x] Aumentar BATCH_SIZE de INSERT de 20 para 500 (reduz queries de 7500 para 340 por competência)
+- [x] Aumentar UPDATE_BATCH_SIZE de 500 para 2000
+- [x] Adicionar logs de progresso detalhados no job manager (tempo por competência, itens processados)
+- [x] Melhorar display de progresso no frontend (itens processados, tempo decorrido)
+- [x] 25 testes passando
+
+## URGENTE: Otimização Drástica da Conciliação (24/03/2026 - 5)
+- [x] Reescrever INSERT: MEGA_BATCH de 5000 (antes 500) = 30 queries em vez de 300 por competência
+- [x] Reescrever UPDATE: agrupa todos IDs por status, 1 UPDATE por status (max 5 queries) em chunks de 10k
+- [x] Fallback automático: mega-batch → sub-batch 500 → individual
+- [x] 25 testes passando
+- [ ] Testar com competência individual do Hemolabor (aguardando usuário)
+
+## Filtro inteligente: conciliar apenas competências com demonstrativo (24/03/2026 - 6)
+- [x] Identificar quais competências têm demonstrativos de retorno (via JOIN arquivos + recebimentos_excel)
+- [x] Alterar job manager para filtrar competências sem demonstrativo (query com direcao='retornado')
+- [x] Informar ao usuário quais competências foram puladas (toast.warning com duração 10s)
+- [x] Frontend trata resultado com 0 itens processados (mostra mensagem informativa)
+- [x] 25 testes passando
+
+## Hospital Samaritano - Rel. Custos (24/03/2026)
+- [x] Analisar estrutura do Excel (118.703 registros, 15 colunas)
+- [x] Verificar ID do estabelecimento Samaritano cadastrado (ID: 2280016)
+- [x] Criar tabela samaritano_custo_staging no banco (19 colunas, índices em setor, convenio, codprod, estabelecimentoId)
+- [x] Importar dados do Excel para a tabela (118.703 registros: 12/2025=11.729, 01/2026=43.790, 02/2026=40.786, 03/2026=22.398)
+- [x] Criar módulo backend relatorioCustosSamaritano.ts (custos por convênio, conta, setor, detalhe conta)
+- [x] Adaptar router para dispatch automático Hemolabor/Warleine vs Samaritano/MySQL
+- [x] Adaptar frontend - ocultar abas não aplicáveis ao Samaritano (Dashboard, Custo vs Convênio, Tabela Detalhada)
+- [x] Adaptar frontend - mostrar badge "Fonte: Importação Excel" para Samaritano
+- [x] Criar testes vitest para módulo Samaritano (6 testes passando)
+- [x] Testar e salvar checkpoint
+
+## Bug - Rel. Custos Samaritano (24/03/2026)
+- [x] Corrigir erro "Cannot read properties of undefined (reading 'map')" na página /relatorio-custos ao selecionar Samaritano (causa: MySQL/Drizzle retorna [rows, fields] em vez de {rows}, criado extractRows helper)
+
+## Melhorias Rel. Custos Samaritano (24/03/2026 - 2)
+- [x] Corrigir filtro por convênio que retorna 0 resultados (causa: backend filtrava por coluna 'convenio' mas frontend enviava 'codplaco'; corrigido para usar codplaco em todas as funções)
+- [x] Adicionar coluna setor no detalhe da conta (ex: conta 1171424) - campo setor adicionado no retorno do backend e coluna no frontend
+- [x] Adicionar filtro por setor na aba Custos por Conta - dropdown de setor + setoresDisponiveis no backend
+
+## Melhoria Resumo por Convênio - Itens Detalhados (24/03/2026 - 3)
+- [x] Na aba Resumo por Convênio, ao clicar em um convênio, expandir/mostrar os itens cadastrados com custo unitário vs valor faturado unitário
+- [x] Mostrar resultado lucro/prejuízo por item dentro do convênio selecionado (com Margem Unit., Custo Total, Vlr Faturado Total, Margem Total)
+
+## Dashboard Samaritano (24/03/2026 - 4)
+- [x] Criar endpoint backend para dados do dashboard (evolução mensal, top convênios, top setores, KPIs)
+- [x] Implementar KPIs visuais: Total Faturado, Total Custo, Margem, Ticket Médio, Total Contas, Itens Únicos
+- [x] Gráfico evolução mensal: Custo vs Valor Faturado por competência (ComposedChart com barras + linha de margem)
+- [x] Gráfico top convênios: ranking horizontal por faturamento e custo
+- [x] Gráfico top setores: ranking horizontal por faturamento e custo
+- [x] Gráfico distribuição por tipo de item (PieChart donut)
+- [x] Gráfico evolução top 5 convênios (LineChart)
+- [x] Gráfico ticket médio + volume de contas (ComposedChart)
+- [x] Tabela resumo por convênio com margem e resultado
+- [x] Tabela resumo por setor com margem e resultado
+- [x] Filtros de competência e convênio no dashboard
+- [x] Integrar como nova aba "Dashboard" na página de Relatório de Custos (apenas Samaritano)
+- [x] Testes vitest para o endpoint do dashboard (5 testes passando)
+
+## Bug - Divergência Valores Conta Convênio vs Rel BI (24/03/2026)
+- [x] Investigar diferença: Conta Convênio Unimed Jan/2026 Estab 3 = R$ 417.819,46 vs Rel BI Faturado = R$ 436.025,18 (causa: 3 guias de internação longa com itens em 2 competências)
+- [x] Identificar fonte de dados de cada tela (contas_convenio_resumo vs faturamento_tiss) e corrigir inconsistência
+- [x] Corrigir para que ambas as telas mostrem valores consistentes (JOIN com contas_convenio_resumo para usar competência da conta)
+- [x] Corrigir Rel BI getDadosBI: usar competência da conta/importação como base + mapeamento snake_case → camelCase
+
+## Bug - Divergência Rel BI Pronto Socorro após JOIN (24/03/2026)
+- [x] Investigar divergência Vivacom Pronto Socorro: Conta Convênio R$ 19.098,72 vs Rel BI R$ 16.244,41 (causa: guias com itens em múltiplas competências + filtro de convênio no ft excluía itens de outros convênios)
+- [x] Corrigido: subquery para encontrar guias da competência, depois pegar TODOS os itens dessas guias sem filtrar por convênio no faturamento_tiss
+- [x] Testes atualizados (6 passando) validando que convênio é filtrado apenas na subquery (contas_convenio_resumo)

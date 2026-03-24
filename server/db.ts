@@ -13086,19 +13086,92 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
 
   const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento, codigoPrestadorExecutante } = filtros;
 
-  // Buscar prestadores vinculados ao estabelecimento para filtrar automaticamente
-  let prestadoresVinculados: string[] = [];
-  if (estabelecimentoId && estabelecimentoId > 0) {
-    const prestadoresCadastrados = await db
-      .select({ codigoPrestador: convenioEstabelecimentoPrestador.codigoPrestador })
-      .from(convenioEstabelecimentoPrestador)
-      .where(eq(convenioEstabelecimentoPrestador.estabelecimentoId, estabelecimentoId));
-    prestadoresVinculados = prestadoresCadastrados.map(p => p.codigoPrestador);
+  // ===== NOVA LÓGICA: Filtrar diretamente por competencia (AAAA/MM) da faturamento_tiss =====
+  // Construir competência no formato AAAA/MM
+  let competenciaFiltro: string | undefined;
+  if (mesReferencia && anoReferencia) {
+    competenciaFiltro = `${anoReferencia}/${String(mesReferencia).padStart(2, '0')}`;
   }
 
-  // Condições base para arquivos
+  console.log('[getDadosBI] Filtros recebidos:', JSON.stringify(filtros));
+  console.log('[getDadosBI] Competência filtro:', competenciaFiltro);
+  console.log('[getDadosBI] Estabelecimento:', estabelecimentoId);
+
+  // Mapear convênios
+  const todosConvenios = await db.select().from(convenios);
+  const convenioMap = new Map(todosConvenios.map(c => [c.id, c.nome]));
+
+  // ===== BUSCAR FATURAMENTO via JOIN com contas_convenio_resumo para usar competência da conta =====
+  // A competência base é a da conta (importação/sistema do hospital), não a do item individual.
+  // Isso garante consistência com a tela Conta Convênio.
+  let itensFaturados: any[] = [];
+  
+  if (competenciaFiltro || anoReferencia) {
+    // Filtrar por competência da CONTA (via contas_convenio_resumo)
+    // Usa subquery para encontrar as guias da competência selecionada
+    // Depois pega TODOS os itens dessas guias (de qualquer competência no faturamento_tiss)
+    // Isso garante que o total bata com o valorTotal da Conta Convênio
+    const subqueryParts: string[] = [
+      'SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr',
+      'WHERE ccr.estabelecimentoId = ' + (estabelecimentoId || 0),
+    ];
+    if (convenioId) subqueryParts.push('AND ccr.convenioId = ' + convenioId);
+    if (competenciaFiltro) subqueryParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
+    else if (anoReferencia) subqueryParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
+    
+    const sqlParts: string[] = [
+      'SELECT ft.* FROM faturamento_tiss ft',
+      'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
+      'AND ft.numero_guia_prestador IN (' + subqueryParts.join(' ') + ')',
+    ];
+    // NÃO filtrar por convenioId no faturamento_tiss!
+    // O convênio é filtrado na subquery (contas_convenio_resumo)
+    // Isso garante que TODOS os itens das guias do convênio sejam incluídos,
+    // mesmo que alguns itens tenham convenioId diferente no faturamento_tiss
+    // (ex: itens de competências anteriores importados via outro arquivo XML)
+    
+    const rawResult = await db.execute(sql.raw(sqlParts.join(' ')));
+    // sql.raw retorna colunas em snake_case, mas o código espera camelCase
+    // Mapear para manter compatibilidade com o restante da função
+    const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const rawRows = (rawResult as any)[0] || [];
+    itensFaturados = rawRows.map((row: any) => {
+      const mapped: any = {};
+      for (const key of Object.keys(row)) {
+        mapped[snakeToCamel(key)] = row[key];
+      }
+      return mapped;
+    });
+  } else {
+    // Sem filtro de competência - buscar tudo do estabelecimento
+    const faturamentoConditions: any[] = [];
+    if (estabelecimentoId && estabelecimentoId > 0) {
+      faturamentoConditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
+    }
+    if (convenioId) {
+      faturamentoConditions.push(eq(faturamentoTiss.convenioId, convenioId));
+    }
+    if (faturamentoConditions.length > 0) {
+      itensFaturados = await db
+        .select()
+        .from(faturamentoTiss)
+        .where(and(...faturamentoConditions));
+    } else {
+      itensFaturados = await db
+        .select()
+        .from(faturamentoTiss)
+        .where(estabelecimentoId && estabelecimentoId > 0 
+          ? eq(faturamentoTiss.estabelecimentoId, estabelecimentoId)
+          : sql`1=1`);
+    }
+  }
+
+  console.log('[getDadosBI] Itens faturados encontrados:', itensFaturados.length);
+
+  // ===== BUSCAR DEMONSTRATIVO (recebidos) - ainda usa arquivos pois demonstrativo não tem competencia =====
   const arquivosConditions: any[] = [
     eq(arquivos.status, "processado"),
+    eq(arquivos.direcao, "retornado"),
   ];
   
   if (estabelecimentoId && estabelecimentoId > 0) {
@@ -13109,15 +13182,9 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     arquivosConditions.push(eq(arquivos.convenioId, convenioId));
   }
 
-  // Filtro de período - usar dataReferencia OU createdAt como fallback
-  // Usar Date.UTC para garantir que as datas sejam criadas em UTC
   if (mesReferencia && anoReferencia) {
-    // Criar datas em UTC para evitar problemas de timezone
     const dataInicio = new Date(Date.UTC(anoReferencia, mesReferencia - 1, 1, 0, 0, 0));
-    // Último dia do mês às 23:59:59 UTC
     const dataFim = new Date(Date.UTC(anoReferencia, mesReferencia, 0, 23, 59, 59));
-    console.log('[getDadosBI] Filtro mês - Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
-    // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
     arquivosConditions.push(
       or(
         and(gte(arquivos.dataReferencia, dataInicio), lte(arquivos.dataReferencia, dataFim)),
@@ -13125,11 +13192,8 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       )
     );
   } else if (anoReferencia) {
-    // Criar datas em UTC para o ano inteiro
     const dataInicio = new Date(Date.UTC(anoReferencia, 0, 1, 0, 0, 0));
     const dataFim = new Date(Date.UTC(anoReferencia, 11, 31, 23, 59, 59));
-    console.log('[getDadosBI] Filtro ano - Data início:', dataInicio.toISOString(), 'Data fim:', dataFim.toISOString());
-    // Usar OR para incluir arquivos sem dataReferencia (usando createdAt)
     arquivosConditions.push(
       or(
         and(gte(arquivos.dataReferencia, dataInicio), lte(arquivos.dataReferencia, dataFim)),
@@ -13138,60 +13202,13 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     );
   }
 
-  // Buscar arquivos enviados (faturados)
-  console.log('[getDadosBI] Filtros recebidos:', JSON.stringify(filtros));
-  console.log('[getDadosBI] Condições de arquivos:', arquivosConditions.length);
-  console.log('[getDadosBI] Ano:', anoReferencia, 'Mês:', mesReferencia);
-  console.log('[getDadosBI] Estabelecimento:', estabelecimentoId);
-  
-  const arquivosEnviados = await db
-    .select()
-    .from(arquivos)
-    .where(and(
-      ...arquivosConditions,
-      eq(arquivos.direcao, "enviado")
-    ));
-  
-  console.log('[getDadosBI] Arquivos enviados encontrados:', arquivosEnviados.length);
-  if (arquivosEnviados.length === 0) {
-    // Buscar sem filtro de data para debug
-    const arquivosSemFiltroData = await db
-      .select()
-      .from(arquivos)
-      .where(and(
-        eq(arquivos.status, "processado"),
-        eq(arquivos.estabelecimentoId, estabelecimentoId || 0),
-        eq(arquivos.direcao, "enviado")
-      ));
-    console.log('[getDadosBI] Arquivos enviados sem filtro de data:', arquivosSemFiltroData.length);
-    if (arquivosSemFiltroData.length > 0) {
-      console.log('[getDadosBI] Primeiro arquivo:', JSON.stringify({ id: arquivosSemFiltroData[0].id, createdAt: arquivosSemFiltroData[0].createdAt, dataReferencia: arquivosSemFiltroData[0].dataReferencia }));
-    }
-  }
-
-  // Buscar arquivos retornados (recebidos)
   const arquivosRetornados = await db
     .select()
     .from(arquivos)
-    .where(and(...arquivosConditions, eq(arquivos.direcao, "retornado")));
+    .where(and(...arquivosConditions));
   
   console.log('[getDadosBI] Arquivos retornados encontrados:', arquivosRetornados.length);
 
-  // Mapear convênios
-  const todosConvenios = await db.select().from(convenios);
-  const convenioMap = new Map(todosConvenios.map(c => [c.id, c.nome]));
-
-  // Buscar dados de FATURAMENTO (faturamento_tiss) dos arquivos enviados
-  const enviadosIds = arquivosEnviados.map(a => a.id);
-  let itensFaturados: any[] = [];
-  if (enviadosIds.length > 0) {
-    itensFaturados = await db
-      .select()
-      .from(faturamentoTiss)
-      .where(inArray(faturamentoTiss.arquivoId, enviadosIds));
-  }
-
-  // Buscar dados de DEMONSTRATIVO (demonstrativo) dos arquivos retornados
   const retornadosIds = arquivosRetornados.map(a => a.id);
   let itensRecebidos: any[] = [];
   if (retornadosIds.length > 0) {
@@ -13201,12 +13218,21 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       .where(inArray(demonstrativo.arquivoId, retornadosIds));
   }
 
-  // Criar mapa de arquivo para convênio
+  // Criar mapa de arquivo para convênio (para demonstrativos)
   const arquivoConvenioMap = new Map<number, number>();
   const arquivoDataMap = new Map<number, Date | null>();
-  for (const arq of [...arquivosEnviados, ...arquivosRetornados]) {
+  for (const arq of arquivosRetornados) {
     arquivoConvenioMap.set(arq.id, arq.convenioId);
     arquivoDataMap.set(arq.id, arq.dataReferencia);
+  }
+  // Também mapear convênio dos itens faturados (direto do item)
+  for (const item of itensFaturados) {
+    if (item.convenioId && !arquivoConvenioMap.has(item.arquivoId)) {
+      arquivoConvenioMap.set(item.arquivoId, item.convenioId);
+    }
+    if (item.dataReferencia && !arquivoDataMap.has(item.arquivoId)) {
+      arquivoDataMap.set(item.arquivoId, item.dataReferencia);
+    }
   }
 
   // Aplicar filtros adicionais para itens faturados (faturamento_tiss)
@@ -13255,7 +13281,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     totalProcedimentos++;
     if (item.carteiraBeneficiario) pacientesSet.add(item.carteiraBeneficiario);
     if (item.numeroGuiaPrestador) guiasSet.add(item.numeroGuiaPrestador);
-    const convId = arquivoConvenioMap.get(item.arquivoId);
+    const convId = item.convenioId || arquivoConvenioMap.get(item.arquivoId);
     if (convId) conveniosSet.add(convId);
   }
 
@@ -13278,7 +13304,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   // Agrupar por convênio
   const porConvenioMap = new Map<string, DadosBIAgrupado>();
   for (const item of itensFaturadosFiltrados) {
-    const convId = arquivoConvenioMap.get(item.arquivoId) || item.convenioId;
+    const convId = item.convenioId || arquivoConvenioMap.get(item.arquivoId);
     const chave = convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
       porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
@@ -13329,11 +13355,11 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por mês
+  // Agrupar por mês (usando campo competencia do item)
   const porMesMap = new Map<string, DadosBIAgrupado>();
   for (const item of itensFaturadosFiltrados) {
-    const dataRef = arquivoDataMap.get(item.arquivoId);
-    const chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
+    // Usar competencia do item (AAAA/MM) convertendo para AAAA-MM para display
+    const chave = item.competencia ? item.competencia.replace('/', '-') : 'Sem Data';
     if (!porMesMap.has(chave)) {
       porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
@@ -13747,8 +13773,27 @@ export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
     tiposUnicos = Array.from(tiposSet).sort();
   }
 
-  // Buscar meses disponíveis
+  // Buscar meses disponíveis a partir do campo competencia da faturamento_tiss
   const mesesSet = new Set<string>();
+  
+  // Buscar competências únicas diretamente da faturamento_tiss
+  if (arquivoIds.length > 0) {
+    const competenciasResult = await db
+      .selectDistinct({ competencia: faturamentoTiss.competencia })
+      .from(faturamentoTiss)
+      .where(and(
+        inArray(faturamentoTiss.arquivoId, arquivoIds),
+        sql`${faturamentoTiss.competencia} IS NOT NULL`
+      ));
+    for (const row of competenciasResult) {
+      if (row.competencia) {
+        // Converter AAAA/MM para AAAA-MM para manter compatível
+        mesesSet.add(row.competencia.replace('/', '-'));
+      }
+    }
+  }
+  
+  // Fallback: também incluir meses dos arquivos (para demonstrativos)
   for (const arq of arquivosEstab) {
     if (arq.dataReferencia) {
       const mes = arq.dataReferencia.getMonth() + 1;
@@ -16878,14 +16923,12 @@ export async function getFaturamentoTiss(params: {
     conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
 
-  // Filtro por mês/ano de referência (baseado na data de referência)
+  // Filtro por mês/ano de referência (usando campo competencia AAAA/MM)
   if (mesReferencia && anoReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
-  } else if (mesReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    const competenciaFiltro = `${anoReferencia}/${String(mesReferencia).padStart(2, '0')}`;
+    conditions.push(eq(faturamentoTiss.competencia, competenciaFiltro));
   } else if (anoReferencia) {
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
+    conditions.push(sql`${faturamentoTiss.competencia} LIKE ${anoReferencia + '/%'}`);
   }
 
   // Busca textual
@@ -17040,14 +17083,12 @@ export async function getFaturamentoTissResumo(params: {
     conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
 
-  // Filtro por mês/ano de referência (baseado na data de referência)
+  // Filtro por mês/ano de referência (usando campo competencia AAAA/MM)
   if (mesReferencia && anoReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
-  } else if (mesReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    const competenciaFiltro = `${anoReferencia}/${String(mesReferencia).padStart(2, '0')}`;
+    conditions.push(eq(faturamentoTiss.competencia, competenciaFiltro));
   } else if (anoReferencia) {
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
+    conditions.push(sql`${faturamentoTiss.competencia} LIKE ${anoReferencia + '/%'}`);
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -17104,13 +17145,12 @@ export async function getGuiasMultiplosLotes(params: {
     conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
 
+  // Filtro por competência (AAAA/MM)
   if (mesReferencia && anoReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
-  } else if (mesReferencia) {
-    conditions.push(sql`MONTH(${faturamentoTiss.dataReferencia}) = ${mesReferencia}`);
+    const competenciaFiltro = `${anoReferencia}/${String(mesReferencia).padStart(2, '0')}`;
+    conditions.push(eq(faturamentoTiss.competencia, competenciaFiltro));
   } else if (anoReferencia) {
-    conditions.push(sql`YEAR(${faturamentoTiss.dataReferencia}) = ${anoReferencia}`);
+    conditions.push(sql`${faturamentoTiss.competencia} LIKE ${anoReferencia + '/%'}`);
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -18494,4 +18534,425 @@ export async function getMetricasImportacaoBanco(filters: {
     porConvenio,
     ultimasImportacoes,
   };
+}
+
+
+/**
+ * Analisa padrões de cobrança a partir dos dados do Tasy (contas_convenio_itens)
+ * Gera padrões por composição, preços, quantidade e médico
+ */
+export async function analisarPadroesCobrancaTasy(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+  competencia?: string;
+}): Promise<{
+  padroesComposicao: Array<{
+    codigoProcedimento: string;
+    descricao: string;
+    tipo: string;
+    totalOcorrencias: number;
+    contasComItem: number;
+    frequenciaPercentual: number;
+    quantidadeMedia: number;
+    quantidadeMin: number;
+    quantidadeMax: number;
+    valorUnitarioMedio: number;
+    valorUnitarioMin: number;
+    valorUnitarioMax: number;
+    valorTotalMedio: number;
+    itensAssociados: Array<{
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      frequencia: number;
+      quantidadeMedia: number;
+      valorUnitarioMedio: number;
+    }>;
+  }>;
+  padroesPorMedico: Array<{
+    profissional: string;
+    totalContas: number;
+    totalItens: number;
+    codigosUnicos: number;
+    valorTotal: number;
+    valorMedioPorConta: number;
+    itensFrequentes: Array<{
+      codigo: string;
+      descricao: string;
+      ocorrencias: number;
+      quantidadeMedia: number;
+      valorMedio: number;
+    }>;
+  }>;
+  resumoPrecos: Array<{
+    codigoItem: string;
+    descricao: string;
+    tipo: string;
+    precoMedio: number;
+    precoMin: number;
+    precoMax: number;
+    desvioPadrao: number;
+    totalOcorrencias: number;
+  }>;
+  totalContas: number;
+  totalItens: number;
+}> {
+  const db = await getDb();
+  if (!db) return { padroesComposicao: [], padroesPorMedico: [], resumoPrecos: [], totalContas: 0, totalItens: 0 };
+
+  // Filtros
+  let whereClause = `WHERE cci.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.convenioId) {
+    whereClause += ` AND cci.convenioId = ${params.convenioId}`;
+  }
+  if (params.competencia) {
+    whereClause += ` AND cci.competencia = '${params.competencia.replace(/'/g, "''")}'`;
+  }
+
+  // -------------------------------------------------------
+  // 1. Buscar todos os itens das contas
+  // -------------------------------------------------------
+  const [itensRows] = await db.execute(sql.raw(`
+    SELECT cci.numeroConta, cci.codigoItem, cci.descricaoItem, cci.tipoItem,
+           cci.quantidade, cci.valorUnitario, cci.valorTotal, cci.profissionalExecutante,
+           cci.setor
+    FROM contas_convenio_itens cci
+    ${whereClause}
+    ORDER BY cci.numeroConta, cci.codigoItem
+  `));
+  const itens = itensRows as unknown as any[];
+
+  if (itens.length === 0) {
+    return { padroesComposicao: [], padroesPorMedico: [], resumoPrecos: [], totalContas: 0, totalItens: 0 };
+  }
+
+  // -------------------------------------------------------
+  // 2. Agrupar por conta
+  // -------------------------------------------------------
+  const contasMap = new Map<string, any[]>();
+  for (const item of itens) {
+    const conta = String(item.numeroConta || '');
+    if (!contasMap.has(conta)) contasMap.set(conta, []);
+    contasMap.get(conta)!.push(item);
+  }
+
+  const totalContas = contasMap.size;
+  const totalItens = itens.length;
+
+  // -------------------------------------------------------
+  // 3. Padrões de Composição (quais itens aparecem juntos)
+  // -------------------------------------------------------
+  const padroesPorCodigo = new Map<string, {
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    ocorrencias: number;
+    quantidades: number[];
+    valoresUnitarios: number[];
+    valorTotal: number;
+    contasComItem: Set<string>;
+    itensAssociados: Map<string, {
+      codigo: string;
+      descricao: string;
+      tipo: string;
+      ocorrencias: number;
+      quantidades: number[];
+      valoresUnitarios: number[];
+    }>;
+  }>();
+
+  for (const [conta, itensConta] of contasMap) {
+    const codigosNaConta = new Set(itensConta.map((i: any) => String(i.codigoItem || '')));
+
+    for (const item of itensConta) {
+      const codigo = String(item.codigoItem || '');
+      if (!codigo) continue;
+
+      if (!padroesPorCodigo.has(codigo)) {
+        padroesPorCodigo.set(codigo, {
+          codigo,
+          descricao: String(item.descricaoItem || ''),
+          tipo: String(item.tipoItem || ''),
+          ocorrencias: 0,
+          quantidades: [],
+          valoresUnitarios: [],
+          valorTotal: 0,
+          contasComItem: new Set(),
+          itensAssociados: new Map(),
+        });
+      }
+
+      const padrao = padroesPorCodigo.get(codigo)!;
+      padrao.ocorrencias++;
+      padrao.quantidades.push(Number(item.quantidade) || 0);
+      padrao.valoresUnitarios.push(Number(item.valorUnitario) || 0);
+      padrao.valorTotal += Number(item.valorTotal) || 0;
+      padrao.contasComItem.add(conta);
+
+      // Registrar itens associados (outros itens na mesma conta)
+      for (const outroCodigo of codigosNaConta) {
+        if (outroCodigo === codigo) continue;
+        const outroItem = itensConta.find((i: any) => String(i.codigoItem) === outroCodigo);
+        if (!outroItem) continue;
+
+        if (!padrao.itensAssociados.has(outroCodigo)) {
+          padrao.itensAssociados.set(outroCodigo, {
+            codigo: outroCodigo,
+            descricao: String(outroItem.descricaoItem || ''),
+            tipo: String(outroItem.tipoItem || ''),
+            ocorrencias: 0,
+            quantidades: [],
+            valoresUnitarios: [],
+          });
+        }
+        const assoc = padrao.itensAssociados.get(outroCodigo)!;
+        assoc.ocorrencias++;
+        assoc.quantidades.push(Number(outroItem.quantidade) || 0);
+        assoc.valoresUnitarios.push(Number(outroItem.valorUnitario) || 0);
+      }
+    }
+  }
+
+  const padroesComposicao = Array.from(padroesPorCodigo.values())
+    .filter(p => p.contasComItem.size >= 3)
+    .map(p => {
+      const qtds = p.quantidades;
+      const vals = p.valoresUnitarios;
+      return {
+        codigoProcedimento: p.codigo,
+        descricao: p.descricao,
+        tipo: p.tipo,
+        totalOcorrencias: p.ocorrencias,
+        contasComItem: p.contasComItem.size,
+        frequenciaPercentual: Math.round((p.contasComItem.size / totalContas) * 10000) / 100,
+        quantidadeMedia: Math.round((qtds.reduce((a, b) => a + b, 0) / qtds.length) * 100) / 100,
+        quantidadeMin: Math.min(...qtds),
+        quantidadeMax: Math.max(...qtds),
+        valorUnitarioMedio: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10000) / 10000,
+        valorUnitarioMin: Math.min(...vals),
+        valorUnitarioMax: Math.max(...vals),
+        valorTotalMedio: Math.round((p.valorTotal / p.ocorrencias) * 100) / 100,
+        itensAssociados: Array.from(p.itensAssociados.values())
+          .filter(a => a.ocorrencias >= 2)
+          .map(a => ({
+            codigo: a.codigo,
+            descricao: a.descricao,
+            tipo: a.tipo,
+            frequencia: Math.round((a.ocorrencias / p.contasComItem.size) * 10000) / 100,
+            quantidadeMedia: Math.round((a.quantidades.reduce((x, y) => x + y, 0) / a.quantidades.length) * 100) / 100,
+            valorUnitarioMedio: Math.round((a.valoresUnitarios.reduce((x, y) => x + y, 0) / a.valoresUnitarios.length) * 10000) / 10000,
+          }))
+          .sort((a, b) => b.frequencia - a.frequencia)
+          .slice(0, 15),
+      };
+    })
+    .sort((a, b) => b.frequenciaPercentual - a.frequenciaPercentual);
+
+  // -------------------------------------------------------
+  // 4. Padrões por Médico
+  // -------------------------------------------------------
+  const medicoMap = new Map<string, {
+    profissional: string;
+    contas: Set<string>;
+    totalItens: number;
+    codigos: Set<string>;
+    valorTotal: number;
+    itensPorCodigo: Map<string, { codigo: string; descricao: string; ocorrencias: number; quantidades: number[]; valores: number[] }>;
+  }>();
+
+  for (const item of itens) {
+    const prof = String(item.profissionalExecutante || '').trim();
+    if (!prof || prof === 'NULL' || prof === '') continue;
+
+    if (!medicoMap.has(prof)) {
+      medicoMap.set(prof, {
+        profissional: prof,
+        contas: new Set(),
+        totalItens: 0,
+        codigos: new Set(),
+        valorTotal: 0,
+        itensPorCodigo: new Map(),
+      });
+    }
+    const med = medicoMap.get(prof)!;
+    med.contas.add(String(item.numeroConta || ''));
+    med.totalItens++;
+    med.codigos.add(String(item.codigoItem || ''));
+    med.valorTotal += Number(item.valorTotal) || 0;
+
+    const cod = String(item.codigoItem || '');
+    if (!med.itensPorCodigo.has(cod)) {
+      med.itensPorCodigo.set(cod, {
+        codigo: cod,
+        descricao: String(item.descricaoItem || ''),
+        ocorrencias: 0,
+        quantidades: [],
+        valores: [],
+      });
+    }
+    const ic = med.itensPorCodigo.get(cod)!;
+    ic.ocorrencias++;
+    ic.quantidades.push(Number(item.quantidade) || 0);
+    ic.valores.push(Number(item.valorTotal) || 0);
+  }
+
+  const padroesPorMedico = Array.from(medicoMap.values())
+    .filter(m => m.contas.size >= 2)
+    .map(m => ({
+      profissional: m.profissional,
+      totalContas: m.contas.size,
+      totalItens: m.totalItens,
+      codigosUnicos: m.codigos.size,
+      valorTotal: Math.round(m.valorTotal * 100) / 100,
+      valorMedioPorConta: Math.round((m.valorTotal / m.contas.size) * 100) / 100,
+      itensFrequentes: Array.from(m.itensPorCodigo.values())
+        .sort((a, b) => b.ocorrencias - a.ocorrencias)
+        .slice(0, 10)
+        .map(ic => ({
+          codigo: ic.codigo,
+          descricao: ic.descricao,
+          ocorrencias: ic.ocorrencias,
+          quantidadeMedia: Math.round((ic.quantidades.reduce((a, b) => a + b, 0) / ic.quantidades.length) * 100) / 100,
+          valorMedio: Math.round((ic.valores.reduce((a, b) => a + b, 0) / ic.valores.length) * 100) / 100,
+        })),
+    }))
+    .sort((a, b) => b.totalContas - a.totalContas);
+
+  // -------------------------------------------------------
+  // 5. Resumo de Preços (estatísticas por código)
+  // -------------------------------------------------------
+  const precoMap = new Map<string, {
+    codigo: string;
+    descricao: string;
+    tipo: string;
+    precos: number[];
+  }>();
+
+  for (const item of itens) {
+    const codigo = String(item.codigoItem || '');
+    const preco = Number(item.valorUnitario) || 0;
+    if (!codigo) continue;
+
+    if (!precoMap.has(codigo)) {
+      precoMap.set(codigo, {
+        codigo,
+        descricao: String(item.descricaoItem || ''),
+        tipo: String(item.tipoItem || ''),
+        precos: [],
+      });
+    }
+    precoMap.get(codigo)!.precos.push(preco);
+  }
+
+  const resumoPrecos = Array.from(precoMap.values())
+    .filter(p => p.precos.length >= 3)
+    .map(p => {
+      const media = p.precos.reduce((a, b) => a + b, 0) / p.precos.length;
+      const variancia = p.precos.reduce((sum, val) => sum + Math.pow(val - media, 2), 0) / p.precos.length;
+      const desvio = Math.sqrt(variancia);
+      return {
+        codigoItem: p.codigo,
+        descricao: p.descricao,
+        tipo: p.tipo,
+        precoMedio: Math.round(media * 10000) / 10000,
+        precoMin: Math.min(...p.precos),
+        precoMax: Math.max(...p.precos),
+        desvioPadrao: Math.round(desvio * 10000) / 10000,
+        totalOcorrencias: p.precos.length,
+      };
+    })
+    .sort((a, b) => b.totalOcorrencias - a.totalOcorrencias);
+
+  return {
+    padroesComposicao,
+    padroesPorMedico,
+    resumoPrecos,
+    totalContas,
+    totalItens,
+  };
+}
+
+/**
+ * Salva padrões de cobrança do Tasy na tabela padroesCobranca
+ * Atualiza os existentes e cria novos
+ */
+export async function salvarPadroesCobrancaTasy(params: {
+  estabelecimentoId: number;
+  convenioId?: number;
+  competencia?: string;
+}): Promise<{ salvos: number; atualizados: number; novos: number }> {
+  const analise = await analisarPadroesCobrancaTasy(params);
+  const db = await getDb();
+  if (!db) return { salvos: 0, atualizados: 0, novos: 0 };
+
+  let atualizados = 0;
+  let novos = 0;
+
+  for (const padrao of analise.padroesComposicao) {
+    const itensAssociadosJson = JSON.stringify(padrao.itensAssociados.map(a => ({
+      codigo: a.codigo,
+      descricao: a.descricao,
+      tipo: a.tipo,
+      frequencia: a.frequencia,
+      quantidadeMedia: a.quantidadeMedia,
+      valorUnitarioMedio: a.valorUnitarioMedio,
+    })));
+
+    // Calcular confiança baseada na frequência e total de ocorrências
+    const confianca = Math.min(99, Math.round(
+      (padrao.frequenciaPercentual * 0.5) + 
+      (Math.min(padrao.totalOcorrencias, 100) * 0.5)
+    ));
+
+    // Verificar se já existe
+    const [existente] = await db.execute(sql.raw(`
+      SELECT id, totalOcorrencias FROM padroesCobranca 
+      WHERE estabelecimentoId = ${params.estabelecimentoId} 
+        AND codigoProcedimentoPrincipal = '${padrao.codigoProcedimento.replace(/'/g, "''")}'
+        ${params.convenioId ? `AND convenioId = ${params.convenioId}` : ''}
+      LIMIT 1
+    `));
+
+    const rows = existente as unknown as any[];
+    if (rows.length > 0) {
+      // Atualizar existente
+      const esc = (v: string) => v.replace(/'/g, "''");
+      await db.execute(sql.raw(`
+        UPDATE padroesCobranca SET
+          descricaoProcedimentoPrincipal = '${esc(padrao.descricao)}',
+          tipoProcedimentoPrincipal = '${esc(padrao.tipo === 'PROC/TAXA' ? 'procedimento' : 'material')}',
+          itensAssociados = '${esc(itensAssociadosJson)}',
+          totalOcorrencias = ${padrao.totalOcorrencias},
+          valorMedioConta = ${padrao.valorTotalMedio},
+          valorMinConta = ${padrao.valorUnitarioMin},
+          valorMaxConta = ${padrao.valorUnitarioMax},
+          confianca = ${confianca},
+          profissionalExecutante = NULL,
+          setor = NULL
+        WHERE id = ${rows[0].id}
+      `));
+      atualizados++;
+    } else {
+      // Inserir novo
+      const esc = (v: string) => v.replace(/'/g, "''");
+      await db.execute(sql.raw(`
+        INSERT INTO padroesCobranca (
+          convenioId, estabelecimentoId, codigoProcedimentoPrincipal, 
+          descricaoProcedimentoPrincipal, tipoProcedimentoPrincipal,
+          itensAssociados, totalOcorrencias, valorMedioConta, valorMinConta, valorMaxConta,
+          confianca, status, createdAt
+        ) VALUES (
+          ${params.convenioId || 'NULL'}, ${params.estabelecimentoId},
+          '${esc(padrao.codigoProcedimento)}', '${esc(padrao.descricao)}',
+          '${esc(padrao.tipo === 'PROC/TAXA' ? 'procedimento' : 'material')}',
+          '${esc(itensAssociadosJson)}', ${padrao.totalOcorrencias},
+          ${padrao.valorTotalMedio}, ${padrao.valorUnitarioMin}, ${padrao.valorUnitarioMax},
+          ${confianca}, 'aprendendo', NOW()
+        )
+      `));
+      novos++;
+    }
+  }
+
+  return { salvos: atualizados + novos, atualizados, novos };
 }

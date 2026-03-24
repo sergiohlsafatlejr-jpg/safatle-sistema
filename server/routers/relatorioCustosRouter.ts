@@ -12,6 +12,20 @@ import {
   buscarDetalheContaCusto,
   buscarCustosPorSetor,
 } from "../relatorioCustos";
+import {
+  buscarCustosPorConvenioSamaritano,
+  buscarCustosPorContaSamaritano,
+  buscarDetalheContaCustoSamaritano,
+  buscarCustosPorSetorSamaritano,
+} from "../relatorioCustosSamaritano";
+import { buscarDashboardSamaritano } from "../dashboardSamaritano";
+
+// ID do estabelecimento Samaritano
+const SAMARITANO_ID = 2280016;
+
+function isSamaritano(estabelecimentoId: number): boolean {
+  return estabelecimentoId === SAMARITANO_ID;
+}
 
 export const relatorioCustosRouter = router({
   buscar: protectedProcedure
@@ -108,6 +122,9 @@ export const relatorioCustosRouter = router({
     )
     .query(async ({ input }) => {
       const { estabelecimentoId, ...filtros } = input;
+      if (isSamaritano(estabelecimentoId)) {
+        return buscarCustosPorConvenioSamaritano(estabelecimentoId, filtros);
+      }
       return buscarCustosPorConvenio(estabelecimentoId, filtros);
     }),
 
@@ -118,10 +135,14 @@ export const relatorioCustosRouter = router({
         convenio: z.string().optional(),
         competencia: z.string().optional(),
         busca: z.string().optional(),
+        setor: z.string().optional(),
       })
     )
     .query(async ({ input }) => {
       const { estabelecimentoId, ...filtros } = input;
+      if (isSamaritano(estabelecimentoId)) {
+        return buscarCustosPorContaSamaritano(estabelecimentoId, filtros);
+      }
       return buscarCustosPorConta(estabelecimentoId, filtros);
     }),
 
@@ -133,7 +154,26 @@ export const relatorioCustosRouter = router({
       })
     )
     .query(async ({ input }) => {
+      if (isSamaritano(input.estabelecimentoId)) {
+        return buscarDetalheContaCustoSamaritano(input.estabelecimentoId, input.numconta);
+      }
       return buscarDetalheContaCusto(input.estabelecimentoId, input.numconta);
+    }),
+
+  dashboardSamaritano: protectedProcedure
+    .input(
+      z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenio: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { estabelecimentoId, ...filtros } = input;
+      if (!isSamaritano(estabelecimentoId)) {
+        throw new Error("Dashboard Samaritano disponível apenas para o Hospital Samaritano");
+      }
+      return buscarDashboardSamaritano(estabelecimentoId, filtros);
     }),
 
   custosPorSetor: protectedProcedure
@@ -148,6 +188,9 @@ export const relatorioCustosRouter = router({
     )
     .query(async ({ input }) => {
       const { estabelecimentoId, ...filtros } = input;
+      if (isSamaritano(estabelecimentoId)) {
+        return buscarCustosPorSetorSamaritano(estabelecimentoId, filtros);
+      }
       return buscarCustosPorSetor(estabelecimentoId, filtros);
     }),
 });
