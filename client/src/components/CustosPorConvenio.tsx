@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, TrendingUp, TrendingDown, DollarSign, AlertTriangle,
-  Loader2, Database, ArrowUpDown, ArrowUp, ArrowDown,
+  Loader2, Database, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 function formatCurrency(value: number | null | undefined): string {
@@ -38,6 +38,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
   const [activeTab, setActiveTab] = useState<"detalhado" | "resumo" | "prejuizo" | "lucro">("detalhado");
   const [sortField, setSortField] = useState<SortField>("descricao");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [expandedConvenio, setExpandedConvenio] = useState<string | null>(null);
 
   const queryInput = useMemo(() => ({
     estabelecimentoId,
@@ -377,7 +378,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Resumo por Convênio</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Total faturado e custo por convênio. Margem positiva = lucro, negativa = prejuízo.
+                  Total faturado e custo por convênio. Clique em um convênio para ver os itens com custo unitário vs valor faturado unitário.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
@@ -385,6 +386,7 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
+                        <TableHead className="w-8"></TableHead>
                         <TableHead>Convênio</TableHead>
                         <TableHead className="text-right">Lançamentos</TableHead>
                         <TableHead className="text-right">Total Faturado</TableHead>
@@ -395,38 +397,144 @@ export default function CustosPorConvenio({ estabelecimentoId }: CustosPorConven
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.resumoPorConvenio.map((conv) => (
-                        <TableRow key={conv.codplaco}>
-                          <TableCell className="font-medium">
-                            <div>
-                              <span>{conv.convenio}</span>
-                              <span className="text-xs text-muted-foreground ml-2">({conv.codplaco})</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{conv.totalLancamentos.toLocaleString("pt-BR")}</TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{formatCurrency(conv.totalFaturado)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatCurrency(conv.totalCusto)}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-bold ${conv.margem >= 0 ? "text-green-600" : "text-red-600"}`}>
-                            {formatCurrency(conv.margem)}
-                          </TableCell>
-                          <TableCell className={`text-right tabular-nums ${conv.margemPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
-                            {conv.margemPercent.toFixed(1)}%
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={conv.resultado === "lucro" ? "default" : conv.resultado === "prejuizo" ? "destructive" : "secondary"}
-                              className={conv.resultado === "lucro" ? "bg-green-600 hover:bg-green-700" : ""}>
-                              {conv.resultado === "lucro" ? (
-                                <><TrendingUp className="h-3 w-3 mr-1" />Lucro</>
-                              ) : conv.resultado === "prejuizo" ? (
-                                <><TrendingDown className="h-3 w-3 mr-1" />Prejuízo</>
-                              ) : "Empate"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {data.resumoPorConvenio.map((conv) => {
+                        const isExpanded = expandedConvenio === conv.codplaco;
+                        // Filtrar itens detalhados deste convênio
+                        const itensDoConvenio = data.itensDetalhados.filter(
+                          (item) => item.codplaco === conv.codplaco
+                        );
+                        return (
+                          <>
+                            <TableRow
+                              key={conv.codplaco}
+                              className={`cursor-pointer hover:bg-muted/30 transition-colors ${isExpanded ? "bg-muted/20" : ""}`}
+                              onClick={() => setExpandedConvenio(isExpanded ? null : conv.codplaco)}
+                            >
+                              <TableCell className="w-8 text-center">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <span>{conv.convenio}</span>
+                                  <span className="text-xs text-muted-foreground ml-2">({conv.codplaco})</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">{conv.totalLancamentos.toLocaleString("pt-BR")}</TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">{formatCurrency(conv.totalFaturado)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{formatCurrency(conv.totalCusto)}</TableCell>
+                              <TableCell className={`text-right tabular-nums font-bold ${conv.margem >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {formatCurrency(conv.margem)}
+                              </TableCell>
+                              <TableCell className={`text-right tabular-nums ${conv.margemPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {conv.margemPercent.toFixed(1)}%
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={conv.resultado === "lucro" ? "default" : conv.resultado === "prejuizo" ? "destructive" : "secondary"}
+                                  className={conv.resultado === "lucro" ? "bg-green-600 hover:bg-green-700" : ""}>
+                                  {conv.resultado === "lucro" ? (
+                                    <><TrendingUp className="h-3 w-3 mr-1" />Lucro</>
+                                  ) : conv.resultado === "prejuizo" ? (
+                                    <><TrendingDown className="h-3 w-3 mr-1" />Prejuízo</>
+                                  ) : "Empate"}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                              <TableRow key={`${conv.codplaco}-detail`}>
+                                <TableCell colSpan={8} className="p-0 bg-muted/10">
+                                  <div className="p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <DollarSign className="h-4 w-4 text-primary" />
+                                      <span className="text-sm font-semibold">Itens de {conv.convenio}</span>
+                                      <Badge variant="outline" className="text-xs">{itensDoConvenio.length} itens</Badge>
+                                    </div>
+                                    <div className="overflow-x-auto rounded-md border">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow className="bg-muted/30">
+                                            <TableHead className="text-xs">Código</TableHead>
+                                            <TableHead className="text-xs">Descrição</TableHead>
+                                            <TableHead className="text-xs text-center">Tipo</TableHead>
+                                            <TableHead className="text-xs text-right">Qtd</TableHead>
+                                            <TableHead className="text-xs text-center">Unid.</TableHead>
+                                            <TableHead className="text-xs text-right">Custo Unit.</TableHead>
+                                            <TableHead className="text-xs text-right">Vlr Faturado Unit.</TableHead>
+                                            <TableHead className="text-xs text-right">Margem Unit.</TableHead>
+                                            <TableHead className="text-xs text-right">Custo Total</TableHead>
+                                            <TableHead className="text-xs text-right">Vlr Faturado Total</TableHead>
+                                            <TableHead className="text-xs text-right">Margem Total</TableHead>
+                                            <TableHead className="text-xs text-center">Resultado</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {itensDoConvenio.map((item, idx) => {
+                                            const margemUnit = (item.valorCobradoUnitario || 0) - (item.custoUnitario || 0);
+                                            return (
+                                              <TableRow
+                                                key={`${item.codprod}-${idx}`}
+                                                className={item.resultado === "prejuizo" ? "bg-red-50/50 dark:bg-red-950/10" : ""}
+                                              >
+                                                <TableCell className="font-mono text-xs">{item.codprod}</TableCell>
+                                                <TableCell className="text-xs max-w-[200px] truncate" title={item.descricao}>{item.descricao}</TableCell>
+                                                <TableCell className="text-center">
+                                                  <Badge variant="outline" className={`text-[10px] ${
+                                                    item.tipoItemLabel === "Medicamento" ? "border-blue-400 text-blue-600" :
+                                                    item.tipoItemLabel === "Taxa" ? "border-green-400 text-green-600" :
+                                                    "border-gray-400 text-gray-600"
+                                                  }`}>{item.tipoItemLabel}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums text-xs">{formatNumber(item.quantidade)}</TableCell>
+                                                <TableCell className="text-center text-[10px] text-muted-foreground">{item.unidade}</TableCell>
+                                                <TableCell className="text-right tabular-nums text-xs">{formatCurrency(item.custoUnitario)}</TableCell>
+                                                <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(item.valorCobradoUnitario)}</TableCell>
+                                                <TableCell className={`text-right tabular-nums text-xs font-bold ${margemUnit > 0 ? "text-green-600" : margemUnit < 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                                                  {formatCurrency(margemUnit)}
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums text-xs">{formatCurrency(item.custoTotal)}</TableCell>
+                                                <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(item.valorCobradoTotal)}</TableCell>
+                                                <TableCell className={`text-right tabular-nums text-xs font-bold ${item.margem > 0 ? "text-green-600" : item.margem < 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                                                  {formatCurrency(item.margem)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                  {item.resultado === "lucro" ? (
+                                                    <Badge variant="default" className="text-[10px] bg-green-600 hover:bg-green-700">
+                                                      <TrendingUp className="h-2.5 w-2.5 mr-0.5" />Lucro
+                                                    </Badge>
+                                                  ) : item.resultado === "prejuizo" ? (
+                                                    <Badge variant="destructive" className="text-[10px]">
+                                                      <TrendingDown className="h-2.5 w-2.5 mr-0.5" />Prejuízo
+                                                    </Badge>
+                                                  ) : (
+                                                    <Badge variant="secondary" className="text-[10px]">Empate</Badge>
+                                                  )}
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                          {itensDoConvenio.length === 0 && (
+                                            <TableRow>
+                                              <TableCell colSpan={12} className="text-center text-muted-foreground py-4 text-xs">
+                                                Nenhum item detalhado encontrado para este convênio
+                                              </TableCell>
+                                            </TableRow>
+                                          )}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      })}
                       {data.resumoPorConvenio.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             Nenhum dado encontrado
                           </TableCell>
                         </TableRow>

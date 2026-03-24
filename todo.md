@@ -3493,3 +3493,7 @@
 - [x] Corrigir filtro por convênio que retorna 0 resultados (causa: backend filtrava por coluna 'convenio' mas frontend enviava 'codplaco'; corrigido para usar codplaco em todas as funções)
 - [x] Adicionar coluna setor no detalhe da conta (ex: conta 1171424) - campo setor adicionado no retorno do backend e coluna no frontend
 - [x] Adicionar filtro por setor na aba Custos por Conta - dropdown de setor + setoresDisponiveis no backend
+
+## Melhoria Resumo por Convênio - Itens Detalhados (24/03/2026 - 3)
+- [x] Na aba Resumo por Convênio, ao clicar em um convênio, expandir/mostrar os itens cadastrados com custo unitário vs valor faturado unitário
+- [x] Mostrar resultado lucro/prejuízo por item dentro do convênio selecionado (com Margem Unit., Custo Total, Vlr Faturado Total, Margem Total)
