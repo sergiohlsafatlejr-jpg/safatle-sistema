@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardCustos from "@/components/DashboardCustos";
 import ComparacaoCustoConvenio from "@/components/ComparacaoCustoConvenio";
@@ -44,8 +44,21 @@ export default function RelatorioCustos() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Samaritano = 2280016 - usa fonte de dados diferente (MySQL staging)
+  const isSamaritano = estabelecimentoId === 2280016;
+
+  // Tab state - Samaritano não tem Dashboard/Comparação/Tabela Detalhada
+  const [activeTab, setActiveTab] = useState(isSamaritano ? "custosConta" : "dashboard");
+
+  // Resetar tab quando mudar de estabelecimento
+  useEffect(() => {
+    if (isSamaritano && (activeTab === "dashboard" || activeTab === "comparacao" || activeTab === "tabela")) {
+      setActiveTab("custosConta");
+    }
+    if (!isSamaritano && activeTab === "custosConta" && estabelecimentoId > 0) {
+      // Manter na aba atual se é válida para Hemolabor
+    }
+  }, [isSamaritano, estabelecimentoId]);
 
   // Dashboard filters
   const [dashTipoprod, setDashTipoprod] = useState<string>("");
@@ -265,7 +278,8 @@ export default function RelatorioCustos() {
             </p>
           </div>
 
-          {/* Sync status + button */}
+          {/* Sync status + button - apenas para Hemolabor/Warleine */}
+          {!isSamaritano && (
           <div className="flex items-center gap-3">
             {statusSync.data && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -320,19 +334,30 @@ export default function RelatorioCustos() {
               {statusSync.data?.status === "em_andamento" ? "Sincronizando..." : "Sincronizar"}
             </Button>
           </div>
+          )}
+          {isSamaritano && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+              <Database className="h-3.5 w-3.5 mr-1" />
+              Fonte: Importação Excel
+            </Badge>
+          )}
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="dashboard" className="gap-1.5">
-              <BarChart3 className="h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="comparacao" className="gap-1.5">
-              <Scale className="h-4 w-4" />
-              Custo vs Convenio
-            </TabsTrigger>
+            {!isSamaritano && (
+              <TabsTrigger value="dashboard" className="gap-1.5">
+                <BarChart3 className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+            )}
+            {!isSamaritano && (
+              <TabsTrigger value="comparacao" className="gap-1.5">
+                <Scale className="h-4 w-4" />
+                Custo vs Convenio
+              </TabsTrigger>
+            )}
             <TabsTrigger value="custosConta" className="gap-1.5">
               <DollarSign className="h-4 w-4" />
               Custos por Conta
@@ -345,10 +370,12 @@ export default function RelatorioCustos() {
               <Building2 className="h-4 w-4" />
               Custos por Setor
             </TabsTrigger>
-            <TabsTrigger value="tabela" className="gap-1.5">
-              <TableIcon className="h-4 w-4" />
-              Tabela Detalhada
-            </TabsTrigger>
+            {!isSamaritano && (
+              <TabsTrigger value="tabela" className="gap-1.5">
+                <TableIcon className="h-4 w-4" />
+                Tabela Detalhada
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* ======== ABA DASHBOARD ======== */}

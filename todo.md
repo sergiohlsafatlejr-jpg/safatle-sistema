@@ -3473,3 +3473,15 @@
 - [x] Informar ao usuário quais competências foram puladas (toast.warning com duração 10s)
 - [x] Frontend trata resultado com 0 itens processados (mostra mensagem informativa)
 - [x] 25 testes passando
+
+## Hospital Samaritano - Rel. Custos (24/03/2026)
+- [x] Analisar estrutura do Excel (118.703 registros, 15 colunas)
+- [x] Verificar ID do estabelecimento Samaritano cadastrado (ID: 2280016)
+- [x] Criar tabela samaritano_custo_staging no banco (19 colunas, índices em setor, convenio, codprod, estabelecimentoId)
+- [x] Importar dados do Excel para a tabela (118.703 registros: 12/2025=11.729, 01/2026=43.790, 02/2026=40.786, 03/2026=22.398)
+- [x] Criar módulo backend relatorioCustosSamaritano.ts (custos por convênio, conta, setor, detalhe conta)
+- [x] Adaptar router para dispatch automático Hemolabor/Warleine vs Samaritano/MySQL
+- [x] Adaptar frontend - ocultar abas não aplicáveis ao Samaritano (Dashboard, Custo vs Convênio, Tabela Detalhada)
+- [x] Adaptar frontend - mostrar badge "Fonte: Importação Excel" para Samaritano
+- [x] Criar testes vitest para módulo Samaritano (6 testes passando)
+- [x] Testar e salvar checkpoint
