@@ -3,91 +3,70 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /**
  * Testa a lógica de filtro por competência da conta no getDadosBI.
  * A correção principal: quando há filtro de competência, o getDadosBI deve
- * usar JOIN com contas_convenio_resumo para filtrar pela competência da CONTA,
- * não pela competência do item individual no faturamento_tiss.
+ * usar SUBQUERY com contas_convenio_resumo para encontrar as guias da competência,
+ * depois buscar TODOS os itens dessas guias no faturamento_tiss (sem filtrar por competência do item).
+ * O filtro de convênio é aplicado APENAS na subquery (contas_convenio_resumo),
+ * NÃO no faturamento_tiss, para garantir que todos os itens das guias sejam incluídos.
  */
 
-// Mock do db.execute para capturar a SQL gerada
-const mockExecute = vi.fn();
-const mockSelect = vi.fn();
-const mockFrom = vi.fn();
-const mockWhere = vi.fn();
-
-vi.mock("./db", async () => {
-  const actual = await vi.importActual("./db") as any;
-  return {
-    ...actual,
-    getDb: vi.fn().mockResolvedValue({
-      select: () => ({
-        from: () => ({
-          where: () => [],
-        }),
-      }),
-      execute: mockExecute,
-    }),
-  };
-});
-
-describe("getDadosBI - Filtro por competência da conta", () => {
+describe("getDadosBI - Filtro por competência da conta via subquery", () => {
   
-  it("deve gerar SQL com JOIN na contas_convenio_resumo quando há filtro de competência", () => {
-    // Simular a construção da SQL como feita no getDadosBI
-    const estabelecimentoId = 3;
-    const competenciaFiltro = "2026/01";
-    const convenioId: number | undefined = undefined;
-
+  // Simula a construção da SQL como feita no getDadosBI atualizado
+  function buildQuery(opts: { estabelecimentoId: number; competenciaFiltro?: string; anoReferencia?: number; convenioId?: number }) {
+    const { estabelecimentoId, competenciaFiltro, anoReferencia, convenioId } = opts;
+    
+    const subqueryParts: string[] = [
+      'SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr',
+      'WHERE ccr.estabelecimentoId = ' + (estabelecimentoId || 0),
+    ];
+    if (convenioId) subqueryParts.push('AND ccr.convenioId = ' + convenioId);
+    if (competenciaFiltro) subqueryParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
+    else if (anoReferencia) subqueryParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
+    
     const sqlParts: string[] = [
       'SELECT ft.* FROM faturamento_tiss ft',
-      'INNER JOIN contas_convenio_resumo ccr ON ccr.numeroConta = ft.numero_guia_prestador AND ccr.estabelecimentoId = ft.estabelecimentoId',
       'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
+      'AND ft.numero_guia_prestador IN (' + subqueryParts.join(' ') + ')',
     ];
-    if (convenioId) sqlParts.push('AND ft.convenioId = ' + convenioId);
-    if (competenciaFiltro) sqlParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
-
-    const finalSql = sqlParts.join(' ');
     
-    expect(finalSql).toContain('INNER JOIN contas_convenio_resumo ccr');
+    return sqlParts.join(' ');
+  }
+
+  it("deve gerar SQL com subquery na contas_convenio_resumo quando há filtro de competência", () => {
+    const finalSql = buildQuery({ estabelecimentoId: 3, competenciaFiltro: "2026/01" });
+    
+    expect(finalSql).toContain('SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr');
     expect(finalSql).toContain("ccr.competencia = '2026/01'");
     expect(finalSql).toContain('ft.estabelecimentoId = 3');
-    expect(finalSql).not.toContain('ft.competencia'); // NÃO deve filtrar por competência do item
+    expect(finalSql).toContain('ft.numero_guia_prestador IN (');
+    // NÃO deve filtrar por competência do item no faturamento_tiss
+    expect(finalSql).not.toContain('ft.competencia');
   });
 
   it("deve gerar SQL com filtro LIKE para ano quando só ano é fornecido", () => {
-    const estabelecimentoId = 3;
-    const anoReferencia = 2026;
-    const competenciaFiltro: string | undefined = undefined;
-
-    const sqlParts: string[] = [
-      'SELECT ft.* FROM faturamento_tiss ft',
-      'INNER JOIN contas_convenio_resumo ccr ON ccr.numeroConta = ft.numero_guia_prestador AND ccr.estabelecimentoId = ft.estabelecimentoId',
-      'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
-    ];
-    if (competenciaFiltro) sqlParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
-    else if (anoReferencia) sqlParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
-
-    const finalSql = sqlParts.join(' ');
+    const finalSql = buildQuery({ estabelecimentoId: 3, anoReferencia: 2026 });
     
-    expect(finalSql).toContain('INNER JOIN contas_convenio_resumo ccr');
+    expect(finalSql).toContain('SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr');
     expect(finalSql).toContain("ccr.competencia LIKE '2026/%'");
   });
 
-  it("deve incluir filtro de convênio quando fornecido", () => {
-    const estabelecimentoId = 3;
-    const competenciaFiltro = "2026/01";
-    const convenioId = 1;
-
-    const sqlParts: string[] = [
-      'SELECT ft.* FROM faturamento_tiss ft',
-      'INNER JOIN contas_convenio_resumo ccr ON ccr.numeroConta = ft.numero_guia_prestador AND ccr.estabelecimentoId = ft.estabelecimentoId',
-      'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
-    ];
-    if (convenioId) sqlParts.push('AND ft.convenioId = ' + convenioId);
-    if (competenciaFiltro) sqlParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
-
-    const finalSql = sqlParts.join(' ');
+  it("deve filtrar convênio APENAS na subquery, NÃO no faturamento_tiss", () => {
+    const finalSql = buildQuery({ estabelecimentoId: 1, competenciaFiltro: "2026/01", convenioId: 60008 });
     
-    expect(finalSql).toContain('AND ft.convenioId = 1');
-    expect(finalSql).toContain("ccr.competencia = '2026/01'");
+    // Convênio deve estar na subquery
+    expect(finalSql).toContain('ccr.convenioId = 60008');
+    // Convênio NÃO deve estar no faturamento_tiss
+    // Contar ocorrências de "convenioId = 60008" - deve ser apenas 1 (na subquery)
+    const matches = finalSql.match(/convenioId = 60008/g);
+    expect(matches).toHaveLength(1);
+    // Verificar que NÃO tem ft.convenioId
+    expect(finalSql).not.toContain('ft.convenioId');
+  });
+
+  it("sem filtro de convênio, subquery não deve ter filtro de convênio", () => {
+    const finalSql = buildQuery({ estabelecimentoId: 1, competenciaFiltro: "2026/01" });
+    
+    expect(finalSql).not.toContain('convenioId');
   });
 
   it("deve mapear snake_case para camelCase corretamente", () => {

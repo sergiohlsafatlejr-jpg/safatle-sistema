@@ -13091,16 +13091,27 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   
   if (competenciaFiltro || anoReferencia) {
     // Filtrar por competência da CONTA (via contas_convenio_resumo)
-    // JOIN faturamento_tiss com contas_convenio_resumo pela guia
-    // Pega TODOS os itens das guias que pertencem a contas da competência selecionada
+    // Usa subquery para encontrar as guias da competência selecionada
+    // Depois pega TODOS os itens dessas guias (de qualquer competência no faturamento_tiss)
+    // Isso garante que o total bata com o valorTotal da Conta Convênio
+    const subqueryParts: string[] = [
+      'SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr',
+      'WHERE ccr.estabelecimentoId = ' + (estabelecimentoId || 0),
+    ];
+    if (convenioId) subqueryParts.push('AND ccr.convenioId = ' + convenioId);
+    if (competenciaFiltro) subqueryParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
+    else if (anoReferencia) subqueryParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
+    
     const sqlParts: string[] = [
       'SELECT ft.* FROM faturamento_tiss ft',
-      'INNER JOIN contas_convenio_resumo ccr ON ccr.numeroConta = ft.numero_guia_prestador AND ccr.estabelecimentoId = ft.estabelecimentoId',
       'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
+      'AND ft.numero_guia_prestador IN (' + subqueryParts.join(' ') + ')',
     ];
-    if (convenioId) sqlParts.push('AND ft.convenioId = ' + convenioId);
-    if (competenciaFiltro) sqlParts.push(`AND ccr.competencia = '${competenciaFiltro}'`);
-    else if (anoReferencia) sqlParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
+    // NÃO filtrar por convenioId no faturamento_tiss!
+    // O convênio é filtrado na subquery (contas_convenio_resumo)
+    // Isso garante que TODOS os itens das guias do convênio sejam incluídos,
+    // mesmo que alguns itens tenham convenioId diferente no faturamento_tiss
+    // (ex: itens de competências anteriores importados via outro arquivo XML)
     
     const rawResult = await db.execute(sql.raw(sqlParts.join(' ')));
     // sql.raw retorna colunas em snake_case, mas o código espera camelCase

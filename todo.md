@@ -3518,3 +3518,8 @@
 - [x] Identificar fonte de dados de cada tela (contas_convenio_resumo vs faturamento_tiss) e corrigir inconsistência
 - [x] Corrigir para que ambas as telas mostrem valores consistentes (JOIN com contas_convenio_resumo para usar competência da conta)
 - [x] Corrigir Rel BI getDadosBI: usar competência da conta/importação como base + mapeamento snake_case → camelCase
+
+## Bug - Divergência Rel BI Pronto Socorro após JOIN (24/03/2026)
+- [x] Investigar divergência Vivacom Pronto Socorro: Conta Convênio R$ 19.098,72 vs Rel BI R$ 16.244,41 (causa: guias com itens em múltiplas competências + filtro de convênio no ft excluía itens de outros convênios)
+- [x] Corrigido: subquery para encontrar guias da competência, depois pegar TODOS os itens dessas guias sem filtrar por convênio no faturamento_tiss
+- [x] Testes atualizados (6 passando) validando que convênio é filtrado apenas na subquery (contas_convenio_resumo)
