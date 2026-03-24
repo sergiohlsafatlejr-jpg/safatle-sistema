@@ -3,80 +3,10 @@
   "dialect": "mysql",
   "entries": [
     {
-      "idx": 82,
+      "idx": 0,
       "version": "5",
-      "when": 1773676686799,
-      "tag": "0082_chunky_toad_men",
-      "breakpoints": true
-    },
-    {
-      "idx": 83,
-      "version": "5",
-      "when": 1773769384364,
-      "tag": "0083_gifted_wraith",
-      "breakpoints": true
-    },
-    {
-      "idx": 84,
-      "version": "5",
-      "when": 1773844524356,
-      "tag": "0084_cynical_vindicator",
-      "breakpoints": true
-    },
-    {
-      "idx": 85,
-      "version": "5",
-      "when": 1773845089538,
-      "tag": "0085_loving_klaw",
-      "breakpoints": true
-    },
-    {
-      "idx": 86,
-      "version": "5",
-      "when": 1773861202044,
-      "tag": "0086_dusty_praxagora",
-      "breakpoints": true
-    },
-    {
-      "idx": 87,
-      "version": "5",
-      "when": 1773864461624,
-      "tag": "0087_confused_kate_bishop",
-      "breakpoints": true
-    },
-    {
-      "idx": 88,
-      "version": "5",
-      "when": 1773876092347,
-      "tag": "0088_amusing_lizard",
-      "breakpoints": true
-    },
-    {
-      "idx": 89,
-      "version": "5",
-      "when": 1773882972915,
-      "tag": "0089_striped_wallow",
-      "breakpoints": true
-    },
-    {
-      "idx": 90,
-      "version": "5",
-      "when": 1773917643917,
-      "tag": "0090_sweet_gertrude_yorkes",
-      "breakpoints": true
-    },
-    {
-      "idx": 91,
-      "version": "5",
-      "when": 1773920940273,
-      "tag": "0091_lazy_blacklash",
-      "breakpoints": true
-    },
-    {
-      "idx": 92,
-      "version": "5",
-      "when": 1774032243650,
-      "tag": "0092_mixed_wiccan",
+      "when": 1774287582369,
+      "tag": "0000_youthful_doctor_strange",
       "breakpoints": true
     }
   ]

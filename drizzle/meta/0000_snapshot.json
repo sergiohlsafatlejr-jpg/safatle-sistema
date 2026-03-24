@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "4fbb5123-c2a2-497e-b0ee-4ca72babe17f",
-  "prevId": "9dd2edc6-a6e4-4fbd-ba06-86adf52ffe4c",
+  "id": "6f191825-0b4b-44e1-8876-ed0ded7633e5",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "ajustes_auditoria": {
       "name": "ajustes_auditoria",
@@ -5342,6 +5342,13 @@
           "autoincrement": false,
           "default": "(now())"
         },
+        "codigo_prestador_executante": {
+          "name": "codigo_prestador_executante",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "valor_total_item": {
           "name": "valor_total_item",
           "type": "decimal(12,2)",
@@ -5602,6 +5609,112 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
+    "fin_centros_custo": {
+      "name": "fin_centros_custo",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nome": {
+          "name": "nome",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "responsavel": {
+          "name": "responsavel",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "orcamentoMensal": {
+          "name": "orcamentoMensal",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'sim'"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_fin_cc_codigo": {
+          "name": "idx_fin_cc_codigo",
+          "columns": [
+            "codigo"
+          ],
+          "isUnique": false
+        },
+        "idx_fin_cc_ativo": {
+          "name": "idx_fin_cc_ativo",
+          "columns": [
+            "ativo"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "fin_centros_custo_id": {
+          "name": "fin_centros_custo_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
     "fin_clientes": {
       "name": "fin_clientes",
       "columns": {
@@ -5668,6 +5781,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "numero": {
+          "name": "numero",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "complemento": {
+          "name": "complemento",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bairro": {
+          "name": "bairro",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "cidade": {
           "name": "cidade",
           "type": "varchar(100)",
@@ -5681,6 +5815,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "cnpjSafatle": {
+          "name": "cnpjSafatle",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'24.785.393/0001-54'"
         },
         "userId": {
           "name": "userId",
@@ -6158,6 +6300,20 @@
           "autoincrement": false,
           "default": "'nao'"
         },
+        "tipoServico": {
+          "name": "tipoServico",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "descricaoServico": {
+          "name": "descricaoServico",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "observacoes": {
           "name": "observacoes",
           "type": "text",
@@ -6378,6 +6534,13 @@
         },
         "bancoId": {
           "name": "bancoId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "centroCustoId": {
+          "name": "centroCustoId",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
@@ -11601,6 +11764,62 @@
           "autoincrement": false,
           "default": "'sim'"
         },
+        "acessoPainelExecutivo": {
+          "name": "acessoPainelExecutivo",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoVisaoGeral": {
+          "name": "acessoVisaoGeral",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoFinanceiro": {
+          "name": "acessoFinanceiro",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoContratos": {
+          "name": "acessoContratos",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoPropostas": {
+          "name": "acessoPropostas",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoAtendimentosConsolidados": {
+          "name": "acessoAtendimentosConsolidados",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
+        "acessoNfseConsolidado": {
+          "name": "acessoNfseConsolidado",
+          "type": "enum('sim','nao')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'nao'"
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -16323,6 +16542,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "dataExecucao": {
+          "name": "dataExecucao",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "codigoPrestadorExecutante": {
+          "name": "codigoPrestadorExecutante",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "valorFaturado": {
           "name": "valorFaturado",
           "type": "decimal(12,4)",
@@ -17043,6 +17276,13 @@
         "dataPagamento": {
           "name": "dataPagamento",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "codigoPrestadorExecutante": {
+          "name": "codigoPrestadorExecutante",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

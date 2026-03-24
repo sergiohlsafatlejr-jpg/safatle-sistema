@@ -7,7 +7,9 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { EstabelecimentoProvider } from "./contexts/EstabelecimentoContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./index.css";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Patch global para proteger contra erros de extensões de navegador
@@ -80,9 +82,16 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      fetch(input, init) {
+      async fetch(input, init) {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const headers = { ...init?.headers } as Record<string, string>;
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },
@@ -91,11 +100,13 @@ const trpcClient = trpc.createClient({
 });
 
 createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
-    <QueryClientProvider client={queryClient}>
-      <EstabelecimentoProvider>
-        <App />
-      </EstabelecimentoProvider>
-    </QueryClientProvider>
-  </trpc.Provider>
+  <ErrorBoundary>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <EstabelecimentoProvider>
+          <App />
+        </EstabelecimentoProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
+  </ErrorBoundary>
 );

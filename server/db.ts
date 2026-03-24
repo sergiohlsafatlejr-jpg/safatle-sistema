@@ -148,6 +148,23 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
+    if (user.email) {
+      const existingByEmail = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, user.email))
+        .limit(1);
+        
+      if (existingByEmail.length > 0 && existingByEmail[0].openId !== user.openId) {
+        await db.update(users)
+          .set({ 
+            openId: user.openId, 
+            loginMethod: user.loginMethod || existingByEmail[0].loginMethod 
+          })
+          .where(eq(users.id, existingByEmail[0].id));
+      }
+    }
+
     const values: InsertUser = {
       openId: user.openId,
     };

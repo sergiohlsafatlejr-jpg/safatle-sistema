@@ -26,7 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getLoginUrl } from "@/const";
+import { getDevBypassUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, 
@@ -85,9 +85,11 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { useTheme } from "@/contexts/ThemeContext";
 import { MotorRegrasNotificationBell } from "./MotorRegrasNotificationBell";
 import { SettingsMenu } from "./SettingsMenu";
+import { supabase } from "@/lib/supabase";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 import { SAFATLE_ESTABELECIMENTO_ID } from "@shared/const";
@@ -303,6 +305,26 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  
+  const [email, setEmail] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [isLoadingLink, setIsLoadingLink] = useState(false);
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setIsLoadingLink(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin }
+    });
+    if (!error) {
+      setMagicLinkSent(true);
+    } else {
+      alert("Erro ao enviar link mágico: " + error.message);
+    }
+    setIsLoadingLink(false);
+  };
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -329,15 +351,89 @@ export default function DashboardLayout({
               Sistema de gerenciamento e comparação de arquivos de convênios médicos. Faça login para continuar.
             </p>
           </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Entrar
-          </Button>
+          <div className="flex flex-col gap-3 w-full mt-4">
+            
+            {magicLinkSent ? (
+              <div className="p-4 bg-green-50 text-green-700 rounded-md border border-green-200 text-center text-sm">
+                Enviamos um link mágico de acesso para <b>{email}</b>. Verifique sua caixa de entrada (e spam).
+              </div>
+            ) : (
+              <form onSubmit={handleMagicLink} className="flex flex-col gap-2 mb-4">
+                <Input 
+                  type="email" 
+                  placeholder="Seu email corporativo" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoadingLink}
+                  className="h-12"
+                  required
+                />
+                <Button 
+                  type="submit" 
+                  disabled={isLoadingLink} 
+                  className="w-full h-12 shadow-md hover:shadow-lg transition-all"
+                >
+                  {isLoadingLink ? "Enviando..." : "Receber Link Mágico"}
+                </Button>
+              </form>
+            )}
+
+            <div className="relative my-2">
+               <div className="absolute inset-0 flex items-center">
+                 <span className="w-full border-t border-slate-200" />
+               </div>
+               <div className="relative flex justify-center text-xs uppercase">
+                 <span className="bg-white px-2 text-slate-400">Ou use sua conta</span>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                onClick={() => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })}
+                variant="outline"
+                className="w-full shadow-sm hover:shadow-md transition-all font-medium"
+                title="Google"
+              >
+                G
+              </Button>
+              <Button
+                onClick={() => supabase.auth.signInWithOAuth({ provider: 'azure', options: { redirectTo: window.location.origin } })}
+                variant="outline"
+                className="w-full shadow-sm hover:shadow-md transition-all font-medium"
+                title="Microsoft"
+              >
+                MS
+              </Button>
+              <Button
+                onClick={() => supabase.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: window.location.origin } })}
+                variant="outline"
+                className="w-full shadow-sm hover:shadow-md transition-all font-medium"
+                title="Apple"
+              >
+                Apple
+              </Button>
+            </div>
+            
+            <div className="relative my-4">
+               <div className="absolute inset-0 flex items-center">
+                 <span className="w-full border-t border-slate-200" />
+               </div>
+               <div className="relative flex justify-center text-xs uppercase">
+                 <span className="bg-white px-2 text-slate-400">Ambiente de Teste</span>
+               </div>
+            </div>
+            
+            <Button
+              type="button"
+              onClick={() => {
+                window.location.href = getDevBypassUrl();
+              }}
+              variant="secondary"
+              className="w-full transition-all text-xs h-10"
+            >
+              Acesso Desenvolvedor (Bypass)
+            </Button>
+          </div>
         </div>
       </div>
     );

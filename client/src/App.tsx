@@ -9,6 +9,7 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 
 // Eager load: only the selection page (no DashboardLayout dependency)
 import SelecionarEstabelecimento from "./pages/SelecionarEstabelecimento";
+import Login from "./pages/Login";
 
 // Lazy load: all pages including Home/Inicio (they import DashboardLayout which is heavy)
 const Home = lazy(() => import("./pages/Home"));
@@ -103,20 +104,21 @@ function Router() {
   // FIX: Move navigation to useEffect to avoid calling window.location.href during render
   // This was causing NotFoundError: Failed to execute 'removeChild' on 'Node'
   useEffect(() => {
-    if (!isLoading && !selecionado && location !== "/selecionar-estabelecimento" && !redirectedRef.current) {
+    if (!isLoading && !selecionado && location !== "/selecionar-estabelecimento" && location !== "/login" && location !== "/" && !redirectedRef.current) {
       redirectedRef.current = true;
       window.location.href = "/selecionar-estabelecimento";
     }
   }, [isLoading, selecionado, location]);
 
   // Show loader while checking or redirecting
-  if (!isLoading && !selecionado && location !== "/selecionar-estabelecimento") {
+  if (!isLoading && !selecionado && location !== "/selecionar-estabelecimento" && location !== "/login" && location !== "/") {
     return <PageLoader />;
   }
 
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
+        <Route path={"/login"} component={Login} />
         <Route path={"/selecionar-estabelecimento"} component={SelecionarEstabelecimento} />
         <Route path={"/"} component={Inicio} />
         <Route path={"/dashboard"} component={Home} />
