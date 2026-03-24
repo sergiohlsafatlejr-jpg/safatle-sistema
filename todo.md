@@ -3452,3 +3452,10 @@
 - [x] Frontend com polling de progresso (competência atual, total processado)
 - [x] Job manager com Map em memória, auto-limpeza de jobs antigos
 - [x] 25 testes unitários passando (incluindo testes do job manager)
+
+## Otimização de Performance da Conciliação (24/03/2026 - 4)
+- [x] Aumentar BATCH_SIZE de INSERT de 20 para 500 (reduz queries de 7500 para 340 por competência)
+- [x] Aumentar UPDATE_BATCH_SIZE de 500 para 2000
+- [x] Adicionar logs de progresso detalhados no job manager (tempo por competência, itens processados)
+- [x] Melhorar display de progresso no frontend (itens processados, tempo decorrido)
+- [x] 25 testes passando

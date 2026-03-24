@@ -1390,7 +1390,7 @@ export async function executarConciliacaoAutomatica(params: {
   // PASSO 6: INSERT em batch na tabela conciliados_automatico
   // (conciliações anteriores já foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 500;
   const esc = (v: string | null | undefined) => {
     if (v === null || v === undefined || v === '') return 'NULL';
     // Sanitizar string: remover caracteres de controle, escapar backslash e aspas
@@ -1433,7 +1433,7 @@ export async function executarConciliacaoAutomatica(params: {
   // PASSO 7: Atualizar statusConciliacao no faturamento_unificado
   // Para que os itens já processados não sejam re-processados
   // -------------------------------------------------------
-  const UPDATE_BATCH_SIZE = 500;
+  const UPDATE_BATCH_SIZE = 2000;
   for (let i = 0; i < inserts.length; i += UPDATE_BATCH_SIZE) {
     const batch = inserts.slice(i, i + UPDATE_BATCH_SIZE);
     

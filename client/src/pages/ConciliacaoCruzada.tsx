@@ -595,7 +595,7 @@ export default function ConciliacaoCruzada() {
             >
               {(conciliarAuto.isPending || conciliacaoEmAndamento) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
               {conciliacaoEmAndamento && statusJob?.progresso 
-                ? `Conciliando ${statusJob.progresso.competenciaAtual || ''} (${statusJob.progresso.competenciasProcessadas}/${statusJob.progresso.competenciasTotal})...`
+                ? `Conciliando ${statusJob.progresso.competenciaAtual || ''} (${statusJob.progresso.competenciasProcessadas}/${statusJob.progresso.competenciasTotal}) - ${(statusJob.progresso.itensProcessados || 0).toLocaleString('pt-BR')} itens${statusJob.progresso.tempoDecorrido ? ` - ${Math.floor(statusJob.progresso.tempoDecorrido / 60)}min${statusJob.progresso.tempoDecorrido % 60}s` : ''}...`
                 : conciliarAuto.isPending 
                   ? "Iniciando..." 
                   : "Conciliar Automaticamente"}

@@ -15,6 +15,8 @@ export interface ConciliacaoJob {
     competenciasProcessadas: number;
     competenciasTotal: number;
     percentual: number;
+    itensProcessados: number;
+    tempoDecorrido: number; // segundos
   };
   resultado: ConciliacaoResultado | null;
   erro: string | null;
@@ -59,6 +61,8 @@ export function iniciarJobConciliacao(params: ConciliacaoJob['params']): string 
       competenciasProcessadas: 0,
       competenciasTotal: 0,
       percentual: 0,
+      itensProcessados: 0,
+      tempoDecorrido: 0,
     },
     resultado: null,
     erro: null,
@@ -167,13 +171,21 @@ async function executarJobBackground(jobId: string): Promise<void> {
         job.progresso.competenciaAtual = comp;
         job.progresso.percentual = Math.round((i / competencias.length) * 100);
         
+        const inicioComp = Date.now();
+        console.log(`[ConciliacaoJob] Processando competência ${i + 1}/${competencias.length}: ${comp}`);
+        
         try {
           const parcial = await executarConciliacaoAutomatica({
             ...job.params,
             competencia: comp,
           });
           
+          const tempoComp = ((Date.now() - inicioComp) / 1000).toFixed(1);
+          console.log(`[ConciliacaoJob] Competência ${comp} concluída em ${tempoComp}s: ${parcial.totalProcessados} itens, ${parcial.totalConciliados} conciliados, ${parcial.totalDivergentes} divergentes, ${parcial.totalNaoRecebidos} não recebidos`);
+          
           resultadoTotal.totalProcessados += parcial.totalProcessados;
+          job.progresso.itensProcessados = resultadoTotal.totalProcessados;
+          job.progresso.tempoDecorrido = Math.round((Date.now() - job.iniciadoEm) / 1000);
           resultadoTotal.totalConciliados += parcial.totalConciliados;
           resultadoTotal.totalDivergentes += parcial.totalDivergentes;
           resultadoTotal.totalNaoRecebidos += parcial.totalNaoRecebidos;
