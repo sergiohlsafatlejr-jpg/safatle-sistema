@@ -4376,3 +4376,22 @@ export const tasyFaturadoStaging = mysqlTable("tasy_faturado_staging", {
 
 export type TasyFaturadoStaging = typeof tasyFaturadoStaging.$inferSelect;
 export type InsertTasyFaturadoStaging = typeof tasyFaturadoStaging.$inferInsert;
+
+/**
+ * MÓDULO DE AUDITORIA DE SISTEMA
+ * Tabela para armazenar logs globais de ações dos usuários
+ */
+export const auditLogs = mysqlTable("auditLogs", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId").notNull(),
+  userNome: varchar("userNome", { length: 255 }),
+  acao: mysqlEnum("acao", ["CRIAR", "EDITAR", "EXCLUIR", "ACESSO", "SISTEMA"]).notNull(),
+  entidade: varchar("entidade", { length: 255 }).notNull(), // ex: 'usuario', 'convenio', 'integrador', 'auth'
+  entidadeId: varchar("entidadeId", { length: 255 }), // ID do registro afetado (opcional)
+  detalhes: json("detalhes"), // Payload JSON com contexto ou diff de mudanças
+  ipAddress: varchar("ipAddress", { length: 45 }), // Para IPv4 ou IPv6
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

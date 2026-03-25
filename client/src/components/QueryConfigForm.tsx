@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,8 +14,9 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const connectionSchema = z.object({
+  sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
   host: z.string().min(1, "Host é obrigatório"),
-  port: z.number().min(1, "Port deve ser um número válido"),
+  port: z.coerce.number().min(1, "Port deve ser um número válido"),
   database: z.string().min(1, "Database é obrigatório"),
   user: z.string().min(1, "Usuário é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
@@ -27,10 +28,10 @@ const querySchema = z.object({
 
 const configSchema = z.object({
   estabelecimentoId: z.number().min(1, "Estabelecimento é obrigatório"),
-  sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
-  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta"]),
+  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio"]),
   frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
   descricao: z.string().optional(),
+  tabelaDestinoBi: z.string().optional(),
 });
 
 type ConnectionFormData = z.infer<typeof connectionSchema>;
@@ -56,13 +57,25 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
   const connectionForm = useForm<ConnectionFormData>({
     resolver: zodResolver(connectionSchema),
     defaultValues: {
+      sistema: "tasy",
       host: "hup.safatle.net.br",
-      port: 55333,
+      port: 1521,
       database: "db1",
       user: "TI",
       password: "",
     },
   });
+
+  // Carregar última conexão do LocalStorage
+  useEffect(() => {
+    const cached = localStorage.getItem("@safatle_last_connection");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        connectionForm.reset(parsed);
+      } catch (e) { }
+    }
+  }, []);
 
   const queryForm = useForm<QueryFormData>({
     resolver: zodResolver(querySchema),
@@ -72,7 +85,7 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
     resolver: zodResolver(configSchema),
   });
 
-  const testarConexaoMutation = trpc.integradorDados.testarConexaoWarleine.useMutation();
+  const testarConexaoMutation = trpc.integradorDados.testarConexao.useMutation();
   const salvarConfigMutation = trpc.integradorDados.salvarConfiguracao.useMutation();
   const { data: estabelecimentos } = trpc.integradorDados.listarEstabelecimentos.useQuery();
 
@@ -81,9 +94,10 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
     setTestResult(null);
 
     try {
+      const querySql = data.sistema === "tasy" ? "SELECT 1 FROM DUAL" : "SELECT 1";
       const result = await testarConexaoMutation.mutateAsync({
         ...data,
-        querySql: "SELECT 1",
+        querySql,
       });
 
       if (result.sucesso) {
@@ -168,6 +182,7 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
     try {
       const result = await salvarConfigMutation.mutateAsync({
         ...data,
+        sistema: connectionData.sistema,
         querySql: queryData.querySql,
         conexaoConfig: {
           host: connectionData.host,
@@ -175,10 +190,21 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
           database: connectionData.database,
           user: connectionData.user,
           password: connectionData.password,
+          tabelaDestinoBi: data.tabelaDestinoBi,
         },
       });
 
       if (result.sucesso) {
+        // Salva a ultima conexao com sucesso no cache (secreta apenas localmente)
+        localStorage.setItem("@safatle_last_connection", JSON.stringify({
+          sistema: connectionData.sistema,
+          host: connectionData.host,
+          port: connectionData.port,
+          database: connectionData.database,
+          user: connectionData.user,
+          password: connectionData.password
+        }));
+
         toast.success("Configuração salva com sucesso!");
         onSuccess?.();
       } else {
@@ -215,6 +241,27 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
               <CardDescription>Configure os dados de conexão com o banco de dados</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Sistema / Banco de Dados</label>
+                <Select
+                  value={connectionForm.watch("sistema") || ""}
+                  onValueChange={(v) => connectionForm.setValue("sistema", v as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o Sistema" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
+                    <SelectItem value="tasy">TASY (Oracle)</SelectItem>
+                    <SelectItem value="omni">OMNI (Firebird)</SelectItem>
+                    <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {connectionForm.formState.errors.sistema && (
+                  <p className="text-xs text-red-500 mt-1">{connectionForm.formState.errors.sistema.message}</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Host</label>
@@ -376,7 +423,7 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                     <SelectValue placeholder="Selecione um estabelecimento" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(estabelecimentos as any)?.estabelecimentos?.map((e: any) => (
+                    {(estabelecimentos as any[])?.map((e: any) => (
                       <SelectItem key={e.id} value={e.id.toString()}>
                         {e.nome}
                       </SelectItem>
@@ -385,63 +432,42 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Estabelecimento *</label>
+                <label className="text-sm font-medium">Tipo de Dados</label>
                 <Select
-                  value={String(configForm.watch("estabelecimentoId") || "")}
-                  onValueChange={(v) => configForm.setValue("estabelecimentoId", parseInt(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um estabelecimento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {estabelecimentos?.map((est: any) => (
-                      <SelectItem key={est.id} value={String(est.id)}>
-                        {est.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Sistema</label>
-                <Select
-                  value={configForm.watch("sistema") || ""}
-                  onValueChange={(v) => configForm.setValue("sistema", v as any)}
+                  value={configForm.watch("tipoDados") || ""}
+                  onValueChange={(v) => configForm.setValue("tipoDados", v as any)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="warleine">WARLEINE (PostgreSQL)</SelectItem>
-                    <SelectItem value="tasy">TASY (Oracle)</SelectItem>
-                    <SelectItem value="omni">OMNI (Firebird)</SelectItem>
-                    <SelectItem value="gesthor">GESTHOR (Firebird)</SelectItem>
+                    <SelectItem value="atendimentos">Atendimentos</SelectItem>
+                    <SelectItem value="faturamento">Faturamento</SelectItem>
+                    <SelectItem value="procedimentos">Procedimentos</SelectItem>
+                    <SelectItem value="pacientes">Pacientes</SelectItem>
+                    <SelectItem value="busca_conta">Busca Conta (por nº conta)</SelectItem>
+                    <SelectItem value="bi_relatorio">Relatório Customizado (BI)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
+              {configForm.watch("tipoDados") === "bi_relatorio" && (
                 <div>
-                  <label className="text-sm font-medium">Tipo de Dados</label>
-                  <Select
-                    value={configForm.watch("tipoDados") || ""}
-                    onValueChange={(v) => configForm.setValue("tipoDados", v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="atendimentos">Atendimentos</SelectItem>
-                      <SelectItem value="faturamento">Faturamento</SelectItem>
-                      <SelectItem value="procedimentos">Procedimentos</SelectItem>
-                      <SelectItem value="pacientes">Pacientes</SelectItem>
-                      <SelectItem value="busca_conta">Busca Conta (por nº conta)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium">Nome da Tabela de Destino</label>
+                  <p className="text-xs text-muted-foreground mb-2">A tabela será criada automaticamente no MySQL.</p>
+                  <Input 
+                    {...configForm.register("tabelaDestinoBi")} 
+                    placeholder="Ex: bi_relatorio_tasy_financeiro" 
+                    onChange={(e) => {
+                      // Remove special chars and spaces, keeping only snake_case alphanumeric
+                      const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+                      e.target.value = val;
+                      configForm.setValue("tabelaDestinoBi", val);
+                    }}
+                  />
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium">Frequência de Sincronização</label>

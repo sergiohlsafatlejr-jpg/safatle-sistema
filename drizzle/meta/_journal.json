@@ -29,6 +29,20 @@
       "when": 1774287137845,
       "tag": "0095_messy_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "5",
+      "when": 1774444314637,
+      "tag": "0096_young_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "5",
+      "when": 1774452696855,
+      "tag": "0097_true_hulk",
+      "breakpoints": true
     }
   ]
 }

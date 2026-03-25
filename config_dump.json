@@ -1,0 +1,23 @@
+[
+  {
+    "id": 2,
+    "tipo": "atendimentos",
+    "conexao": {
+      "host": "hup.safatle.net.br",
+      "port": 55333,
+      "database": "db1",
+      "user": "TI",
+      "password": "T3cnologia20"
+    }
+  },
+  {
+    "id": 4,
+    "tipo": "atendimentos",
+    "conexao": "{\"host\":\"\",\"port\":5432,\"database\":\"\",\"user\":\"\",\"password\":\"\"}"
+  },
+  {
+    "id": 5,
+    "tipo": "bi_relatorio",
+    "conexao": "{\"host\":\"10.9.0.31\",\"port\":1521,\"database\":\"dbprod.sub08301559360.maternidadeelav.oraclevcn.com\",\"user\":\"SAFATLE\",\"password\":\"aC1uD#4VCLHcr8y\",\"tabelaDestinoBi\":\"bi_pacientes_tasy\"}"
+  }
+]

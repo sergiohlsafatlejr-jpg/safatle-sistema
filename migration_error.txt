@@ -1,0 +1,48 @@
+Error: Failed query: CREATE TABLE `ajustes_auditoria` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`numeroConta` varchar(100) NOT NULL,
+	`estabelecimentoId` int NOT NULL,
+	`tipoAjuste` enum('ALTERAR_QUANTIDADE','ALTERAR_VALOR','ADICIONAR_ITEM','REMOVER_ITEM','ALTERAR_SETOR') NOT NULL,
+	`itemId` int,
+	`codigoItem` varchar(50),
+	`descricaoItem` text,
+	`quantidadeOriginal` decimal(12,4),
+	`valorOriginal` decimal(14,2),
+	`quantidadeAjustada` decimal(12,4),
+	`valorAjustado` decimal(14,2),
+	`tipoItemAdicionado` varchar(50),
+	`setorOriginal` varchar(255),
+	`setorAjustado` varchar(255),
+	`justificativa` text,
+	`statusAjuste` enum('pendente','aplicado','revertido') NOT NULL DEFAULT 'pendente',
+	`usuarioId` int NOT NULL,
+	`usuarioNome` varchar(255),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_datetime,
+	CONSTRAINT `ajustes_auditoria_id` PRIMARY KEY(`id`)
+);
+
+params: 
+CREATE TABLE `ajustes_auditoria` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`numeroConta` varchar(100) NOT NULL,
+	`estabelecimentoId` int NOT NULL,
+	`tipoAjuste` enum('ALTERAR_QUANTIDADE','ALTERAR_VALOR','ADICIONAR_ITEM','REMOVER_ITEM','ALTERAR_SETOR') NOT NULL,
+	`itemId` int,
+	`codigoItem` varchar(50),
+	`descricaoItem` text,
+	`quantidadeOriginal` decimal(12,4),
+	`valorOriginal` decimal(14,2),
+	`quantidadeAjustada` decimal(12,4),
+	`valorAjustado` decimal(14,2),
+	`tipoItemAdicionado` varchar(50),
+	`setorOriginal` varchar(255),
+	`setorAjustado` varchar(255),
+	`justificativa` text,
+	`statusAjuste` enum('pendente','aplicado','revertido') NOT NULL DEFAULT 'pendente',
+	`usuarioId` int NOT NULL,
+	`usuarioNome` varchar(255),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_datetime,
+	CONSTRAINT `ajustes_auditoria_id` PRIMARY KEY(`id`)
+);

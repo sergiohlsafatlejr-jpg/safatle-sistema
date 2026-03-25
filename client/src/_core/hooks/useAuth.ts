@@ -28,7 +28,9 @@ export function useAuth(options?: UseAuthOptions) {
       (_event, session) => {
         setSession(session);
         if (!session) {
-          utils.auth.me.setData(undefined, null);
+          // Remover o setData(undefined, null) aqui para não matar
+          // os acessos locais baseados em cookie (bypass DEV).
+          // utils.auth.me.setData(undefined, null);
         }
       }
     );
@@ -37,7 +39,9 @@ export function useAuth(options?: UseAuthOptions) {
   }, [utils]);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    enabled: !!session,
+    // Em desenvolvimento (ou se houver cookie), permite tentar o auth.me
+    // mesmo sem sessão Supabase na API local
+    enabled: true, // !!session ou always (o backend lerá o cookie app_session_id)
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -62,7 +66,7 @@ export function useAuth(options?: UseAuthOptions) {
     }
     return {
       user: meQuery.data ?? null,
-      loading: isInitializing || (!!session && meQuery.isLoading),
+      loading: isInitializing || meQuery.isLoading,
       error: meQuery.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };

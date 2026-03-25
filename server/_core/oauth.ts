@@ -3,6 +3,7 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { AuditService } from "./auditService";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -41,6 +42,19 @@ export function registerOAuthRoutes(app: Express) {
         expiresInMs: ONE_YEAR_MS,
       });
 
+      // Registrar auditoria de login
+      const user = await db.getUserByOpenId(userInfo.openId).catch(() => null);
+      if (user || true) {
+        AuditService.logAcao({
+          userId: user?.id || 0, // 0 for missing mapping
+          userNome: userInfo.name || "OAuth User",
+          acao: "ACESSO",
+          entidade: "auth",
+          detalhes: { evento: "LOGIN_OAUTH", method: userInfo.loginMethod },
+          ipAddress: req.ip || null
+        });
+      }
+
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
@@ -61,11 +75,22 @@ export function registerOAuthRoutes(app: Express) {
           email: "dev@teste.com",
           loginMethod: "local",
           lastSignedIn: new Date(),
+          role: "admin",
         });
 
         const sessionToken = await sdk.createSessionToken(mockOpenId, {
           name: "Desenvolvedor Local",
           expiresInMs: ONE_YEAR_MS,
+        });
+
+        // Registrar auditoria de dev login
+        AuditService.logAcao({
+          userId: 1, // Default dev ID
+          userNome: "Desenvolvedor Local",
+          acao: "ACESSO",
+          entidade: "auth",
+          detalhes: { evento: "LOGIN_DEV", method: "local" },
+          ipAddress: req.ip || null
         });
 
         const cookieOptions = getSessionCookieOptions(req);

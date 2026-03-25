@@ -13,6 +13,7 @@ import { parseExcelRecebimentoTiss, parseXmlRecebimentoTiss } from "./recebiment
 import { compararProcedimentos, toDivergenciaInsert, gerarResumoComparacao } from "./comparador";
 import * as db from "./db";
 import { getDb } from "./db";
+import { AuditService } from "./_core/auditService";
 import { getAtendimentosParados, salvarNotificacao, salvarNotificacaoEmLote, getAtendimentosAFaturar, salvarHistoricoNotificacao, listarHistoricoNotificacoes, buscarMotivosNotificacao } from "./pgAtendimentos";
 import { salvarNotificacaoAtendimento, salvarNotificacoesAtendimentoEmLote, buscarNotificacoesAtendimento, getHistoricoNotificacoesAtendimento } from "./db";
 import { getAtendimentosParadosUnificados, calcularDiasParadoUnificado, getKPIsPorTipo, getQuantidadePorPlano, getQuantidadePorServico } from "./atendimentosUnificados";
@@ -36,6 +37,7 @@ import { contratosRouter } from "./routers/contratosRouter";
 import { propostasRouter } from "./routers/propostasRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
+import { auditSystemRouter } from "./routers/auditSystemRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -102,12 +104,24 @@ export const appRouter = router({
   financeiro: financeiroRouter,
   contratos: contratosRouter,
   propostas: propostasRouter,
+  auditSystem: auditSystemRouter,
   
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      
+      if (ctx.user?.id) {
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "ACESSO",
+          entidade: "auth",
+          detalhes: { evento: "LOGOUT" },
+        });
+      }
+
       return { success: true } as const;
     }),
     
@@ -212,12 +226,22 @@ export const appRouter = router({
           prazoRecursoGlosa: z.number().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        return db.createConvenio({
+      .mutation(async ({ input, ctx }) => {
+        const result = await db.createConvenio({
           nome: input.nome,
           codigo: input.codigo || null,
           prazoRecursoGlosa: input.prazoRecursoGlosa || 30,
         });
+        
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "CRIAR",
+          entidade: "convenio",
+          detalhes: { dados: input }
+        });
+        
+        return result;
       }),
 
     update: protectedProcedure
@@ -230,9 +254,19 @@ export const appRouter = router({
           ativo: z.enum(["sim", "nao"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         await db.updateConvenio(id, data);
+        
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "EDITAR",
+          entidade: "convenio",
+          entidadeId: String(id),
+          detalhes: { dados: data }
+        });
+        
         return { success: true };
       }),
 
@@ -306,12 +340,22 @@ export const appRouter = router({
           endereco: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        return db.createEstabelecimento({
+      .mutation(async ({ input, ctx }) => {
+        const result = await db.createEstabelecimento({
           nome: input.nome,
           cnpj: input.cnpj || null,
           endereco: input.endereco || null,
         });
+        
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "CRIAR",
+          entidade: "estabelecimento",
+          detalhes: { dados: input }
+        });
+        
+        return result;
       }),
 
     update: protectedProcedure
@@ -324,19 +368,38 @@ export const appRouter = router({
           ativo: z.enum(["sim", "nao"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         await db.updateEstabelecimento(id, data);
+        
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "EDITAR",
+          entidade: "estabelecimento",
+          entidadeId: String(id),
+          detalhes: { dados: data }
+        });
+        
         return { success: true };
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const result = await db.deleteEstabelecimento(input.id);
         if (!result.success) {
           throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
         }
+        
+        AuditService.logAcao({
+          userId: ctx.user.id,
+          userNome: ctx.user.name || "User",
+          acao: "EXCLUIR",
+          entidade: "estabelecimento",
+          entidadeId: String(input.id),
+        });
+        
         return result;
       }),
   }),

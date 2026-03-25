@@ -65,6 +65,7 @@ export class OracleConnector {
 
     try {
       const result = await this.connection.execute(query);
+      logger.info({ message: "DEBUG ORACLE RAW RESULT", query, rowCount: result.rows?.length });
       return (result.rows as any[]) || [];
     } catch (error) {
       logger.error({
@@ -72,6 +73,42 @@ export class OracleConnector {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
+    }
+  }
+
+  async testarConexaoEQuery(query: string): Promise<{
+    sucesso: boolean;
+    mensagem: string;
+    totalRegistros: number;
+    primeiroRegistro: any | null;
+  }> {
+    try {
+      const ok = await this.conectar();
+      if (!ok) {
+        return {
+          sucesso: false,
+          mensagem: "Falha ao conectar ao banco Oracle. Verifique as credenciais e o Service Name.",
+          totalRegistros: 0,
+          primeiroRegistro: null,
+        };
+      }
+
+      const dados = await this.executarQuery(query);
+      await this.desconectar();
+
+      return {
+        sucesso: true,
+        mensagem: `Conexão OK. Query retornou ${dados.length} registros`,
+        totalRegistros: dados.length,
+        primeiroRegistro: dados[0] || null,
+      };
+    } catch (error) {
+      return {
+        sucesso: false,
+        mensagem: error instanceof Error ? error.message : "Erro desconhecido",
+        totalRegistros: 0,
+        primeiroRegistro: null,
+      };
     }
   }
 }

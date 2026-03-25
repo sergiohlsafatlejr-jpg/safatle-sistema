@@ -117,6 +117,7 @@ const menuItems: MenuItem[] = [
     { icon: TrendingUp, label: "Tendências", path: "/tendencias", modulo: "analiseGlosa" },
     { icon: FileText, label: "Relatórios", path: "/relatorios", modulo: "faturamento" },
     { icon: ClipboardCheck, label: "Dashboard Auditoria", path: "/dashboard-auditoria", modulo: "dashboard" },
+    { icon: Shield, label: "Logs do Sistema", path: "/auditoria-sistema", adminOnly: true },
     { icon: FileCheck, label: "Conferência Pós-Correção", path: "/conferencia-correcao", modulo: "dashboard" },
   ]},
 

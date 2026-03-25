@@ -1,0 +1,10 @@
+{
+  "sucesso": true,
+  "sistema": "tasy",
+  "tipoDados": "bi_relatorio",
+  "totalRegistrosSincronizados": 10,
+  "totalErros": 0,
+  "mensagem": "10 registros sincronizados (TASY)",
+  "duracao": 1,
+  "timestamp": "2026-03-25T19:38:58.952Z"
+}

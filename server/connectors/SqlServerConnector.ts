@@ -82,4 +82,40 @@ export class SqlServerConnector {
       throw error;
     }
   }
+
+  async testarConexaoEQuery(query: string): Promise<{
+    sucesso: boolean;
+    mensagem: string;
+    totalRegistros: number;
+    primeiroRegistro: any | null;
+  }> {
+    try {
+      const ok = await this.conectar();
+      if (!ok) {
+        return {
+          sucesso: false,
+          mensagem: "Falha ao conectar ao banco SQL Server. Verifique as credenciais.",
+          totalRegistros: 0,
+          primeiroRegistro: null,
+        };
+      }
+
+      const dados = await this.executarQuery(query);
+      await this.desconectar();
+
+      return {
+        sucesso: true,
+        mensagem: `Conexão OK. Query retornou ${dados.length} registros`,
+        totalRegistros: dados.length,
+        primeiroRegistro: dados[0] || null,
+      };
+    } catch (error) {
+      return {
+        sucesso: false,
+        mensagem: error instanceof Error ? error.message : "Erro desconhecido",
+        totalRegistros: 0,
+        primeiroRegistro: null,
+      };
+    }
+  }
 }

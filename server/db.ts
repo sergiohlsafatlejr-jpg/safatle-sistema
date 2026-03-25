@@ -100,6 +100,8 @@ import {
   InsertNotificacaoAtendimento,
   notificacoesAtendimentoItem,
   InsertNotificacaoAtendimentoItem,
+  auditLogs,
+  InsertAuditLog,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 

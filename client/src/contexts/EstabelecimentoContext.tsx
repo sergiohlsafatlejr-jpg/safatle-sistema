@@ -186,10 +186,13 @@ export function EstabelecimentoProvider({ children }: { children: ReactNode }) {
     });
 
   // Verificar se é gestor
-  const { data: isGestor = false, isLoading: loadingGestor } = 
+  const { data: isGestorDB = false, isLoading: loadingGestor } = 
     trpc.permissoes.verificarGestor.useQuery(undefined, {
       enabled: !!user,
     });
+  
+  // Administradores globais do sistema implicitamente possuem direitos de gestor
+  const isGestor = isGestorDB || user?.role === "admin";
 
   // Buscar permissões do usuário
   const { data: minhasPermissoes = [], isLoading: loadingPermissoes } = 

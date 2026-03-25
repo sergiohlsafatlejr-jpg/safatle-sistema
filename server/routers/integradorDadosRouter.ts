@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, inArray } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
@@ -11,7 +11,8 @@ import { logger } from "../_core/logger";
 import * as dbIntegrador from "../db-integrador";
 import { getDb, verificarPermissaoEstabelecimento } from "../db";
 import { permissoesEstabelecimento, estabelecimentos } from "../../drizzle/schema";
-import { queryConfiguracoes, warleineAtendimentosStaging, warleineFaturamentoStaging, faturamentoGeral, atendimentosSemConta, atendimentosAFaturar } from "../../drizzle/schema-integracao";
+import { queryConfiguracoes, warleineAtendimentosStaging, warleineFaturamentoStaging, faturamentoGeral, atendimentosSemConta, atendimentosAFaturar, tasyMaternidadeElaAtendimentosStaging } from "../../drizzle/schema-integracao";
+import { AuditService } from "../_core/auditService";
 import { atendimentos } from "../../drizzle/schema-integracao";
 import { ENV } from "../_core/env";
 
@@ -52,7 +53,7 @@ export const integradorDadosRouter = router({
   /**
    * Testa conexão e query com WARLEINE
    */
-  testarConexaoWarleine: protectedProcedure
+  testarConexao: protectedProcedure
     .input(
       z.object({
         host: z.string(),
@@ -61,17 +62,34 @@ export const integradorDadosRouter = router({
         user: z.string(),
         password: z.string(),
         querySql: z.string(),
+        sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]).default("warleine"),
       })
     )
     .mutation(async ({ input }) => {
       try {
-        const connector = new WarleineConnector({
+        let connector: any;
+        const config = {
           host: input.host,
           port: input.port,
           database: input.database,
           user: input.user,
           password: input.password,
-        });
+        };
+
+        switch (input.sistema) {
+          case "tasy":
+            connector = new OracleConnector(config);
+            break;
+          case "omni":
+          case "gesthor":
+            // Firebird/MSSQL dependendo do conector, por padrão usando SQL Server
+            connector = new SqlServerConnector(config);
+            break;
+          case "warleine":
+          default:
+            connector = new WarleineConnector(config);
+            break;
+        }
 
         const resultado = await connector.testarConexaoEQuery(input.querySql);
 
@@ -83,7 +101,7 @@ export const integradorDadosRouter = router({
         };
       } catch (error) {
         logger.error({
-          message: "Erro ao testar conexão WARLEINE",
+          message: `Erro ao testar conexão ${input.sistema}`,
           error: error instanceof Error ? error.message : String(error),
         });
 
@@ -104,7 +122,7 @@ export const integradorDadosRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
-        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta"]),
+        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio"]),
         querySql: z.string(),
         frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
         descricao: z.string().optional(),
@@ -115,6 +133,7 @@ export const integradorDadosRouter = router({
             database: z.string().optional(),
             user: z.string().optional(),
             password: z.string().optional(),
+            tabelaDestinoBi: z.string().optional(),
           })
           .optional(),
       })
@@ -147,7 +166,7 @@ export const integradorDadosRouter = router({
           querySql: input.querySql,
           frequencia: input.frequencia,
           descricao: input.descricao || null,
-          conexaoConfig: input.conexaoConfig ? JSON.stringify(input.conexaoConfig) : null,
+          conexaoConfig: input.conexaoConfig ? input.conexaoConfig : null,
           ativo: true,
           ultimaSincronizacao: null,
           proximaSincronizacao: new Date(),
@@ -161,6 +180,15 @@ export const integradorDadosRouter = router({
           sistema: input.sistema,
           tipoDados: input.tipoDados,
           estabelecimentoId: input.estabelecimentoId,
+        });
+
+        AuditService.logAcao({
+          userId: ctx.user?.id || 0,
+          userNome: ctx.user?.name || "Admin",
+          acao: "CRIAR",
+          entidade: "integrador",
+          entidadeId: String(configId),
+          detalhes: { sistema: input.sistema, tipoDados: input.tipoDados }
         });
 
         return {
@@ -210,18 +238,25 @@ export const integradorDadosRouter = router({
         : await db.select().from(queryConfiguracoes);
 
       return {
-        configuracoes: configs.map((c) => ({
-          id: c.id,
-          estabelecimentoId: c.estabelecimentoId,
-          sistema: c.sistema,
-          tipoDados: c.tipoDados,
-          querySql: c.querySql,
-          frequencia: c.frequencia,
-          descricao: c.descricao,
-          ativo: c.ativo,
-          ultimaSincronizacao: c.ultimaSincronizacao,
-          proximaSincronizacao: c.proximaSincronizacao,
-        })),
+        configuracoes: configs.map((c) => {
+          let conexao = c.conexaoConfig;
+          while (typeof conexao === 'string') {
+            try { conexao = JSON.parse(conexao); } catch(e) { break; }
+          }
+          return {
+            id: c.id,
+            estabelecimentoId: c.estabelecimentoId,
+            sistema: c.sistema,
+            tipoDados: c.tipoDados,
+            querySql: c.querySql,
+            frequencia: c.frequencia,
+            descricao: c.descricao,
+            ativo: c.ativo,
+            conexaoConfig: conexao as any,
+            ultimaSincronizacao: c.ultimaSincronizacao,
+            proximaSincronizacao: c.proximaSincronizacao,
+          };
+        }),
         total: configs.length,
       };
     } catch (error) {
@@ -382,14 +417,13 @@ export const integradorDadosRouter = router({
 
         if (config.sistema === "warleine") {
           try {
-            // Parse da configuração de conexão
             let conexao = {};
             if (config.conexaoConfig) {
-              if (typeof config.conexaoConfig === 'string') {
-                conexao = JSON.parse(config.conexaoConfig);
-              } else {
-                conexao = config.conexaoConfig as any;
+              let parsed = config.conexaoConfig;
+              while (typeof parsed === 'string') {
+                try { parsed = JSON.parse(parsed); } catch(e) { break; }
               }
+              conexao = parsed as any;
             }
 
             logger.info({
@@ -501,6 +535,41 @@ export const integradorDadosRouter = router({
             });
             throw error;
           }
+        } else if (config.sistema === "tasy" || config.sistema === "omni" || config.sistema === "gesthor" || config.sistema === "easyvision") {
+          try {
+            // Delega para o Data Sync Engine Unificado
+            let conexao = {};
+            if (config.conexaoConfig) {
+              let parsed = config.conexaoConfig;
+              while (typeof parsed === 'string') {
+                try { parsed = JSON.parse(parsed); } catch(e) { break; }
+              }
+              conexao = parsed as any;
+            }
+
+            const syncConfigModel = {
+              sistema: config.sistema,
+              tipoDados: config.tipoDados,
+              estabelecimentoId: config.estabelecimentoId,
+              querySql: config.querySql,
+              frequencia: config.frequencia as any,
+              conexaoConfig: conexao
+            };
+
+            const result = await dataSyncEngine.sincronizar(syncConfigModel);
+            registrosProcessados = result.totalRegistrosSincronizados;
+
+            if (!result.sucesso) {
+              throw new Error(result.mensagem || "Erro ao sincronizar via DataSyncEngine");
+            }
+          } catch(error) {
+             logger.error({
+              message: `Erro durante sincronização ${config.sistema.toUpperCase()}`,
+              error: error instanceof Error ? error.message : String(error),
+              configId: input.configId,
+            });
+            throw error;
+          }
         }
 
         return {
@@ -551,6 +620,14 @@ export const integradorDadosRouter = router({
         logger.info({
           message: "Configuração deletada",
           configId: input.configId,
+        });
+
+        AuditService.logAcao({
+          userId: ctx.user?.id || 0,
+          userNome: ctx.user?.name || "Admin",
+          acao: "EXCLUIR",
+          entidade: "integrador",
+          entidadeId: String(input.configId),
         });
 
         return {
@@ -612,7 +689,7 @@ export const integradorDadosRouter = router({
         if (input.sistema !== undefined) updateData.sistema = input.sistema;
         if (input.tipoDados !== undefined) updateData.tipoDados = input.tipoDados;
         if (input.frequencia !== undefined) updateData.frequencia = input.frequencia;
-        if (input.conexaoConfig !== undefined) updateData.conexaoConfig = JSON.stringify(input.conexaoConfig);
+        if (input.conexaoConfig !== undefined) updateData.conexaoConfig = input.conexaoConfig;
 
         await db
           .update(queryConfiguracoes)
@@ -632,6 +709,15 @@ export const integradorDadosRouter = router({
         logger.info({
           message: "Configuração editada",
           configId: input.configId,
+        });
+
+        AuditService.logAcao({
+          userId: ctx.user?.id || 0,
+          userNome: ctx.user?.name || "Admin",
+          acao: "EDITAR",
+          entidade: "integrador",
+          entidadeId: String(input.configId),
+          detalhes: updateData
         });
 
         return {
@@ -818,7 +904,6 @@ export const integradorDadosRouter = router({
               return {
                 origemSistema: "WARLEINE",
                 estabelecimentoId: row.estabelecimentoId,
-                configId: config.id,
                 aihguia: dados?.aihguia || null,
                 codcc: dados?.codcc || null,
                 codconv: dados?.codconv || null,
@@ -874,38 +959,82 @@ export const integradorDadosRouter = router({
             registrosTransformados,
           };
         } else {
-          // ATENDIMENTOS: transformar de warleine_atendimentos_staging para atendimentos_unificados
+          // ATENDIMENTOS: transformar de staging para atendimentos_unificados
+          const stagingTable = config.sistema === 'warleine' ? warleineAtendimentosStaging :
+                               config.sistema === 'tasy' ? tasyMaternidadeElaAtendimentosStaging :
+                               warleineAtendimentosStaging; // Default
+
           const stagingData = await db
             .select()
-            .from(warleineAtendimentosStaging)
-            .where(eq(warleineAtendimentosStaging.configId, input.configId));
+            .from(stagingTable)
+            .where(eq(stagingTable.configId, input.configId));
+          
           console.log(`[DEBUG] Transformando ${stagingData.length} registros de ATENDIMENTOS`);
           let registrosTransformados = 0;
           const BATCH_SIZE = 100;
+          
           for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
             const batch = stagingData.slice(i, i + BATCH_SIZE);
-            const valuesToInsert = batch.map((row) => {
-              const dados = row.dadosBrutos as any;
-              return {
-                origemSistema: "WARLEINE",
-                origemId: `${config.id}-${row.id}`,
-                estabelecimentoId: row.estabelecimentoId,
-                numero_atendimento: dados?.numatend || null,
-                codigo_saida: dados?.codtipsai || null,
-                convenio: dados?.nomeplaco || null,
-                paciente: dados?.nomepac || null,
-                caracter_atendimento: dados?.carater || null,
-                data_entrada: dados?.datatend ? new Date(dados.datatend) : null,
-                data_saida: dados?.datasai ? new Date(dados.datasai) : null,
-                tipo_atendimento: dados?.tipoatendimentodescricao || null,
-                descricao_atendimento: dados?.tipoatendimentodescricao || null,
-                codigo_servico: dados?.codserv || null,
-                codigo_procedimento: dados?.procprin || null,
-                destino_conta: dados?.codcc_destino || null,
+            
+            // Identificar as Chaves Únicas (origemId)
+            const batchMapped = batch.map(row => {
+               const dados = row.dadosBrutos as any;
+               let uuid = '';
+               if (config.sistema === 'warleine') {
+                 uuid = String(dados?.numatend || '');
+               } else if (config.sistema === 'tasy') {
+                 uuid = String(dados?.numeroAtendimento || '');
+               } else {
+                 uuid = String(row.id);
+               }
+               
+               return { row, dados, origemId: uuid };
+            }).filter((b: any) => b.origemId !== '');
+            
+            const origemIds = batchMapped.map((b: any) => b.origemId);
+            
+            // Buscar existentes no banco unificado para evitar duplicatas (UPSERT manual)
+            const existingRows = origemIds.length > 0 ? await db.select({ id: atendimentos.id, origemId: atendimentos.origemId })
+              .from(atendimentos)
+              .where(and(
+                eq(atendimentos.origemSistema, config.sistema.toUpperCase()),
+                inArray(atendimentos.origemId, origemIds)
+              )) : [];
+              
+            const existingMap = new Map(existingRows.map((e: any) => [e.origemId, e.id]));
+            
+            // Processar um por um
+            for (const b of batchMapped) {
+              const values = {
+                origemSistema: config.sistema.toUpperCase(),
+                origemId: b.origemId,
+                estabelecimentoId: b.row.estabelecimentoId,
+                numero_atendimento: b.dados?.numatend || b.dados?.numeroAtendimento || null,
+                codigo_saida: b.dados?.codtipsai || b.dados?.tipoSaida || null,
+                convenio: b.dados?.nomeplaco || b.dados?.convenio || null,
+                paciente: b.dados?.nomepac || b.dados?.paciente || null,
+                caracter_atendimento: b.dados?.carater || null,
+                data_entrada: b.dados?.datatend ? new Date(b.dados.datatend) : (b.dados?.dataAdmissao ? new Date(b.dados.dataAdmissao) : null),
+                data_saida: b.dados?.datasai ? new Date(b.dados.datasai) : (b.dados?.dataAlta ? new Date(b.dados.dataAlta) : null),
+                tipo_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || null,
+                descricao_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || null,
+                codigo_servico: b.dados?.codserv || b.dados?.servico || null,
+                codigo_procedimento: b.dados?.procprin || b.dados?.procedimentoPrincipal || null,
+                destino_conta: b.dados?.codcc_destino || b.dados?.centroCusto || null,
+                atualizadoEm: new Date()
               };
-            });
-            await db.insert(atendimentos).values(valuesToInsert);
-            registrosTransformados += valuesToInsert.length;
+              
+              const existingId = existingMap.get(b.origemId);
+              if (existingId) {
+                // UPDATE
+                await db.update(atendimentos).set(values).where(eq(atendimentos.id, existingId));
+              } else {
+                // INSERT
+                await db.insert(atendimentos).values({ ...values, criadoEm: new Date() });
+              }
+            }
+
+            registrosTransformados += batchMapped.length;
           }
           await db
             .update(queryConfiguracoes)

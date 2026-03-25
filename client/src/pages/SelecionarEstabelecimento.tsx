@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEstabelecimento, Estabelecimento } from "@/contexts/EstabelecimentoContext";
+import { useEstabelecimento, Estabelecimento, TODOS_ESTABELECIMENTOS } from "@/contexts/EstabelecimentoContext";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -220,9 +220,20 @@ export default function SelecionarEstabelecimento() {
                 <h3 className="text-lg font-medium text-foreground mb-2">
                   Nenhum estabelecimento cadastrado
                 </h3>
-                <p className="text-muted-foreground">
-                  Entre em contato com o administrador para cadastrar estabelecimentos.
+                <p className="text-muted-foreground mb-6">
+                  {user?.role === 'admin' 
+                    ? "Você é um administrador. Acesse o Painel de Controle para cadastrar as unidades e efetuar a integração de dados." 
+                    : "Entre em contato com o administrador para cadastrar estabelecimentos."}
                 </p>
+                {user?.role === 'admin' && (
+                  <Button 
+                    onClick={() => handleSelecionar(TODOS_ESTABELECIMENTOS)}
+                    className="gap-2"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Acessar Painel de Controle
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
