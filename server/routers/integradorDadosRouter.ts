@@ -4,6 +4,9 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { dataSyncEngine, SyncConfig } from "../dataSyncEngine";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
+import { MysqlConnector } from "../connectors/MysqlConnector";
+import { SqlServerConnector } from "../connectors/SqlServerConnector";
+import { OracleConnector } from "../connectors/OracleConnector";
 import { logger } from "../_core/logger";
 import * as dbIntegrador from "../db-integrador";
 import { getDb, verificarPermissaoEstabelecimento } from "../db";
@@ -1380,6 +1383,7 @@ export const integradorDadosRouter = router({
         if (!conexao) throw new Error("Conexão não encontrada");
         try {
           const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+          let ok = false;
           if (conexao.tipo === "postgresql") {
             const connector = new EasyVisionConnector({
               host: conexao.host,
@@ -1388,31 +1392,57 @@ export const integradorDadosRouter = router({
               user: conexao.usuario,
               password: senha,
             });
-            const ok = await connector.conectar();
-            if (ok) {
-              await connector.desconectar();
-              await dbIntegrador.atualizarStatusConexao(input.id, "ok");
-              return { sucesso: true, mensagem: "Conexão estabelecida com sucesso" };
-            }
-            throw new Error("Falha ao conectar");
+            ok = await connector.conectar();
+            if (ok) await connector.desconectar();
+          } else if (conexao.tipo === "mysql") {
+            const connector = new MysqlConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            ok = await connector.conectar();
+            if (ok) await connector.desconectar();
+          } else if (conexao.tipo === "sqlserver") {
+            const connector = new SqlServerConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            ok = await connector.conectar();
+            if (ok) await connector.desconectar();
+          } else if (conexao.tipo === "oracle") {
+            const connector = new OracleConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            ok = await connector.conectar();
+            if (ok) await connector.desconectar();
           } else {
-            // Para outros tipos, tentar via WarleineConnector (MySQL/SQL Server)
+            // Fallback
             const connector = new WarleineConnector({
               host: conexao.host,
               port: conexao.porta,
               database: conexao.banco,
               user: conexao.usuario,
               password: senha,
-              ssl: false, // Forçar SSL desabilitado
+              ssl: false,
             });
-            const ok = await connector.conectar();
-            if (ok) {
-              await connector.desconectar();
-              await dbIntegrador.atualizarStatusConexao(input.id, "ok");
-              return { sucesso: true, mensagem: "Conexão estabelecida com sucesso" };
-            }
-            throw new Error("Falha ao conectar");
+            ok = await connector.conectar();
+            if (ok) await connector.desconectar();
           }
+
+          if (ok) {
+            await dbIntegrador.atualizarStatusConexao(input.id, "ok");
+            return { sucesso: true, mensagem: "Conexão estabelecida com sucesso" };
+          }
+          throw new Error("Falha ao conectar - Verifique as credenciais e as permissões de acesso");
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Erro desconhecido";
           await dbIntegrador.atualizarStatusConexao(input.id, "erro", msg);
@@ -1436,37 +1466,44 @@ export const integradorDadosRouter = router({
           
           if (conexao.tipo === "postgresql") {
             const connector = new EasyVisionConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
             await connector.conectar();
-            // Adicionar LIMIT à query se não tiver
             let queryLimitada = input.querySql.trim().replace(/;$/, "");
-            if (!/\bLIMIT\b/i.test(queryLimitada)) {
-              queryLimitada += ` LIMIT ${input.limite}`;
-            }
-            const resultado = await connector.executarQuery(queryLimitada);
-            rows = resultado || [];
+            if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
+            rows = await connector.executarQuery(queryLimitada) || [];
+            await connector.desconectar();
+          } else if (conexao.tipo === "mysql") {
+            const connector = new MysqlConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
+            await connector.conectar();
+            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
+            rows = await connector.executarQuery(queryLimitada) || [];
+            await connector.desconectar();
+          } else if (conexao.tipo === "sqlserver") {
+            const connector = new SqlServerConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
+            await connector.conectar();
+            rows = await connector.executarQuery(input.querySql) || [];
+            await connector.desconectar();
+          } else if (conexao.tipo === "oracle") {
+            const connector = new OracleConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
+            await connector.conectar();
+            rows = await connector.executarQuery(input.querySql) || [];
             await connector.desconectar();
           } else {
             const connector = new WarleineConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
-              ssl: false, // Forçar SSL desabilitado
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha, ssl: false,
             });
             await connector.conectar();
             let queryLimitada = input.querySql.trim().replace(/;$/, "");
-            if (!/\bLIMIT\b/i.test(queryLimitada)) {
-              queryLimitada += ` LIMIT ${input.limite}`;
-            }
-            const resultado = await connector.executarQuery(queryLimitada);
-            rows = resultado || [];
+            if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
+            rows = await connector.executarQuery(queryLimitada) || [];
             await connector.desconectar();
           }
 
@@ -2316,34 +2353,34 @@ export const integradorDadosRouter = router({
         // Helper: conectar e executar query na origem
         const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
         const executarQueryOrigem = async (query: string): Promise<any[]> => {
+          let connector: any;
           if (conexao.tipo === "postgresql") {
-            const connector = new EasyVisionConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
+            connector = new EasyVisionConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
-            const ok = await connector.conectar();
-            if (!ok) throw new Error("Falha ao conectar à origem");
-            const dados = await connector.executarQuery(query);
-            await connector.desconectar();
-            return dados;
+          } else if (conexao.tipo === "mysql") {
+            connector = new MysqlConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
+          } else if (conexao.tipo === "sqlserver") {
+            connector = new SqlServerConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
+          } else if (conexao.tipo === "oracle") {
+            connector = new OracleConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
+            });
           } else {
-            const connector = new WarleineConnector({
-              host: conexao.host,
-              port: conexao.porta,
-              database: conexao.banco,
-              user: conexao.usuario,
-              password: senha,
-              ssl: false, // Forçar SSL desabilitado
+            connector = new WarleineConnector({
+              host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha, ssl: false,
             });
-            const ok = await connector.conectar();
-            if (!ok) throw new Error("Falha ao conectar à origem");
-            const dados = await connector.executarQuery(query);
-            await connector.desconectar();
-            return dados;
           }
+          
+          const ok = await connector.conectar();
+          if (!ok) throw new Error("Falha ao conectar à origem de dados");
+          const dados = await connector.executarQuery(query);
+          await connector.desconectar();
+          return dados;
         };
 
         // Helper: executar query com timeout por fatia - usa conexão dedicada que é destruída no timeout
