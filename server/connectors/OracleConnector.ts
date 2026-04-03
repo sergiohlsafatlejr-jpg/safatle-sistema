@@ -1,4 +1,5 @@
 import oracledb from "oracledb";
+import * as fs from "fs";
 import { logger } from "../_core/logger";
 
 export interface OracleConnectorConfig {
@@ -20,6 +21,26 @@ export class OracleConnector {
   }
 
   async conectar(): Promise<boolean> {
+    // Inicializar cliente Oracle (Thick mode) para suportar senhas legadas (NJS-116)
+    if (!oracledb.oracleClientVersionString) {
+      try {
+        const clientDir = 'C:\\Oracle\\instantclient_23_0';
+        if (fs.existsSync(clientDir)) {
+          oracledb.initOracleClient({ libDir: clientDir });
+          logger.info({ message: "Oracle client (Thick Mode) inicializado", clientDir });
+        } else {
+          // Fallback para PATH ou default client
+          oracledb.initOracleClient();
+          logger.info({ message: "Oracle client (Thick Mode) inicializado usando PATH do sistema" });
+        }
+      } catch (err: any) {
+        // Ignorar erro se já inicializado (DPI-1044)
+        if (!err.message.includes('DPI-1044')) {
+          logger.warn({ message: "Erro ao inicializar Oracle Thick Mode", erro: err.message });
+        }
+      }
+    }
+
     try {
       // Formato Easy Connect: host:port/service_name
       const connectString = `${this.config.host}:${this.config.port}/${this.config.database}`;
@@ -58,13 +79,14 @@ export class OracleConnector {
     }
   }
 
-  async executarQuery(query: string): Promise<any[]> {
+  async executarQuery(query: string, limit?: number): Promise<any[]> {
     if (!this.connection) {
       throw new Error("Conexão não estabelecida");
     }
 
     try {
-      const result = await this.connection.execute(query);
+      oracledb.fetchAsString = [oracledb.DATE, oracledb.CLOB];
+      const result = await this.connection.execute(query, [], { maxRows: limit || 0 });
       logger.info({ message: "DEBUG ORACLE RAW RESULT", query, rowCount: result.rows?.length });
       return (result.rows as any[]) || [];
     } catch (error) {
@@ -93,7 +115,7 @@ export class OracleConnector {
         };
       }
 
-      const dados = await this.executarQuery(query);
+      const dados = await this.executarQuery(query, 50);
       await this.desconectar();
 
       return {

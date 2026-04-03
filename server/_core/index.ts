@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { initializeJobScheduler } from "./jobScheduler";
+import { startBoletoCron } from "../workers/boletoChecker";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -62,11 +63,12 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
   });
 
-  // Inicializar JobScheduler
+  // Inicializar JobScheduler e Cron de Boletos
   try {
     await initializeJobScheduler();
+    startBoletoCron();
   } catch (error) {
-    console.error("Erro ao inicializar JobScheduler:", error);
+    console.error("Erro ao inicializar JobScheduler ou Cron:", error);
   }
 }
 

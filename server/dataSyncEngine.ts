@@ -7,6 +7,7 @@ import { warleineAtendimentosStaging, warleineFaturamentoStaging, tasyMaternidad
 import { eq, sql } from "drizzle-orm";
 
 export interface SyncConfig {
+  configId?: number;
   sistema: string;
   tipoDados: string;
   estabelecimentoId: number;
@@ -105,7 +106,7 @@ export class DataSyncEngine {
       
       // O engine real usaria o configId armazenado. 
       // Como a chave pode não mapear um ID único limpo, buscamos o primeiro ou assumimos 0.
-      const configId = configRow.length > 0 ? configRow[0].id : 0;
+      const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
       if (config.tipoDados === "atendimentos") {
         registrosBrutos = await connector.extrairAtendimentos(config.querySql);
@@ -258,7 +259,7 @@ export class DataSyncEngine {
       const configRow = await db.select({ id: queryConfiguracoes.id }).from(queryConfiguracoes).where(
         eq(queryConfiguracoes.estabelecimentoId, config.estabelecimentoId)
       ).limit(1);
-      const configId = configRow.length > 0 ? configRow[0].id : 0;
+      const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
       // Executa a Query configurada no Oracle
       registrosBrutos = await connector.executarQuery(config.querySql);
@@ -269,7 +270,7 @@ export class DataSyncEngine {
           await db.delete(tasyMaternidadeElaAtendimentosStaging).where(eq(tasyMaternidadeElaAtendimentosStaging.configId, configId));
           
           if (registrosBrutos.length > 0) {
-            const BATCH_SIZE = 500;
+            const BATCH_SIZE = 10;
             for (let i = 0; i < registrosBrutos.length; i += BATCH_SIZE) {
                const batch = registrosBrutos.slice(i, i + BATCH_SIZE).map(d => ({
                  estabelecimentoId: config.estabelecimentoId,

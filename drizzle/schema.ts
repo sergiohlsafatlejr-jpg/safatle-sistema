@@ -3353,6 +3353,60 @@ export type ContaConvenioResumo = typeof contasConvenioResumo.$inferSelect;
 export type InsertContaConvenioResumo = typeof contasConvenioResumo.$inferInsert;
 
 /**
+ * Prontuário - Prescrições Médicas importadas da Integração
+ */
+export const prontuarioPrescricoes = mysqlTable("prontuario_prescricoes", {
+  id: int("id").autoincrement().primaryKey(),
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  dataPrescricao: timestamp("dataPrescricao"),
+  medico: varchar("medico", { length: 255 }),
+  crm: varchar("crm", { length: 50 }),
+  
+  codigoItem: varchar("codigoItem", { length: 50 }),
+  descricaoItem: varchar("descricaoItem", { length: 255 }),
+  quantidade: decimal("quantidade", { precision: 10, scale: 2 }),
+  viaAdministracao: varchar("viaAdministracao", { length: 100 }),
+  frequencia: varchar("frequencia", { length: 100 }),
+  
+  // Rastreamento
+  origem: varchar("origem", { length: 50 }).default("INTEGRACAO"),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  numContaEstabIdx: index("idx_pp_numconta_estab").on(table.numeroConta, table.estabelecimentoId),
+  codigoIdx: index("idx_pp_codigo").on(table.codigoItem),
+}));
+
+export type ProntuarioPrescricao = typeof prontuarioPrescricoes.$inferSelect;
+export type InsertProntuarioPrescricao = typeof prontuarioPrescricoes.$inferInsert;
+
+/**
+ * Prontuário - Evoluções Clínicas e de Enfermagem
+ */
+export const prontuarioEvolucoes = mysqlTable("prontuario_evolucoes", {
+  id: int("id").autoincrement().primaryKey(),
+  numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  dataEvolucao: timestamp("dataEvolucao"),
+  profissional: varchar("profissional", { length: 255 }),
+  conselho: varchar("conselho", { length: 50 }),
+  tipoEvolucao: varchar("tipoEvolucao", { length: 100 }), // Medica, Enfermagem, Fisioterapia
+  
+  descricao: text("descricao"),
+  
+  // Rastreamento
+  origem: varchar("origem", { length: 50 }).default("INTEGRACAO"),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+}, (table) => ({
+  numContaEstabIdx: index("idx_pe_numconta_estab").on(table.numeroConta, table.estabelecimentoId),
+}));
+
+export type ProntuarioEvolucao = typeof prontuarioEvolucoes.$inferSelect;
+export type InsertProntuarioEvolucao = typeof prontuarioEvolucoes.$inferInsert;
+
+/**
  * Feedback de Divergências - Registra decisões do auditor sobre divergências encontradas
  * Alimenta o feedback loop para refinar os padrões de cobrança
  */
@@ -4080,6 +4134,11 @@ export const finRecebiveis = mysqlTable("fin_recebiveis", {
   recebido: mysqlEnum("recebido", ["sim", "nao"]).default("nao").notNull(),
   tipoServico: varchar("tipoServico", { length: 255 }), // Tipo de Serviço (ex: Consulta, Exame, Cirurgia, Internação)
   descricaoServico: text("descricaoServico"), // Descrição detalhada do serviço prestado
+  boletoSolicitacaoId: varchar("boletoSolicitacaoId", { length: 100 }),
+  boletoLinhaDigitavel: varchar("boletoLinhaDigitavel", { length: 100 }),
+  boletoPixCopiaCola: text("boletoPixCopiaCola"),
+  notaFiscalKey: varchar("notaFiscalKey", { length: 255 }),
+  emailEnviado: mysqlEnum("emailEnviado", ["sim", "nao"]).default("nao").notNull(),
   observacoes: text("observacoes"),
   userId: int("userId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

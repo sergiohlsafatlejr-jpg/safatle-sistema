@@ -14,6 +14,7 @@ import {
   TrendingDown,
   Package as PackageIcon,
   Gavel,
+  Activity,
 } from "lucide-react";
 import { MetricCard } from "@/components/bi/MetricCard";
 import { BIFilters } from "@/components/bi/BIFilters";
@@ -74,6 +75,16 @@ export default function RelatoriosBI() {
       convenioId: convenio !== "todos" ? parseInt(convenio) : undefined,
       tipo: tipo !== "todos" ? tipo : undefined,
       codigoPrestadorExecutante: prestador !== "todos" ? prestador : undefined,
+    },
+    { enabled: !!estabelecimentoId }
+  );
+
+  const { data: anahpData, isLoading: isLoadingAnahp } = trpc.relatoriosBI.dadosAnahp.useQuery(
+    {
+      estabelecimentoId: estabelecimentoId || 0,
+      anoReferencia: parseInt(ano),
+      mesReferencia: mes !== "todos" ? parseInt(mes) : undefined,
+      convenioId: convenio !== "todos" ? parseInt(convenio) : undefined,
     },
     { enabled: !!estabelecimentoId }
   );
@@ -472,7 +483,10 @@ export default function RelatoriosBI() {
                   <TrendingUp className="h-3.5 w-3.5" />
                   Evolução
                 </TabsTrigger>
-
+                <TabsTrigger value="anahp" className="gap-1.5 text-xs">
+                  <Activity className="h-3.5 w-3.5" />
+                  ANAHP
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="graficos" className="space-y-6">
@@ -520,6 +534,69 @@ export default function RelatoriosBI() {
                 </div>
               </TabsContent>
 
+              <TabsContent value="anahp" className="space-y-6">
+                {isLoadingAnahp ? (
+                  <div className="flex h-32 items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <MetricCard
+                      title="Taxa de Ocupação/Internação"
+                      value={Number(anahpData?.indicadores?.totalInternacoes || 0).toLocaleString('pt-BR')}
+                      subtitle="Internações no período"
+                      icon={Activity}
+                      variant="primary"
+                      delay={0.1}
+                    />
+                    <MetricCard
+                      title="Média de Permanência"
+                      value={`${(anahpData?.indicadores?.mediaPermanencia || 0).toFixed(1)} dias`}
+                      subtitle="Tempo médio por paciente"
+                      icon={TrendingDown}
+                      variant="info"
+                      delay={0.2}
+                    />
+                    <MetricCard
+                      title="Taxa Mortalidade Inst."
+                      value={`${(anahpData?.indicadores?.taxaMortalidade || 0).toFixed(2)}%`}
+                      subtitle="Óbitos sobre internações"
+                      icon={AlertTriangle}
+                      variant="danger"
+                      delay={0.3}
+                    />
+                    <MetricCard
+                      title="Índice Recebimento (Glosa)"
+                      value={`${(anahpData?.financeiro?.indiceGlosa || 0).toFixed(1)}%`}
+                      subtitle={`Glosado: ${fmtCurrency(anahpData?.financeiro?.valorGlosado || 0)}`}
+                      icon={DollarSign}
+                      variant="warning"
+                      delay={0.4}
+                    />
+                  </div>
+                )}
+                
+                <div className="mt-4 p-4 border rounded-lg bg-background">
+                  <h3 className="font-semibold text-lg mb-4 text-foreground flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" /> Composição de Faturamento ANAHP
+                  </h3>
+                  {isLoadingAnahp ? (
+                    <div className="flex justify-center p-8"><div className="animate-pulse w-full h-20 bg-muted rounded"></div></div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {anahpData?.receitaPorNatureza?.map((r: any) => (
+                        <div key={r.grupo} className="flex flex-col bg-card p-4 rounded-lg shadow-sm border hover:border-blue-200 transition-colors">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 truncate" title={r.grupo}>{r.grupo}</span>
+                          <span className="text-lg font-bold text-foreground">{fmtCurrency(r.valor)}</span>
+                        </div>
+                      ))}
+                      {(!anahpData?.receitaPorNatureza || anahpData.receitaPorNatureza.length === 0) && (
+                         <div className="col-span-full text-center py-6 text-muted-foreground text-sm">Nenhuma receita correspondente localizada.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
 
             </Tabs>
           </>

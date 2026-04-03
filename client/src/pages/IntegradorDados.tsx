@@ -131,11 +131,18 @@ export function IntegradorDados() {
   });
 
   const sincronizar = trpc.integradorDados.sincronizar.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data, variables) => {
       if (data.sucesso) {
         toast.success("Sincronização Concluída", {
-          description: data.mensagem,
+          description: data.mensagem + " - Iniciando transformação automática...",
         });
+        
+        try {
+          await transformarParaAtendimentos.mutateAsync({ configId: variables.configId });
+        } catch(e) {
+          console.error("Auto-transform falhou", e);
+        }
+
         listarConfiguracoes.refetch();
         obterLogs.refetch();
         obterStatus.refetch();

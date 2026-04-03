@@ -122,7 +122,7 @@ export const integradorDadosRouter = router({
       z.object({
         estabelecimentoId: z.number(),
         sistema: z.enum(["warleine", "tasy", "omni", "gesthor"]),
-        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio"]),
+        tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio", "prontuario_prescricoes", "prontuario_evolucoes"]),
         querySql: z.string(),
         frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
         descricao: z.string().optional(),
@@ -548,6 +548,7 @@ export const integradorDadosRouter = router({
             }
 
             const syncConfigModel = {
+              configId: input.configId,
               sistema: config.sistema,
               tipoDados: config.tipoDados,
               estabelecimentoId: config.estabelecimentoId,
@@ -978,12 +979,12 @@ export const integradorDadosRouter = router({
             
             // Identificar as Chaves Únicas (origemId)
             const batchMapped = batch.map(row => {
-               const dados = row.dadosBrutos as any;
+               const dados = typeof row.dadosBrutos === 'string' ? JSON.parse(row.dadosBrutos) : (row.dadosBrutos as any);
                let uuid = '';
                if (config.sistema === 'warleine') {
                  uuid = String(dados?.numatend || '');
                } else if (config.sistema === 'tasy') {
-                 uuid = String(dados?.numeroAtendimento || '');
+                 uuid = String(dados?.numeroAtendimento || dados?.NR_ATENDIMENTO || dados?.CD_PROCEDIMENTO || dados?.NR_SEQUENCIA || '');
                } else {
                  uuid = String(row.id);
                }
@@ -1009,18 +1010,18 @@ export const integradorDadosRouter = router({
                 origemSistema: config.sistema.toUpperCase(),
                 origemId: b.origemId,
                 estabelecimentoId: b.row.estabelecimentoId,
-                numero_atendimento: b.dados?.numatend || b.dados?.numeroAtendimento || null,
-                codigo_saida: b.dados?.codtipsai || b.dados?.tipoSaida || null,
-                convenio: b.dados?.nomeplaco || b.dados?.convenio || null,
-                paciente: b.dados?.nomepac || b.dados?.paciente || null,
-                caracter_atendimento: b.dados?.carater || null,
-                data_entrada: b.dados?.datatend ? new Date(b.dados.datatend) : (b.dados?.dataAdmissao ? new Date(b.dados.dataAdmissao) : null),
-                data_saida: b.dados?.datasai ? new Date(b.dados.datasai) : (b.dados?.dataAlta ? new Date(b.dados.dataAlta) : null),
-                tipo_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || null,
-                descricao_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || null,
-                codigo_servico: b.dados?.codserv || b.dados?.servico || null,
-                codigo_procedimento: b.dados?.procprin || b.dados?.procedimentoPrincipal || null,
-                destino_conta: b.dados?.codcc_destino || b.dados?.centroCusto || null,
+                numero_atendimento: b.dados?.numatend || b.dados?.numeroAtendimento || b.dados?.NR_ATENDIMENTO || null,
+                codigo_saida: b.dados?.codtipsai || b.dados?.tipoSaida || b.dados?.IE_STATUS_ACERTO || null,
+                convenio: b.dados?.nomeplaco || b.dados?.convenio || b.dados?.DS_CONV || null,
+                paciente: b.dados?.nomepac || b.dados?.paciente || b.dados?.NM_PACIENTE || null,
+                caracter_atendimento: b.dados?.carater || b.dados?.IE_TIPO_ATEND_TISS || null,
+                data_entrada: b.dados?.datatend ? new Date(b.dados.datatend) : (b.dados?.dataAdmissao ? new Date(b.dados.dataAdmissao) : (b.dados?.DT_ENTRADA_PAC ? new Date(b.dados.DT_ENTRADA_PAC) : null)),
+                data_saida: b.dados?.datasai ? new Date(b.dados.datasai) : (b.dados?.dataAlta ? new Date(b.dados.dataAlta) : (b.dados?.DT_ALTA_PAC ? new Date(b.dados.DT_ALTA_PAC) : null)),
+                tipo_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || b.dados?.DS_TIPO_ATEND || null,
+                descricao_atendimento: b.dados?.tipoatendimentodescricao || b.dados?.tipoAtendimento || b.dados?.DS_TIPO_ATEND || null,
+                codigo_servico: b.dados?.codserv || b.dados?.servico || b.dados?.CD_SETOR_ATENDIMENTO || null,
+                codigo_procedimento: b.dados?.procprin || b.dados?.procedimentoPrincipal || b.dados?.CD_PROCEDIMENTO || null,
+                destino_conta: b.dados?.codcc_destino || b.dados?.centroCusto || b.dados?.CD_SETOR_DESTINO || null,
                 atualizadoEm: new Date()
               };
               

@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao, convenios } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao, convenios, prontuarioPrescricoes } from "../../drizzle/schema";
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
@@ -18,7 +18,7 @@ import { logger } from "../_core/logger";
  */
 
 export interface Divergencia {
-  tipo: "PRECO" | "QUANTIDADE" | "GLOSA_RISCO" | "ITEM_FALTANTE" | "ITEM_EXTRA" | "COMPOSICAO";
+  tipo: "PRECO" | "QUANTIDADE" | "GLOSA_RISCO" | "ITEM_FALTANTE" | "ITEM_EXTRA" | "COMPOSICAO" | "COBRANCA_SEM_PRESCRICAO" | "PRESCRICAO_FALTANTE_NA_COBRANCA";
   severidade: "info" | "aviso" | "alerta" | "critico";
   mensagem: string;
   campo?: string;
@@ -136,34 +136,112 @@ export async function compararContaComPadroes(
     };
   }
 
+  // 1.5 Buscar Prescrições Clínicas Importadas
+  const prescricoes = await db
+    .select()
+    .from(prontuarioPrescricoes)
+    .where(and(
+      eq(prontuarioPrescricoes.numeroConta, numeroConta),
+      eq(prontuarioPrescricoes.estabelecimentoId, estabelecimentoId),
+    ));
+
+  const prescricoesMap = new Map<string, typeof prescricoes[0]>();
+  for (const p of prescricoes) {
+    if (p.codigoItem) prescricoesMap.set(p.codigoItem, p);
+  }
+
+  // Mapa de Itens Faturados para busca rápida
+  const itensFaturadosMap = new Map<string, typeof itens[0]>();
+  for (const i of itens) {
+    if (i.codigoItem) itensFaturadosMap.set(i.codigoItem, i);
+  }
+
+  const divergencias: Divergencia[] = [];
+
+  // 1.6 Avaliação Clínica Antecipada (Cross-Validation Independente do Convênio)
+  // COBRANÇA_SEM_PRESCRIÇÃO (Sintoma financeiro sem correlação clínica)
+  if (prescricoes.length > 0) {
+    for (const item of itens) {
+      const codigo = item.codigoItem;
+      if (!codigo) continue;
+      
+      const tipoItemRaw = (item.tipoItem || "").toUpperCase().trim();
+      const isMedicamento = tipoItemRaw.includes("MED") || tipoItemRaw === "M" || tipoItemRaw === "03"; // 03 = TISS Meds
+      if (isMedicamento && !prescricoesMap.has(codigo)) {
+        divergencias.push({
+          tipo: "COBRANCA_SEM_PRESCRICAO",
+          severidade: "critico",
+          mensagem: `Medicamento cobrado não encontrado no Prontuário Médico (Prescrições).`,
+          codigoItem: codigo,
+          descricaoItem: item.descricaoItem || undefined,
+          setor: (item as any).setor || undefined,
+          detalhes: { importouProntuario: true }
+        });
+      }
+    }
+
+    // PRESCRIÇÃO_FALTANTE_NA_COBRANCA (Fuga de Receita)
+    for (const p of prescricoes) {
+      if (p.codigoItem && !itensFaturadosMap.has(p.codigoItem)) {
+        divergencias.push({
+          tipo: "PRESCRICAO_FALTANTE_NA_COBRANCA",
+          severidade: "alerta",
+          mensagem: `Médico prescreveu medicamento (${p.descricaoItem || 'Sem Nome'}), mas faturamento esqueceu de lançar na conta. Fuga de Receita!`,
+          codigoItem: p.codigoItem,
+          descricaoItem: p.descricaoItem || undefined,
+          detalhes: { importouProntuario: true, medico: p.medico, dataPrescricao: p.dataPrescricao }
+        });
+      }
+    }
+  }
+
   // 2. Identificar o convênio e setores da conta
   const convenio = itens[0].convenio;
   const setoresNaConta = [...new Set(itens.map(i => (i as any).setor).filter(Boolean))];
   
   if (!convenio) {
     logger.warn({ message: "Conta sem convênio identificado", numeroConta });
+    
+    // Adicionar aviso de composição ao payload final
+    divergencias.push({
+      tipo: "COMPOSICAO",
+      severidade: "aviso",
+      mensagem: "Convênio não identificado na conta. Não é possível comparar com padrões de preço e quantidade.",
+    });
+
+    // Calcular resumo para as divergências geradas antecipadamente (clínicas + composição)
+    const resumoPorTipo: Record<string, number> = {};
+    let totalAlertas = 0;
+    let totalCriticos = 0;
+    for (const div of divergencias) {
+      resumoPorTipo[div.tipo] = (resumoPorTipo[div.tipo] || 0) + 1;
+      if (div.severidade === "alerta") totalAlertas++;
+      if (div.severidade === "critico") totalCriticos++;
+    }
+
+    const statusGeral = divergencias.some(d => d.severidade === "critico" || d.severidade === "alerta" || d.severidade === "aviso")
+      ? "divergente" as const
+      : "conforme" as const;
+
+    // Calcular score
+    const scoreRisco = calcularScoreRisco(divergencias, resumoPorTipo, itens.length);
+
     return {
       numeroConta,
       totalItensAnalisados: itens.length,
-      totalDivergencias: 0,
-      totalAlertas: 0,
-      totalCriticos: 0,
-      divergencias: [{
-        tipo: "COMPOSICAO",
-        severidade: "aviso",
-        mensagem: "Convênio não identificado na conta. Não é possível comparar com padrões.",
-      }],
-      resumoPorTipo: { COMPOSICAO: 1 },
-      statusGeral: "conforme",
+      totalDivergencias: divergencias.length,
+      totalAlertas,
+      totalCriticos,
+      divergencias,
+      resumoPorTipo,
+      statusGeral,
       gabaritosUsados: 0,
       padroesUsados: 0,
       setoresAnalisados: setoresNaConta,
-      scoreRisco: { score: 0, composicao: 0, preco: 0, quantidade: 0, glosa: 0, detalhes: [] },
+      scoreRisco,
       padroesDetalhados: [],
     };
   }
-
-  const divergencias: Divergencia[] = [];
 
   // 3. Buscar padrões de preço para este convênio (com suporte a setor)
   const padroesPreco = await db
@@ -263,6 +341,8 @@ export async function compararContaComPadroes(
   for (const item of itens) {
     const codigo = item.codigoItem;
     if (!codigo) continue;
+    
+    // Análise de COBRANCA_SEM_PRESCRICAO movida para Fase 1.6
 
     const valorUnitario = parseFloat(item.valorUnitario || "0");
     const valorTotal = parseFloat(item.valorTotal || "0");
@@ -388,6 +468,8 @@ export async function compararContaComPadroes(
       }
     }
   }
+
+  // ANÁLISE CLÍNICA: Prescrição Faltante na Cobrança movida para Fase 1.6
 
   // 8. Verificar composição (itens faltantes no kit) usando gabaritos prioritários
   // NOVO: Agrupar itens por setor para comparar com padrão do setor correto

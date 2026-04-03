@@ -6948,6 +6948,18 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getPerformanceMedico(input);
       }),
+
+    // Buscar Indicadores ANAHP
+    dadosAnahp: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().optional(),
+        anoReferencia: z.number().optional(),
+        convenioId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return db.getDadosAnahp(input);
+      }),
   }),
 
   // ============ RECEBIMENTO TISS ============

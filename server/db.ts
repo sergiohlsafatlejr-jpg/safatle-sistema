@@ -18958,3 +18958,114 @@ export async function salvarPadroesCobrancaTasy(params: {
 
   return { salvos: atualizados + novos, atualizados, novos };
 }
+
+// ==================== INDICADORES ANAHP ====================
+
+export async function getDadosAnahp(filtros: { 
+  estabelecimentoId: number; 
+  mesReferencia?: number; 
+  anoReferencia?: number; 
+  convenioId?: number; 
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('Database connection failed');
+
+  const { estabelecimentoId, mesReferencia, anoReferencia, convenioId } = filtros;
+  
+  // 1. Taxa de ocupação e Permanência - a partir de atendimentos
+  let atendimentosFilter = `estabelecimentoId = ${estabelecimentoId}`;
+  if (anoReferencia) {
+    atendimentosFilter += ` AND (YEAR(dataAdmissao) = ${anoReferencia} OR YEAR(dataAlta) = ${anoReferencia})`;
+    if (mesReferencia) {
+      atendimentosFilter += ` AND (MONTH(dataAdmissao) = ${mesReferencia} OR MONTH(dataAlta) = ${mesReferencia})`;
+    }
+  }
+
+  const [atendimentosStats] = await db.execute(sql.raw(`
+    SELECT 
+      COUNT(*) as totalInternacoes,
+      AVG(DATEDIFF(COALESCE(dataAlta, NOW()), dataAdmissao)) as mediaPermanenciaDias,
+      SUM(CASE WHEN LOWER(tipoSaida) LIKE '%obito%' COLLATE utf8mb4_general_ci THEN 1 ELSE 0 END) as obitos
+    FROM atendimentos
+    WHERE ${atendimentosFilter} AND (LOWER(tipoAtendimento) LIKE '%interna%' OR LOWER(carater) LIKE '%interna%')
+  `));
+
+  // 2. Glosas e Faturamento - a partir do Faturamento TISS
+  let tissFilter = `estabelecimentoId = ${estabelecimentoId}`;
+  if (anoReferencia) {
+    if (mesReferencia) {
+      const comp = `${anoReferencia}/${String(mesReferencia).padStart(2, '0')}`;
+      tissFilter += ` AND numero_guia_prestador IN (SELECT numeroConta FROM contas_convenio_resumo WHERE estabelecimentoId = ${estabelecimentoId} AND competencia = '${comp}')`;
+    } else {
+      tissFilter += ` AND numero_guia_prestador IN (SELECT numeroConta FROM contas_convenio_resumo WHERE estabelecimentoId = ${estabelecimentoId} AND competencia LIKE '${anoReferencia}/%')`;
+    }
+  }
+  if (convenioId) {
+    tissFilter += ` AND convenioId = ${convenioId}`;
+  }
+
+  const [faturamentoStats] = await db.execute(sql.raw(`
+    SELECT 
+      SUM(CAST(valor_faturado AS DECIMAL(15,2))) as totalFaturado,
+      SUM(CAST(valor_unitario AS DECIMAL(15,2)) * quantidade) as totalCobrado
+    FROM faturamento_tiss
+    WHERE ${tissFilter}
+  `));
+  
+  // Para glosas, precisamos bater com a tabela que tem as contas pagas/glosadas.
+  // Na Safatle, os arquivos processados (conciliados) vão para `demonstrativo`
+  let glosasFilter = `estabelecimentoId = ${estabelecimentoId}`;
+  if (anoReferencia) {
+    let mesFiltroStr = mesReferencia ? ` AND MONTH(data_pagamento) = ${mesReferencia}` : "";
+    glosasFilter += ` AND YEAR(data_pagamento) = ${anoReferencia} ${mesFiltroStr}`;
+  }
+  if (convenioId) {
+    glosasFilter += ` AND convenio_id = ${convenioId}`;
+  }
+
+  const [glosasStats] = await db.execute(sql.raw(`
+    SELECT 
+      SUM(CAST(valor_informado AS DECIMAL(15,2))) as totalDemonstrativoFaturado,
+      SUM(CAST(valor_pago AS DECIMAL(15,2))) as totalRecebido,
+      SUM(CAST(valor_glosa AS DECIMAL(15,2))) as totalGlosado
+    FROM demonstrativo
+    WHERE ${glosasFilter}
+  `));
+
+  const atRaw = (atendimentosStats as any)[0] || {};
+  const fatRaw = (faturamentoStats as any)[0] || {};
+  const glosaRaw = (glosasStats as any)[0] || {};
+  
+  // 3. Receita por grupo
+  const [receitaGrupo] = await db.execute(sql.raw(`
+    SELECT 
+      tipo_item as grupo,
+      SUM(CAST(valor_faturado AS DECIMAL(15,2))) as valorTotal
+    FROM faturamento_tiss
+    WHERE ${tissFilter} AND tipo_item IS NOT NULL
+    GROUP BY tipo_item
+    ORDER BY valorTotal DESC
+    LIMIT 10
+  `));
+
+  const totalInternacoes = Number(atRaw.totalInternacoes || 0);
+  const totalDemonstrativoFaturado = Number(glosaRaw.totalDemonstrativoFaturado || 0);
+  
+  return {
+    indicadores: {
+      mediaPermanencia: Number(atRaw.mediaPermanenciaDias || 0),
+      totalInternacoes,
+      taxaMortalidade: totalInternacoes > 0 ? (Number(atRaw.obitos || 0) / totalInternacoes) * 100 : 0,
+    },
+    financeiro: {
+      valorFaturado: Number(fatRaw.totalFaturado || 0),
+      valorGlosado: Number(glosaRaw.totalGlosado || 0),
+      valorRecebido: Number(glosaRaw.totalRecebido || 0),
+      indiceGlosa: totalDemonstrativoFaturado > 0 ? (Number(glosaRaw.totalGlosado || 0) / totalDemonstrativoFaturado) * 100 : 0,
+    },
+    receitaPorNatureza: (receitaGrupo as any[]).map((r: any) => ({
+      grupo: String(r.grupo).toUpperCase(),
+      valor: Number(r.valorTotal || 0)
+    }))
+  };
+}

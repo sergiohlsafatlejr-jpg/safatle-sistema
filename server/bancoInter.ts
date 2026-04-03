@@ -13,6 +13,9 @@
  */
 
 import https from "https";
+import fs from "fs";
+import path from "path";
+import axios from "axios";
 
 // Cache do token OAuth2
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -20,10 +23,20 @@ let tokenCache: { token: string; expiresAt: number } | null = null;
 function getInterConfig() {
   const clientId = process.env.INTER_CLIENT_ID;
   const clientSecret = process.env.INTER_CLIENT_SECRET;
-  const certPem = process.env.INTER_CERT_PEM; // Certificado .crt em PEM
-  const keyPem = process.env.INTER_KEY_PEM;   // Chave .key em PEM
+  let certPem = process.env.INTER_CERT_PEM; // Certificado .crt em PEM
+  let keyPem = process.env.INTER_KEY_PEM;   // Chave .key em PEM
   const contaCorrente = process.env.INTER_CONTA_CORRENTE;
   const baseUrl = process.env.INTER_BASE_URL || "https://cdpj.partners.bancointer.com.br";
+
+  // Tenta ler dos arquivos na raiz do projeto caso as variáveis não estejam preenchidas
+  if (!certPem) {
+    const certPath = path.join(process.cwd(), "Inter API_Certificado.crt");
+    if (fs.existsSync(certPath)) certPem = fs.readFileSync(certPath, "utf-8");
+  }
+  if (!keyPem) {
+    const keyPath = path.join(process.cwd(), "Inter API_Chave.key");
+    if (fs.existsSync(keyPath)) keyPem = fs.readFileSync(keyPath, "utf-8");
+  }
 
   return { clientId, clientSecret, certPem, keyPem, contaCorrente, baseUrl };
 }
@@ -64,20 +77,18 @@ async function getAccessToken(): Promise<string> {
     scope: "extrato.read saldo.read boleto-cobranca.read boleto-cobranca.write",
   });
 
-  const response = await fetch(`${baseUrl}/oauth/v2/token`, {
-    method: "POST",
+  const response = await axios.post(`${baseUrl}/oauth/v2/token`, body.toString(), {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-    // @ts-ignore - Node.js fetch supports agent via dispatcher
-    dispatcher: agent,
+    httpsAgent: agent,
+    validateStatus: () => true, // resolve promise for any status code
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (response.status !== 200) {
+    const errorText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     throw new Error(`Erro ao obter token Inter: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json() as { access_token: string; expires_in: number };
+  const data = response.data as { access_token: string; expires_in: number };
   tokenCache = {
     token: data.access_token,
     expiresAt: Date.now() + (data.expires_in * 1000),
@@ -113,28 +124,25 @@ async function interRequest(
   }
 
   const fetchOptions: any = {
-    method,
+    method: method as any,
+    url: url.toString(),
     headers,
-    // @ts-ignore
-    dispatcher: agent,
+    httpsAgent: agent,
+    validateStatus: () => true, // resolve all status codes
   };
   if (options?.body && method !== "GET") {
-    fetchOptions.body = JSON.stringify(options.body);
+    fetchOptions.data = options.body;
   }
 
-  const response = await fetch(url.toString(), fetchOptions);
+  const response = await axios(fetchOptions);
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (response.status < 200 || response.status >= 300) {
+    const errorText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
     throw new Error(`Erro API Inter (${path}): ${response.status} - ${errorText}`);
   }
 
   // Some endpoints return 202 with no body
-  const contentType = response.headers.get("content-type");
-  if (contentType?.includes("application/json")) {
-    return response.json();
-  }
-  return { status: response.status };
+  return response.data || { status: response.status };
 }
 
 // ==================== FUNÇÕES PÚBLICAS ====================

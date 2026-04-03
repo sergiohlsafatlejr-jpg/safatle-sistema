@@ -902,7 +902,7 @@ export async function sincronizarCustosProdutos(
     const rawMsg = String(e.message || e);
     // Extrair apenas a parte relevante do erro, sem a query SQL completa
     const errorSummary = mysqlCode 
-      ? `MySQL Error ${mysqlCode} (${mysqlState}): ${rawMsg.split('\n')[0].substring(0, 300)}`
+      ? `Database Error ${mysqlCode} (${mysqlState}): ${rawMsg.split('\n')[0].substring(0, 300)}`
       : rawMsg.substring(0, 400);
     console.error(`[RelatorioCustos] Erro na sincronização (${duracao}s): ${errorSummary}`);
     if (e.stack) console.error(`[RelatorioCustos] Stack:`, String(e.stack).substring(0, 500));

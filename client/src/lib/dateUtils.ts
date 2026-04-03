@@ -17,18 +17,28 @@
  */
 export function safeParseDate(date: Date | string | null | undefined): Date | null {
   if (!date) return null;
-  if (date instanceof Date) return date;
   
-  const str = String(date).trim();
+  let str = "";
+  if (date instanceof Date) {
+    // If it's precisely midnight UTC, it represents a generic date pulled backwards by local TZ.
+    str = date.toISOString();
+  } else {
+    str = String(date).trim();
+  }
+
   if (!str) return null;
 
-  // Se for apenas data no formato YYYY-MM-DD (10 caracteres, sem T)
-  // Adiciona T12:00:00 para evitar problema de fuso horário
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    return new Date(str + "T12:00:00");
+  // Intercept pure T00:00:00.000Z to avoid shifting to 21:00 of the PREVIOUS day in GMT-3
+  if (str.includes("T00:00:00.000Z")) {
+    return new Date(str.replace('T00:00:00.000Z', 'T12:00:00'));
   }
   
-  // Se for formato DD/MM/YYYY
+  // If no time is provided, just basic YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str) || /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z?$/.test(str)) {
+    return new Date(str.substring(0, 10) + "T12:00:00");
+  }
+  
+  // If it's DD/MM/YYYY format
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
     const [day, month, year] = str.split("/");
     return new Date(`${year}-${month}-${day}T12:00:00`);

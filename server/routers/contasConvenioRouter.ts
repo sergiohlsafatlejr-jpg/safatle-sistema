@@ -2,11 +2,14 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca, logAnaliseComparacao, ajustesAuditoria } from "../../drizzle/schema";
+import { contasConvenioItens, contasConvenioResumo, integracaoMapeamentos, integracaoConexoes, feedbackDivergencias, padroesCobranca, logAnaliseComparacao, ajustesAuditoria, prontuarioPrescricoes, prontuarioEvolucoes } from "../../drizzle/schema";
 import { queryConfiguracoes } from "../../drizzle/schema-integracao";
 import { eq, and, sql, desc, like, or, inArray } from "drizzle-orm";
 import { WarleineConnector } from "../connectors/WarleineConnector";
 import { EasyVisionConnector } from "../connectors/EasyVisionConnector";
+import { OracleConnector } from "../connectors/OracleConnector";
+import { SqlServerConnector } from "../connectors/SqlServerConnector";
+import { MysqlConnector } from "../connectors/MysqlConnector";
 import { ENV } from "../_core/env";
 import { logger } from "../_core/logger";
 import { compararContaComPadroes } from "../services/comparadorPadroes";
@@ -61,6 +64,7 @@ export const contasConvenioRouter = router({
       let querySql: string;
       let conexaoConfig: { host: string; port: number; database: string; user: string; password: string } | null = null;
       let configSource = "";
+      let tipoBancoOrigem = "postgres";
 
       if (mapeamentos.length > 0) {
         // Encontrou no integracao_mapeamentos
@@ -75,6 +79,7 @@ export const contasConvenioRouter = router({
           .where(eq(integracaoConexoes.id, mapeamento.conexaoOrigemId));
 
         if (conexao) {
+          tipoBancoOrigem = conexao.tipo;
           const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
           conexaoConfig = {
             host: conexao.host,
@@ -102,6 +107,10 @@ export const contasConvenioRouter = router({
           const config = configs[0];
           querySql = config.querySql;
           configSource = `query_config #${config.id}`;
+          
+          if (config.sistema === "tasy") tipoBancoOrigem = "oracle";
+          else if (config.sistema === "omni" || config.sistema === "gesthor") tipoBancoOrigem = "firebird";
+          else tipoBancoOrigem = "postgres";
 
           if (config.conexaoConfig) {
             const parsed = typeof config.conexaoConfig === "string"
@@ -143,9 +152,31 @@ export const contasConvenioRouter = router({
       });
 
       // ============================================================
-      // 2. Conectar ao banco do hospital (PostgreSQL)
+      // 2. Conectar ao banco do hospital Dinamicamente
       // ============================================================
-      const connector = new EasyVisionConnector(conexaoConfig);
+      let connector: any;
+      
+      switch(tipoBancoOrigem.toLowerCase()) {
+        case "oracle":
+        case "tasy":
+          connector = new OracleConnector(conexaoConfig);
+          break;
+        case "mysql":
+          connector = new MysqlConnector(conexaoConfig);
+          break;
+        case "sqlserver":
+          connector = new SqlServerConnector(conexaoConfig);
+          break;
+        case "firebird":
+          throw new TRPCError({
+            code: "NOT_IMPLEMENTED",
+            message: "Conector Firebird ainda não implementado no SAFATLE.",
+          });
+        case "postgres":
+        default:
+          connector = new EasyVisionConnector(conexaoConfig);
+          break;
+      }
 
       let conectado = false;
       try {
@@ -2196,4 +2227,135 @@ export const contasConvenioRouter = router({
 
       return { logs };
     }),
+
+  // ============================================================
+  // BUSCA DE PRONTUÁRIOS (Prescrições e Evoluções)
+  // ============================================================
+  buscarProntuario: protectedProcedure
+    .input(z.object({
+      numeroConta: z.string(),
+      estabelecimentoId: z.number(),
+      forceRemote: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+
+      // Verificar se já temos no cache
+      if (!input.forceRemote) {
+        const prescricoesLocais = await db.select().from(prontuarioPrescricoes)
+          .where(and(
+            eq(prontuarioPrescricoes.numeroConta, input.numeroConta),
+            eq(prontuarioPrescricoes.estabelecimentoId, input.estabelecimentoId)
+          ));
+        if (prescricoesLocais.length > 0) {
+          return { prescricoes: prescricoesLocais, fonte: "CACHE_LOCAL" };
+        }
+      }
+
+      // 1. Buscar Mapeamento de Prescrições
+      const mapeamentos = await db.select().from(integracaoMapeamentos)
+        .where(and(
+          eq(integracaoMapeamentos.estabelecimentoId, input.estabelecimentoId),
+          eq(integracaoMapeamentos.ativo, "sim"),
+          or(
+            like(integracaoMapeamentos.nome, "%Prescri%"),
+            like(integracaoMapeamentos.nome, "%Prontuari%")
+          )
+        )).limit(1);
+
+      let querySql: string | null = null;
+      let conexaoConfig: any = null;
+      let tipoBancoOrigem = "postgres";
+
+      if (mapeamentos.length > 0) {
+        const mapeamento = mapeamentos[0];
+        querySql = mapeamento.queryOrigem;
+        const [conexao] = await db.select().from(integracaoConexoes).where(eq(integracaoConexoes.id, mapeamento.conexaoOrigemId));
+        if (conexao) {
+          tipoBancoOrigem = conexao.tipo;
+          conexaoConfig = {
+            host: conexao.host, port: conexao.porta, database: conexao.banco,
+            user: conexao.usuario, password: Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8")
+          };
+        }
+      } else {
+        // Fallback QueryConfig
+        const configs = await db.select().from(queryConfiguracoes).where(and(
+          eq(queryConfiguracoes.estabelecimentoId, input.estabelecimentoId),
+          eq(queryConfiguracoes.tipoDados, "prontuario_prescricoes"),
+          eq(queryConfiguracoes.ativo, true)
+        )).limit(1);
+
+        if (configs.length > 0) {
+          querySql = configs[0].querySql;
+          tipoBancoOrigem = configs[0].sistema === "tasy" ? "oracle" : "postgres";
+          conexaoConfig = typeof configs[0].conexaoConfig === "string" ? JSON.parse(configs[0].conexaoConfig) : configs[0].conexaoConfig;
+        }
+      }
+
+      if (!conexaoConfig || !querySql) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Mapeamento clínico não configurado. Adicione um mapeamento de 'Prontuário/Prescrições' no Integrador de Dados." });
+      }
+
+      // 2. Conectar Dinamicamente
+      let connector: any;
+      switch(tipoBancoOrigem.toLowerCase()) {
+        case "oracle": case "tasy": connector = new OracleConnector(conexaoConfig); break;
+        case "mysql": connector = new MysqlConnector(conexaoConfig); break;
+        case "sqlserver": connector = new SqlServerConnector(conexaoConfig); break;
+        case "firebird": throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Conector Firebird pendente." });
+        case "postgres": default: connector = new EasyVisionConnector(conexaoConfig); break;
+      }
+
+      let conectado = false;
+      try { conectado = await connector.conectar(); } catch (e) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha na conexão ao banco hospitalar." });
+      }
+
+      if (!conectado) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Servidor não acessível." });
+
+      // 3. Executar Busca
+      let pRows: any[] = [];
+      try {
+        pRows = await connector.executarQuery(querySql, [input.numeroConta]);
+      } catch (e) {
+        await connector.desconectar();
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao executar query clínica: " + String(e) });
+      }
+      await connector.desconectar();
+
+      if (!pRows || pRows.length === 0) {
+        return { prescricoes: [], fonte: "BANCO_REMOTO" };
+      }
+
+      // 4. Salvar no MySQL local (Cache)
+      await db.delete(prontuarioPrescricoes).where(and(
+        eq(prontuarioPrescricoes.numeroConta, input.numeroConta),
+        eq(prontuarioPrescricoes.estabelecimentoId, input.estabelecimentoId)
+      ));
+
+      const batch = pRows.map((r) => ({
+        numeroConta: input.numeroConta,
+        estabelecimentoId: input.estabelecimentoId,
+        codigoItem: r.codigoItem || r.CD_ITEM || r.CODIGO_ITEM || r.CODIGO || null,
+        descricaoItem: r.descricaoItem || r.DS_ITEM || r.DESCRICAO_ITEM || r.DESCRICAO || null,
+        quantidade: typeof r.quantidade === "number" ? r.quantidade : parseFloat(r.quantidade || r.QT_ITEM || r.QTD || "1") || 1,
+        medico: r.medico || r.NM_MEDICO || r.MEDICO || null,
+        dataPrescricao: r.dataPrescricao ? new Date(r.dataPrescricao) : new Date(),
+        viaAdministracao: r.viaAdministracao || r.VIA || null,
+        frequencia: r.frequencia || r.FREQUENCIA || null,
+      }));
+
+      await db.insert(prontuarioPrescricoes).values(batch);
+
+      // Return refreshed locals
+      const novasPrescricoes = await db.select().from(prontuarioPrescricoes).where(and(
+        eq(prontuarioPrescricoes.numeroConta, input.numeroConta),
+        eq(prontuarioPrescricoes.estabelecimentoId, input.estabelecimentoId)
+      ));
+
+      return { prescricoes: novasPrescricoes, fonte: "BANCO_REMOTO" };
+    }),
+
 });

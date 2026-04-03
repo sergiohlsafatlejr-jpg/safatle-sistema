@@ -141,3 +141,19 @@ debug_*.ts
 
 # Manus logs
 .manus-logs/
+
+# Certificados Bancarios e TLS
+*.crt
+*.key
+*.pem
+*.pfx
+
+# Uploads temporários locais
+uploads/
+
+# Scripts ad-hoc e temporários
+add_*.ts
+test*.ts
+status.txt
+log.txt
+result.txt

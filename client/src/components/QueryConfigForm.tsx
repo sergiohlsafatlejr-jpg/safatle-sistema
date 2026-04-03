@@ -28,7 +28,7 @@ const querySchema = z.object({
 
 const configSchema = z.object({
   estabelecimentoId: z.number().min(1, "Estabelecimento é obrigatório"),
-  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio"]),
+  tipoDados: z.enum(["atendimentos", "faturamento", "procedimentos", "pacientes", "busca_conta", "bi_relatorio", "prontuario_prescricoes", "prontuario_evolucoes"]),
   frequencia: z.enum(["tempo_real", "1x_dia", "1x_semana"]),
   descricao: z.string().optional(),
   tabelaDestinoBi: z.string().optional(),
@@ -447,6 +447,8 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                     <SelectItem value="procedimentos">Procedimentos</SelectItem>
                     <SelectItem value="pacientes">Pacientes</SelectItem>
                     <SelectItem value="busca_conta">Busca Conta (por nº conta)</SelectItem>
+                    <SelectItem value="prontuario_prescricoes">Prescrições (por atendimento)</SelectItem>
+                    <SelectItem value="prontuario_evolucoes">Evoluções (por atendimento)</SelectItem>
                     <SelectItem value="bi_relatorio">Relatório Customizado (BI)</SelectItem>
                   </SelectContent>
                 </Select>
