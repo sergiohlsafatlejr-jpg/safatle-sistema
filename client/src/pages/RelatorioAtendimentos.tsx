@@ -164,7 +164,8 @@ export default function RelatorioAtendimentos() {
     carater: carater || undefined,
     limit: itensPorPagina,
     offset: (pagina - 1) * itensPorPagina,
-  }), [dataInicio, dataFim, tipoAtendimento, codServ, codPlaco, codPrest, codCc, carater, pagina]);
+    estabelecimentoId,
+  }), [dataInicio, dataFim, tipoAtendimento, codServ, codPlaco, codPrest, codCc, carater, pagina, estabelecimentoId]);
 
   const { data: resultado, isLoading, isFetching } = trpc.relatorioAtendimentos.buscar.useQuery(
     filtrosQuery,
@@ -179,7 +180,8 @@ export default function RelatorioAtendimentos() {
     codPlaco: dashFilters.convenio || undefined,
     codPrest: dashFilters.medico || undefined,
     codServ: dashFilters.servico || undefined,
-  }), [dashFilters]);
+    estabelecimentoId,
+  }), [dashFilters, estabelecimentoId]);
 
   const { data: metricas, isLoading: loadingMetricas } = trpc.relatorioAtendimentos.metricasDashboard.useQuery(
     metricasInput,
@@ -190,7 +192,8 @@ export default function RelatorioAtendimentos() {
   const comparacaoInput = useMemo(() => ({
     dataInicio: dashFilters.dataInicio.toISOString().split("T")[0],
     dataFim: dashFilters.dataFim.toISOString().split("T")[0] + "T23:59:59",
-  }), [dashFilters.dataInicio, dashFilters.dataFim]);
+    estabelecimentoId,
+  }), [dashFilters.dataInicio, dashFilters.dataFim, estabelecimentoId]);
 
   const { data: comparacao } = trpc.relatorioAtendimentos.comparacaoPeriodos.useQuery(
     comparacaoInput,

@@ -7,6 +7,7 @@ import {
   buscarDetalheMesConvenio,
   buscarTabelaPorSetor,
   buscarTabelaPorTipoAtendimento,
+  sincronizarRelatorioFaturamento,
 } from "../relatorioFaturamento";
 
 export const relatorioFaturamentoRouter = router({
@@ -82,5 +83,11 @@ export const relatorioFaturamentoRouter = router({
     )
     .query(async ({ input }) => {
       return buscarDetalheMesConvenio(input);
+    }),
+
+  sincronizar: protectedProcedure
+    .input(z.object({ estabelecimentoId: z.number() }))
+    .mutation(async ({ input }) => {
+      return sincronizarRelatorioFaturamento(input.estabelecimentoId);
     }),
 });

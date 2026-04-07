@@ -229,7 +229,20 @@ export default function RelatorioFaturamento() {
   const [filtroSetor, setFiltroSetor] = useState<string>("");
   const [filtroTipo, setFiltroTipo] = useState<string>("");
 
-  // ============ QUERIES ============
+  // ============ QUERIES e MUTATIONS ============
+
+  const trpcContext = trpc.useContext();
+  
+  const syncMutation = trpc.relatorioFaturamento.sincronizar.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Sincronização concluída! ${data.sincronizados} grupos de faturas sincronizados.`);
+      trpcContext.relatorioFaturamento.buscar.invalidate();
+      handleCarregar();
+    },
+    onError: (err) => {
+      toast.error(`Erro ao sincronizar: ${err.message}`);
+    }
+  });
 
   const { data, isLoading, error } = trpc.relatorioFaturamento.buscar.useQuery(
     queryParams ?? { estabelecimentoId: 0, anoAtual, anoAnterior },
@@ -277,6 +290,14 @@ export default function RelatorioFaturamento() {
     setMesesExpandidos(new Set());
     clearDashFilters();
     setQueryParams({ estabelecimentoId, anoAtual, anoAnterior });
+  };
+
+  const handleSincronizar = () => {
+    if (estabelecimentoId <= 0) {
+      toast.error("Selecione um estabelecimento primeiro");
+      return;
+    }
+    syncMutation.mutate({ estabelecimentoId });
   };
 
   const clearDashFilters = () => {
@@ -509,6 +530,15 @@ export default function RelatorioFaturamento() {
               <Button onClick={handleCarregar} disabled={isLoading || estabelecimentoId === 0}>
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BarChart3 className="h-4 w-4 mr-2" />}
                 Carregar
+              </Button>
+              <Button 
+                onClick={handleSincronizar} 
+                disabled={syncMutation.isLoading || estabelecimentoId === 0} 
+                variant="outline" 
+                className="border-primary text-primary hover:bg-primary/10 gap-2"
+              >
+                {syncMutation.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
+                Sincronizar Base
               </Button>
               {estabelecimentoId === 0 && (
                 <p className="text-sm text-amber-400">Selecione um estabelecimento primeiro</p>

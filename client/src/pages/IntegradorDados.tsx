@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText, Download, Pencil, Save, X, Eye, EyeOff } from "lucide-react";
+import { Loader2, Trash2, Play, RefreshCw, Plus, AlertCircle, Database, FileText, Download, Pencil, Save, X, Eye, EyeOff, Eraser } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -713,7 +713,7 @@ export function IntegradorDados() {
                           {limparSincronizacao.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Eraser className="h-4 w-4" />
                           )}
                         </Button>
                         <Button

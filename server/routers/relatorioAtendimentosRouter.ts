@@ -22,6 +22,7 @@ const filtrosDashboardSchema = z.object({
   codPlaco: z.string().optional(),
   codPrest: z.string().optional(),
   codServ: z.string().optional(),
+  estabelecimentoId: z.number().optional(),
 });
 
 export const relatorioAtendimentosRouter = router({
@@ -38,6 +39,7 @@ export const relatorioAtendimentosRouter = router({
         carater: z.string().optional(),
         limit: z.number().min(1).max(500).optional(),
         offset: z.number().min(0).optional(),
+        estabelecimentoId: z.number().optional(),
       })
     )
     .query(async ({ input }) => {
@@ -80,10 +82,11 @@ export const relatorioAtendimentosRouter = router({
       z.object({
         dataInicio: z.string(),
         dataFim: z.string(),
+        estabelecimentoId: z.number().optional(),
       })
     )
     .query(async ({ input }) => {
-      return buscarComparacaoPeriodos(input.dataInicio, input.dataFim);
+      return buscarComparacaoPeriodos(input.dataInicio, input.dataFim, input.estabelecimentoId);
     }),
 
   // Métricas avançadas (permanência, turno, conversão, caráter)

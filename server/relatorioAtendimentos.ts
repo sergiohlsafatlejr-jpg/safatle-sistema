@@ -2,6 +2,7 @@ import pg from "pg";
 import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import { relatorioAtendimentosCache, relatorioAtendimentosSyncMeta } from "../drizzle/schema-integracao";
+import { integracaoConexoes } from "../drizzle/schema";
 import { eq, and, gte, lte, like, sql, count, desc } from "drizzle-orm";
 
 const { Pool } = pg;
@@ -25,6 +26,48 @@ function getWarleinePool(): pg.Pool {
   return warleinePool;
 }
 
+// Armazena pools dinâmicos criados a partir do Integrador de Dados
+const dynamicPools = new Map<number, pg.Pool>();
+
+export async function getDynWarleinePool(estabelecimentoId?: number): Promise<pg.Pool> {
+  if (!estabelecimentoId) return getWarleinePool();
+
+  if (dynamicPools.has(estabelecimentoId)) {
+    return dynamicPools.get(estabelecimentoId)!;
+  }
+
+  const db = await getDb();
+  if (db) {
+    const [conexao] = await db.select().from(integracaoConexoes).where(
+      and(
+        eq(integracaoConexoes.estabelecimentoId, estabelecimentoId),
+        eq(integracaoConexoes.tipo, "postgresql"),
+        eq(integracaoConexoes.ativo, "sim")
+      )
+    );
+
+    if (conexao) {
+      const password = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
+      const pool = new Pool({
+        host: conexao.host,
+        port: conexao.porta,
+        database: conexao.banco,
+        user: conexao.usuario,
+        password,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+        ssl: conexao.ssl === "sim" ? { rejectUnauthorized: false } : false,
+      });
+      dynamicPools.set(estabelecimentoId, pool);
+      return pool;
+    }
+  }
+
+  // Fallback iterando as env variables
+  return getWarleinePool();
+}
+
 export interface FiltroRelatorioAtendimentos {
   dataInicio: string;
   dataFim: string;
@@ -36,6 +79,7 @@ export interface FiltroRelatorioAtendimentos {
   carater?: string;
   limit?: number;
   offset?: number;
+  estabelecimentoId?: number;
 }
 
 export interface AtendimentoRelatorio {
@@ -96,9 +140,11 @@ export async function buscarAtendimentos(
   try {
     const db = await getDb();
     if (db) {
-      const cacheCount = await db
-        .select({ total: count() })
-        .from(relatorioAtendimentosCache);
+      let cacheQuery = db.select({ total: count() }).from(relatorioAtendimentosCache);
+      if (filtros.estabelecimentoId) {
+        cacheQuery = cacheQuery.where(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId)) as any;
+      }
+      const cacheCount = await cacheQuery;
       
       console.log("[RelatorioAtendimentos] Cache count:", cacheCount[0]?.total);
       if (cacheCount[0]?.total > 0) {
@@ -159,6 +205,10 @@ async function buscarDoCache(
 
   if (filtros.codCc) {
     conditions.push(eq(relatorioAtendimentosCache.codcc, filtros.codCc));
+  }
+
+  if (filtros.estabelecimentoId) {
+    conditions.push(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId));
   }
 
   if (filtros.carater) {
@@ -242,7 +292,8 @@ async function buscarDoPostgresql(
   limit: number,
   offset: number
 ): Promise<RelatorioAtendimentosResult> {
-  const client = await getWarleinePool().connect();
+  const pool = await getDynWarleinePool(filtros.estabelecimentoId);
+  const client = await pool.connect();
   try {
     // Construir WHERE dinâmico
     const conditions: string[] = [];
@@ -470,7 +521,9 @@ async function buscarOpcoesFiltroDoPostgresql(): Promise<{
   prestadores: { codprest: string; nomeprest: string }[];
   fonte: "cache_local" | "postgresql_direto";
 }> {
-  const client = await getWarleinePool().connect();
+  // Nota: Como não temos estabelecimentoId nesta busca genérica, usaremos o pool fallback padrão
+  const pool = await getDynWarleinePool();
+  const client = await pool.connect();
   try {
     const [servicos, planos, centrosCusto, prestadores] = await Promise.all([
       client.query(`SELECT codserv, nomeserv FROM "PACIENTE".cadserv WHERE inativo IS NULL OR inativo != 'S' ORDER BY nomeserv`),
@@ -529,8 +582,9 @@ export async function sincronizarRelatorioAtendimentos(
   });
 
   try {
-    // Buscar dados do PostgreSQL
-    const client = await getWarleinePool().connect();
+    // Buscar dados do PostgreSQL usando o pool validado pela integração
+    const pool = await getDynWarleinePool(estabelecimentoId);
+    const client = await pool.connect();
     let totalRegistros = 0;
 
     try {
@@ -672,7 +726,8 @@ export async function sincronizarRelatorioAtendimentos(
     };
   } catch (error) {
     const duracaoSegundos = Math.round((Date.now() - inicio) / 1000);
-    const mensagemErro = (error as Error).message;
+    const mensagemErro = (error as Error).message || String(error);
+    console.error("ERRO COMPLETO DA SYNC:", error);
 
     // Atualizar status para erro
     await upsertSyncMeta(db, estabelecimentoId, {
@@ -828,6 +883,7 @@ export interface FiltrosDashboard {
   codPlaco?: string;
   codPrest?: string;
   codServ?: string;
+  estabelecimentoId?: number;
 }
 
 export async function buscarMetricasDashboard(
@@ -838,9 +894,11 @@ export async function buscarMetricasDashboard(
   try {
     const db = await getDb();
     if (db) {
-      const cacheCount = await db
-        .select({ total: count() })
-        .from(relatorioAtendimentosCache);
+      let cacheQuery = db.select({ total: count() }).from(relatorioAtendimentosCache);
+      if (filtros.estabelecimentoId) {
+        cacheQuery = cacheQuery.where(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId)) as any;
+      }
+      const cacheCount = await cacheQuery;
 
       console.log("[Dashboard] Cache count:", cacheCount[0]?.total);
       if (cacheCount[0]?.total > 0) {
@@ -882,6 +940,9 @@ async function buscarMetricasDoCache(
   }
   if (filtros.codServ) {
     baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+  }
+  if (filtros.estabelecimentoId) {
+    baseConditions.push(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId));
   }
 
   const dateCondition = and(...baseConditions);
@@ -1171,7 +1232,8 @@ export interface ComparacaoPeriodos {
 
 export async function buscarComparacaoPeriodos(
   dataInicio: string,
-  dataFim: string
+  dataFim: string,
+  estabelecimentoId?: number
 ): Promise<ComparacaoPeriodos> {
   // Calcular período anterior com mesma duração
   const inicio = new Date(dataInicio);
@@ -1189,10 +1251,11 @@ export async function buscarComparacaoPeriodos(
 
   // Buscar métricas de ambos os períodos
   const [metricasAtual, metricasAnterior] = await Promise.all([
-    buscarMetricasDashboard({ dataInicio, dataFim }),
+    buscarMetricasDashboard({ dataInicio, dataFim, estabelecimentoId }),
     buscarMetricasDashboard({
       dataInicio: formatDate(inicioAnterior),
       dataFim: formatDate(fimAnterior),
+      estabelecimentoId,
     }),
   ]);
 
@@ -1280,9 +1343,11 @@ export async function buscarMetricasAvancadas(
   try {
     const db = await getDb();
     if (db) {
-      const cacheCount = await db
-        .select({ total: count() })
-        .from(relatorioAtendimentosCache);
+      let cacheQuery = db.select({ total: count() }).from(relatorioAtendimentosCache);
+      if (filtros.estabelecimentoId) {
+        cacheQuery = cacheQuery.where(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId)) as any;
+      }
+      const cacheCount = await cacheQuery;
 
       if (cacheCount[0]?.total > 0) {
         return buscarMetricasAvancadasDoCache(db, filtros);
@@ -1317,6 +1382,7 @@ async function buscarMetricasAvancadasDoCache(
   if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
   if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
   if (filtros.codServ) baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+  if (filtros.estabelecimentoId) baseConditions.push(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId));
 
   const whereClause = and(...baseConditions);
 
@@ -1828,9 +1894,11 @@ export async function buscarAnaliticasDemograficas(
   try {
     const db = await getDb();
     if (db) {
-      const cacheCount = await db
-        .select({ total: count() })
-        .from(relatorioAtendimentosCache);
+      let cacheQuery = db.select({ total: count() }).from(relatorioAtendimentosCache);
+      if (filtros.estabelecimentoId) {
+        cacheQuery = cacheQuery.where(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId)) as any;
+      }
+      const cacheCount = await cacheQuery;
 
       if (cacheCount[0]?.total > 0) {
         return buscarDemograficasDoCache(db, filtros);
@@ -2076,9 +2144,11 @@ export async function buscarAnaliticasOperacionais(
   try {
     const db = await getDb();
     if (db) {
-      const cacheCount = await db
-        .select({ total: count() })
-        .from(relatorioAtendimentosCache);
+      let cacheQuery = db.select({ total: count() }).from(relatorioAtendimentosCache);
+      if (filtros.estabelecimentoId) {
+        cacheQuery = cacheQuery.where(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId)) as any;
+      }
+      const cacheCount = await cacheQuery;
 
       if (cacheCount[0]?.total > 0) {
         return buscarOperacionaisDoCache(db, filtros);
@@ -2111,6 +2181,7 @@ async function buscarOperacionaisDoCache(
   if (filtros.codPlaco) baseConditions.push(eq(relatorioAtendimentosCache.codplaco, filtros.codPlaco));
   if (filtros.codPrest) baseConditions.push(eq(relatorioAtendimentosCache.codprest, filtros.codPrest));
   if (filtros.codServ) baseConditions.push(eq(relatorioAtendimentosCache.codserv, filtros.codServ));
+  if (filtros.estabelecimentoId) baseConditions.push(eq(relatorioAtendimentosCache.estabelecimentoId, filtros.estabelecimentoId));
 
   const whereClause = and(...baseConditions);
 

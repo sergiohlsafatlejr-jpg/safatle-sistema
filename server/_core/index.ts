@@ -9,7 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { initializeJobScheduler } from "./jobScheduler";
 import { startBoletoCron } from "../workers/boletoChecker";
-
+import { startDailyReportSync } from "../workers/dailyReportSync";
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -67,6 +67,7 @@ async function startServer() {
   try {
     await initializeJobScheduler();
     startBoletoCron();
+    startDailyReportSync();
   } catch (error) {
     console.error("Erro ao inicializar JobScheduler ou Cron:", error);
   }

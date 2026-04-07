@@ -341,16 +341,21 @@ const transacoesRouter = router({
     });
     return { id: result.insertId };
   }),
-  duplicarEmLote: protectedProcedure.input(z.object({ ids: z.array(z.number()) })).mutation(async ({ input, ctx }) => {
+  duplicarEmLote: protectedProcedure.input(z.object({ ids: z.array(z.number()), avancarMeses: z.number().optional() })).mutation(async ({ input, ctx }) => {
     const db = (await getDb())!;
     const originais = await db.select().from(finTransacoes).where(inArray(finTransacoes.id, input.ids));
     if (originais.length === 0) throw new Error("Nenhum registro encontrado");
     for (const original of originais) {
+      let novaData = original.dataVencimento;
+      if (novaData && input.avancarMeses) {
+        novaData = new Date(novaData);
+        novaData.setUTCMonth(novaData.getUTCMonth() + input.avancarMeses);
+      }
       await db.insert(finTransacoes).values({
         empresaId: original.empresaId, categoriaId: original.categoriaId, tipoId: original.tipoId,
         custoId: original.custoId, bancoId: original.bancoId, centroCustoId: original.centroCustoId,
-        descricao: `${original.descricao} (cópia)`, valor: original.valor,
-        dataVencimento: original.dataVencimento, dataPagamento: null,
+        descricao: input.avancarMeses ? original.descricao : `${original.descricao} (cópia)`, valor: original.valor,
+        dataVencimento: novaData, dataPagamento: null,
         pago: "nao", observacoes: original.observacoes, userId: ctx.user.id,
       });
     }
@@ -533,15 +538,20 @@ const recebiveisRouter = router({
     });
     return { id: result.insertId };
   }),
-  duplicarEmLote: protectedProcedure.input(z.object({ ids: z.array(z.number()) })).mutation(async ({ input, ctx }) => {
+  duplicarEmLote: protectedProcedure.input(z.object({ ids: z.array(z.number()), avancarMeses: z.number().optional() })).mutation(async ({ input, ctx }) => {
     const db = (await getDb())!;
     const originais = await db.select().from(finRecebiveis).where(inArray(finRecebiveis.id, input.ids));
     if (originais.length === 0) throw new Error("Nenhum registro encontrado");
     for (const original of originais) {
+      let novaData = original.dataVencimento;
+      if (novaData && input.avancarMeses) {
+        novaData = new Date(novaData);
+        novaData.setUTCMonth(novaData.getUTCMonth() + input.avancarMeses);
+      }
       await db.insert(finRecebiveis).values({
         empresaId: original.empresaId, clienteId: original.clienteId, tipoId: original.tipoId,
-        bancoId: original.bancoId, descricao: `${original.descricao} (cópia)`, valor: original.valor,
-        dataVencimento: original.dataVencimento, dataRecebimento: null,
+        bancoId: original.bancoId, descricao: input.avancarMeses ? original.descricao : `${original.descricao} (cópia)`, valor: original.valor,
+        dataVencimento: novaData, dataRecebimento: null,
         recebido: "nao", tipoServico: original.tipoServico, descricaoServico: original.descricaoServico,
         observacoes: original.observacoes, userId: ctx.user.id,
       });

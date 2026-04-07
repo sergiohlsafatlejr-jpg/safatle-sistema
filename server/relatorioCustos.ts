@@ -1,29 +1,10 @@
 import pg from "pg";
-import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import { custosProtudosCache, custosProdutosSyncMeta } from "../drizzle/schema-integracao";
 import { eq, and, like, sql, count, desc, asc } from "drizzle-orm";
+import { getDynWarleinePool } from "./relatorioAtendimentos";
 
 const { Pool } = pg;
-
-let warleinePool: pg.Pool | null = null;
-
-function getWarleinePool(): pg.Pool {
-  if (!warleinePool) {
-    warleinePool = new Pool({
-      host: ENV.warleineDbHost,
-      port: parseInt(ENV.warleineDbPort, 10),
-      database: ENV.warleineDbName,
-      user: ENV.warleineDbUser,
-      password: ENV.warleineDbPassword,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-      ssl: false,
-    });
-  }
-  return warleinePool;
-}
 
 // ============================================================
 // MAPEAMENTOS
@@ -39,7 +20,8 @@ const TIPO_PROD_MAP: Record<string, string> = {
 // INTERFACES
 // ============================================================
 
-export interface FiltroCustos {
+export interface FiltroCustos { 
+  estabelecimentoId?: number;
   tipoprod?: string;
   codtbmm?: string;
   convenio?: string;
@@ -69,7 +51,8 @@ export interface MetricasCustosDashboard {
 // ============================================================
 
 async function buscarTabelasAtivas(): Promise<string[]> {
-  const client = await getWarleinePool().connect();
+  const pool = await getDynWarleinePool(undefined);
+  const client = await pool.connect();
   try {
     const result = await client.query(`
       SELECT DISTINCT a.codtbmm
@@ -249,7 +232,8 @@ async function buscarDoPostgresql(
   totalPaginas: number;
   fonte: "cache_local" | "postgresql_direto";
 }> {
-  const client = await getWarleinePool().connect();
+  const pool = await getDynWarleinePool(filtros.estabelecimentoId);
+  const client = await pool.connect();
   try {
     const params: any[] = [];
     let paramIdx = 1;
@@ -396,7 +380,8 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
 
   // Fallback: buscar do PostgreSQL direto
   try {
-    const client = await getWarleinePool().connect();
+    const pool = await getDynWarleinePool(undefined);
+  const client = await pool.connect();
     try {
       const [tabelasResult, conveniosResult] = await Promise.all([
         client.query(`
@@ -458,7 +443,7 @@ export async function buscarOpcoesFiltrosCustos(estabelecimentoId: number): Prom
 
 export async function buscarMetricasCustosDashboard(
   estabelecimentoId: number,
-  filtros?: { tipoprod?: string; codtbmm?: string }
+  filtros?: { tipoprod?: string; codtbmm?: string; estabelecimentoId?: number }
 ): Promise<MetricasCustosDashboard> {
   try {
     const db = await getDb();
@@ -482,7 +467,7 @@ export async function buscarMetricasCustosDashboard(
 async function buscarMetricasDoCache(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   estabelecimentoId: number,
-  filtros?: { tipoprod?: string; codtbmm?: string }
+  filtros?: { tipoprod?: string; codtbmm?: string; estabelecimentoId?: number }
 ): Promise<MetricasCustosDashboard> {
   const baseConditions: any[] = [eq(custosProtudosCache.estabelecimentoId, estabelecimentoId)];
   if (filtros?.tipoprod) {
@@ -632,9 +617,10 @@ async function buscarMetricasDoCache(
 }
 
 async function buscarMetricasDoPostgresql(
-  filtros?: { tipoprod?: string; codtbmm?: string }
+  filtros?: { tipoprod?: string; codtbmm?: string; estabelecimentoId?: number }
 ): Promise<MetricasCustosDashboard> {
-  const client = await getWarleinePool().connect();
+  const pool = await getDynWarleinePool(filtros?.estabelecimentoId);
+  const client = await pool.connect();
   try {
     const params: any[] = [];
     let paramIdx = 1;
@@ -753,7 +739,8 @@ export async function sincronizarCustosProdutos(
   });
 
   try {
-    const client = await getWarleinePool().connect();
+    const pool = await getDynWarleinePool(undefined);
+  const client = await pool.connect();
     let totalRegistros = 0;
 
     try {
@@ -902,7 +889,7 @@ export async function sincronizarCustosProdutos(
     const rawMsg = String(e.message || e);
     // Extrair apenas a parte relevante do erro, sem a query SQL completa
     const errorSummary = mysqlCode 
-      ? `Database Error ${mysqlCode} (${mysqlState}): ${rawMsg.split('\n')[0].substring(0, 300)}`
+      ? `Database Error ${mysqlCode} (${mysqlState}): ${rawMsg.split('\\n')[0].substring(0, 300)}`
       : rawMsg.substring(0, 400);
     console.error(`[RelatorioCustos] Erro na sincronização (${duracao}s): ${errorSummary}`);
     if (e.stack) console.error(`[RelatorioCustos] Stack:`, String(e.stack).substring(0, 500));
@@ -1037,7 +1024,8 @@ async function upsertSyncMeta(
 // COMPARAÇÃO: CUSTO HOSPITAL vs VALOR CONVÊNIO (CORRIGIDA)
 // ============================================================
 
-export interface FiltroComparacao {
+export interface FiltroComparacao { 
+  estabelecimentoId?: number;
   tipoprod?: string;
   codtbmm?: string;
   convenio?: string;
@@ -1358,7 +1346,8 @@ async function buscarComparacaoDoPostgresql(
   limit: number,
   offset: number
 ): Promise<ComparacaoCustoConvenio> {
-  const client = await getWarleinePool().connect();
+  const pool = await getDynWarleinePool(filtros.estabelecimentoId);
+  const client = await pool.connect();
   try {
     const params: any[] = [];
     let paramIdx = 1;
@@ -1645,7 +1634,7 @@ export async function buscarCustosPorConvenio(
   _estabelecimentoId: number,
   filtros: FiltroCustoPorConvenio
 ): Promise<CustoPorConvenioResult> {
-  const pool = getWarleinePool();
+  const pool = await getDynWarleinePool(_estabelecimentoId);
   const client = await pool.connect();
 
   try {
@@ -2091,7 +2080,7 @@ export async function buscarCustosPorConta(
   _estabelecimentoId: number,
   filtros: FiltroCustoPorConta
 ): Promise<CustoPorContaResult> {
-  const pool = getWarleinePool();
+  const pool = await getDynWarleinePool(_estabelecimentoId);
   const client = await pool.connect();
 
   try {
@@ -2266,7 +2255,7 @@ export async function buscarDetalheContaCusto(
   _estabelecimentoId: number,
   numconta: string
 ): Promise<DetalheContaCusto | null> {
-  const pool = getWarleinePool();
+  const pool = await getDynWarleinePool(_estabelecimentoId);
   const client = await pool.connect();
 
   try {
@@ -2465,7 +2454,7 @@ export async function buscarCustosPorSetor(
   _estabelecimentoId: number,
   filtros: FiltroCustoPorSetor
 ): Promise<CustoPorSetorResult> {
-  const pool = getWarleinePool();
+  const pool = await getDynWarleinePool(_estabelecimentoId);
   const client = await pool.connect();
 
   try {

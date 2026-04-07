@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   integracaoConexoes,
@@ -137,17 +137,22 @@ export async function atualizarStatusConexao(id: number, status: "ok" | "erro" |
 // TABELAS
 // =====================================================
 
-export async function listarTabelas(estabelecimentoId?: number) {
-  return withRetry(async () => {
-    const db = await getDb();
-    if (!db) return [];
-    let query = db.select().from(integracaoTabelas);
-    if (estabelecimentoId) {
-      query = query.where(eq(integracaoTabelas.estabelecimentoId, estabelecimentoId)) as any;
-    }
-    return query.orderBy(desc(integracaoTabelas.criadoEm));
-  });
-}
+  export async function listarTabelas(estabelecimentoId?: number) {
+    return withRetry(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      let query = db.select().from(integracaoTabelas);
+      if (estabelecimentoId) {
+        query = query.where(
+          or(
+            eq(integracaoTabelas.estabelecimentoId, estabelecimentoId),
+            sql`${integracaoTabelas.estabelecimentoId} IS NULL`
+          )
+        ) as any;
+      }
+      return query.orderBy(desc(integracaoTabelas.criadoEm));
+    });
+  }
 
 export async function obterTabela(id: number) {
   return withRetry(async () => {

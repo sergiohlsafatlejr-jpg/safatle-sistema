@@ -79,15 +79,28 @@ export class OracleConnector {
     }
   }
 
-  async executarQuery(query: string, limit?: number): Promise<any[]> {
+  async executarQuery(query: string, params?: any[]): Promise<any[]> {
     if (!this.connection) {
       throw new Error("Conexão não estabelecida");
     }
 
     try {
       oracledb.fetchAsString = [oracledb.DATE, oracledb.CLOB];
-      const result = await this.connection.execute(query, [], { maxRows: limit || 0 });
-      logger.info({ message: "DEBUG ORACLE RAW RESULT", query, rowCount: result.rows?.length });
+      
+      // Converter syntax do PostgreSQL/SQLServer ($1, $2) para Oracle (:1, :2)
+      let oracleQuery = query;
+      let oracledbParams: any[] = [];
+      
+      // Se tiver parâmetros, converter formatação se necessário
+      if (params && params.length > 0) {
+        oracledbParams = [...params];
+        for (let i = 1; i <= params.length; i++) {
+           oracleQuery = oracleQuery.replace(new RegExp(`\\$${i}`, 'g'), `:${i}`);
+        }
+      }
+
+      const result = await this.connection.execute(oracleQuery, oracledbParams, { maxRows: 0 });
+      logger.info({ message: "DEBUG ORACLE RAW RESULT", query: oracleQuery, hasParams: !!params, rowCount: result.rows?.length });
       return (result.rows as any[]) || [];
     } catch (error) {
       logger.error({
@@ -115,7 +128,7 @@ export class OracleConnector {
         };
       }
 
-      const dados = await this.executarQuery(query, 50);
+      const dados = await this.executarQuery(query);
       await this.desconectar();
 
       return {
