@@ -157,3 +157,31 @@ test*.ts
 status.txt
 log.txt
 result.txt
+
+# Backups e arquivos temporarios
+backup_*
+*.7z
+backup_tmp.sql
+
+# Scripts de patch temporarios
+patch_*.cjs
+fix_*.cjs
+add_*.cjs
+remove_*.cjs
+rename_*.cjs
+restore_*.cjs
+grant_*.cjs
+
+# Arquivos scratch/tmp
+scratch*.ts
+tmp_*
+check.ts
+chk.json
+conn.json
+getConns.ts
+mapping.json
+schema_dump.json
+tables.json
+tables.txt
+tasy_tables_all.json
+server_test_storage.ts

@@ -2141,32 +2141,31 @@ export const contasConvenioRouter = router({
               }
             }
 
-            // Buscar itens desta conta
-            const itensDestaConta = await db.select({
-              id: contasConvenioItens.id,
-              codigoItem: contasConvenioItens.codigoItem,
-            }).from(contasConvenioItens).where(
-              and(
-                eq(contasConvenioItens.numeroConta, guia),
-                eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
-              )
-            );
+                        // OTIMIZACAO 1: Em vez de atualizar item a item (N+1 queries = 150mil hits no banco),
+            // marcamos a conta inteira como "conforme" com 1 query!
+            await db.update(contasConvenioItens)
+              .set({ statusAnalise: "conforme", divergencias: null })
+              .where(
+                and(
+                  eq(contasConvenioItens.numeroConta, guia),
+                  eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId)
+                )
+              );
 
-            // Atualizar cada item
-            for (const item of itensDestaConta) {
-              const divs = item.codigoItem ? divergenciasPorItem.get(item.codigoItem) : null;
+            // OTIMIZACAO 2: Atualizar APENAS as divergencias (geralmente uma minoria)
+            for (const [codigoItem, divs] of divergenciasPorItem.entries()) {
               if (divs && divs.length > 0) {
                 await db.update(contasConvenioItens)
                   .set({ statusAnalise: "divergente", divergencias: divs })
-                  .where(eq(contasConvenioItens.id, item.id));
-              } else {
-                await db.update(contasConvenioItens)
-                  .set({ statusAnalise: "conforme", divergencias: null })
-                  .where(eq(contasConvenioItens.id, item.id));
+                  .where(
+                     and(
+                       eq(contasConvenioItens.numeroConta, guia),
+                       eq(contasConvenioItens.codigoItem, codigoItem),
+                       eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId)
+                     )
+                  );
               }
-            }
-
-            // Atualizar resumo
+            }// Atualizar resumo
             const statusGeral = resultadoComparacao.statusGeral === "divergente" ? "divergente" : "conforme";
             if (statusGeral === "divergente") totalContasDivergentes++;
             await db.update(contasConvenioResumo)

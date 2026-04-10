@@ -146,186 +146,71 @@ function extrairConexaoConfig(config: any): { host: string; port: number; databa
  * Executa sincronização + transformação automaticamente
  */
 async function executarSincronizacaoAutomatica(configId: number) {
-  // Lock para evitar execuções simultâneas do mesmo job
   if (runningJobs.has(configId)) {
     console.log(`[JobScheduler] Job ${configId} já está em execução, pulando...`);
     return;
   }
   runningJobs.add(configId);
-  console.log(`[JobScheduler] Iniciando sincronização automática para config ${configId}...`);
-
-  let connector: WarleineConnector | null = null;
+  console.log(`[JobScheduler] Iniciando sincronização OMNICANEL/MEDALLION automatica para config ${configId}...`);
 
   try {
     const db = await getDb();
-    if (!db) {
-      console.error("[JobScheduler] Erro: conexão com banco não disponível");
-      return;
-    }
+    if (!db) return;
 
-    // 1. Obter configuração
-    const config = await db
-      .select()
-      .from(queryConfiguracoes)
-      .where(eq(queryConfiguracoes.id, configId))
-      .then((rows: any[]) => rows[0]);
+    const config = await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.id, configId)).then((rows: any[]) => rows[0]);
+    if (!config) return;
 
-    if (!config) {
-      console.error(`[JobScheduler] Configuração ${configId} não encontrada`);
-      return;
-    }
-
-    // 2. Extrair configuração de conexão
     const conexaoConfig = extrairConexaoConfig(config);
     if (!conexaoConfig) {
-      console.error(`[JobScheduler] Configuração de conexão não encontrada para config ${configId}. Verifique o campo conexaoConfig ou as variáveis de ambiente WARLEINE_DB_*`);
-      await db.update(queryConfiguracoes).set({
-        ultimoErro: "Configuração de conexão não encontrada",
-        ultimaTentativa: new Date(),
-      }).where(eq(queryConfiguracoes.id, configId));
+      await db.update(queryConfiguracoes).set({ ultimoErro: "Configuração de conexão não encontrada", ultimaTentativa: new Date() }).where(eq(queryConfiguracoes.id, configId));
       return;
     }
 
-    // 3. SINCRONIZAR: Extrair dados do WARLEINE
-    console.log(`[JobScheduler] Conectando ao WARLEINE (${conexaoConfig.host}:${conexaoConfig.port}/${conexaoConfig.database})...`);
-    connector = new WarleineConnector(conexaoConfig);
-    const conectado = await connector.conectar();
+    // PASSO 1: DISPARAR O MOTOR DE EXTRACAO PARA A STAGING (Bronze)
+    const { dataSyncEngine } = await import("../dataSyncEngine");
+    const syncConfig = {
+      configId: config.id,
+      sistema: "warleine", // O scheduler legado usava warleine fixo aqui, adaptaremos se tiver mais
+      tipoDados: config.tipoDados,
+      estabelecimentoId: config.estabelecimentoId,
+      querySql: config.querySql,
+      frequencia: config.frequencia,
+      conexaoConfig: conexaoConfig
+    };
+
+    console.log(`[JobScheduler] EXTRAÇÃO: Baixando fita para a STAGING...`);
+    const resultadoSync = await dataSyncEngine.sincronizar(syncConfig as any);
     
-    if (!conectado) {
-      console.error(`[JobScheduler] Falha ao conectar ao WARLEINE`);
-      await db.update(queryConfiguracoes).set({
-        ultimoErro: "Falha ao conectar ao banco WARLEINE",
-        ultimaTentativa: new Date(),
-      }).where(eq(queryConfiguracoes.id, configId));
-      return;
+    if (!resultadoSync.sucesso) {
+      throw new Error(resultadoSync.mensagem);
     }
 
-    console.log(`[JobScheduler] Conectado! Executando query de sincronização...`);
-    const dados = await connector.executarQuery(config.querySql);
+    let registrosTransformados = resultadoSync.totalRegistrosSincronizados;
 
-    // Desconectar após extrair dados
-    await connector.desconectar();
-    connector = null;
-
-    if (!dados || dados.length === 0) {
-      console.log(`[JobScheduler] Nenhum dado encontrado para sincronizar`);
-      await db.update(queryConfiguracoes).set({
-        ultimaSincronizacao: new Date(),
-        ultimoErro: null,
-        ultimaTentativa: new Date(),
-      }).where(eq(queryConfiguracoes.id, configId));
-      return;
+    // PASSO 2: INVOCAR OS ORQUESTRADORES PARA A UNIFICADA (Silver)
+    console.log(`[JobScheduler] TRANSFORMAÇÃO: Orquestrando Staging -> Unificada...`);
+    if (config.tipoDados === "atendimentos") {
+      const { popularDeWarleine } = await import("../atendimentoUnificadoService");
+      const r = await popularDeWarleine(config.estabelecimentoId);
+      registrosTransformados = r.inseridos;
+    } else if (config.tipoDados === "faturamento") {
+      const { popularDeWarleine } = await import("../faturamentoUnificadoService");
+      const r = await popularDeWarleine(config.estabelecimentoId);
+      registrosTransformados = r.inseridos;
     }
 
-    console.log(`[JobScheduler] ${dados.length} registros extraídos do WARLEINE`);
-
-    // Limpar staging anterior para esta config
-    await db.delete(warleineAtendimentosStaging).where(
-      eq(warleineAtendimentosStaging.configId, configId)
-    );
-
-    // Inserir dados em lotes no staging
-    const BATCH_SIZE = 100;
-    let registrosSincronizados = 0;
-
-    for (let i = 0; i < dados.length; i += BATCH_SIZE) {
-      const batch = dados.slice(i, i + BATCH_SIZE);
-      const valuesToInsert = batch.map((row: any) => ({
-        estabelecimentoId: config.estabelecimentoId,
-        configId: config.id,
-        dadosBrutos: row,
-      }));
-
-      await db.insert(warleineAtendimentosStaging).values(valuesToInsert);
-      registrosSincronizados += valuesToInsert.length;
-    }
-
-    console.log(`[JobScheduler] ${registrosSincronizados} registros sincronizados no staging`);
-
-    // 4. TRANSFORMAR: Converter staging para tabela unificada
-    console.log(`[JobScheduler] Transformando dados para tabela unificada...`);
-
-    // Primeiro, remover registros WARLEINE antigos deste estabelecimento para evitar duplicatas
-    await db.delete(atendimentos).where(
-      and(
-        eq(atendimentos.estabelecimentoId, config.estabelecimentoId),
-        eq(atendimentos.origemSistema, "WARLEINE")
-      )
-    );
-
-    const stagingData = await db
-      .select()
-      .from(warleineAtendimentosStaging)
-      .where(eq(warleineAtendimentosStaging.configId, configId));
-
-    let registrosTransformados = 0;
-
-    for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
-      const batch = stagingData.slice(i, i + BATCH_SIZE);
-      const valuesToInsert = batch.map((row: any) => {
-        const d = typeof row.dadosBrutos === "string" 
-          ? JSON.parse(row.dadosBrutos) 
-          : row.dadosBrutos;
-
-        // Mapeamento correto: campos do Warleine → campos da tabela atendimentos_unificados
-        // Warleine retorna: numatend, codtipsai, nomeplaco, nomepac, carater, datatend, datasai,
-        //                   tipoatend, tipoatendimentodescricao, codserv, procprin, codcc_destino
-        return {
-          estabelecimentoId: row.estabelecimentoId,
-          origemSistema: "WARLEINE" as const,
-          origemId: String(d?.numatend || ""),
-          numero_atendimento: d?.numatend ? String(d.numatend) : null,
-          codigo_saida: d?.codtipsai || null,
-          convenio: d?.nomeplaco || null,
-          paciente: d?.nomepac || null,
-          caracter_atendimento: d?.carater || null,
-          data_entrada: d?.datatend ? new Date(d.datatend) : null,
-          data_saida: d?.datasai ? new Date(d.datasai) : null,
-          tipo_atendimento: d?.tipoatend || null,
-          descricao_atendimento: d?.tipoatendimentodescricao || null,
-          codigo_servico: d?.codserv || null,
-          codigo_procedimento: d?.procprin || null,
-          destino_conta: d?.codcc_destino || null,
-        };
-      });
-
-      try {
-        await db.insert(atendimentos).values(valuesToInsert).onDuplicateKeyUpdate({
-          set: {
-            convenio: sql`VALUES(convenio)`,
-            paciente: sql`VALUES(paciente)`,
-            data_entrada: sql`VALUES(data_entrada)`,
-            data_saida: sql`VALUES(data_saida)`,
-            tipo_atendimento: sql`VALUES(tipo_atendimento)`,
-            descricao_atendimento: sql`VALUES(descricao_atendimento)`,
-            codigo_servico: sql`VALUES(codigo_servico)`,
-            codigo_procedimento: sql`VALUES(codigo_procedimento)`,
-          },
-        });
-        registrosTransformados += valuesToInsert.length;
-      } catch (insertErr: any) {
-        console.warn(`[JobScheduler] Erro ao inserir batch de atendimentos (ignorando): ${insertErr.message}`);
-      }
-    }
-
-    console.log(`[JobScheduler] ${registrosTransformados} registros transformados para atendimentos_unificados`);
-
-    // 5. Atualizar timestamp de última sincronização
-    await db
-      .update(queryConfiguracoes)
-      .set({
+    // Atualiza o rastreio com sucesso
+    await db.update(queryConfiguracoes).set({
         ultimaSincronizacao: new Date(),
         totalRegistrosSincronizados: registrosTransformados,
         ultimoErro: null,
         ultimaTentativa: new Date(),
-      })
-      .where(eq(queryConfiguracoes.id, configId));
+    }).where(eq(queryConfiguracoes.id, configId));
 
-    console.log(`[JobScheduler] Sincronização automática concluída com sucesso! (${registrosTransformados} registros)`);
-  } catch (error) {
-    console.error(`[JobScheduler] Erro ao executar sincronização automática:`, error);
-    
-    // Registrar erro no banco
+    console.log(`[JobScheduler] SUCESSO: Background Job Concluído! (${registrosTransformados} registros)`);
+
+  } catch (error: any) {
+    console.error(`[JobScheduler] ERRO FATAL: `, error);
     try {
       const db = await getDb();
       if (db) {
@@ -334,19 +219,8 @@ async function executarSincronizacaoAutomatica(configId: number) {
           ultimaTentativa: new Date(),
         }).where(eq(queryConfiguracoes.id, configId));
       }
-    } catch (dbError) {
-      console.error("[JobScheduler] Erro ao registrar erro no banco:", dbError);
-    }
+    } catch(e) {}
   } finally {
-    // Remover lock
     runningJobs.delete(configId);
-    // Garantir que a conexão seja fechada
-    if (connector) {
-      try {
-        await connector.desconectar();
-      } catch (e) {
-        // Ignorar erro ao desconectar
-      }
-    }
   }
 }

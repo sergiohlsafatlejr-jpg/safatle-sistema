@@ -1,5 +1,19 @@
 import { getDb } from "../db";
 import { contasConvenioItens, contasConvenioResumo, padraoPrecoConvenio, padraoGlosaConvenio, padraoQuantidadeItem, padroesCobranca, logAnaliseComparacao, convenios, prontuarioPrescricoes } from "../../drizzle/schema";
+
+// ==== OTIMIZACAO DE PERFORMANCE DE MEMORIA: CACHE EM LOTE ====
+// Evita puxar tabelas inteiras de padroes milhares de vezes durante a migracao.
+const globalCache = {
+  timestamp: 0,
+  estabId: 0,
+  precos: null as any,
+  qtds: null as any,
+  glosas: null as any,
+  composicoes: null as any,
+  convenios: new Map<number, string>(),
+};
+const CACHE_TTL_MS = 1000 * 60; // 1 minuto
+// =============================================================
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
@@ -243,15 +257,25 @@ export async function compararContaComPadroes(
     };
   }
 
-  // 3. Buscar padrões de preço para este convênio (com suporte a setor)
-  const padroesPreco = await db
-    .select()
-    .from(padraoPrecoConvenio)
-    .where(and(
-      eq(padraoPrecoConvenio.estabelecimentoId, estabelecimentoId),
-      eq(padraoPrecoConvenio.convenio, convenio),
-    ));
+  // ======== SISTEMA DE CACHE DE DIRETORIOS ========
+  const now = Date.now();
+  if (now - globalCache.timestamp > CACHE_TTL_MS || globalCache.estabId !== estabelecimentoId || !globalCache.precos) {
+     globalCache.precos = await db.select().from(padraoPrecoConvenio).where(eq(padraoPrecoConvenio.estabelecimentoId, estabelecimentoId));
+     globalCache.qtds = await db.select().from(padraoQuantidadeItem).where(eq(padraoQuantidadeItem.estabelecimentoId, estabelecimentoId));
+     globalCache.glosas = await db.select().from(padraoGlosaConvenio).where(eq(padraoGlosaConvenio.estabelecimentoId, estabelecimentoId));
+     globalCache.composicoes = await db.select().from(padroesCobranca).where(and(eq(padroesCobranca.estabelecimentoId, estabelecimentoId), eq(padroesCobranca.status, "ativo")));
+     globalCache.timestamp = now;
+     globalCache.estabId = estabelecimentoId;
+     
+     // Cache de convênios em background
+     const cvRows = await db.select({ id: convenios.id, nome: convenios.nome }).from(convenios);
+     globalCache.convenios.clear();
+     for (const c of cvRows) globalCache.convenios.set(c.id, c.nome.trim().toUpperCase());
+  }
 
+  // 3. Buscar padrões de preço para este convênio (usando cache)
+  const padroesPreco = globalCache.precos.filter((p: any) => p.convenio === convenio);
+  
   // Indexar padrões de preço por código para match com setor
   const mapPrecoPorCodigo = new Map<string, typeof padroesPreco>();
   for (const p of padroesPreco) {
@@ -260,13 +284,8 @@ export async function compararContaComPadroes(
     mapPrecoPorCodigo.get(p.codigoItem)!.push(p);
   }
 
-  // 4. Buscar padrões de quantidade (agora com setor)
-  const padroesQtd = await db
-    .select()
-    .from(padraoQuantidadeItem)
-    .where(eq(padraoQuantidadeItem.estabelecimentoId, estabelecimentoId));
-
-  const padroesQtdFiltrados = padroesQtd.filter(p => 
+  // 4. Buscar padrões de quantidade (usando cache)
+  const padroesQtdFiltrados = globalCache.qtds.filter((p: any) => 
     p.convenio === convenio || !p.convenio
   );
   
@@ -278,42 +297,15 @@ export async function compararContaComPadroes(
     mapQtdPorCodigo.get(p.codigoItem)!.push(p);
   }
 
-  // 5. Buscar padrões de glosa
-  const padroesGlosa = await db
-    .select()
-    .from(padraoGlosaConvenio)
-    .where(and(
-      eq(padraoGlosaConvenio.estabelecimentoId, estabelecimentoId),
-      eq(padraoGlosaConvenio.convenio, convenio),
-    ));
+  // 5. Buscar padrões de glosa (usando cache)
+  const padroesGlosa = globalCache.glosas.filter((p: any) => p.convenio === convenio);
+  const mapGlosa = new Map(padroesGlosa.map((p: any) => [p.codigoItem, p]));
 
-  const mapGlosa = new Map(padroesGlosa.map(p => [p.codigoItem, p]));
+  // 6. Buscar padrões de composição (usando cache)
+  const padroesComposicao = globalCache.composicoes;
 
-  // 6. Buscar padrões de composição - APENAS ATIVOS (inclui gabaritos)
-  const padroesComposicao = await db
-    .select()
-    .from(padroesCobranca)
-    .where(and(
-      eq(padroesCobranca.estabelecimentoId, estabelecimentoId),
-      eq(padroesCobranca.status, "ativo"),
-    ));
-
-  // Buscar mapa de convênios (id -> nome) para match por nome quando convenioId da conta é null
-  const convenioIdsUnicos = [...new Set(padroesComposicao.map(p => p.convenioId).filter(Boolean))] as number[];
-  const mapaConvenioNomes = new Map<number, string>();
-  if (convenioIdsUnicos.length > 0) {
-    try {
-      const convRows = await db
-        .select({ id: convenios.id, nome: convenios.nome })
-        .from(convenios)
-        .where(inArray(convenios.id, convenioIdsUnicos));
-      for (const c of convRows) {
-        mapaConvenioNomes.set(c.id, c.nome.trim().toUpperCase());
-      }
-    } catch(e) {
-      logger.warn({ message: "Erro ao buscar nomes de convênios", error: (e as Error).message });
-    }
-  }
+  // Buscar mapa de convênios a partir do cache
+  const mapaConvenioNomes = globalCache.convenios;
 
   // Filtrar por convênio
   // Quando a conta não tem convenioId (null), incluir todos os padrões:

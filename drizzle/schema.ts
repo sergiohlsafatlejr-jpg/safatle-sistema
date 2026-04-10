@@ -1,4 +1,4 @@
-﻿import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, date, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json, date, datetime, boolean, index } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -37,13 +37,13 @@ export type Estabelecimento = typeof estabelecimentos.$inferSelect;
 export type InsertEstabelecimento = typeof estabelecimentos.$inferInsert;
 
 /**
- * ConvÃªnios (Insurance/Health Plans)
+ * Convênios (Insurance/Health Plans)
  */
 export const convenios = mysqlTable("convenios", {
   id: int("id").autoincrement().primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
   codigo: varchar("codigo", { length: 50 }),
-  estabelecimentoId: int("estabelecimentoId"), // Null = convÃªnio disponÃ­vel para todos os estabelecimentos
+  estabelecimentoId: int("estabelecimentoId"), // Null = convênio disponível para todos os estabelecimentos
   prazoRecursoGlosa: int("prazoRecursoGlosa").default(30), // Prazo em dias para recurso de glosa
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -54,16 +54,16 @@ export type Convenio = typeof convenios.$inferSelect;
 export type InsertConvenio = typeof convenios.$inferInsert;
 
 /**
- * RelaÃ§Ã£o ConvÃªnio-Estabelecimento-Prestador
- * Permite associar cÃ³digos de prestador especÃ­ficos para cada combinaÃ§Ã£o de convÃªnio e estabelecimento
+ * Relação Convênio-Estabelecimento-Prestador
+ * Permite associar códigos de prestador específicos para cada combinação de convênio e estabelecimento
  */
 export const convenioEstabelecimentoPrestador = mysqlTable("convenioEstabelecimentoPrestador", {
   id: int("id").autoincrement().primaryKey(),
   convenioId: int("convenioId").notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
-  codigoPrestador: varchar("codigoPrestador", { length: 50 }).notNull(), // CÃ³digo do prestador na operadora (CNPJ ou cÃ³digo interno)
-  nomePrestador: varchar("nomePrestador", { length: 255 }), // Nome amigÃ¡vel do prestador (opcional)
-  tipoPrestador: mysqlEnum("tipoPrestador", ["proprio", "terceiro"]).default("proprio").notNull(), // Tipo: prÃ³prio (hospital) ou terceiro (mÃ©dico/profissional externo)
+  codigoPrestador: varchar("codigoPrestador", { length: 50 }).notNull(), // Código do prestador na operadora (CNPJ ou código interno)
+  nomePrestador: varchar("nomePrestador", { length: 255 }), // Nome amigável do prestador (opcional)
+  tipoPrestador: mysqlEnum("tipoPrestador", ["proprio", "terceiro"]).default("proprio").notNull(), // Tipo: próprio (hospital) ou terceiro (médico/profissional externo)
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -89,9 +89,9 @@ export const arquivos = mysqlTable("arquivos", {
   status: mysqlEnum("status", ["pendente", "processado", "erro", "processando"]).default("pendente").notNull(),
   progresso: int("progresso").default(0), // Percentual de progresso (0-100)
   totalItens: int("totalItens"), // Total de itens a processar
-  itensProcessados: int("itensProcessados").default(0), // Itens jÃ¡ processados
+  itensProcessados: int("itensProcessados").default(0), // Itens já processados
   dataReferencia: timestamp("dataReferencia"),
-  dataPagamento: timestamp("dataPagamento"), // Data de pagamento do convÃªnio (opcional, para calcular prazo de recurso)
+  dataPagamento: timestamp("dataPagamento"), // Data de pagamento do convênio (opcional, para calcular prazo de recurso)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -99,10 +99,10 @@ export const arquivos = mysqlTable("arquivos", {
 export type Arquivo = typeof arquivos.$inferSelect;
 export type InsertArquivo = typeof arquivos.$inferInsert;
 
-// Tabela procedimentos REMOVIDA - dados agora sÃ£o armazenados em faturamentoTiss (envios) e demonstrativo (retornos)
+// Tabela procedimentos REMOVIDA - dados agora são armazenados em faturamentoTiss (envios) e demonstrativo (retornos)
 
 /**
- * ComparaÃ§Ãµes entre arquivos enviados e retornados
+ * Comparações entre arquivos enviados e retornados
  */
 export const comparacoes = mysqlTable("comparacoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -126,7 +126,7 @@ export type Comparacao = typeof comparacoes.$inferSelect;
 export type InsertComparacao = typeof comparacoes.$inferInsert;
 
 /**
- * DivergÃªncias encontradas nas comparaÃ§Ãµes
+ * Divergências encontradas nas comparações
  */
 export const divergencias = mysqlTable("divergencias", {
   id: int("id").autoincrement().primaryKey(),
@@ -159,7 +159,7 @@ export type Divergencia = typeof divergencias.$inferSelect;
 export type InsertDivergencia = typeof divergencias.$inferInsert;
 
 /**
- * CÃ³digos de procedimentos configurÃ¡veis (tabela de referÃªncia)
+ * Códigos de procedimentos configuráveis (tabela de referência)
  */
 export const codigosProcedimentos = mysqlTable("codigosProcedimentos", {
   id: int("id").autoincrement().primaryKey(),
@@ -176,7 +176,7 @@ export type CodigoProcedimento = typeof codigosProcedimentos.$inferSelect;
 export type InsertCodigoProcedimento = typeof codigosProcedimentos.$inferInsert;
 
 /**
- * Campos de comparaÃ§Ã£o configurÃ¡veis
+ * Campos de comparação configuráveis
  */
 export const camposComparacao = mysqlTable("camposComparacao", {
   id: int("id").autoincrement().primaryKey(),
@@ -192,7 +192,7 @@ export type CampoComparacao = typeof camposComparacao.$inferSelect;
 export type InsertCampoComparacao = typeof camposComparacao.$inferInsert;
 
 /**
- * Itens manuais adicionados pelo usuÃ¡rio
+ * Itens manuais adicionados pelo usuário
  */
 export const itensManuals = mysqlTable("itensManuals", {
   id: int("id").autoincrement().primaryKey(),
@@ -212,7 +212,7 @@ export type ItemManual = typeof itensManuals.$inferSelect;
 export type InsertItemManual = typeof itensManuals.$inferInsert;
 
 /**
- * Recursos de Glosa - ContestaÃ§Ãµes enviadas aos convÃªnios
+ * Recursos de Glosa - Contestações enviadas aos convênios
  */
 /**
  * Lotes de Recursos de Glosa - Agrupamento de recursos enviados juntos
@@ -223,7 +223,7 @@ export const lotesRecurso = mysqlTable("lotesRecurso", {
   estabelecimentoId: int("estabelecimentoId").notNull(),
   userId: int("userId").notNull(),
   
-  // IdentificaÃ§Ã£o do lote
+  // Identificação do lote
   numeroLote: varchar("numeroLote", { length: 50 }).notNull(),
   descricao: text("descricao"),
   
@@ -246,7 +246,7 @@ export const lotesRecurso = mysqlTable("lotesRecurso", {
   
   dataEnvio: timestamp("dataEnvio"),
   dataPrazoPagamento: timestamp("dataPrazoPagamento"),
-  dataPrazoResposta: timestamp("dataPrazoResposta"), // Prazo para resposta do convÃªnio
+  dataPrazoResposta: timestamp("dataPrazoResposta"), // Prazo para resposta do convênio
   dataResposta: timestamp("dataResposta"),
   
   // Protocolo e anexos
@@ -257,7 +257,7 @@ export const lotesRecurso = mysqlTable("lotesRecurso", {
   // XML gerado
   xmlUrl: text("xmlUrl"), // URL do XML TISS gerado no S3
   xmlKey: varchar("xmlKey", { length: 512 }), // Chave do XML no S3
-  xmlGeradoEm: timestamp("xmlGeradoEm"), // Data/hora da geraÃ§Ã£o do XML
+  xmlGeradoEm: timestamp("xmlGeradoEm"), // Data/hora da geração do XML
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -271,7 +271,7 @@ export const recursosGlosa = mysqlTable("recursosGlosa", {
   divergenciaId: int("divergenciaId"),
   convenioId: int("convenioId").notNull(),
   estabelecimentoId: int("estabelecimentoId"),
-  loteId: int("loteId"), // ReferÃªncia ao lote de envio
+  loteId: int("loteId"), // Referência ao lote de envio
   userId: int("userId").notNull(),
   
   // Dados do procedimento contestado
@@ -326,7 +326,7 @@ export type RecursoGlosa = typeof recursosGlosa.$inferSelect;
 export type InsertRecursoGlosa = typeof recursosGlosa.$inferInsert;
 
 /**
- * HistÃ³rico de interaÃ§Ãµes dos recursos de glosa
+ * Histórico de interações dos recursos de glosa
  */
 export const historicoRecursos = mysqlTable("historicoRecursos", {
   id: int("id").autoincrement().primaryKey(),
@@ -357,18 +357,18 @@ export type HistoricoRecurso = typeof historicoRecursos.$inferSelect;
 export type InsertHistoricoRecurso = typeof historicoRecursos.$inferInsert;
 
 /**
- * HistÃ³rico de ContestaÃ§Ãµes de Glosa - Registra argumentos usados e resultados
- * para aprendizado de IA e sugestÃµes automÃ¡ticas
+ * Histórico de Contestações de Glosa - Registra argumentos usados e resultados
+ * para aprendizado de IA e sugestões automáticas
  */
 export const historicoContestacoes = mysqlTable("historicoContestacoes", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncias
+  // Referências
   recursoId: int("recursoId"),
   convenioId: int("convenioId").notNull(),
   userId: int("userId").notNull(),
   
-  // CÃ³digo de glosa TISS
+  // Código de glosa TISS
   codigoGlosa: varchar("codigoGlosa", { length: 20 }).notNull(),
   descricaoGlosa: text("descricaoGlosa"),
   
@@ -383,7 +383,7 @@ export const historicoContestacoes = mysqlTable("historicoContestacoes", {
   // Argumento utilizado
   argumentoUtilizado: text("argumentoUtilizado").notNull(),
   argumentoOrigem: mysqlEnum("argumentoOrigem", [
-    "dicionario",      // Veio do dicionÃ¡rio padrÃ£o
+    "dicionario",      // Veio do dicionário padrão
     "ia_sugestao",     // Sugerido pela IA
     "manual",          // Digitado manualmente
     "historico"        // Copiado de outro recurso
@@ -392,7 +392,7 @@ export const historicoContestacoes = mysqlTable("historicoContestacoes", {
   // Documentos anexados
   documentosAnexados: json("documentosAnexados"),
   
-  // Resultado da contestaÃ§Ã£o
+  // Resultado da contestação
   resultado: mysqlEnum("resultado", [
     "pendente",
     "deferido",
@@ -404,7 +404,7 @@ export const historicoContestacoes = mysqlTable("historicoContestacoes", {
   argumentoEfetivo: mysqlEnum("argumentoEfetivo", ["sim", "nao", "parcial"]),
   feedbackUsuario: text("feedbackUsuario"),
   
-  // MÃ©tricas para IA
+  // Métricas para IA
   taxaSucessoCalculada: decimal("taxaSucessoCalculada", { precision: 5, scale: 2 }),
   
   dataContestacao: timestamp("dataContestacao").defaultNow().notNull(),
@@ -418,7 +418,7 @@ export type HistoricoContestacao = typeof historicoContestacoes.$inferSelect;
 export type InsertHistoricoContestacao = typeof historicoContestacoes.$inferInsert;
 
 /**
- * Argumentos personalizados por convÃªnio - Argumentos que funcionaram melhor para cada convÃªnio
+ * Argumentos personalizados por convênio - Argumentos que funcionaram melhor para cada convênio
  */
 export const argumentosConvenio = mysqlTable("argumentosConvenio", {
   id: int("id").autoincrement().primaryKey(),
@@ -426,10 +426,10 @@ export const argumentosConvenio = mysqlTable("argumentosConvenio", {
   convenioId: int("convenioId").notNull(),
   codigoGlosa: varchar("codigoGlosa", { length: 20 }).notNull(),
   
-  // Argumento customizado para este convÃªnio
+  // Argumento customizado para este convênio
   argumentoCustomizado: text("argumentoCustomizado").notNull(),
   
-  // EstatÃ­sticas
+  // Estatísticas
   vezesUtilizado: int("vezesUtilizado").default(0),
   vezesDeferido: int("vezesDeferido").default(0),
   vezesIndeferido: int("vezesIndeferido").default(0),
@@ -446,27 +446,27 @@ export type ArgumentoConvenio = typeof argumentosConvenio.$inferSelect;
 export type InsertArgumentoConvenio = typeof argumentosConvenio.$inferInsert;
 
 /**
- * Regras de ConciliaÃ§Ã£o por ConvÃªnio - ConfiguraÃ§Ãµes especÃ­ficas para cada convÃªnio
+ * Regras de Conciliação por Convênio - Configurações específicas para cada convênio
  */
 export const regrasConciliacao = mysqlTable("regrasConciliacao", {
   id: int("id").autoincrement().primaryKey(),
   
   convenioId: int("convenioId").notNull().unique(),
   
-  // Comportamento para itens nÃ£o encontrados no retorno
+  // Comportamento para itens não encontrados no retorno
   itensNaoEncontrados: mysqlEnum("itensNaoEncontrados", [
-    "glosado",      // Considerar como glosado (padrÃ£o)
+    "glosado",      // Considerar como glosado (padrão)
     "pago",         // Considerar como pago (ex: Bradesco)
-    "divergente"    // Marcar como divergente para anÃ¡lise manual
+    "divergente"    // Marcar como divergente para análise manual
   ]).default("glosado").notNull(),
   
-  // TolerÃ¢ncia de diferenÃ§a de valores (em reais)
+  // Tolerância de diferença de valores (em reais)
   toleranciaValor: decimal("toleranciaValor", { precision: 10, scale: 2 }).default("0.00"),
   
-  // TolerÃ¢ncia percentual de diferenÃ§a
+  // Tolerância percentual de diferença
   toleranciaPercentual: decimal("toleranciaPercentual", { precision: 5, scale: 2 }).default("0.00"),
   
-  // Campos para comparaÃ§Ã£o (quais campos usar para match)
+  // Campos para comparação (quais campos usar para match)
   usarCodigo: mysqlEnum("usarCodigo", ["sim", "nao"]).default("sim").notNull(),
   usarGuia: mysqlEnum("usarGuia", ["sim", "nao"]).default("sim").notNull(),
   usarData: mysqlEnum("usarData", ["sim", "nao"]).default("nao").notNull(),
@@ -475,16 +475,16 @@ export const regrasConciliacao = mysqlTable("regrasConciliacao", {
   // Formato do arquivo de retorno esperado
   formatoRetorno: mysqlEnum("formatoRetorno", [
     "excel_completo",    // Excel com todos os itens (pagos e glosados)
-    "excel_glosas",      // Excel sÃ³ com glosas (ex: Bradesco)
-    "xml_tiss",          // XML padrÃ£o TISS
+    "excel_glosas",      // Excel só com glosas (ex: Bradesco)
+    "xml_tiss",          // XML padrão TISS
     "csv",               // CSV
     "pdf"                // PDF
   ]).default("excel_completo").notNull(),
   
-  // Prazo padrÃ£o para recurso (em dias)
+  // Prazo padrão para recurso (em dias)
   prazoRecursoDias: int("prazoRecursoDias").default(30),
   
-  // ObservaÃ§Ãµes
+  // Observações
   observacoes: text("observacoes"),
   
   // Ativo
@@ -498,7 +498,7 @@ export type RegraConciliacao = typeof regrasConciliacao.$inferSelect;
 export type InsertRegraConciliacao = typeof regrasConciliacao.$inferInsert;
 
 /**
- * DecisÃµes de Glosa - HistÃ³rico de decisÃµes (aceitar/recursar) para aprendizado automÃ¡tico
+ * Decisões de Glosa - Histórico de decisões (aceitar/recursar) para aprendizado automático
  */
 export const decisoesGlosa = mysqlTable("decisoesGlosa", {
   id: int("id").autoincrement().primaryKey(),
@@ -509,7 +509,7 @@ export const decisoesGlosa = mysqlTable("decisoesGlosa", {
   codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
   tipoProcedimento: varchar("tipoProcedimento", { length: 50 }), // mat_med, exames, procedimentos, outros
   
-  // DecisÃ£o tomada
+  // Decisão tomada
   decisao: mysqlEnum("decisao", ["aceitar", "recursar"]).notNull(),
   
   // Resultado (se foi recursado)
@@ -524,14 +524,14 @@ export const decisoesGlosa = mysqlTable("decisoesGlosa", {
   valorGlosado: decimal("valorGlosado", { precision: 10, scale: 2 }),
   valorRecuperado: decimal("valorRecuperado", { precision: 10, scale: 2 }),
   
-  // Motivo da decisÃ£o (para aprendizado)
+  // Motivo da decisão (para aprendizado)
   motivoDecisao: text("motivoDecisao"),
   
-  // ReferÃªncia ao procedimento original
+  // Referência ao procedimento original
   procedimentoId: int("procedimentoId"),
   recursoId: int("recursoId"),
   
-  // UsuÃ¡rio que tomou a decisÃ£o
+  // Usuário que tomou a decisão
   userId: int("userId").notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -542,20 +542,20 @@ export type InsertDecisaoGlosa = typeof decisoesGlosa.$inferInsert;
 
 
 /**
- * Tabelas de PreÃ§os por ConvÃªnio - DiÃ¡rias, Mat-Med, Taxas, Procedimentos
+ * Tabelas de Preços por Convênio - Diárias, Mat-Med, Taxas, Procedimentos
  */
 export const tabelasPreco = mysqlTable("tabelasPreco", {
   id: int("id").autoincrement().primaryKey(),
   
   convenioId: int("convenioId").notNull(),
-  estabelecimentoId: int("estabelecimentoId"), // Null = tabela disponÃ­vel para todos os estabelecimentos
+  estabelecimentoId: int("estabelecimentoId"), // Null = tabela disponível para todos os estabelecimentos
   
   // Tipo da tabela
   tipo: mysqlEnum("tipo", [
-    "diarias",       // DiÃ¡rias de apartamento, UTI, etc.
+    "diarias",       // Diárias de apartamento, UTI, etc.
     "mat_med",       // Materiais e medicamentos
     "taxas",         // Taxas diversas
-    "procedimentos"  // Procedimentos mÃ©dicos
+    "procedimentos"  // Procedimentos médicos
   ]).notNull(),
   
   // Dados do item
@@ -563,9 +563,9 @@ export const tabelasPreco = mysqlTable("tabelasPreco", {
   nome: varchar("nome", { length: 255 }).notNull(),
   valor: decimal("valor", { precision: 12, scale: 2 }).notNull(),
   
-  // VigÃªncia
+  // Vigência
   vigenciaInicio: timestamp("vigenciaInicio").notNull(),
-  // Campo vigenciaFim removido conforme solicitaÃ§Ã£o do usuÃ¡rio
+  // Campo vigenciaFim removido conforme solicitação do usuário
   
   // Dados adicionais
   unidade: varchar("unidade", { length: 50 }), // UN, ML, MG, etc.
@@ -582,7 +582,7 @@ export type TabelaPreco = typeof tabelasPreco.$inferSelect;
 export type InsertTabelaPreco = typeof tabelasPreco.$inferInsert;
 
 /**
- * ImportaÃ§Ãµes de Tabelas de PreÃ§os - HistÃ³rico de importaÃ§Ãµes
+ * Importações de Tabelas de Preços - Histórico de importações
  */
 export const importacoesTabela = mysqlTable("importacoesTabela", {
   id: int("id").autoincrement().primaryKey(),
@@ -602,7 +602,7 @@ export const importacoesTabela = mysqlTable("importacoesTabela", {
   nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
   formatoArquivo: mysqlEnum("formatoArquivo", ["excel", "csv", "dbf"]).notNull(),
   
-  // Resultado da importaÃ§Ã£o
+  // Resultado da importação
   totalItens: int("totalItens").default(0),
   itensImportados: int("itensImportados").default(0),
   itensAtualizados: int("itensAtualizados").default(0),
@@ -619,7 +619,7 @@ export type ImportacaoTabela = typeof importacoesTabela.$inferSelect;
 export type InsertImportacaoTabela = typeof importacoesTabela.$inferInsert;
 
 /**
- * HistÃ³rico de AlteraÃ§Ãµes de PreÃ§os - Rastreia todas as modificaÃ§Ãµes em itens de tabelas de preÃ§o
+ * Histórico de Alterações de Preços - Rastreia todas as modificações em itens de tabelas de preço
  */
 export const historicoPrecos = mysqlTable("historicoPrecos", {
   id: int("id").autoincrement().primaryKey(),
@@ -627,27 +627,27 @@ export const historicoPrecos = mysqlTable("historicoPrecos", {
   tabelaPrecoId: int("tabelaPrecoId").notNull(),
   userId: int("userId").notNull(),
   
-  // Tipo de alteraÃ§Ã£o
+  // Tipo de alteração
   tipoAlteracao: mysqlEnum("tipoAlteracao", [
     "criacao",      // Item criado
     "edicao",       // Item editado
-    "exclusao",     // Item excluÃ­do
+    "exclusao",     // Item excluído
     "importacao"    // Item importado via planilha
   ]).notNull(),
   
-  // Valores anteriores (para ediÃ§Ã£o/exclusÃ£o)
+  // Valores anteriores (para edição/exclusão)
   valorAnterior: decimal("valorAnterior", { precision: 12, scale: 2 }),
   vigenciaInicioAnterior: timestamp("vigenciaInicioAnterior"),
   nomeAnterior: varchar("nomeAnterior", { length: 255 }),
   codigoAnterior: varchar("codigoAnterior", { length: 50 }),
   
-  // Valores novos (para criaÃ§Ã£o/ediÃ§Ã£o)
+  // Valores novos (para criação/edição)
   valorNovo: decimal("valorNovo", { precision: 12, scale: 2 }),
   vigenciaInicioNovo: timestamp("vigenciaInicioNovo"),
   nomeNovo: varchar("nomeNovo", { length: 255 }),
   codigoNovo: varchar("codigoNovo", { length: 50 }),
   
-  // ObservaÃ§Ã£o/motivo da alteraÃ§Ã£o
+  // Observação/motivo da alteração
   observacao: text("observacao"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -657,16 +657,16 @@ export type HistoricoPreco = typeof historicoPrecos.$inferSelect;
 export type InsertHistoricoPreco = typeof historicoPrecos.$inferInsert;
 
 /**
- * Regras de NegÃ³cio - ComposiÃ§Ã£o de contas
- * Ex: Procedimento X deve ter Taxa de Sala Y, OxigÃªnio Z, Taxa de VÃ­deo W
+ * Regras de Negócio - Composição de contas
+ * Ex: Procedimento X deve ter Taxa de Sala Y, Oxigênio Z, Taxa de Vídeo W
  */
 export const regrasNegocio = mysqlTable("regrasNegocio", {
   id: int("id").autoincrement().primaryKey(),
   
-  convenioId: int("convenioId"), // Null = regra geral para todos os convÃªnios
+  convenioId: int("convenioId"), // Null = regra geral para todos os convênios
   estabelecimentoId: int("estabelecimentoId"), // Null = regra geral para todos os estabelecimentos
   
-  // Nome da regra para identificaÃ§Ã£o
+  // Nome da regra para identificação
   nome: varchar("nome", { length: 255 }).notNull(),
   descricao: text("descricao"),
   
@@ -674,27 +674,27 @@ export const regrasNegocio = mysqlTable("regrasNegocio", {
   codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
   descricaoProcedimentoPrincipal: varchar("descricaoProcedimentoPrincipal", { length: 255 }),
   
-  // Tipo de verificaÃ§Ã£o
+  // Tipo de verificação
   tipoVerificacao: mysqlEnum("tipoVerificacao", [
-    "deve_conter",       // A conta DEVE conter os itens obrigatÃ³rios
-    "nao_deve_conter",   // A conta NÃƒO deve conter os itens
+    "deve_conter",       // A conta DEVE conter os itens obrigatórios
+    "nao_deve_conter",   // A conta NÃO deve conter os itens
     "pode_conter",       // A conta PODE conter (opcional, mas validar valor)
-    "quantidade_minima", // Deve ter quantidade mÃ­nima do item
-    "quantidade_maxima"  // NÃ£o pode exceder quantidade mÃ¡xima
+    "quantidade_minima", // Deve ter quantidade mínima do item
+    "quantidade_maxima"  // Não pode exceder quantidade máxima
   ]).default("deve_conter").notNull(),
   
-  // AÃ§Ã£o quando a regra nÃ£o for atendida
+  // Ação quando a regra não for atendida
   acaoInconsistencia: mysqlEnum("acaoInconsistencia", [
     "alerta",            // Apenas alertar
-    "bloquear",          // Bloquear envio atÃ© correÃ§Ã£o
-    "sugerir_adicao",    // Sugerir adiÃ§Ã£o do item faltante
-    "sugerir_remocao"    // Sugerir remoÃ§Ã£o do item
+    "bloquear",          // Bloquear envio até correção
+    "sugerir_adicao",    // Sugerir adição do item faltante
+    "sugerir_remocao"    // Sugerir remoção do item
   ]).default("alerta").notNull(),
   
   // Prioridade (1 = mais alta)
   prioridade: int("prioridade").default(5),
   
-  // Campos para PadrÃµes de Procedimentos (FASE 1.5A)
+  // Campos para Padrões de Procedimentos (FASE 1.5A)
   tipoRegra: mysqlEnum("tipoRegra", ["validacao_geral", "padrao_procedimento"]).default("validacao_geral"),
   codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
   nomeProcedimento: varchar("nomeProcedimento", { length: 255 }),
@@ -715,14 +715,14 @@ export type RegraNegocio = typeof regrasNegocio.$inferSelect;
 export type InsertRegraNegocio = typeof regrasNegocio.$inferInsert;
 
 /**
- * Itens das Regras de NegÃ³cio - Itens obrigatÃ³rios/proibidos para cada regra
+ * Itens das Regras de Negócio - Itens obrigatórios/proibidos para cada regra
  */
 export const itensRegraNegocio = mysqlTable("itensRegraNegocio", {
   id: int("id").autoincrement().primaryKey(),
   
   regraId: int("regraId").notNull(),
   
-  // Item obrigatÃ³rio/proibido
+  // Item obrigatório/proibido
   codigoItem: varchar("codigoItem", { length: 50 }).notNull(),
   descricaoItem: varchar("descricaoItem", { length: 255 }),
   
@@ -740,14 +740,14 @@ export const itensRegraNegocio = mysqlTable("itensRegraNegocio", {
   quantidadeMinima: int("quantidadeMinima").default(1),
   quantidadeMaxima: int("quantidadeMaxima"),
   
-  // Valor esperado (para validaÃ§Ã£o de preÃ§o)
+  // Valor esperado (para validação de preço)
   valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
   toleranciaValor: decimal("toleranciaValor", { precision: 10, scale: 2 }).default("0.00"),
   
   // Obrigatoriedade
   obrigatorio: mysqlEnum("obrigatorio", ["sim", "nao"]).default("sim").notNull(),
   
-  // Campos para PadrÃµes de Procedimentos (FASE 1.5A)
+  // Campos para Padrões de Procedimentos (FASE 1.5A)
   tabelaPrecoCodigo: varchar("tabelaPrecoCodigo", { length: 50 }),
   tolerancia_percentual: varchar("tolerancia_percentual", { length: 10 }),
   tolerancia_absoluta: decimal("tolerancia_absoluta", { precision: 12, scale: 2 }),
@@ -760,24 +760,24 @@ export type ItemRegraNegocio = typeof itensRegraNegocio.$inferSelect;
 export type InsertItemRegraNegocio = typeof itensRegraNegocio.$inferInsert;
 
 /**
- * Alertas de DivergÃªncia - DivergÃªncias encontradas nas contas
+ * Alertas de Divergência - Divergências encontradas nas contas
  */
 export const alertasDivergencia = mysqlTable("alertasDivergencia", {
   id: int("id").autoincrement().primaryKey(),
   
   arquivoId: int("arquivoId").notNull(),
   procedimentoId: int("procedimentoId"), // Procedimento que gerou o alerta
-  regraId: int("regraId"), // Regra de negÃ³cio violada (se aplicÃ¡vel)
+  regraId: int("regraId"), // Regra de negócio violada (se aplicável)
   
   // Tipo de alerta
   tipoAlerta: mysqlEnum("tipoAlerta", [
     "valor_divergente",      // Valor cobrado diferente da tabela
-    "item_faltante",         // Item obrigatÃ³rio nÃ£o encontrado
-    "item_nao_permitido",    // Item que nÃ£o deveria estar na conta
+    "item_faltante",         // Item obrigatório não encontrado
+    "item_nao_permitido",    // Item que não deveria estar na conta
     "quantidade_incorreta",  // Quantidade fora do esperado
-    "codigo_invalido",       // CÃ³digo nÃ£o encontrado na tabela
-    "regra_negocio",         // ViolaÃ§Ã£o de regra de negÃ³cio
-    "sugestao_ia"            // SugestÃ£o da IA
+    "codigo_invalido",       // Código não encontrado na tabela
+    "regra_negocio",         // Violação de regra de negócio
+    "sugestao_ia"            // Sugestão da IA
   ]).notNull(),
   
   // Severidade
@@ -792,31 +792,31 @@ export const alertasDivergencia = mysqlTable("alertasDivergencia", {
   titulo: varchar("titulo", { length: 255 }).notNull(),
   descricao: text("descricao").notNull(),
   
-  // Valores para divergÃªncia de preÃ§o
+  // Valores para divergência de preço
   valorCobrado: decimal("valorCobrado", { precision: 12, scale: 2 }),
   valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
   diferenca: decimal("diferenca", { precision: 12, scale: 2 }),
   
-  // CÃ³digo e descriÃ§Ã£o do item relacionado
+  // Código e descrição do item relacionado
   codigoItem: varchar("codigoItem", { length: 50 }),
   descricaoItem: varchar("descricaoItem", { length: 255 }),
   
   // Guia relacionada
   guiaNumero: varchar("guiaNumero", { length: 100 }),
   
-  // SugestÃ£o de correÃ§Ã£o
+  // Sugestão de correção
   sugestaoCorrecao: text("sugestaoCorrecao"),
   
   // Status do alerta
   status: mysqlEnum("status", [
-    "pendente",      // Aguardando anÃ¡lise
-    "analisando",    // Em anÃ¡lise
-    "corrigido",     // Corrigido pelo usuÃ¡rio
-    "ignorado",      // Ignorado (nÃ£o Ã© problema)
-    "aceito"         // Aceito como estÃ¡
+    "pendente",      // Aguardando análise
+    "analisando",    // Em análise
+    "corrigido",     // Corrigido pelo usuário
+    "ignorado",      // Ignorado (não é problema)
+    "aceito"         // Aceito como está
   ]).default("pendente").notNull(),
   
-  // ResoluÃ§Ã£o
+  // Resolução
   resolvidoPor: int("resolvidoPor"),
   dataResolucao: timestamp("dataResolucao"),
   observacaoResolucao: text("observacaoResolucao"),
@@ -829,7 +829,7 @@ export type AlertaDivergencia = typeof alertasDivergencia.$inferSelect;
 export type InsertAlertaDivergencia = typeof alertasDivergencia.$inferInsert;
 
 /**
- * PadrÃµes de Conta - Aprendizado de padrÃµes para sugestÃµes da IA
+ * Padrões de Conta - Aprendizado de padrões para sugestões da IA
  */
 export const padroesContas = mysqlTable("padroesContas", {
   id: int("id").autoincrement().primaryKey(),
@@ -844,11 +844,11 @@ export const padroesContas = mysqlTable("padroesContas", {
   // Itens frequentemente associados (JSON array)
   itensAssociados: json("itensAssociados"), // [{codigo, descricao, frequencia, valorMedio}]
   
-  // EstatÃ­sticas
+  // Estatísticas
   totalOcorrencias: int("totalOcorrencias").default(0),
   valorMedioConta: decimal("valorMedioConta", { precision: 12, scale: 2 }),
   
-  // Ãšltima atualizaÃ§Ã£o do padrÃ£o
+  // Última atualização do padrão
   ultimaAtualizacao: timestamp("ultimaAtualizacao").defaultNow().notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -859,8 +859,8 @@ export type InsertPadraoConta = typeof padroesContas.$inferInsert;
 
 
 /**
- * HistÃ³rico de ValidaÃ§Ãµes de XML
- * Armazena os resultados das validaÃ§Ãµes executadas sob demanda
+ * Histórico de Validações de XML
+ * Armazena os resultados das validações executadas sob demanda
  */
 export const historicoValidacoes = mysqlTable("historicoValidacoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -870,10 +870,10 @@ export const historicoValidacoes = mysqlTable("historicoValidacoes", {
   convenioId: int("convenioId").notNull(),
   estabelecimentoId: int("estabelecimentoId"),
   
-  // UsuÃ¡rio que executou a validaÃ§Ã£o
+  // Usuário que executou a validação
   userId: int("userId").notNull(),
   
-  // Resumo da validaÃ§Ã£o
+  // Resumo da validação
   totalItens: int("totalItens").default(0),
   divergenciasPreco: int("divergenciasPreco").default(0),
   violacoesRegras: int("violacoesRegras").default(0),
@@ -883,7 +883,7 @@ export const historicoValidacoes = mysqlTable("historicoValidacoes", {
   // Status
   status: mysqlEnum("status", ["concluida", "erro"]).default("concluida").notNull(),
   
-  // Detalhes em JSON (alertas, sugestÃµes, etc.)
+  // Detalhes em JSON (alertas, sugestões, etc.)
   detalhes: json("detalhes"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -894,31 +894,31 @@ export type InsertHistoricoValidacao = typeof historicoValidacoes.$inferInsert;
 
 
 /**
- * PermissÃµes de usuÃ¡rio por estabelecimento
- * Define quais estabelecimentos cada usuÃ¡rio pode acessar
+ * Permissões de usuário por estabelecimento
+ * Define quais estabelecimentos cada usuário pode acessar
  */
 export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // Grupo de serviÃ§o do usuÃ¡rio neste estabelecimento
+  // Grupo de serviço do usuário neste estabelecimento
   grupoServico: mysqlEnum("grupoServico", [
     "administrador",  // Acesso total a todas as funcionalidades
-    "faturista",      // Acesso a: Dashboard, Arquivos, ComparaÃ§Ãµes, Faturamento, Tabelas de PreÃ§o
-    "recurso_glosa",  // Acesso a: AnÃ¡lise de Glosa, DicionÃ¡rio de Glosas, Recursos de Glosa
-    "gestor",         // Acesso a: Dashboard Consolidado, RelatÃ³rios, Produtividade
-    "visualizador",   // Acesso apenas para visualizaÃ§Ã£o (somente leitura)
-    "usuario_tasy"    // Acesso a: ImportaÃ§Ã£o Tasy, Contas Faturadas, RelatÃ³rios Tasy, RelatÃ³rios BI, ConciliaÃ§Ã£o
+    "faturista",      // Acesso a: Dashboard, Arquivos, Comparações, Faturamento, Tabelas de Preço
+    "recurso_glosa",  // Acesso a: Análise de Glosa, Dicionário de Glosas, Recursos de Glosa
+    "gestor",         // Acesso a: Dashboard Consolidado, Relatórios, Produtividade
+    "visualizador",   // Acesso apenas para visualização (somente leitura)
+    "usuario_tasy"    // Acesso a: Importação Tasy, Contas Faturadas, Relatórios Tasy, Relatórios BI, Conciliação
   ]).default("visualizador").notNull(),
   
-  // PermissÃµes especÃ­ficas (mantÃ©m para compatibilidade e controle granular)
+  // Permissões específicas (mantém para compatibilidade e controle granular)
   podeVisualizar: mysqlEnum("podeVisualizar", ["sim", "nao"]).default("sim").notNull(),
   podeEditar: mysqlEnum("podeEditar", ["sim", "nao"]).default("nao").notNull(),
   podeExcluir: mysqlEnum("podeExcluir", ["sim", "nao"]).default("nao").notNull(),
-  podeGerenciar: mysqlEnum("podeGerenciar", ["sim", "nao"]).default("nao").notNull(), // Gerenciar usuÃ¡rios e permissÃµes
+  podeGerenciar: mysqlEnum("podeGerenciar", ["sim", "nao"]).default("nao").notNull(), // Gerenciar usuários e permissões
   
-  // PermissÃµes por mÃ³dulo (controle granular por funcionalidade)
+  // Permissões por módulo (controle granular por funcionalidade)
   acessoDashboard: mysqlEnum("acessoDashboard", ["sim", "nao"]).default("sim").notNull(),
   acessoArquivos: mysqlEnum("acessoArquivos", ["sim", "nao"]).default("nao").notNull(),
   acessoComparacoes: mysqlEnum("acessoComparacoes", ["sim", "nao"]).default("nao").notNull(),
@@ -933,14 +933,14 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoEstabelecimentos: mysqlEnum("acessoEstabelecimentos", ["sim", "nao"]).default("nao").notNull(),
   acessoPermissoes: mysqlEnum("acessoPermissoes", ["sim", "nao"]).default("nao").notNull(),
   
-  // MÃ³dulos Tasy
+  // Módulos Tasy
   acessoImportacaoTasy: mysqlEnum("acessoImportacaoTasy", ["sim", "nao"]).default("nao").notNull(),
   acessoContasFaturadas: mysqlEnum("acessoContasFaturadas", ["sim", "nao"]).default("nao").notNull(),
   acessoRelatoriosTasy: mysqlEnum("acessoRelatoriosTasy", ["sim", "nao"]).default("nao").notNull(),
   acessoRelatoriosBi: mysqlEnum("acessoRelatoriosBi", ["sim", "nao"]).default("nao").notNull(),
   acessoConciliacaoContasPagas: mysqlEnum("acessoConciliacaoContasPagas", ["sim", "nao"]).default("nao").notNull(),
   
-  // MÃ³dulos de Recebimento e Demonstrativo
+  // Módulos de Recebimento e Demonstrativo
   acessoRecebimentosXml: mysqlEnum("acessoRecebimentosXml", ["sim", "nao"]).default("nao").notNull(),
   acessoRecebimentosExcel: mysqlEnum("acessoRecebimentosExcel", ["sim", "nao"]).default("nao").notNull(),
   acessoDemonstrativo: mysqlEnum("acessoDemonstrativo", ["sim", "nao"]).default("nao").notNull(),
@@ -949,7 +949,7 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoAtendimentos: mysqlEnum("acessoAtendimentos", ["sim", "nao"]).default("nao").notNull(),
   acessoAtendimentosFaturar: mysqlEnum("acessoAtendimentosFaturar", ["sim", "nao"]).default("nao").notNull(),
   
-  // PermissÃµes granulares por relatÃ³rio individual (dentro de RelatÃ³rios BI)
+  // Permissões granulares por relatório individual (dentro de Relatórios BI)
   acessoRelFaturadoRecebido: mysqlEnum("acessoRelFaturadoRecebido", ["sim", "nao"]).default("nao").notNull(),
   acessoRelRecebimentoGeral: mysqlEnum("acessoRelRecebimentoGeral", ["sim", "nao"]).default("nao").notNull(),
   acessoRelFaturamento: mysqlEnum("acessoRelFaturamento", ["sim", "nao"]).default("nao").notNull(),
@@ -959,7 +959,7 @@ export const permissoesEstabelecimento = mysqlTable("permissoesEstabelecimento",
   acessoRelPrevisaoGlosa: mysqlEnum("acessoRelPrevisaoGlosa", ["sim", "nao"]).default("nao").notNull(),
   acessoFaturamentoExterno: mysqlEnum("acessoFaturamentoExterno", ["sim", "nao"]).default("sim").notNull(),
   
-  // MÃ³dulos do Painel Executivo Safatle
+  // Módulos do Painel Executivo Safatle
   acessoPainelExecutivo: mysqlEnum("acessoPainelExecutivo", ["sim", "nao"]).default("nao").notNull(),
   acessoVisaoGeral: mysqlEnum("acessoVisaoGeral", ["sim", "nao"]).default("nao").notNull(),
   acessoFinanceiro: mysqlEnum("acessoFinanceiro", ["sim", "nao"]).default("nao").notNull(),
@@ -978,48 +978,48 @@ export type InsertPermissaoEstabelecimento = typeof permissoesEstabelecimento.$i
 
 /**
  * Motivos de Glosa Personalizados
- * Permite cadastrar novos cÃ³digos de glosa alÃ©m dos padrÃµes TISS
+ * Permite cadastrar novos códigos de glosa além dos padrões TISS
  */
 export const motivosGlosa = mysqlTable("motivosGlosa", {
   id: int("id").autoincrement().primaryKey(),
   
-  // CÃ³digo Ãºnico do motivo (pode ser personalizado ou seguir padrÃ£o TISS)
+  // Código único do motivo (pode ser personalizado ou seguir padrão TISS)
   codigo: varchar("codigo", { length: 20 }).notNull(),
   
   // Grupo/categoria do motivo
   grupo: varchar("grupo", { length: 100 }).notNull(),
   
-  // DescriÃ§Ã£o completa
+  // Descrição completa
   descricao: text("descricao").notNull(),
   
-  // DescriÃ§Ã£o simplificada para exibiÃ§Ã£o rÃ¡pida
+  // Descrição simplificada para exibição rápida
   descricaoSimplificada: varchar("descricaoSimplificada", { length: 255 }).notNull(),
   
-  // SugestÃ£o de argumento para contestaÃ§Ã£o
+  // Sugestão de argumento para contestação
   argumentoContestacao: text("argumentoContestacao"),
   
-  // AÃ§Ãµes recomendadas (JSON array)
+  // Ações recomendadas (JSON array)
   acoesRecomendadas: json("acoesRecomendadas"),
   
   // Documentos sugeridos (JSON array)
   documentosSugeridos: json("documentosSugeridos"),
   
-  // NÃ­vel de dificuldade para reverter (1-5)
+  // Nível de dificuldade para reverter (1-5)
   dificuldadeReversao: int("dificuldadeReversao").default(3),
   
   // Probabilidade estimada de sucesso (0-100%)
   probabilidadeSucesso: int("probabilidadeSucesso").default(50),
   
-  // Se Ã© um cÃ³digo padrÃ£o TISS ou personalizado
+  // Se é um código padrão TISS ou personalizado
   tipoOrigem: mysqlEnum("tipoOrigem", ["tiss", "personalizado"]).default("personalizado").notNull(),
   
-  // Estabelecimento (null = disponÃ­vel para todos)
+  // Estabelecimento (null = disponível para todos)
   estabelecimentoId: int("estabelecimentoId"),
   
   // Ativo
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   
-  // UsuÃ¡rio que criou
+  // Usuário que criou
   criadoPor: int("criadoPor"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1031,8 +1031,8 @@ export type InsertMotivoGlosa = typeof motivosGlosa.$inferInsert;
 
 
 /**
- * Grupos de ServiÃ§o Personalizados
- * Permite criar novos grupos alÃ©m dos prÃ©-definidos
+ * Grupos de Serviço Personalizados
+ * Permite criar novos grupos além dos pré-definidos
  */
 export const gruposServico = mysqlTable("gruposServico", {
   id: int("id").autoincrement().primaryKey(),
@@ -1040,28 +1040,28 @@ export const gruposServico = mysqlTable("gruposServico", {
   // Nome do grupo
   nome: varchar("nome", { length: 100 }).notNull(),
   
-  // DescriÃ§Ã£o do grupo
+  // Descrição do grupo
   descricao: text("descricao"),
   
-  // Cor do grupo (para exibiÃ§Ã£o visual)
+  // Cor do grupo (para exibição visual)
   cor: varchar("cor", { length: 20 }).default("bg-gray-500"),
   
-  // Ãcone do grupo (nome do Ã­cone Lucide)
+  // Ícone do grupo (nome do ícone Lucide)
   icone: varchar("icone", { length: 50 }).default("Users"),
   
-  // PermissÃµes padrÃ£o do grupo (JSON)
+  // Permissões padrão do grupo (JSON)
   permissoesPadrao: json("permissoesPadrao"),
   
-  // Estabelecimento (null = disponÃ­vel para todos)
+  // Estabelecimento (null = disponível para todos)
   estabelecimentoId: int("estabelecimentoId"),
   
-  // Se Ã© um grupo do sistema (nÃ£o pode ser excluÃ­do)
+  // Se é um grupo do sistema (não pode ser excluído)
   sistemaGrupo: mysqlEnum("sistemaGrupo", ["sim", "nao"]).default("nao").notNull(),
   
   // Ativo
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   
-  // UsuÃ¡rio que criou
+  // Usuário que criou
   criadoPor: int("criadoPor"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1071,17 +1071,17 @@ export type GrupoServico = typeof gruposServico.$inferSelect;
 export type InsertGrupoServico = typeof gruposServico.$inferInsert;
 
 /**
- * Log de Auditoria de PermissÃµes
- * Registra todas as alteraÃ§Ãµes de permissÃµes
+ * Log de Auditoria de Permissões
+ * Registra todas as alterações de permissões
  */
 export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
   id: int("id").autoincrement().primaryKey(),
   
-  // UsuÃ¡rio que fez a alteraÃ§Ã£o
+  // Usuário que fez a alteração
   usuarioId: int("usuarioId").notNull(),
   usuarioNome: varchar("usuarioNome", { length: 255 }),
   
-  // UsuÃ¡rio afetado pela alteraÃ§Ã£o
+  // Usuário afetado pela alteração
   usuarioAfetadoId: int("usuarioAfetadoId").notNull(),
   usuarioAfetadoNome: varchar("usuarioAfetadoNome", { length: 255 }),
   
@@ -1089,7 +1089,7 @@ export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
   estabelecimentoId: int("estabelecimentoId"),
   estabelecimentoNome: varchar("estabelecimentoNome", { length: 255 }),
   
-  // Tipo de aÃ§Ã£o
+  // Tipo de ação
   tipoAcao: mysqlEnum("tipoAcao", [
     "criar_permissao",
     "alterar_permissao", 
@@ -1101,7 +1101,7 @@ export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
     "editar_estabelecimentos"
   ]).notNull(),
   
-  // DescriÃ§Ã£o da alteraÃ§Ã£o
+  // Descrição da alteração
   descricao: text("descricao"),
   
   // Valores anteriores (JSON)
@@ -1110,7 +1110,7 @@ export const logAuditoriaPermissoes = mysqlTable("logAuditoriaPermissoes", {
   // Valores novos (JSON)
   valoresNovos: json("valoresNovos"),
   
-  // IP do usuÃ¡rio
+  // IP do usuário
   ipUsuario: varchar("ipUsuario", { length: 50 }),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1119,19 +1119,19 @@ export type LogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferSelect;
 export type InsertLogAuditoriaPermissoes = typeof logAuditoriaPermissoes.$inferInsert;
 
 /**
- * PadrÃµes de CobranÃ§a Aprendidos - IA aprende com os XMLs importados
- * Identifica padrÃµes de itens que normalmente aparecem juntos
+ * Padrões de Cobrança Aprendidos - IA aprende com os XMLs importados
+ * Identifica padrões de itens que normalmente aparecem juntos
  */
 export const padroesCobranca = mysqlTable("padroesCobranca", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Escopo do padrÃ£o
+  // Escopo do padrão
   convenioId: int("convenioId"),
   estabelecimentoId: int("estabelecimentoId"),
   setor: varchar("setor", { length: 255 }), // Setor de atendimento (ex: CENTRO CIRURGICO, POSTO I)
-  profissionalExecutante: varchar("profissionalExecutante", { length: 255 }), // Profissional executante (mÃ©dico)
+  profissionalExecutante: varchar("profissionalExecutante", { length: 255 }), // Profissional executante (médico)
   
-  // Procedimento principal que dispara o padrÃ£o
+  // Procedimento principal que dispara o padrão
   codigoProcedimentoPrincipal: varchar("codigoProcedimentoPrincipal", { length: 50 }).notNull(),
   descricaoProcedimentoPrincipal: varchar("descricaoProcedimentoPrincipal", { length: 255 }),
   tipoProcedimentoPrincipal: varchar("tipoProcedimentoPrincipal", { length: 50 }), // procedimento, diaria, mat_med, etc.
@@ -1140,27 +1140,27 @@ export const padroesCobranca = mysqlTable("padroesCobranca", {
   // [{codigo, descricao, tipo, frequencia, quantidadeMedia, quantidadeMin, quantidadeMax, valorMedio}]
   itensAssociados: json("itensAssociados").notNull(),
   
-  // EstatÃ­sticas do padrÃ£o
+  // Estatísticas do padrão
   totalOcorrencias: int("totalOcorrencias").default(1).notNull(),
   valorMedioConta: decimal("valorMedioConta", { precision: 12, scale: 2 }),
   valorMinConta: decimal("valorMinConta", { precision: 12, scale: 2 }),
   valorMaxConta: decimal("valorMaxConta", { precision: 12, scale: 2 }),
   
-  // ConfianÃ§a do padrÃ£o (0-100)
+  // Confiança do padrão (0-100)
   confianca: int("confianca").default(50),
   
-  // Status do padrÃ£o
+  // Status do padrão
   status: mysqlEnum("status", [
     "aprendendo",    // Ainda coletando dados
-    "ativo",         // PadrÃ£o confirmado e ativo
-    "revisao",       // Precisa de revisÃ£o manual
+    "ativo",         // Padrão confirmado e ativo
+    "revisao",       // Precisa de revisão manual
     "inativo"        // Desativado
   ]).default("aprendendo").notNull(),
   
-  // Gabarito manual (nÃ£o Ã© sobrescrito na regeneraÃ§Ã£o)
+  // Gabarito manual (não é sobrescrito na regeneração)
   isGabarito: int("isGabarito").default(0).notNull(),
   
-  // ValidaÃ§Ã£o manual
+  // Validação manual
   validadoPor: int("validadoPor"),
   dataValidacao: timestamp("dataValidacao"),
   observacoesValidacao: text("observacoesValidacao"),
@@ -1173,12 +1173,12 @@ export type PadraoCobranca = typeof padroesCobranca.$inferSelect;
 export type InsertPadraoCobranca = typeof padroesCobranca.$inferInsert;
 
 /**
- * Insights de IA - SugestÃµes geradas pela anÃ¡lise de padrÃµes
+ * Insights de IA - Sugestões geradas pela análise de padrões
  */
 export const insightsIA = mysqlTable("insightsIA", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia
+  // Referência
   arquivoId: int("arquivoId").notNull(),
   comparacaoId: int("comparacaoId"),
   estabelecimentoId: int("estabelecimentoId"),
@@ -1189,10 +1189,10 @@ export const insightsIA = mysqlTable("insightsIA", {
     "item_faltante",           // Item que deveria estar na conta
     "quantidade_baixa",        // Quantidade abaixo do esperado
     "quantidade_alta",         // Quantidade acima do esperado
-    "valor_divergente",        // Valor diferente do padrÃ£o
-    "item_incomum",            // Item que nÃ£o costuma aparecer
-    "padrao_incompleto",       // PadrÃ£o de cobranÃ§a incompleto
-    "oportunidade_cobranca"    // PossÃ­vel item nÃ£o cobrado
+    "valor_divergente",        // Valor diferente do padrão
+    "item_incomum",            // Item que não costuma aparecer
+    "padrao_incompleto",       // Padrão de cobrança incompleto
+    "oportunidade_cobranca"    // Possível item não cobrado
   ]).notNull(),
   
   // Severidade
@@ -1207,7 +1207,7 @@ export const insightsIA = mysqlTable("insightsIA", {
   codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
   descricaoProcedimento: varchar("descricaoProcedimento", { length: 255 }),
   
-  // Item sugerido (se aplicÃ¡vel)
+  // Item sugerido (se aplicável)
   codigoItemSugerido: varchar("codigoItemSugerido", { length: 50 }),
   descricaoItemSugerido: varchar("descricaoItemSugerido", { length: 255 }),
   quantidadeSugerida: decimal("quantidadeSugerida", { precision: 10, scale: 2 }),
@@ -1219,21 +1219,21 @@ export const insightsIA = mysqlTable("insightsIA", {
   valorAtual: decimal("valorAtual", { precision: 12, scale: 2 }),
   valorEsperado: decimal("valorEsperado", { precision: 12, scale: 2 }),
   
-  // ConfianÃ§a da sugestÃ£o (0-100)
+  // Confiança da sugestão (0-100)
   confianca: int("confianca").default(50),
   
-  // PadrÃ£o que gerou o insight
+  // Padrão que gerou o insight
   padraoId: int("padraoId"),
   
   // Status do insight
   status: mysqlEnum("status", [
-    "pendente",      // Aguardando anÃ¡lise
-    "aceito",        // UsuÃ¡rio aceitou a sugestÃ£o
-    "rejeitado",     // UsuÃ¡rio rejeitou
-    "ignorado"       // UsuÃ¡rio ignorou
+    "pendente",      // Aguardando análise
+    "aceito",        // Usuário aceitou a sugestão
+    "rejeitado",     // Usuário rejeitou
+    "ignorado"       // Usuário ignorou
   ]).default("pendente").notNull(),
   
-  // Feedback do usuÃ¡rio
+  // Feedback do usuário
   feedbackUsuario: text("feedbackUsuario"),
   processadoPor: int("processadoPor"),
   dataProcessamento: timestamp("dataProcessamento"),
@@ -1246,59 +1246,59 @@ export type InsertInsightIA = typeof insightsIA.$inferInsert;
 
 
 /**
- * Regras de IA configurÃ¡veis para geraÃ§Ã£o de alertas
+ * Regras de IA configuráveis para geração de alertas
  */
 export const regrasIA = mysqlTable("regrasIA", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId"), // Null = regra global para todos os estabelecimentos
   
-  // Identificador Ãºnico da regra
+  // Identificador único da regra
   codigo: varchar("codigo", { length: 50 }).notNull(),
   nome: varchar("nome", { length: 255 }).notNull(),
   descricao: text("descricao"),
   
   // Categoria da regra
   categoria: mysqlEnum("categoria", [
-    "outlier",           // DetecÃ§Ã£o de valores fora da mÃ©dia
-    "padrao_erro",       // PadrÃµes de erro por funcionÃ¡rio
+    "outlier",           // Detecção de valores fora da média
+    "padrao_erro",       // Padrões de erro por funcionário
     "risco_glosa",       // Score de risco de glosa
-    "tendencia",         // AnÃ¡lise de tendÃªncias
-    "comparacao"         // ComparaÃ§Ã£o entre contas similares
+    "tendencia",         // Análise de tendências
+    "comparacao"         // Comparação entre contas similares
   ]).notNull(),
   
   // Tipo de alerta gerado
   tipoAlerta: mysqlEnum("tipoAlerta", [
-    "critico",    // Vermelho - requer aÃ§Ã£o imediata
-    "alerta",     // Amarelo - atenÃ§Ã£o necessÃ¡ria
+    "critico",    // Vermelho - requer ação imediata
+    "alerta",     // Amarelo - atenção necessária
     "info"        // Azul - informativo
   ]).default("alerta").notNull(),
   
-  // ParÃ¢metros configurÃ¡veis (JSON)
+  // Parâmetros configuráveis (JSON)
   parametros: json("parametros").$type<{
     // Para outliers
-    limiteDesvioAbaixo?: number;     // Desvio padrÃ£o para valores abaixo da mÃ©dia (ex: 2)
-    limiteDesvioAcima?: number;      // Desvio padrÃ£o para valores acima da mÃ©dia (ex: 2)
-    minimoContasHistorico?: number;  // MÃ­nimo de contas para ter estatÃ­sticas (ex: 3)
-    periodoAnalise?: number;         // Dias para anÃ¡lise (ex: 90)
+    limiteDesvioAbaixo?: number;     // Desvio padrão para valores abaixo da média (ex: 2)
+    limiteDesvioAcima?: number;      // Desvio padrão para valores acima da média (ex: 2)
+    minimoContasHistorico?: number;  // Mínimo de contas para ter estatísticas (ex: 3)
+    periodoAnalise?: number;         // Dias para análise (ex: 90)
     
-    // Para padrÃµes de erro
-    taxaGlosaMinima?: number;        // Taxa mÃ­nima de glosa para alerta (ex: 20)
-    minimoProcedimentos?: number;    // MÃ­nimo de procedimentos para anÃ¡lise (ex: 50)
-    periodoMeses?: number;           // PerÃ­odo em meses (ex: 6)
+    // Para padrões de erro
+    taxaGlosaMinima?: number;        // Taxa mínima de glosa para alerta (ex: 20)
+    minimoProcedimentos?: number;    // Mínimo de procedimentos para análise (ex: 50)
+    periodoMeses?: number;           // Período em meses (ex: 6)
     
     // Para risco de glosa
-    scoreRiscoMinimo?: number;       // Score mÃ­nimo para alerta (ex: 30)
-    historicoMinimoContas?: number;  // MÃ­nimo de contas no histÃ³rico (ex: 5)
+    scoreRiscoMinimo?: number;       // Score mínimo para alerta (ex: 30)
+    historicoMinimoContas?: number;  // Mínimo de contas no histórico (ex: 5)
     
-    // Para tendÃªncias
-    variacaoMinima?: number;         // VariaÃ§Ã£o mÃ­nima percentual para alerta (ex: 10)
-    periodoComparacao?: number;      // Meses para comparaÃ§Ã£o (ex: 3)
+    // Para tendências
+    variacaoMinima?: number;         // Variação mínima percentual para alerta (ex: 10)
+    periodoComparacao?: number;      // Meses para comparação (ex: 3)
     
-    // ConfiguraÃ§Ãµes gerais
-    maxResultados?: number;          // MÃ¡ximo de resultados a exibir (ex: 10)
+    // Configurações gerais
+    maxResultados?: number;          // Máximo de resultados a exibir (ex: 10)
   }>(),
   
-  // Prioridade para ordenaÃ§Ã£o (menor = mais importante)
+  // Prioridade para ordenação (menor = mais importante)
   prioridade: int("prioridade").default(100),
   
   // Status da regra
@@ -1322,36 +1322,36 @@ export type InsertImportacaoTasy = typeof importacoesTasy.$inferInsert;
 
 /**
  * Chaves de API para acesso externo
- * Permite que scripts externos (como o de exportaÃ§Ã£o do Tasy) acessem a API
+ * Permite que scripts externos (como o de exportação do Tasy) acessem a API
  */
 export const apiKeys = mysqlTable("apiKeys", {
   id: int("id").autoincrement().primaryKey(),
   
-  // UsuÃ¡rio dono da chave
+  // Usuário dono da chave
   userId: int("userId").notNull(),
   
-  // Nome/descriÃ§Ã£o da chave
+  // Nome/descrição da chave
   nome: varchar("nome", { length: 255 }).notNull(),
   
   // Chave de API (hash)
   keyHash: varchar("keyHash", { length: 255 }).notNull(),
   
-  // Prefixo da chave (para identificaÃ§Ã£o, ex: "sk_live_abc...")
+  // Prefixo da chave (para identificação, ex: "sk_live_abc...")
   keyPrefix: varchar("keyPrefix", { length: 20 }).notNull(),
   
   // Estabelecimentos permitidos (JSON array de IDs, null = todos)
   estabelecimentosPermitidos: json("estabelecimentosPermitidos"),
   
-  // PermissÃµes (JSON array de strings)
+  // Permissões (JSON array de strings)
   permissoes: json("permissoes"),
   
-  // Ãšltimo uso
+  // Último uso
   ultimoUso: timestamp("ultimoUso"),
   
   // Contador de uso
   totalUsos: int("totalUsos").default(0),
   
-  // Data de expiraÃ§Ã£o (null = nÃ£o expira)
+  // Data de expiração (null = não expira)
   expiraEm: timestamp("expiraEm"),
   
   // Status
@@ -1366,7 +1366,7 @@ export type InsertApiKey = typeof apiKeys.$inferInsert;
 
 
 /**
- * Dashboards Salvos - ConfiguraÃ§Ãµes de relatÃ³rios personalizados
+ * Dashboards Salvos - Configurações de relatórios personalizados
  */
 export const dashboardsSalvos = mysqlTable("dashboardsSalvos", {
   id: int("id").autoincrement().primaryKey(),
@@ -1374,9 +1374,9 @@ export const dashboardsSalvos = mysqlTable("dashboardsSalvos", {
   estabelecimentoId: int("estabelecimentoId").notNull(),
   nome: varchar("nome", { length: 255 }).notNull(),
   descricao: text("descricao"),
-  // ConfiguraÃ§Ãµes do dashboard em JSON
+  // Configurações do dashboard em JSON
   configuracao: text("configuracao").notNull(), // JSON com: tipoGrafico, agrupamento, colunasSelecionadas, filtros
-  // ConfiguraÃ§Ãµes de comparativo
+  // Configurações de comparativo
   comparativoAtivo: mysqlEnum("comparativoAtivo", ["sim", "nao"]).default("nao").notNull(),
   periodo1Mes: int("periodo1Mes"),
   periodo1Ano: int("periodo1Ano"),
@@ -1394,7 +1394,7 @@ export type InsertDashboardSalvo = typeof dashboardsSalvos.$inferInsert;
 
 
 /**
- * Alertas de VariaÃ§Ã£o - ConfiguraÃ§Ã£o de alertas automÃ¡ticos quando variaÃ§Ã£o entre perÃ­odos ultrapassar percentual
+ * Alertas de Variação - Configuração de alertas automáticos quando variação entre períodos ultrapassar percentual
  */
 export const alertasVariacao = mysqlTable("alertasVariacao", {
   id: int("id").autoincrement().primaryKey(),
@@ -1416,7 +1416,7 @@ export type AlertaVariacao = typeof alertasVariacao.$inferSelect;
 export type InsertAlertaVariacao = typeof alertasVariacao.$inferInsert;
 
 /**
- * HistÃ³rico de Alertas Disparados
+ * Histórico de Alertas Disparados
  */
 export const historicoAlertasVariacao = mysqlTable("historicoAlertasVariacao", {
   id: int("id").autoincrement().primaryKey(),
@@ -1457,12 +1457,12 @@ export type InsertItemPagoTasy = typeof itensPagosTasy.$inferInsert;
 
 /**
  * Itens do Demonstrativo de Retorno
- * Armazena os itens extraÃ­dos dos arquivos de demonstrativo de pagamento dos convÃªnios
+ * Armazena os itens extraídos dos arquivos de demonstrativo de pagamento dos convênios
  */
 export const demonstrativoItens = mysqlTable("demonstrativoItens", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
-  arquivoId: int("arquivoId").notNull(), // ReferÃªncia ao arquivo de demonstrativo
+  arquivoId: int("arquivoId").notNull(), // Referência ao arquivo de demonstrativo
   convenioId: int("convenioId").notNull(),
   
   // Dados do item
@@ -1484,7 +1484,7 @@ export const demonstrativoItens = mysqlTable("demonstrativoItens", {
   // Dados da guia/atendimento
   guiaNumero: varchar("guiaNumero", { length: 100 }),
   dataExecucao: timestamp("dataExecucao"),
-  dataReferencia: timestamp("dataReferencia"), // MÃªs/ano de referÃªncia
+  dataReferencia: timestamp("dataReferencia"), // Mês/ano de referência
   
   // Dados do paciente
   pacienteNome: varchar("pacienteNome", { length: 255 }),
@@ -1508,7 +1508,7 @@ export const demonstrativoItens = mysqlTable("demonstrativoItens", {
   // Dados extras em JSON
   dadosExtras: json("dadosExtras"),
   
-  // ReferÃªncia ao procedimento original (se houver match)
+  // Referência ao procedimento original (se houver match)
   procedimentoOrigemId: int("procedimentoOrigemId"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1519,21 +1519,21 @@ export type InsertDemonstrativoItem = typeof demonstrativoItens.$inferInsert;
 
 
 /**
- * ConciliaÃ§Ã£o Tasy - Resultado da conciliaÃ§Ã£o entre dados do Tasy e demonstrativos
- * Armazena o resultado da comparaÃ§Ã£o entre o que foi faturado (Tasy) e o que foi pago (demonstrativo)
+ * Conciliação Tasy - Resultado da conciliação entre dados do Tasy e demonstrativos
+ * Armazena o resultado da comparação entre o que foi faturado (Tasy) e o que foi pago (demonstrativo)
  */
 export const conciliacao = mysqlTable("conciliacao", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // PerÃ­odo da conciliaÃ§Ã£o
+  // Período da conciliação
   mesReferencia: int("mesReferencia").notNull(), // 1-12
   anoReferencia: int("anoReferencia").notNull(), // Ex: 2025
   convenioId: int("convenioId"),
   
-  // ReferÃªncias aos dados originais
-  dadoTasyId: int("dadoTasyId"), // ReferÃªncia ao registro do Tasy (se houver)
-  demonstrativoItemId: int("demonstrativoItemId"), // ReferÃªncia ao item do demonstrativo (se houver)
+  // Referências aos dados originais
+  dadoTasyId: int("dadoTasyId"), // Referência ao registro do Tasy (se houver)
+  demonstrativoItemId: int("demonstrativoItemId"), // Referência ao item do demonstrativo (se houver)
   
   // Dados do item faturado (Tasy)
   guiaTasy: varchar("guiaTasy", { length: 100 }),
@@ -1556,14 +1556,14 @@ export const conciliacao = mysqlTable("conciliacao", {
   dataDemo: timestamp("dataDemo"),
   pacienteDemo: varchar("pacienteDemo", { length: 255 }),
   
-  // Resultado da conciliaÃ§Ã£o
+  // Resultado da conciliação
   statusConciliacao: mysqlEnum("statusConciliacao", [
     "conciliado",           // Item encontrado e valores batem
     "divergencia_valor",    // Item encontrado mas valores diferentes
     "divergencia_quantidade", // Item encontrado mas quantidade diferente
-    "nao_encontrado_demo",  // Item faturado mas nÃ£o encontrado no demonstrativo
-    "nao_encontrado_tasy",  // Item no demonstrativo mas nÃ£o encontrado no Tasy
-    "glosado",              // Item glosado pelo convÃªnio
+    "nao_encontrado_demo",  // Item faturado mas não encontrado no demonstrativo
+    "nao_encontrado_tasy",  // Item no demonstrativo mas não encontrado no Tasy
+    "glosado",              // Item glosado pelo convênio
     "pago_parcial"          // Item pago parcialmente
   ]).default("conciliado").notNull(),
   
@@ -1571,24 +1571,24 @@ export const conciliacao = mysqlTable("conciliacao", {
   diferencaValor: decimal("diferencaValor", { precision: 12, scale: 4 }),
   diferencaQuantidade: decimal("diferencaQuantidade", { precision: 10, scale: 4 }),
   
-  // ObservaÃ§Ãµes
+  // Observações
   observacao: text("observacao"),
   
-  // Receber Hospital (S = hospital recebe, N = terceiros/mÃ©dicos)
+  // Receber Hospital (S = hospital recebe, N = terceiros/médicos)
   receberHospital: varchar("receberHospital", { length: 1 }),
   
-  // VinculaÃ§Ã£o de cÃ³digos (de-para)
+  // Vinculação de códigos (de-para)
   vinculacaoId: int("vinculacaoId"), // FK para vinculacao_codigos se match foi por de-para
   metodoMatch: mysqlEnum("metodoMatch", ["codigo_direto", "vinculacao", "manual"]).default("codigo_direto"),
   
-  // ReferÃªncia ao arquivo do demonstrativo
+  // Referência ao arquivo do demonstrativo
   arquivoDemoId: int("arquivoDemoId"),
   
-  // Status de vinculaÃ§Ã£o pendente
+  // Status de vinculação pendente
   pendenteVinculacao: mysqlEnum("pendenteVinculacao", ["sim", "nao"]).default("nao"),
   
   // Controle
-  processadoPor: int("processadoPor"), // userId que executou a conciliaÃ§Ã£o
+  processadoPor: int("processadoPor"), // userId que executou a conciliação
   dataProcessamento: timestamp("dataProcessamento"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1600,14 +1600,14 @@ export type InsertConciliacao = typeof conciliacao.$inferInsert;
 
 
 /**
- * Resumo da ConciliaÃ§Ã£o Tasy - Totais por perÃ­odo/convÃªnio
- * Armazena os totais consolidados da conciliaÃ§Ã£o para relatÃ³rios
+ * Resumo da Conciliação Tasy - Totais por período/convênio
+ * Armazena os totais consolidados da conciliação para relatórios
  */
 export const resumoConciliacao = mysqlTable("resumoConciliacao", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // PerÃ­odo
+  // Período
   mesReferencia: int("mesReferencia").notNull(),
   anoReferencia: int("anoReferencia").notNull(),
   convenioId: int("convenioId"),
@@ -1621,7 +1621,7 @@ export const resumoConciliacao = mysqlTable("resumoConciliacao", {
   valorTotalPago: decimal("valorTotalPago", { precision: 15, scale: 2 }),
   valorTotalGlosado: decimal("valorTotalGlosado", { precision: 15, scale: 2 }),
   
-  // Resultado da conciliaÃ§Ã£o
+  // Resultado da conciliação
   itensConciliados: int("itensConciliados").default(0),
   itensDivergentes: int("itensDivergentes").default(0),
   itensNaoEncontradosDemo: int("itensNaoEncontradosDemo").default(0),
@@ -1659,19 +1659,19 @@ export type InsertDetalheItemConciliacaoTasy = typeof detalhesItensConciliacaoTa
 
 
 /**
- * Faturamento TISS - Dados extraÃ­dos dos arquivos XML TISS para faturamento
- * Armazena informaÃ§Ãµes detalhadas de cada item (procedimento ou despesa) para anÃ¡lise e conciliaÃ§Ã£o
+ * Faturamento TISS - Dados extraídos dos arquivos XML TISS para faturamento
+ * Armazena informações detalhadas de cada item (procedimento ou despesa) para análise e conciliação
  */
 export const faturamentoTiss = mysqlTable("staging_faturamento_xml", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Dados do CabeÃ§alho e Lote
+  // Dados do Cabeçalho e Lote
   numeroLote: varchar("numero_lote", { length: 20 }),
   sequencialTransacao: varchar("sequencial_transacao", { length: 20 }),
   dataRegistro: timestamp("data_registro"),
   registroAns: varchar("registro_ans", { length: 10 }),
   
-  // Dados da Guia e BeneficiÃ¡rio
+  // Dados da Guia e Beneficiário
   numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }),
   numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 20 }),
   senha: varchar("senha", { length: 20 }),
@@ -1692,26 +1692,26 @@ export const faturamentoTiss = mysqlTable("staging_faturamento_xml", {
   nomeProf: varchar("nome_prof", { length: 150 }),
   conselhoProf: varchar("conselho_prof", { length: 20 }),
   
-  // Totais da Guia (para conferÃªncia)
+  // Totais da Guia (para conferência)
   valorTotalGeralGuia: decimal("valor_total_geral_guia", { precision: 12, scale: 2 }),
   
-  // Chave de estabelecimento para segregaÃ§Ã£o de dados
+  // Chave de estabelecimento para segregação de dados
   estabelecimentoId: int("estabelecimentoId"),
   
-  // ReferÃªncia ao arquivo de origem
+  // Referência ao arquivo de origem
   arquivoId: int("arquivo_id"),
   
-  // ConvÃªnio e Data de ReferÃªncia (informados no upload)
+  // Convênio e Data de Referência (informados no upload)
   convenioId: int("convenioId"),
   dataReferencia: timestamp("data_referencia"),
   
-  // Data de importaÃ§Ã£o
+  // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
 
-  // CompetÃªncia no formato AAAA/MM (derivada da dataReferencia do arquivo)
+  // Competência no formato AAAA/MM (derivada da dataReferencia do arquivo)
   competencia: varchar("competencia", { length: 7 }),
 
-  // CÃ³digo do prestador executante (codigoPrestadorNaOperadora do XML)
+  // Código do prestador executante (codigoPrestadorNaOperadora do XML)
   codigoPrestadorExecutante: varchar("codigo_prestador_executante", { length: 50 }),
 
   // Colunas legadas (existem no banco, mantidas para compatibilidade)
@@ -1726,15 +1726,15 @@ export type InsertFaturamentoTiss = typeof faturamentoTiss.$inferInsert;
 /**
  * Tabela de Recebimento TISS Unificada
  * Armazena dados dos arquivos de retorno das operadoras (demonstrativos de pagamento - XML ou Excel)
- * Estrutura unificada para facilitar conciliaÃ§Ã£o e relatÃ³rios
+ * Estrutura unificada para facilitar conciliação e relatórios
  */
 export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   id: int("id").autoincrement().primaryKey(),
   
-  // VÃ­nculo com a tabela 'arquivos'
+  // Vínculo com a tabela 'arquivos'
   arquivoId: int("arquivo_id").notNull(),
   
-  // ========== CABEÃ‡ALHO DO DEMONSTRATIVO (ct_demonstrativoCabecalho) ==========
+  // ========== CABEÇALHO DO DEMONSTRATIVO (ct_demonstrativoCabecalho) ==========
   registroANS: varchar("registro_ans", { length: 6 }),
   numeroDemonstrativo: varchar("numero_demonstrativo", { length: 50 }),
   nomeOperadora: varchar("nome_operadora", { length: 150 }),
@@ -1790,13 +1790,13 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   descricaoItem: varchar("descricao_item", { length: 255 }),
   grauParticipacao: varchar("grau_participacao", { length: 5 }),
   
-  // Valores do Item (ConciliaÃ§Ã£o)
+  // Valores do Item (Conciliação)
   quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 4 }),
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
   valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
-  // valor_glosado Ã© VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
-  // Marcado como generatedAlwaysAs para que Drizzle nÃ£o tente inserir valores nela
+  // valor_glosado é VIRTUAL GENERATED no banco (= valor_informado - valor_liberado)
+  // Marcado como generatedAlwaysAs para que Drizzle não tente inserir valores nela
   valorGlosado: decimal("valor_glosado", { precision: 12, scale: 2 }).generatedAlwaysAs(sql`\`valor_informado\` - \`valor_liberado\``, { mode: 'virtual' }),
   
   // Motivos de Glosa do Item (relacaoGlosa)
@@ -1820,7 +1820,7 @@ export const recebimentoTiss = mysqlTable("recebimento_tiss", {
   origemDado: mysqlEnum("origem_dado", ["xml", "excel"]).notNull(),
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
   
-  // ConvÃªnio e Data de ReferÃªncia (informados no upload)
+  // Convênio e Data de Referência (informados no upload)
   convenioId: int("convenioId"),
   dataReferencia: date("data_referencia"),
   
@@ -1851,12 +1851,12 @@ export type InsertRecebimentoTiss = typeof recebimentoTiss.$inferInsert;
 
 
 /**
- * Recebimentos Excel - Tabela para importaÃ§Ã£o de Excel de retorno dos convÃªnios
+ * Recebimentos Excel - Tabela para importação de Excel de retorno dos convênios
  * Campos mapeados exatamente como no Excel da Unimed
  */
 export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   id: int("id").autoincrement().primaryKey(),
-  arquivoId: int("arquivo_id"), // ReferÃªncia ao arquivo de origem
+  arquivoId: int("arquivo_id"), // Referência ao arquivo de origem
   
   // Data Pagto
   dataPagto: timestamp("data_pagto"),
@@ -1870,34 +1870,34 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   // Lote Prestador
   lotePrestador: varchar("lote_prestador", { length: 50 }),
   
-  // CÃ³digo Prestador Pagamento
+  // Código Prestador Pagamento
   codigoPrestadorPagamento: varchar("codigo_prestador_pagamento", { length: 50 }),
   
   // Nome Prestador Pagamento
   nomePrestadorPagamento: varchar("nome_prestador_pagamento", { length: 255 }),
   
-  // NÃºmero Guia
+  // Número Guia
   numeroGuia: varchar("numero_guia", { length: 50 }),
   
   // Seq (sequencial do item)
   seq: int("seq"),
   
-  // BeneficiÃ¡rio (nÃºmero carteira)
+  // Beneficiário (número carteira)
   beneficiario: varchar("beneficiario", { length: 50 }),
   
-  // Nome BeneficiÃ¡rio
+  // Nome Beneficiário
   nomeBeneficiario: varchar("nome_beneficiario", { length: 255 }),
   
-  // Data ExecuÃ§Ã£o
+  // Data Execução
   dataExecucao: timestamp("data_execucao"),
   
-  // Hora ExecuÃ§Ã£o
+  // Hora Execução
   horaExecucao: varchar("hora_execucao", { length: 20 }),
   
-  // Item (cÃ³digo do procedimento)
+  // Item (código do procedimento)
   item: varchar("item", { length: 50 }),
   
-  // Item Desc (descriÃ§Ã£o do procedimento)
+  // Item Desc (descrição do procedimento)
   itemDesc: varchar("item_desc", { length: 500 }),
   
   // Quantidade
@@ -1906,55 +1906,55 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   // Valor Pagamento
   valorPagamento: decimal("valor_pagamento", { precision: 12, scale: 2 }),
   
-  // Tipo LanÃ§amento
+  // Tipo Lançamento
   tipoLancamento: varchar("tipo_lancamento", { length: 100 }),
   
-  // Erro TISS (cÃ³digo de glosa / observaÃ§Ã£o de glosa)
+  // Erro TISS (código de glosa / observação de glosa)
   erroTiss: varchar("erro_tiss", { length: 500 }),
   
-  // SituaÃ§Ã£o Item (PAGO/GLOSADO/etc)
+  // Situação Item (PAGO/GLOSADO/etc)
   situacaoItem: varchar("situacao_item", { length: 50 }),
   
-  // Tipo de Item (PROCEDIMENTO, MEDICAMENTO, MATERIAL, DIÃRIA, TAXA, GÃS MEDICINAL)
+  // Tipo de Item (PROCEDIMENTO, MEDICAMENTO, MATERIAL, DIÁRIA, TAXA, GÁS MEDICINAL)
   tipoItem: varchar("tipo_item", { length: 30 }),
   
-  // Valor Glosa (especÃ­fico)
+  // Valor Glosa (específico)
   valorGlosa: decimal("valor_glosa", { precision: 12, scale: 2 }),
   
-  // CÃ³digo Glosa TISS (ampliado para suportar justificativas longas do IPASGO)
+  // Código Glosa TISS (ampliado para suportar justificativas longas do IPASGO)
   codigoGlosa: varchar("codigo_glosa", { length: 500 }),
   
   // Valor Informado (valor cobrado original)
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   
-  // CÃ³digo Solicitante
+  // Código Solicitante
   codigoSolicitante: varchar("codigo_solicitante", { length: 50 }),
   
   // Nome Solicitante
   nomeSolicitante: varchar("nome_solicitante", { length: 255 }),
   
-  // AcomodaÃ§Ã£o da InternaÃ§Ã£o
+  // Acomodação da Internação
   acomodacaoInternacao: varchar("acomodacao_internacao", { length: 100 }),
   
-  // Data Inicio Faturamento InternaÃ§Ã£o
+  // Data Inicio Faturamento Internação
   dataInicioFaturamentoInternacao: timestamp("data_inicio_faturamento_internacao"),
   
-  // Data Fim Faturamento InternaÃ§Ã£o
+  // Data Fim Faturamento Internação
   dataFimFaturamentoInternacao: timestamp("data_fim_faturamento_internacao"),
   
-  // CÃ³digo Prestador (executante)
+  // Código Prestador (executante)
   codigoPrestador: varchar("codigo_prestador", { length: 50 }),
   
   // Nome Prestador (executante)
   nomePrestador: varchar("nome_prestador", { length: 255 }),
   
-  // Prestador Executante (cÃ³digo)
+  // Prestador Executante (código)
   prestadorExecutante: varchar("prestador_executante", { length: 50 }),
   
   // Nome Prestador Executante
   nomePrestadorExecutante: varchar("nome_prestador_executante", { length: 255 }),
   
-  // ConvÃªnio, Data de ReferÃªncia e Data de Pagamento (informados no upload)
+  // Convênio, Data de Referência e Data de Pagamento (informados no upload)
   convenioId: int("convenioId"),
   dataReferencia: date("data_referencia"),
   dataPagamentoUpload: date("data_pagamento"),
@@ -1962,7 +1962,7 @@ export const recebimentosExcel = mysqlTable("recebimentos_excel", {
   // Estabelecimento
   estabelecimentoId: int("estabelecimentoId"),
   
-  // Data de importaÃ§Ã£o
+  // Data de importação
   dataImportacao: timestamp("data_importacao").defaultNow().notNull(),
 });
 
@@ -1976,10 +1976,10 @@ export type InsertRecebimentoExcel = typeof recebimentosExcel.$inferInsert;
 export const retornoTissUnificado = mysqlTable("retorno_tiss_unificado", {
   id: int("id").autoincrement().primaryKey(),
   
-  // VÃ­nculo com a tabela 'arquivos'
+  // Vínculo com a tabela 'arquivos'
   arquivoId: int("arquivo_id").notNull(),
   
-  // IdentificaÃ§Ã£o da Operadora/Demonstrativo
+  // Identificação da Operadora/Demonstrativo
   numeroDemonstrativo: varchar("numero_demonstrativo", { length: 50 }),
   nomeOperadora: varchar("nome_operadora", { length: 150 }),
   cnpjOperadora: varchar("cnpj_operadora", { length: 20 }),
@@ -1990,7 +1990,7 @@ export const retornoTissUnificado = mysqlTable("retorno_tiss_unificado", {
   numeroProtocolo: varchar("numero_protocolo", { length: 50 }),
   situacaoProtocolo: varchar("situacao_protocolo", { length: 10 }),
   
-  // Dados da Guia e BeneficiÃ¡rio
+  // Dados da Guia e Beneficiário
   numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 50 }),
   numeroGuiaOperadora: varchar("numero_guia_operadora", { length: 50 }),
   senha: varchar("senha", { length: 50 }),
@@ -2005,12 +2005,12 @@ export const retornoTissUnificado = mysqlTable("retorno_tiss_unificado", {
   codigoItem: varchar("codigo_item", { length: 20 }),
   descricaoItem: varchar("descricao_item", { length: 255 }),
   
-  // Valores de ConciliaÃ§Ã£o
+  // Valores de Conciliação
   quantidadeExecutada: decimal("quantidade_executada", { precision: 10, scale: 3 }),
   valorInformado: decimal("valor_informado", { precision: 12, scale: 2 }),
   valorProcessado: decimal("valor_processado", { precision: 12, scale: 2 }),
   valorLiberado: decimal("valor_liberado", { precision: 12, scale: 2 }),
-  // valor_glosado Ã© calculado automaticamente pelo banco (GENERATED ALWAYS AS)
+  // valor_glosado é calculado automaticamente pelo banco (GENERATED ALWAYS AS)
   
   // Motivos de Glosa
   codigoGlosa: varchar("codigo_glosa", { length: 20 }),
@@ -2035,13 +2035,13 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   origemTipo: mysqlEnum("origem_tipo", ["xml", "excel"]).notNull(),
   convenioId: int("convenio_id"),
   
-  // IdentificaÃ§Ã£o Principal
+  // Identificação Principal
   numeroGuia: varchar("numero_guia", { length: 50 }),
   protocolo: varchar("protocolo", { length: 50 }),
   lotePrestador: varchar("lote_prestador", { length: 50 }),
   dataPagamento: date("data_pagamento"),
   
-  // BeneficiÃ¡rio
+  // Beneficiário
   carteiraBeneficiario: varchar("carteira_beneficiario", { length: 50 }),
   nomeBeneficiario: varchar("nome_beneficiario", { length: 255 }),
   
@@ -2065,13 +2065,13 @@ export const demonstrativo = mysqlTable("demonstrativo", {
   tipoLancamento: varchar("tipo_lancamento", { length: 100 }),
   erroTiss: varchar("erro_tiss", { length: 255 }),
   
-  // Data de referÃªncia do arquivo
+  // Data de referência do arquivo
   dataReferencia: date("data_referencia"),
   
   // Estabelecimento
   estabelecimentoId: int("estabelecimentoId"),
   
-  // ClassificaÃ§Ã£o de Glosa
+  // Classificação de Glosa
   classificacaoGlosa: mysqlEnum("classificacao_glosa", [
     "pendente",
     "aceitar",
@@ -2102,7 +2102,7 @@ export type InsertDemonstrativo = typeof demonstrativo.$inferInsert;
 
 /**
  * Avisos Internos (Banners de comunicados da empresa)
- * Gerenciados pelo administrador, exibidos na tela inicial apÃ³s login
+ * Gerenciados pelo administrador, exibidos na tela inicial após login
  */
 export const avisosInternos = mysqlTable("avisosInternos", {
   id: int("id").autoincrement().primaryKey(),
@@ -2122,13 +2122,13 @@ export type InsertAvisoInterno = typeof avisosInternos.$inferInsert;
 
 
 /**
- * HistÃ³rico de ValidaÃ§Ãµes de Arquivos XML
- * PersistÃªncia de resultados de validaÃ§Ã£o de arquivos XML para anÃ¡lise de tendÃªncias
+ * Histórico de Validações de Arquivos XML
+ * Persistência de resultados de validação de arquivos XML para análise de tendências
  */
 export const historicoValidacaoXml = mysqlTable("historicoValidacaoXml", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Estabelecimento que realizou a validaÃ§Ã£o
+  // Estabelecimento que realizou a validação
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
   // Nome do arquivo XML validado
@@ -2137,18 +2137,18 @@ export const historicoValidacaoXml = mysqlTable("historicoValidacaoXml", {
   // Data de processamento do arquivo
   dataProcessamento: timestamp("dataProcessamento").notNull(),
   
-  // EstatÃ­sticas de contas processadas
+  // Estatísticas de contas processadas
   totalContas: int("totalContas").default(0).notNull(),
   contasValidas: int("contasValidas").default(0).notNull(),
   contasInvalidas: int("contasInvalidas").default(0).notNull(),
   
-  // Score de conformidade mÃ©dio (0-100)
+  // Score de conformidade médio (0-100)
   scoreConformidadeMedio: decimal("scoreConformidadeMedio", { precision: 5, scale: 2 }).default("0"),
   
-  // Resultado completo em JSON (divergÃªncias, violaÃ§Ãµes, etc.)
+  // Resultado completo em JSON (divergências, violações, etc.)
   resultadoCompleto: json("resultadoCompleto"),
   
-  // UsuÃ¡rio que realizou a validaÃ§Ã£o
+  // Usuário que realizou a validação
   usuarioId: int("usuarioId").notNull(),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2175,18 +2175,18 @@ export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
 
 /**
- * NOTIFICAÃ‡Ã•ES DE ATENDIMENTOS
- * Armazena as notificaÃ§Ãµes registradas para cada atendimento (banco interno MySQL)
+ * NOTIFICAÇÕES DE ATENDIMENTOS
+ * Armazena as notificações registradas para cada atendimento (banco interno MySQL)
  */
 
 export const notificacoesAtendimento = mysqlTable("notificacoes_atendimento", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia ao atendimento
+  // Referência ao atendimento
   numatend: varchar("numatend", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId"),
   
-  // Dados da notificaÃ§Ã£o
+  // Dados da notificação
   observacao: text("observacao").notNull().default(""),
   usuario: varchar("usuario", { length: 255 }),
   
@@ -2201,7 +2201,7 @@ export const notificacoesAtendimento = mysqlTable("notificacoes_atendimento", {
 export const notificacoesAtendimentoItem = mysqlTable("notificacoes_atendimento_item", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia Ã  notificaÃ§Ã£o pai
+  // Referência à notificação pai
   notificacaoId: int("notificacaoId").notNull(),
   
   // Dados do item
@@ -2222,11 +2222,11 @@ export type InsertNotificacaoAtendimentoItem = typeof notificacoesAtendimentoIte
 
 
 // =====================================================
-// INTEGRADOR DE DADOS - Metadados de ConfiguraÃ§Ã£o
+// INTEGRADOR DE DADOS - Metadados de Configuração
 // =====================================================
 
 /**
- * ConexÃµes de banco de dados externas configuradas pelo admin
+ * Conexões de banco de dados externas configuradas pelo admin
  */
 export const integracaoConexoes = mysqlTable("integracao_conexoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -2298,7 +2298,7 @@ export type IntegracaoColuna = typeof integracaoColunas.$inferSelect;
 export type InsertIntegracaoColuna = typeof integracaoColunas.$inferInsert;
 
 /**
- * Mapeamentos de campos (origem â†’ destino) para sincronizaÃ§Ã£o
+ * Mapeamentos de campos (origem → destino) para sincronização
  */
 export const integracaoMapeamentos = mysqlTable("integracao_mapeamentos", {
   id: int("id").autoincrement().primaryKey(),
@@ -2311,11 +2311,11 @@ export const integracaoMapeamentos = mysqlTable("integracao_mapeamentos", {
   frequencia: mysqlEnum("frequencia", ["manual", "5min", "15min", "30min", "1hora", "6horas", "12horas", "diario"]).default("manual").notNull(),
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   estabelecimentoId: int("estabelecimentoId"),
-  // ImportaÃ§Ã£o incremental
+  // Importação incremental
   modoImportacao: mysqlEnum("modoImportacao", ["completa", "incremental"]).default("completa").notNull(),
   colunaControle: varchar("colunaControle", { length: 255 }), // Coluna usada para controle incremental (ex: id, updated_at)
-  ultimoValorControle: text("ultimoValorControle"), // Ãšltimo valor importado da coluna de controle
-  ultimaSincronizacao: timestamp("ultimaSincronizacao"), // Data/hora da Ãºltima sincronizaÃ§Ã£o bem-sucedida
+  ultimoValorControle: text("ultimoValorControle"), // Último valor importado da coluna de controle
+  ultimaSincronizacao: timestamp("ultimaSincronizacao"), // Data/hora da última sincronização bem-sucedida
   totalRegistrosImportados: int("totalRegistrosImportados").default(0).notNull(), // Total acumulado de registros importados
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
   atualizadoEm: timestamp("atualizadoEm").defaultNow().onUpdateNow().notNull(),
@@ -2329,14 +2329,14 @@ export type IntegracaoMapeamento = typeof integracaoMapeamentos.$inferSelect;
 export type InsertIntegracaoMapeamento = typeof integracaoMapeamentos.$inferInsert;
 
 /**
- * Mapeamento de campos individuais (coluna origem â†’ coluna destino)
+ * Mapeamento de campos individuais (coluna origem → coluna destino)
  */
 export const integracaoMapeamentoCampos = mysqlTable("integracao_mapeamento_campos", {
   id: int("id").autoincrement().primaryKey(),
   mapeamentoId: int("mapeamentoId").notNull(),
   colunaOrigemNome: varchar("colunaOrigemNome", { length: 255 }).notNull(),
   colunaDestinoId: int("colunaDestinoId").notNull(),
-  transformacao: text("transformacao"), // ExpressÃ£o de transformaÃ§Ã£o opcional (ex: UPPER, TRIM, etc.)
+  transformacao: text("transformacao"), // Expressão de transformação opcional (ex: UPPER, TRIM, etc.)
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
 }, (table) => ({
   mapIdx: index("idx_integ_mapcampo_map").on(table.mapeamentoId),
@@ -2346,7 +2346,7 @@ export type IntegracaoMapeamentoCampo = typeof integracaoMapeamentoCampos.$infer
 export type InsertIntegracaoMapeamentoCampo = typeof integracaoMapeamentoCampos.$inferInsert;
 
 /**
- * Log de sincronizaÃ§Ãµes executadas
+ * Log de sincronizações executadas
  */
 export const integracaoSincronizacoes = mysqlTable("integracao_sincronizacoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -2372,7 +2372,7 @@ export type InsertIntegracaoSincronizacao = typeof integracaoSincronizacoes.$inf
 
 /**
  * Tabela de Recebimento Geral
- * Consolida dados de recebimento de todos os convÃªnios e estabelecimentos
+ * Consolida dados de recebimento de todos os convênios e estabelecimentos
  */
 export const recebimentoGeral = mysqlTable("recebimento_geral", {
   id: int("id").autoincrement().primaryKey(),
@@ -2433,22 +2433,22 @@ export type InsertRecebimentoGeral = typeof recebimentoGeral.$inferInsert;
 
 
 /**
- * Mapeamento de ConvÃªnios (De-Para)
- * Associa nomes/cÃ³digos de convÃªnios vindos do hospital (Tasy/integraÃ§Ã£o)
- * aos IDs dos convÃªnios cadastrados no Safatle.
- * Permite que cada estabelecimento tenha seu prÃ³prio mapeamento.
+ * Mapeamento de Convênios (De-Para)
+ * Associa nomes/códigos de convênios vindos do hospital (Tasy/integração)
+ * aos IDs dos convênios cadastrados no Safatle.
+ * Permite que cada estabelecimento tenha seu próprio mapeamento.
  */
 export const convenioMapeamento = mysqlTable("convenio_mapeamento", {
   id: int("id").autoincrement().primaryKey(),
   
-  // Estabelecimento (cada hospital pode ter nomes diferentes para o mesmo convÃªnio)
+  // Estabelecimento (cada hospital pode ter nomes diferentes para o mesmo convênio)
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
   // Dados de origem (como vem do hospital)
-  nomeOrigem: varchar("nome_origem", { length: 255 }).notNull(), // Nome do convÃªnio como vem do hospital (ex: "BRADESCO SAUDE")
-  codigoOrigem: varchar("codigo_origem", { length: 50 }), // CÃ³digo do convÃªnio no hospital (ex: "0016")
+  nomeOrigem: varchar("nome_origem", { length: 255 }).notNull(), // Nome do convênio como vem do hospital (ex: "BRADESCO SAUDE")
+  codigoOrigem: varchar("codigo_origem", { length: 50 }), // Código do convênio no hospital (ex: "0016")
   
-  // ReferÃªncia ao convÃªnio no Safatle
+  // Referência ao convênio no Safatle
   convenioId: int("convenioId").notNull(), // FK para tabela convenios
   
   // Fonte dos dados (de qual sistema/tabela veio)
@@ -2460,7 +2460,7 @@ export const convenioMapeamento = mysqlTable("convenio_mapeamento", {
   // Quem criou o mapeamento
   criadoPor: int("criadoPor"), // userId
   metodoMatch: mysqlEnum("metodo_match", ["automatico", "manual"]).default("manual").notNull(),
-  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confianÃ§a do match automÃ¡tico (0-100)
+  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confiança do match automático (0-100)
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -2476,31 +2476,31 @@ export type InsertConvenioMapeamento = typeof convenioMapeamento.$inferInsert;
 
 
 /**
- * VinculaÃ§Ã£o de CÃ³digos - De-Para entre cÃ³digos do hospital e do convÃªnio
- * Quando o hospital envia um item com cÃ³digo X e o convÃªnio devolve com cÃ³digo Y,
- * essa tabela armazena a vinculaÃ§Ã£o para cruzamentos futuros automÃ¡ticos.
+ * Vinculação de Códigos - De-Para entre códigos do hospital e do convênio
+ * Quando o hospital envia um item com código X e o convênio devolve com código Y,
+ * essa tabela armazena a vinculação para cruzamentos futuros automáticos.
  */
 export const vinculacaoCodigos = mysqlTable("vinculacao_codigos", {
   id: int("id").autoincrement().primaryKey(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
-  convenioId: int("convenioId"), // Pode variar por convÃªnio
+  convenioId: int("convenioId"), // Pode variar por convênio
   
-  // CÃ³digo do hospital (enviado no faturamento)
+  // Código do hospital (enviado no faturamento)
   codigoHospital: varchar("codigoHospital", { length: 50 }).notNull(),
   descricaoHospital: text("descricaoHospital"),
   
-  // CÃ³digo do convÃªnio (recebido no demonstrativo)
+  // Código do convênio (recebido no demonstrativo)
   codigoConvenio: varchar("codigoConvenio", { length: 50 }).notNull(),
   descricaoConvenio: text("descricaoConvenio"),
   
-  // ClassificaÃ§Ã£o
+  // Classificação
   tipoItem: mysqlEnum("tipoItem", ["medicamento", "material", "procedimento", "taxa", "diaria", "gas", "outros"]).default("outros"),
   
   // Controle
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
-  criadoPor: int("criadoPor"), // userId que criou a vinculaÃ§Ã£o
+  criadoPor: int("criadoPor"), // userId que criou a vinculação
   metodoMatch: mysqlEnum("metodo_match", ["automatico", "manual"]).default("manual").notNull(),
-  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confianÃ§a (0-100)
+  confianca: decimal("confianca", { precision: 5, scale: 2 }), // Score de confiança (0-100)
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -2516,8 +2516,8 @@ export type InsertVinculacaoCodigo = typeof vinculacaoCodigos.$inferInsert;
 
 
 /**
- * PadrÃ£o de PreÃ§o por Procedimento/ConvÃªnio
- * Armazena estatÃ­sticas de preÃ§o para cada combinaÃ§Ã£o item+convÃªnio
+ * Padrão de Preço por Procedimento/Convênio
+ * Armazena estatísticas de preço para cada combinação item+convênio
  */
 export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
   id: int("id").autoincrement().primaryKey(),
@@ -2530,13 +2530,13 @@ export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
   descricaoItem: varchar("descricaoItem", { length: 500 }),
   tipoItem: varchar("tipoItem", { length: 50 }),
   
-  // EstatÃ­sticas de preÃ§o unitÃ¡rio
+  // Estatísticas de preço unitário
   mediaUnitario: decimal("mediaUnitario", { precision: 12, scale: 4 }),
   minUnitario: decimal("minUnitario", { precision: 12, scale: 4 }),
   maxUnitario: decimal("maxUnitario", { precision: 12, scale: 4 }),
   desvioUnitario: decimal("desvioUnitario", { precision: 12, scale: 4 }),
   
-  // EstatÃ­sticas de valor faturado
+  // Estatísticas de valor faturado
   mediaFaturado: decimal("mediaFaturado", { precision: 12, scale: 4 }),
   minFaturado: decimal("minFaturado", { precision: 12, scale: 4 }),
   maxFaturado: decimal("maxFaturado", { precision: 12, scale: 4 }),
@@ -2546,10 +2546,10 @@ export const padraoPrecoConvenio = mysqlTable("padraoPrecoConvenio", {
   totalOcorrencias: int("totalOcorrencias").default(0).notNull(),
   totalContas: int("totalContas").default(0).notNull(),
   
-  // ConfianÃ§a (0-100) - baseada no volume de dados
+  // Confiança (0-100) - baseada no volume de dados
   confianca: int("confianca").default(0).notNull(),
   
-  // PerÃ­odo analisado
+  // Período analisado
   competenciaInicio: varchar("competenciaInicio", { length: 7 }),
   competenciaFim: varchar("competenciaFim", { length: 7 }),
   
@@ -2564,8 +2564,8 @@ export type PadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferSelect;
 export type InsertPadraoPrecoConvenio = typeof padraoPrecoConvenio.$inferInsert;
 
 /**
- * PadrÃ£o de Glosa por ConvÃªnio
- * Armazena taxa de glosa histÃ³rica por item e convÃªnio
+ * Padrão de Glosa por Convênio
+ * Armazena taxa de glosa histórica por item e convênio
  */
 export const padraoGlosaConvenio = mysqlTable("padraoGlosaConvenio", {
   id: int("id").autoincrement().primaryKey(),
@@ -2577,7 +2577,7 @@ export const padraoGlosaConvenio = mysqlTable("padraoGlosaConvenio", {
   descricaoItem: varchar("descricaoItem", { length: 500 }),
   tipoItem: varchar("tipoItem", { length: 50 }),
   
-  // EstatÃ­sticas de glosa
+  // Estatísticas de glosa
   totalFaturado: int("totalFaturado").default(0).notNull(), // Vezes que o item foi faturado
   totalGlosado: int("totalGlosado").default(0).notNull(), // Vezes que foi glosado
   taxaGlosa: decimal("taxaGlosa", { precision: 5, scale: 2 }).default("0"), // % de glosa
@@ -2586,14 +2586,14 @@ export const padraoGlosaConvenio = mysqlTable("padraoGlosaConvenio", {
   valorTotalGlosado: decimal("valorTotalGlosado", { precision: 14, scale: 2 }).default("0"),
   valorTotalPago: decimal("valorTotalPago", { precision: 14, scale: 2 }).default("0"),
   
-  // CÃ³digos de glosa mais frequentes (JSON array)
+  // Códigos de glosa mais frequentes (JSON array)
   // [{codigoGlosa, descricao, frequencia}]
   codigosGlosaFrequentes: json("codigosGlosaFrequentes"),
   
   // Risco (calculado)
   nivelRisco: mysqlEnum("nivelRisco", ["baixo", "medio", "alto", "critico"]).default("baixo").notNull(),
   
-  // PerÃ­odo analisado
+  // Período analisado
   competenciaInicio: varchar("competenciaInicio", { length: 7 }),
   competenciaFim: varchar("competenciaFim", { length: 7 }),
   
@@ -2608,8 +2608,8 @@ export type PadraoGlosaConvenio = typeof padraoGlosaConvenio.$inferSelect;
 export type InsertPadraoGlosaConvenio = typeof padraoGlosaConvenio.$inferInsert;
 
 /**
- * PadrÃ£o de Quantidade por Item
- * Armazena estatÃ­sticas de quantidade utilizada por item e convÃªnio
+ * Padrão de Quantidade por Item
+ * Armazena estatísticas de quantidade utilizada por item e convênio
  */
 export const padraoQuantidadeItem = mysqlTable("padraoQuantidadeItem", {
   id: int("id").autoincrement().primaryKey(),
@@ -2622,7 +2622,7 @@ export const padraoQuantidadeItem = mysqlTable("padraoQuantidadeItem", {
   descricaoItem: varchar("descricaoItem", { length: 500 }),
   tipoItem: varchar("tipoItem", { length: 50 }),
   
-  // EstatÃ­sticas de quantidade por atendimento/conta
+  // Estatísticas de quantidade por atendimento/conta
   mediaQuantidade: decimal("mediaQuantidade", { precision: 10, scale: 4 }),
   minQuantidade: decimal("minQuantidade", { precision: 10, scale: 4 }),
   maxQuantidade: decimal("maxQuantidade", { precision: 10, scale: 4 }),
@@ -2637,10 +2637,10 @@ export const padraoQuantidadeItem = mysqlTable("padraoQuantidadeItem", {
   limiteInferior: decimal("limiteInferior", { precision: 10, scale: 4 }),
   limiteSuperior: decimal("limiteSuperior", { precision: 10, scale: 4 }),
   
-  // ConfianÃ§a (0-100)
+  // Confiança (0-100)
   confianca: int("confianca").default(0).notNull(),
   
-  // PerÃ­odo analisado
+  // Período analisado
   competenciaInicio: varchar("competenciaInicio", { length: 7 }),
   competenciaFim: varchar("competenciaFim", { length: 7 }),
   
@@ -2655,17 +2655,17 @@ export type InsertPadraoQuantidadeItem = typeof padraoQuantidadeItem.$inferInser
 
 
 // ============================================================
-// CONTAS CONVÃŠNIO - Tabela Operacional Unificada
+// CONTAS CONVÊNIO - Tabela Operacional Unificada
 // ============================================================
 
 /**
- * Tabela operacional para gestÃ£o de contas de convÃªnio.
+ * Tabela operacional para gestão de contas de convênio.
  * Alimentada por DUAS fontes:
  *   1. XML imports (TISS) - parseados e salvos
- *   2. Busca em tempo real no banco do cliente (Warleine) por nÃºmero de conta
+ *   2. Busca em tempo real no banco do cliente (Warleine) por número de conta
  * 
  * Separada das tabelas de bulk sync (integ_faturado, staging_faturamento_xml, faturamento_unificado)
- * que servem para anÃ¡lise e geraÃ§Ã£o de padrÃµes.
+ * que servem para análise e geração de padrões.
  */
 export const contasConvenioItens = mysqlTable("contas_convenio_itens", {
   id: int("id").autoincrement().primaryKey(),
@@ -2673,7 +2673,7 @@ export const contasConvenioItens = mysqlTable("contas_convenio_itens", {
   // Origem do dado
   origem: mysqlEnum("origem", ["XML", "BANCO_CLIENTE"]).notNull(),
   
-  // IdentificaÃ§Ã£o da conta
+  // Identificação da conta
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   numeroGuia: varchar("numeroGuia", { length: 100 }),
   numeroGuiaOperadora: varchar("numeroGuiaOperadora", { length: 100 }),
@@ -2685,7 +2685,7 @@ export const contasConvenioItens = mysqlTable("contas_convenio_itens", {
   pacienteNome: varchar("pacienteNome", { length: 255 }),
   carteiraBeneficiario: varchar("carteiraBeneficiario", { length: 100 }),
   
-  // ConvÃªnio
+  // Convênio
   convenio: varchar("convenio", { length: 255 }),
   convenioId: int("convenioId"),
   
@@ -2713,18 +2713,18 @@ export const contasConvenioItens = mysqlTable("contas_convenio_itens", {
   profissionalExecutante: varchar("profissionalExecutante", { length: 255 }),
   setor: varchar("setor", { length: 255 }),
   
-  // ReferÃªncia ao arquivo de origem (se veio de XML)
+  // Referência ao arquivo de origem (se veio de XML)
   arquivoId: int("arquivoId"),
   
-  // Status da anÃ¡lise de padrÃµes
+  // Status da análise de padrões
   statusAnalise: mysqlEnum("statusAnalise", [
-    "pendente",     // Ainda nÃ£o analisado contra padrÃµes
-    "conforme",     // Dentro dos padrÃµes
-    "divergente",   // Fora dos padrÃµes (tem alertas)
+    "pendente",     // Ainda não analisado contra padrões
+    "conforme",     // Dentro dos padrões
+    "divergente",   // Fora dos padrões (tem alertas)
     "revisado",     // Revisado manualmente
   ]).default("pendente").notNull(),
   
-  // DivergÃªncias encontradas (JSON array de alertas)
+  // Divergências encontradas (JSON array de alertas)
   // [{tipo, severidade, mensagem, valorEsperado, valorEncontrado, padraoId}]
   divergencias: json("divergencias"),
   
@@ -2746,8 +2746,8 @@ export type ContaConvenioItem = typeof contasConvenioItens.$inferSelect;
 export type InsertContaConvenioItem = typeof contasConvenioItens.$inferInsert;
 
 /**
- * Tabela de resumo de contas convÃªnio (cabeÃ§alho da conta)
- * Armazena metadados da conta como um todo, nÃ£o dos itens individuais
+ * Tabela de resumo de contas convênio (cabeçalho da conta)
+ * Armazena metadados da conta como um todo, não dos itens individuais
  */
 export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
   id: int("id").autoincrement().primaryKey(),
@@ -2773,7 +2773,7 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
   dataAlta: timestamp("dataAlta"),
   competencia: varchar("competencia", { length: 20 }),
   
-  // Status geral da anÃ¡lise
+  // Status geral da análise
   statusAnalise: mysqlEnum("statusAnaliseResumo", [
     "pendente",
     "conforme",
@@ -2781,7 +2781,7 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
     "revisado",
   ]).default("pendente").notNull(),
   
-  // Resumo de divergÃªncias
+  // Resumo de divergências
   totalDivergencias: int("totalDivergencias").default(0),
   totalAlertas: int("totalAlertas").default(0),
   
@@ -2790,8 +2790,8 @@ export const contasConvenioResumo = mysqlTable("contas_convenio_resumo", {
   detalhesRisco: json("detalhesRisco"), // {score, composicao, preco, quantidade, glosa, detalhes[]}
   isOutlierValor: int("isOutlierValor").default(0), // 1 = outlier de valor
   
-  // DivergÃªncias que nÃ£o pertencem a nenhum item especÃ­fico (ITEM_FALTANTE, etc.)
-  divergenciasGerais: json("divergenciasGerais"), // Array de divergÃªncias Ã³rfÃ£s (sem item correspondente na conta)
+  // Divergências que não pertencem a nenhum item específico (ITEM_FALTANTE, etc.)
+  divergenciasGerais: json("divergenciasGerais"), // Array de divergências órfãs (sem item correspondente na conta)
   
   // Metadados
   dataBusca: timestamp("dataBusca").defaultNow().notNull(),
@@ -2808,7 +2808,7 @@ export type ContaConvenioResumo = typeof contasConvenioResumo.$inferSelect;
 export type InsertContaConvenioResumo = typeof contasConvenioResumo.$inferInsert;
 
 /**
- * ProntuÃ¡rio - PrescriÃ§Ãµes MÃ©dicas importadas da IntegraÃ§Ã£o
+ * Prontuário - Prescrições Médicas importadas da Integração
  */
 export const prontuarioPrescricoes = mysqlTable("prontuario_prescricoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -2837,7 +2837,7 @@ export type ProntuarioPrescricao = typeof prontuarioPrescricoes.$inferSelect;
 export type InsertProntuarioPrescricao = typeof prontuarioPrescricoes.$inferInsert;
 
 /**
- * ProntuÃ¡rio - EvoluÃ§Ãµes ClÃ­nicas e de Enfermagem
+ * Prontuário - Evoluções Clínicas e de Enfermagem
  */
 export const prontuarioEvolucoes = mysqlTable("prontuario_evolucoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -2862,37 +2862,37 @@ export type ProntuarioEvolucao = typeof prontuarioEvolucoes.$inferSelect;
 export type InsertProntuarioEvolucao = typeof prontuarioEvolucoes.$inferInsert;
 
 /**
- * Feedback de DivergÃªncias - Registra decisÃµes do auditor sobre divergÃªncias encontradas
- * Alimenta o feedback loop para refinar os padrÃµes de cobranÃ§a
+ * Feedback de Divergências - Registra decisões do auditor sobre divergências encontradas
+ * Alimenta o feedback loop para refinar os padrões de cobrança
  */
 export const feedbackDivergencias = mysqlTable("feedback_divergencias", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia Ã  conta e item
+  // Referência à conta e item
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   codigoItem: varchar("codigoItem", { length: 50 }),
   
-  // ReferÃªncia ao padrÃ£o
+  // Referência ao padrão
   padraoId: int("padraoId"),
   
-  // Tipo da divergÃªncia original
+  // Tipo da divergência original
   tipoDivergencia: varchar("tipoDivergencia", { length: 50 }).notNull(), // PRECO, QUANTIDADE, ITEM_FALTANTE, ITEM_EXTRA, COMPOSICAO, GLOSA_RISCO
   
-  // DecisÃ£o do auditor
+  // Decisão do auditor
   decisao: mysqlEnum("decisao", [
-    "aceitar",       // DivergÃªncia Ã© vÃ¡lida, padrÃ£o deve ser ajustado
-    "rejeitar",      // DivergÃªncia Ã© falso positivo, conta estÃ¡ correta
-    "ignorar",       // NÃ£o relevante para este caso
+    "aceitar",       // Divergência é válida, padrão deve ser ajustado
+    "rejeitar",      // Divergência é falso positivo, conta está correta
+    "ignorar",       // Não relevante para este caso
   ]).notNull(),
   
   // Justificativa do auditor
   justificativa: text("justificativa"),
   
-  // Dados da divergÃªncia original (snapshot)
+  // Dados da divergência original (snapshot)
   dadosDivergencia: json("dadosDivergencia"),
   
-  // UsuÃ¡rio que deu o feedback
+  // Usuário que deu o feedback
   usuarioId: int("usuarioId").notNull(),
   usuarioNome: varchar("usuarioNome", { length: 255 }),
   
@@ -2908,8 +2908,8 @@ export type InsertFeedbackDivergencia = typeof feedbackDivergencias.$inferInsert
 
 
 /**
- * Tabela CBHPM - ClassificaÃ§Ã£o Brasileira Hierarquizada de Procedimentos MÃ©dicos
- * Base de referÃªncia para porte anestÃ©sico e compatibilidade de taxas
+ * Tabela CBHPM - Classificação Brasileira Hierarquizada de Procedimentos Médicos
+ * Base de referência para porte anestésico e compatibilidade de taxas
  */
 export const tabelaCbhpm = mysqlTable("tabelaCbhpm", {
   id: int("id").autoincrement().primaryKey(),
@@ -2920,29 +2920,29 @@ export const tabelaCbhpm = mysqlTable("tabelaCbhpm", {
   // Porte do procedimento (1 a 8, ou especial)
   porte: varchar("porte", { length: 10 }),
   
-  // Porte anestÃ©sico esperado (1 a 8)
+  // Porte anestésico esperado (1 a 8)
   porteAnestesico: varchar("porteAnestesico", { length: 10 }),
   
   // Custo operacional (CO)
   custoOperacional: decimal("custoOperacional", { precision: 14, scale: 2 }),
   
-  // NÃºmero de auxiliares
+  // Número de auxiliares
   numAuxiliares: int("numAuxiliares").default(0),
   
-  // IncidÃªncia (percentual do porte para anestesia)
+  // Incidência (percentual do porte para anestesia)
   incidencia: decimal("incidencia", { precision: 5, scale: 2 }),
   
-  // Filme radiolÃ³gico (quantidade padrÃ£o)
+  // Filme radiológico (quantidade padrão)
   filmeRadiologico: int("filmeRadiologico").default(0),
   
   // Grupo/Subgrupo do procedimento
   grupo: varchar("grupo", { length: 100 }),
   subgrupo: varchar("subgrupo", { length: 100 }),
   
-  // VersÃ£o da tabela CBHPM
+  // Versão da tabela CBHPM
   versao: varchar("versao", { length: 20 }).default("6a"),
   
-  // ObservaÃ§Ãµes
+  // Observações
   observacoes: text("observacoes"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2957,43 +2957,43 @@ export type TabelaCbhpm = typeof tabelaCbhpm.$inferSelect;
 export type InsertTabelaCbhpm = typeof tabelaCbhpm.$inferInsert;
 
 /**
- * Tabela de Porte por ConvÃªnio
- * Regras especÃ­ficas de cada convÃªnio para porte de sala e anestesia
- * Sobrescreve a CBHPM quando o convÃªnio tem tabela prÃ³pria (ex: Unimed, Ipasgo)
+ * Tabela de Porte por Convênio
+ * Regras específicas de cada convênio para porte de sala e anestesia
+ * Sobrescreve a CBHPM quando o convênio tem tabela própria (ex: Unimed, Ipasgo)
  */
 export const tabelaPorteConvenio = mysqlTable("tabelaPorteConvenio", {
   id: int("id").autoincrement().primaryKey(),
   
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // ConvÃªnio que possui tabela prÃ³pria
+  // Convênio que possui tabela própria
   convenio: varchar("convenio", { length: 255 }).notNull(),
   
-  // CÃ³digo do procedimento
+  // Código do procedimento
   codigoProcedimento: varchar("codigoProcedimento", { length: 20 }).notNull(),
   descricaoProcedimento: varchar("descricaoProcedimento", { length: 500 }),
   
-  // Porte especÃ­fico do convÃªnio (pode diferir da CBHPM)
+  // Porte específico do convênio (pode diferir da CBHPM)
   porte: varchar("porte", { length: 10 }),
   porteAnestesico: varchar("porteAnestesico", { length: 10 }),
   
   // Valor da taxa de sala esperado para este porte
   valorTaxaSala: decimal("valorTaxaSala", { precision: 14, scale: 2 }),
   
-  // Valor do honorÃ¡rio anestÃ©sico esperado
+  // Valor do honorário anestésico esperado
   valorHonorarioAnestesico: decimal("valorHonorarioAnestesico", { precision: 14, scale: 2 }),
   
-  // Custo operacional especÃ­fico do convÃªnio
+  // Custo operacional específico do convênio
   custoOperacional: decimal("custoOperacional", { precision: 14, scale: 2 }),
   
-  // VigÃªncia
+  // Vigência
   vigenciaInicio: timestamp("vigenciaInicio"),
   vigenciaFim: timestamp("vigenciaFim"),
   
-  // Origem da informaÃ§Ã£o (manual, importaÃ§Ã£o, contrato)
+  // Origem da informação (manual, importação, contrato)
   origem: varchar("origem", { length: 50 }).default("manual"),
   
-  // ObservaÃ§Ãµes
+  // Observações
   observacoes: text("observacoes"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -3009,13 +3009,13 @@ export type InsertTabelaPorteConvenio = typeof tabelaPorteConvenio.$inferInsert;
 
 
 /**
- * Falhas de ProntuÃ¡rio - Registra falhas encontradas pela auditora no prontuÃ¡rio do paciente
- * Cada registro Ã© um checkbox marcado + observaÃ§Ã£o
+ * Falhas de Prontuário - Registra falhas encontradas pela auditora no prontuário do paciente
+ * Cada registro é um checkbox marcado + observação
  */
 export const falhasProntuario = mysqlTable("falhas_prontuario", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia Ã  conta
+  // Referência à conta
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
@@ -3024,7 +3024,7 @@ export const falhasProntuario = mysqlTable("falhas_prontuario", {
   // Categorias: EVOLUCAO, PRESCRICAO, CHECAGEM, AUTORIZACAO, DOCUMENTACAO, IDENTIFICACAO, CONSENTIMENTO, ALERGIA, ALTA, OUTRO
   categoriaFalha: varchar("categoriaFalha", { length: 50 }).notNull(),
   
-  // DescriÃ§Ã£o/observaÃ§Ã£o da auditora
+  // Descrição/observação da auditora
   descricao: text("descricao"),
   
   // Severidade
@@ -3049,13 +3049,13 @@ export type FalhaProntuario = typeof falhasProntuario.$inferSelect;
 export type InsertFalhaProntuario = typeof falhasProntuario.$inferInsert;
 
 /**
- * Ajustes de Auditoria - Registra alteraÃ§Ãµes feitas pela auditora nos itens da conta
+ * Ajustes de Auditoria - Registra alterações feitas pela auditora nos itens da conta
  * (alterar quantidade, valor, ou adicionar itens faltantes)
  */
 export const ajustesAuditoria = mysqlTable("ajustes_auditoria", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia Ã  conta
+  // Referência à conta
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
@@ -3068,7 +3068,7 @@ export const ajustesAuditoria = mysqlTable("ajustes_auditoria", {
     "ALTERAR_SETOR",
   ]).notNull(),
   
-  // Item afetado (null se for adiÃ§Ã£o de novo item)
+  // Item afetado (null se for adição de novo item)
   itemId: int("itemId"),
   codigoItem: varchar("codigoItem", { length: 50 }),
   descricaoItem: text("descricaoItem"),
@@ -3084,7 +3084,7 @@ export const ajustesAuditoria = mysqlTable("ajustes_auditoria", {
   // Para itens adicionados
   tipoItemAdicionado: varchar("tipoItemAdicionado", { length: 50 }),
   
-  // Para alteraÃ§Ã£o de setor
+  // Para alteração de setor
   setorOriginal: varchar("setorOriginal", { length: 255 }),
   setorAjustado: varchar("setorAjustado", { length: 255 }),
   
@@ -3111,8 +3111,8 @@ export type AjusteAuditoria = typeof ajustesAuditoria.$inferSelect;
 export type InsertAjusteAuditoria = typeof ajustesAuditoria.$inferInsert;
 
 /**
- * Aprendizado de Auditoria - Base de conhecimento construÃ­da a partir das aÃ§Ãµes das auditoras
- * Cada registro Ã© um padrÃ£o aprendido que pode gerar sugestÃµes automÃ¡ticas
+ * Aprendizado de Auditoria - Base de conhecimento construída a partir das ações das auditoras
+ * Cada registro é um padrão aprendido que pode gerar sugestões automáticas
  */
 export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
   id: int("id").autoincrement().primaryKey(),
@@ -3125,7 +3125,7 @@ export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
     "AJUSTE_QUANTIDADE",      // Ajustes de quantidade recorrentes
     "AJUSTE_VALOR",           // Ajustes de valor recorrentes
     "ITEM_FALTANTE",          // Itens frequentemente adicionados
-    "DECISAO_DIVERGENCIA",    // PadrÃ£o de decisÃ£o em divergÃªncias
+    "DECISAO_DIVERGENCIA",    // Padrão de decisão em divergências
   ]).notNull(),
   
   // Contexto do aprendizado (chave de agrupamento)
@@ -3135,7 +3135,7 @@ export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
   descricaoItem: varchar("descricaoItem", { length: 500 }),
   setor: varchar("setor", { length: 255 }),
   
-  // O que foi aprendido (JSON flexÃ­vel)
+  // O que foi aprendido (JSON flexível)
   // Para FALHA_PRONTUARIO: {tipoFalha, categoriaFalha, frequencia, percentual}
   // Para AJUSTE_QUANTIDADE: {quantidadeMedia, quantidadeModa, direcao: "aumentar"|"diminuir"}
   // Para AJUSTE_VALOR: {valorMedio, valorModa, direcao}
@@ -3143,15 +3143,15 @@ export const aprendizadoAuditoria = mysqlTable("aprendizado_auditoria", {
   // Para DECISAO_DIVERGENCIA: {tipoDivergencia, decisaoMaisComum, percentualAceitar, percentualRejeitar}
   dadosAprendizado: json("dadosAprendizado").notNull(),
   
-  // MÃ©tricas de confianÃ§a
+  // Métricas de confiança
   totalOcorrencias: int("totalOcorrencias").default(1).notNull(),
   confianca: decimal("confianca", { precision: 5, scale: 2 }).default("0.50"), // 0.00 a 1.00
   
-  // Controle de ativaÃ§Ã£o
+  // Controle de ativação
   ativo: int("ativo").default(1).notNull(), // 1 = ativo, 0 = desativado
-  minimoOcorrencias: int("minimoOcorrencias").default(3), // MÃ­nimo para sugerir
+  minimoOcorrencias: int("minimoOcorrencias").default(3), // Mínimo para sugerir
   
-  // Ãšltima atualizaÃ§Ã£o do aprendizado
+  // Última atualização do aprendizado
   ultimaAtualizacao: timestamp("ultimaAtualizacao").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -3168,17 +3168,17 @@ export type InsertAprendizadoAuditoria = typeof aprendizadoAuditoria.$inferInser
 
 
 /**
- * Snapshot de Auditoria - Salva o estado dos itens da conta no momento em que a auditoria Ã© finalizada
- * Permite comparar com a reimportaÃ§Ã£o para verificar se o faturista corrigiu os problemas
+ * Snapshot de Auditoria - Salva o estado dos itens da conta no momento em que a auditoria é finalizada
+ * Permite comparar com a reimportação para verificar se o faturista corrigiu os problemas
  */
 export const snapshotAuditoria = mysqlTable("snapshot_auditoria", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia Ã  conta
+  // Referência à conta
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // ConvÃªnio
+  // Convênio
   convenio: varchar("convenio", { length: 255 }),
   convenioId: int("convenioId"),
   pacienteNome: varchar("pacienteNome", { length: 255 }),
@@ -3187,11 +3187,11 @@ export const snapshotAuditoria = mysqlTable("snapshot_auditoria", {
   // [{codigoItem, descricaoItem, tipoItem, quantidade, valorUnitario, valorTotal, statusAnalise, divergencias}]
   itensSnapshot: json("itensSnapshot").notNull(),
   
-  // Snapshot das divergÃªncias aceitas pela auditoria (itens que o faturista PRECISA corrigir)
+  // Snapshot das divergências aceitas pela auditoria (itens que o faturista PRECISA corrigir)
   // [{codigoItem, tipoDivergencia, decisao, justificativa, dadosDivergencia}]
   divergenciasAceitas: json("divergenciasAceitas"),
   
-  // Snapshot das falhas de prontuÃ¡rio abertas
+  // Snapshot das falhas de prontuário abertas
   // [{tipoFalha, categoriaFalha, descricao, severidade}]
   falhasAbertas: json("falhasAbertas"),
   
@@ -3212,14 +3212,14 @@ export const snapshotAuditoria = mysqlTable("snapshot_auditoria", {
   
   // Status do snapshot
   status: mysqlEnum("statusSnapshot", [
-    "aguardando_correcao",   // Faturista ainda nÃ£o reimportou
-    "reimportado",           // Conta foi reimportada, comparaÃ§Ã£o disponÃ­vel
-    "conferido",             // ConferÃªncia foi revisada manualmente
-    "aprovado",              // Todas as correÃ§Ãµes foram feitas
-    "reprovado",             // CorreÃ§Ãµes insuficientes, precisa refazer
+    "aguardando_correcao",   // Faturista ainda não reimportou
+    "reimportado",           // Conta foi reimportada, comparação disponível
+    "conferido",             // Conferência foi revisada manualmente
+    "aprovado",              // Todas as correções foram feitas
+    "reprovado",             // Correções insuficientes, precisa refazer
   ]).default("aguardando_correcao").notNull(),
   
-  // Data em que a correÃ§Ã£o foi realizada (preenchida quando status muda para reimportado/conferido/aprovado)
+  // Data em que a correção foi realizada (preenchida quando status muda para reimportado/conferido/aprovado)
   dataCorrecao: timestamp("dataCorrecao"),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -3234,16 +3234,16 @@ export type SnapshotAuditoria = typeof snapshotAuditoria.$inferSelect;
 export type InsertSnapshotAuditoria = typeof snapshotAuditoria.$inferInsert;
 
 /**
- * ConferÃªncia PÃ³s-CorreÃ§Ã£o - Resultado da comparaÃ§Ã£o entre snapshot e reimportaÃ§Ã£o
- * Cada registro Ã© um item comparado com seu status de correÃ§Ã£o
+ * Conferência Pós-Correção - Resultado da comparação entre snapshot e reimportação
+ * Cada registro é um item comparado com seu status de correção
  */
 export const conferenciaCorrecao = mysqlTable("conferencia_correcao", {
   id: int("id").autoincrement().primaryKey(),
   
-  // ReferÃªncia ao snapshot
+  // Referência ao snapshot
   snapshotId: int("snapshotId").notNull(),
   
-  // ReferÃªncia Ã  conta
+  // Referência à conta
   numeroConta: varchar("numeroConta", { length: 100 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
@@ -3254,8 +3254,8 @@ export const conferenciaCorrecao = mysqlTable("conferencia_correcao", {
   
   // Tipo do apontamento original
   tipoApontamento: mysqlEnum("tipoApontamento", [
-    "divergencia_aceita",   // DivergÃªncia aceita pela auditoria
-    "falha_prontuario",     // Falha de prontuÃ¡rio aberta
+    "divergencia_aceita",   // Divergência aceita pela auditoria
+    "falha_prontuario",     // Falha de prontuário aberta
     "ajuste_auditoria",     // Ajuste feito pela auditoria
   ]).notNull(),
   
@@ -3264,25 +3264,25 @@ export const conferenciaCorrecao = mysqlTable("conferencia_correcao", {
   quantidadeAntes: decimal("quantidadeAntes", { precision: 12, scale: 4 }),
   detalhesAntes: json("detalhesAntes"), // dados completos do apontamento original
   
-  // Dados DEPOIS (da reimportaÃ§Ã£o)
+  // Dados DEPOIS (da reimportação)
   valorDepois: decimal("valorDepois", { precision: 14, scale: 2 }),
   quantidadeDepois: decimal("quantidadeDepois", { precision: 12, scale: 4 }),
   detalhesDepois: json("detalhesDepois"), // dados do item reimportado
   
-  // Resultado da comparaÃ§Ã£o
+  // Resultado da comparação
   statusCorrecao: mysqlEnum("statusCorrecao", [
     "corrigido",              // Item foi alterado conforme apontado
-    "parcialmente_corrigido", // Mudou mas nÃ£o exatamente como esperado
+    "parcialmente_corrigido", // Mudou mas não exatamente como esperado
     "nao_corrigido",          // Permanece igual ao anterior
-    "novo_problema",          // Item que nÃ£o tinha divergÃªncia agora tem
-    "item_removido",          // Item foi removido na reimportaÃ§Ã£o
-    "item_adicionado",        // Novo item adicionado na reimportaÃ§Ã£o
+    "novo_problema",          // Item que não tinha divergência agora tem
+    "item_removido",          // Item foi removido na reimportação
+    "item_adicionado",        // Novo item adicionado na reimportação
   ]).notNull(),
   
-  // DescriÃ§Ã£o da mudanÃ§a detectada
+  // Descrição da mudança detectada
   descricaoMudanca: text("descricaoMudanca"),
   
-  // Impacto financeiro da correÃ§Ã£o (diferenÃ§a de valor)
+  // Impacto financeiro da correção (diferença de valor)
   impactoFinanceiro: decimal("impactoFinanceiro", { precision: 14, scale: 2 }),
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -3296,8 +3296,8 @@ export type ConferenciaCorrecao = typeof conferenciaCorrecao.$inferSelect;
 export type InsertConferenciaCorrecao = typeof conferenciaCorrecao.$inferInsert;
 
 /**
- * Log de AnÃ¡lise de ComparaÃ§Ã£o
- * Registra qual gabarito/padrÃ£o foi usado em cada anÃ¡lise de conta,
+ * Log de Análise de Comparação
+ * Registra qual gabarito/padrão foi usado em cada análise de conta,
  * para rastreabilidade e auditoria
  */
 export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
@@ -3305,7 +3305,7 @@ export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
   numeroConta: varchar("numeroConta", { length: 50 }).notNull(),
   estabelecimentoId: int("estabelecimentoId").notNull(),
   
-  // Info do padrÃ£o/gabarito usado
+  // Info do padrão/gabarito usado
   padraoId: int("padraoId"),
   padraoNome: varchar("padraoNome", { length: 500 }),
   padraoTipo: varchar("padraoTipo", { length: 50 }), // 'gabarito_manual', 'padrao_aprendido'
@@ -3316,7 +3316,7 @@ export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
   // Procedimentos da conta
   procedimentosConta: text("procedimentosConta"),
   
-  // Resultados da anÃ¡lise
+  // Resultados da análise
   totalItensAnalisados: int("totalItensAnalisados").default(0),
   totalDivergencias: int("totalDivergencias").default(0),
   divergenciasCritico: int("divergenciasCritico").default(0),
@@ -3324,13 +3324,13 @@ export const logAnaliseComparacao = mysqlTable("log_analise_comparacao", {
   divergenciasAviso: int("divergenciasAviso").default(0),
   divergenciasInfo: int("divergenciasInfo").default(0),
   
-  // Score de confianÃ§a do match
+  // Score de confiança do match
   scoreMatch: int("scoreMatch").default(0),
-  motivoSelecao: text("motivoSelecao"), // ExplicaÃ§Ã£o de por que este padrÃ£o foi selecionado
+  motivoSelecao: text("motivoSelecao"), // Explicação de por que este padrão foi selecionado
   
   // Metadados
   statusGeral: varchar("statusGeral", { length: 30 }),
-  duracaoMs: int("duracaoMs"), // Tempo de execuÃ§Ã£o em ms
+  duracaoMs: int("duracaoMs"), // Tempo de execução em ms
   usuarioId: int("usuarioId"),
   usuarioNome: varchar("usuarioNome", { length: 255 }),
   
@@ -3346,11 +3346,11 @@ export type InsertLogAnaliseComparacao = typeof logAnaliseComparacao.$inferInser
 
 
 // ============================================================
-// MÃ“DULO NFS-e - GestÃ£o de Notas Fiscais de ServiÃ§o
+// MÓDULO NFS-e - Gestão de Notas Fiscais de Serviço
 // ============================================================
 
 /**
- * ConfiguraÃ§Ã£o de hospitais para emissÃ£o de NFS-e
+ * Configuração de hospitais para emissão de NFS-e
  * Armazena credenciais de acesso ao portal de NFS-e de cada hospital/unidade
  */
 export const nfseHospitais = mysqlTable("nfse_hospitais", {
@@ -3373,8 +3373,8 @@ export type NfseHospital = typeof nfseHospitais.$inferSelect;
 export type InsertNfseHospital = typeof nfseHospitais.$inferInsert;
 
 /**
- * ConvÃªnios para NFS-e
- * Separado dos convÃªnios de faturamento para flexibilidade
+ * Convênios para NFS-e
+ * Separado dos convênios de faturamento para flexibilidade
  */
 export const nfseConvenios = mysqlTable("nfse_convenios", {
   id: int("id").autoincrement().primaryKey(),
@@ -3389,7 +3389,7 @@ export type NfseConvenio = typeof nfseConvenios.$inferSelect;
 export type InsertNfseConvenio = typeof nfseConvenios.$inferInsert;
 
 /**
- * Notas Fiscais de ServiÃ§o (NFS-e)
+ * Notas Fiscais de Serviço (NFS-e)
  * Registro completo de cada nota fiscal emitida
  */
 export const nfseNotas = mysqlTable("nfse_notas", {
@@ -3421,11 +3421,11 @@ export type InsertNfseNota = typeof nfseNotas.$inferInsert;
 
 
 // ============================================================
-// MÃ“DULO FINANCEIRO
+// MÓDULO FINANCEIRO
 // ============================================================
 
 /**
- * Empresas/CNPJs do mÃ³dulo financeiro (vinculadas a estabelecimentos)
+ * Empresas/CNPJs do módulo financeiro (vinculadas a estabelecimentos)
  */
 export const finEmpresas = mysqlTable("fin_empresas", {
   id: int("id").autoincrement().primaryKey(),
@@ -3443,7 +3443,7 @@ export type FinEmpresa = typeof finEmpresas.$inferSelect;
 export type InsertFinEmpresa = typeof finEmpresas.$inferInsert;
 
 /**
- * Clientes do mÃ³dulo financeiro
+ * Clientes do módulo financeiro
  */
 export const finClientes = mysqlTable("fin_clientes", {
   id: int("id").autoincrement().primaryKey(),
@@ -3472,7 +3472,7 @@ export type FinCliente = typeof finClientes.$inferSelect;
 export type InsertFinCliente = typeof finClientes.$inferInsert;
 
 /**
- * Categorias de despesa do mÃ³dulo financeiro
+ * Categorias de despesa do módulo financeiro
  */
 export const finCategorias = mysqlTable("fin_categorias", {
   id: int("id").autoincrement().primaryKey(),
@@ -3500,7 +3500,7 @@ export type FinTipoPagamento = typeof finTiposPagamento.$inferSelect;
 export type InsertFinTipoPagamento = typeof finTiposPagamento.$inferInsert;
 
 /**
- * Tipos de recebÃ­vel
+ * Tipos de recebível
  */
 export const finTiposRecebivel = mysqlTable("fin_tipos_recebivel", {
   id: int("id").autoincrement().primaryKey(),
@@ -3513,7 +3513,7 @@ export type FinTipoRecebivel = typeof finTiposRecebivel.$inferSelect;
 export type InsertFinTipoRecebivel = typeof finTiposRecebivel.$inferInsert;
 
 /**
- * Contas bancÃ¡rias
+ * Contas bancárias
  */
 export const finBancos = mysqlTable("fin_bancos", {
   id: int("id").autoincrement().primaryKey(),
@@ -3528,7 +3528,7 @@ export type FinBanco = typeof finBancos.$inferSelect;
 export type InsertFinBanco = typeof finBancos.$inferInsert;
 
 /**
- * Custos fixos e variÃ¡veis
+ * Custos fixos e variáveis
  */
 export const finCustos = mysqlTable("fin_custos", {
   id: int("id").autoincrement().primaryKey(),
@@ -3544,7 +3544,7 @@ export type FinCusto = typeof finCustos.$inferSelect;
 export type InsertFinCusto = typeof finCustos.$inferInsert;
 
 /**
- * TransaÃ§Ãµes (Contas a Pagar)
+ * Transações (Contas a Pagar)
  */
 export const finTransacoes = mysqlTable("fin_transacoes", {
   id: int("id").autoincrement().primaryKey(),
@@ -3574,7 +3574,7 @@ export type FinTransacao = typeof finTransacoes.$inferSelect;
 export type InsertFinTransacao = typeof finTransacoes.$inferInsert;
 
 /**
- * RecebÃ­veis (Contas a Receber)
+ * Recebíveis (Contas a Receber)
  */
 export const finRecebiveis = mysqlTable("fin_recebiveis", {
   id: int("id").autoincrement().primaryKey(),
@@ -3587,8 +3587,8 @@ export const finRecebiveis = mysqlTable("fin_recebiveis", {
   dataVencimento: date("dataVencimento").notNull(),
   dataRecebimento: date("dataRecebimento"),
   recebido: mysqlEnum("recebido", ["sim", "nao"]).default("nao").notNull(),
-  tipoServico: varchar("tipoServico", { length: 255 }), // Tipo de ServiÃ§o (ex: Consulta, Exame, Cirurgia, InternaÃ§Ã£o)
-  descricaoServico: text("descricaoServico"), // DescriÃ§Ã£o detalhada do serviÃ§o prestado
+  tipoServico: varchar("tipoServico", { length: 255 }), // Tipo de Serviço (ex: Consulta, Exame, Cirurgia, Internação)
+  descricaoServico: text("descricaoServico"), // Descrição detalhada do serviço prestado
   boletoSolicitacaoId: varchar("boletoSolicitacaoId", { length: 100 }),
   boletoLinhaDigitavel: varchar("boletoLinhaDigitavel", { length: 100 }),
   boletoPixCopiaCola: text("boletoPixCopiaCola"),
@@ -3609,7 +3609,7 @@ export type FinRecebivel = typeof finRecebiveis.$inferSelect;
 export type InsertFinRecebivel = typeof finRecebiveis.$inferInsert;
 
 /**
- * Extratos bancÃ¡rios
+ * Extratos bancários
  */
 export const finExtratos = mysqlTable("fin_extratos", {
   id: int("id").autoincrement().primaryKey(),
@@ -3633,7 +3633,7 @@ export type FinExtrato = typeof finExtratos.$inferSelect;
 export type InsertFinExtrato = typeof finExtratos.$inferInsert;
 
 /**
- * PrevisÃ£o de receita/faturamento
+ * Previsão de receita/faturamento
  */
 export const finPrevisaoReceita = mysqlTable("fin_previsao_receita", {
   id: int("id").autoincrement().primaryKey(),
@@ -3679,7 +3679,7 @@ export type FinCentroCusto = typeof finCentrosCusto.$inferSelect;
 export type InsertFinCentroCusto = typeof finCentrosCusto.$inferInsert;
 
 // ============================================================
-// MÃ“DULO CONTRATOS
+// MÓDULO CONTRATOS
 // ============================================================
 
 /**
@@ -3692,8 +3692,8 @@ export const contratos = mysqlTable("contratos", {
   contratanteCnpj: varchar("contratanteCnpj", { length: 20 }),
   contratadaNome: varchar("contratadaNome", { length: 255 }),
   contratadaCnpj: varchar("contratadaCnpj", { length: 20 }),
-  servicos: json("servicos"), // Array de serviÃ§os selecionados
-  modelosCobranca: json("modelosCobranca"), // Array de modelos de cobranÃ§a
+  servicos: json("servicos"), // Array de serviços selecionados
+  modelosCobranca: json("modelosCobranca"), // Array de modelos de cobrança
   valorMensal: decimal("valorMensal", { precision: 15, scale: 2 }),
   valorHora: decimal("valorHora", { precision: 15, scale: 2 }),
   valorPercentualConvenio: decimal("valorPercentualConvenio", { precision: 5, scale: 2 }),
@@ -3701,7 +3701,7 @@ export const contratos = mysqlTable("contratos", {
   dataInicio: date("dataInicio"),
   dataFim: date("dataFim"),
   status: mysqlEnum("status", ["rascunho", "ativo", "suspenso", "encerrado", "renovacao"]).default("rascunho").notNull(),
-  dadosCompletos: json("dadosCompletos"), // JSON com todas as clÃ¡usulas e seÃ§Ãµes
+  dadosCompletos: json("dadosCompletos"), // JSON com todas as cláusulas e seções
   docxUrl: text("docxUrl"), // URL do DOCX no S3
   docxKey: varchar("docxKey", { length: 512 }),
   userId: int("userId"),
@@ -3717,7 +3717,7 @@ export type Contrato = typeof contratos.$inferSelect;
 export type InsertContrato = typeof contratos.$inferInsert;
 
 /**
- * HistÃ³rico de alteraÃ§Ãµes e reajustes de contratos
+ * Histórico de alterações e reajustes de contratos
  */
 export const contratosHistorico = mysqlTable("contratos_historico", {
   id: int("id").autoincrement().primaryKey(),
@@ -3738,7 +3738,7 @@ export type ContratoHistorico = typeof contratosHistorico.$inferSelect;
 export type InsertContratoHistorico = typeof contratosHistorico.$inferInsert;
 
 // ============================================================
-// MÃ“DULO PROPOSTAS
+// MÓDULO PROPOSTAS
 // ============================================================
 
 /**
@@ -3772,7 +3772,7 @@ export type Proposta = typeof propostas.$inferSelect;
 export type InsertProposta = typeof propostas.$inferInsert;
 
 /**
- * Itens de serviÃ§o das propostas
+ * Itens de serviço das propostas
  */
 export const propostaItens = mysqlTable("proposta_itens", {
   id: int("id").autoincrement().primaryKey(),
@@ -3794,20 +3794,20 @@ export type InsertPropostaItem = typeof propostaItens.$inferInsert;
 
 
 // ============================================================
-// TASY FATURADO STAGING - ImportaÃ§Ã£o bruta de dados Tasy
+// TASY FATURADO STAGING - Importação bruta de dados Tasy
 // ============================================================
 
 /**
  * Tabela TASY.FATURADO.STAGING
  * Armazena dados brutos importados do CSV do Tasy (Hemolabor/Ipasgo/etc.)
  * Campos de valor armazenados como TEXT para preservar formato original
- * (o CSV usa vÃ­rgula como separador decimal E como separador de campos)
+ * (o CSV usa vírgula como separador decimal E como separador de campos)
  */
 export const tasyFaturadoStaging = mysqlTable("tasy_faturado_staging", {
   id: int("id").autoincrement().primaryKey(),
   
-  // IdentificaÃ§Ã£o da importaÃ§Ã£o
-  importacaoId: int("importacaoId"), // ReferÃªncia Ã  importaÃ§Ã£o que trouxe este registro
+  // Identificação da importação
+  importacaoId: int("importacaoId"), // Referência à importação que trouxe este registro
   estabelecimentoId: int("estabelecimentoId"),
   
   // Campos do CSV (0-38: campos fixos)
@@ -3852,11 +3852,11 @@ export const tasyFaturadoStaging = mysqlTable("tasy_faturado_staging", {
   qtd: varchar("qtd", { length: 20 }),                                // 38
   
   // Campos de valor (39-45) - armazenados como TEXT para preservar formato original
-  // Os valores no CSV usam vÃ­rgula decimal (ex: "11,02") que conflita com separador CSV
+  // Os valores no CSV usam vírgula decimal (ex: "11,02") que conflita com separador CSV
   // Armazenamos o bloco bruto de valores para parsing posterior
   valoresRaw: text("valoresRaw"),  // Campos 39-45 concatenados com pipe: "11,02|0|0|0|11,02|0|0"
   
-  // Campos de valor parseados (preenchidos quando possÃ­vel)
+  // Campos de valor parseados (preenchidos quando possível)
   vlProduzido: decimal("vlProduzido", { precision: 14, scale: 2 }),
   vlMedico: decimal("vlMedico", { precision: 14, scale: 2 }),
   aReceber: decimal("aReceber", { precision: 14, scale: 2 }),
@@ -3868,11 +3868,11 @@ export const tasyFaturadoStaging = mysqlTable("tasy_faturado_staging", {
   // Campos finais (46-49)
   motivoGlosa: text("motivoGlosa"),                                   // 46
   retorno: varchar("retorno", { length: 50 }),                        // 47
-  pgto: varchar("pgto", { length: 20 }),                              // 48 - CompetÃªncia do pagamento
+  pgto: varchar("pgto", { length: 20 }),                              // 48 - Competência do pagamento
   dtPgto: varchar("dtPgto", { length: 50 }),                          // 49 - Data do pagamento
   
   // Metadados
-  linhaOriginal: int("linhaOriginal"), // NÃºmero da linha no CSV original
+  linhaOriginal: int("linhaOriginal"), // Número da linha no CSV original
   parseStatus: mysqlEnum("parseStatus", ["ok", "ambiguo", "erro"]).default("ok").notNull(),
   parseNotas: text("parseNotas"), // Notas sobre problemas de parsing
   
@@ -3892,8 +3892,8 @@ export type TasyFaturadoStaging = typeof tasyFaturadoStaging.$inferSelect;
 export type InsertTasyFaturadoStaging = typeof tasyFaturadoStaging.$inferInsert;
 
 /**
- * MÃ“DULO DE AUDITORIA DE SISTEMA
- * Tabela para armazenar logs globais de aÃ§Ãµes dos usuÃ¡rios
+ * MÓDULO DE AUDITORIA DE SISTEMA
+ * Tabela para armazenar logs globais de ações dos usuários
  */
 export const auditLogs = mysqlTable("auditLogs", {
   id: int("id").primaryKey().autoincrement(),
@@ -3902,7 +3902,7 @@ export const auditLogs = mysqlTable("auditLogs", {
   acao: mysqlEnum("acao", ["CRIAR", "EDITAR", "EXCLUIR", "ACESSO", "SISTEMA"]).notNull(),
   entidade: varchar("entidade", { length: 255 }).notNull(), // ex: 'usuario', 'convenio', 'integrador', 'auth'
   entidadeId: varchar("entidadeId", { length: 255 }), // ID do registro afetado (opcional)
-  detalhes: json("detalhes"), // Payload JSON com contexto ou diff de mudanÃ§as
+  detalhes: json("detalhes"), // Payload JSON com contexto ou diff de mudanças
   ipAddress: varchar("ipAddress", { length: 45 }), // Para IPv4 ou IPv6
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -4069,3 +4069,22 @@ export const staging_faturamento_easyvision = mysqlTable("staging_faturamento_ea
 export type InsertStagingFaturamentoEasyvision = typeof staging_faturamento_easyvision.$inferInsert;
 export type SelectStagingFaturamentoEasyvision = typeof staging_faturamento_easyvision.$inferSelect;
 
+// RE-ADDED MOCK PARA DESTRAVAR A COMPILACAO TYPESCRIPT QUE QUEBROU O HOT-RELOAD DO SISTEMA
+export const faturadoTasy = mysqlTable("faturado_tasy_mock", {
+  id: int("id").primaryKey().autoincrement(),
+  estabelecimentoId: int("estabelecimentoId"),
+  conta: varchar("conta", { length: 50 }),
+  convenio: varchar("convenio", { length: 255 }),
+  competencia: varchar("competencia", { length: 50 }),
+  atend: varchar("atend", { length: 50 }),
+  protocolo: varchar("protocolo", { length: 50 }),
+  setor: varchar("setor", { length: 255 }),
+  profExec: varchar("profExec", { length: 255 }),
+  vlFaturado: varchar("vlFaturado", { length: 50 }),
+  vlPago: varchar("vlPago", { length: 50 }),
+  vlGlosa: varchar("vlGlosa", { length: 50 }),
+  tipoItem: varchar("tipoItem", { length: 50 }),
+  descricao: varchar("descricao", { length: 255 }),
+});
+export type InsertFaturadoTasy = typeof faturadoTasy.$inferInsert;
+export type SelectFaturadoTasy = typeof faturadoTasy.$inferSelect;
