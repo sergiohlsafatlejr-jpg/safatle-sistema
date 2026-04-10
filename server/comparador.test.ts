@@ -22,7 +22,7 @@ describe("compararProcedimentos", () => {
     expect(resultado.diferencaValor).toBe(0);
   });
 
-  it("compara itens com campos de faturamento_tiss (codigoItem, valorFaturado, etc.)", () => {
+  it("compara itens com campos de staging_faturamento_xml (codigoItem, valorFaturado, etc.)", () => {
     const enviados = [
       { id: 1, codigoItem: "10101012", quantidade: "1", valorFaturado: "150.00", carteiraBeneficiario: "456", numeroGuiaPrestador: "G002" },
       { id: 2, codigoItem: "20201010", quantidade: "3", valorFaturado: "75.00", carteiraBeneficiario: "456", numeroGuiaPrestador: "G002" },
@@ -48,7 +48,7 @@ describe("compararProcedimentos", () => {
     expect(divValor!.valorRetornado).toBe("60.00");
   });
 
-  it("detecta itens ausentes no retorno (faturamento_tiss)", () => {
+  it("detecta itens ausentes no retorno (staging_faturamento_xml)", () => {
     const enviados = [
       { id: 1, codigoItem: "10101012", quantidade: "1", valorFaturado: "100.00", carteiraBeneficiario: "789", numeroGuiaPrestador: "G003" },
       { id: 2, codigoItem: "30301030", quantidade: "1", valorFaturado: "200.00", carteiraBeneficiario: "789", numeroGuiaPrestador: "G003" },
@@ -65,7 +65,7 @@ describe("compararProcedimentos", () => {
     expect(divAusente!.valorEnviado).toBe("200.00");
   });
 
-  it("detecta itens ausentes no envio (faturamento_tiss)", () => {
+  it("detecta itens ausentes no envio (staging_faturamento_xml)", () => {
     const enviados = [
       { id: 1, codigoItem: "10101012", quantidade: "1", valorFaturado: "100.00", carteiraBeneficiario: "111", numeroGuiaPrestador: "G004" },
     ];
@@ -82,7 +82,7 @@ describe("compararProcedimentos", () => {
     expect(divAusente!.valorRetornado).toBe("50.00");
   });
 
-  it("detecta divergência de quantidade (faturamento_tiss)", () => {
+  it("detecta divergência de quantidade (staging_faturamento_xml)", () => {
     const enviados = [
       { id: 1, codigoItem: "10101012", quantidade: "5", valorFaturado: "500.00", carteiraBeneficiario: "222", numeroGuiaPrestador: "G005" },
     ];
@@ -99,8 +99,8 @@ describe("compararProcedimentos", () => {
     expect(divQtd!.valorRetornado).toBe("3");
   });
 
-  it("funciona com campos mistos (legado + faturamento_tiss)", () => {
-    // Simula cenário onde enviados vêm de procedimentos e retornados de faturamento_tiss
+  it("funciona com campos mistos (legado + staging_faturamento_xml)", () => {
+    // Simula cenário onde enviados vêm de procedimentos e retornados de staging_faturamento_xml
     const enviados = [
       { id: 1, codigo: "10101012", quantidade: 1, valorTotal: "100.00", pacienteCarteirinha: "333", guiaNumero: "G006" },
     ];

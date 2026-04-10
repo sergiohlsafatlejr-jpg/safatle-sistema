@@ -39,12 +39,12 @@ O sistema está organizado em **12 módulos funcionais** principais, cada um com
 
 ### 3.1. Módulo: Upload de Contas
 
-Este módulo gerencia o upload de arquivos XML TISS enviados aos convênios. Ao processar um XML, os dados são extraídos e armazenados na tabela `faturamento_tiss`, e automaticamente migrados para `contas_convenio_itens` e `contas_convenio_resumo` para uso na tela de Conta Convênio.
+Este módulo gerencia o upload de arquivos XML TISS enviados aos convênios. Ao processar um XML, os dados são extraídos e armazenados na tabela `staging_faturamento_xml`, e automaticamente migrados para `contas_convenio_itens` e `contas_convenio_resumo` para uso na tela de Conta Convênio.
 
 | Tabela | Finalidade | Operações |
 |--------|-----------|-----------|
 | `arquivos` | Metadados de cada arquivo enviado/retornado (nome, tipo, S3 URL, status, progresso) | INSERT, UPDATE, SELECT, DELETE |
-| `faturamento_tiss` | Dados detalhados extraídos dos XMLs TISS (itens, valores, guias, profissionais) | INSERT (batch), SELECT, DELETE |
+| `staging_faturamento_xml` | Dados detalhados extraídos dos XMLs TISS (itens, valores, guias, profissionais) | INSERT (batch), SELECT, DELETE |
 | `contas_convenio_itens` | Itens operacionais migrados do XML para gestão por convênio | INSERT (migração automática) |
 | `contas_convenio_resumo` | Resumo por guia/conta (totais, paciente, competência) | INSERT (migração automática) |
 
@@ -60,7 +60,7 @@ Este módulo gerencia o upload de arquivos XML TISS enviados aos convênios. Ao 
 **Fluxo de Dados:**
 ```
 Arquivo XML → S3 (armazenamento) → arquivos (metadados)
-                                  → faturamento_tiss (parsing XML)
+                                  → staging_faturamento_xml (parsing XML)
                                   → contas_convenio_itens (migração automática)
                                   → contas_convenio_resumo (migração automática)
 ```
@@ -77,7 +77,7 @@ Módulo operacional central que permite visualizar, filtrar e analisar contas po
 | `contas_convenio_resumo` | Cabeçalho/resumo de cada conta (totais, paciente, status de análise) | INSERT, SELECT, UPDATE |
 | `padroesCobranca` | Padrões/gabaritos usados na comparação automática | SELECT (leitura) |
 | `feedback_divergencias` | Decisões do auditor sobre divergências encontradas | INSERT, SELECT |
-| `faturamento_tiss` | Fonte de dados para migração XML → contas_convenio | SELECT (leitura) |
+| `staging_faturamento_xml` | Fonte de dados para migração XML → contas_convenio | SELECT (leitura) |
 
 **Páginas do Frontend:**
 - `ContaConvenio.tsx` — Listagem de contas com filtros persistentes na URL (ano, mês, convênio, estabelecimento)
@@ -90,12 +90,12 @@ Módulo operacional central que permite visualizar, filtrar e analisar contas po
 - `compararComPadroes` — Compara conta contra gabaritos e retorna divergências
 - `getDivergencias` — Lista divergências encontradas para uma conta
 - `registrarFeedback` — Registra decisão do auditor (aceitar/rejeitar divergência)
-- `migrarDadosXml` — Migra dados do faturamento_tiss para contas_convenio_itens
+- `migrarDadosXml` — Migra dados do staging_faturamento_xml para contas_convenio_itens
 - `importarDeXml` — Importa XMLs específicos para a tabela operacional
 
 **Fluxo de Dados:**
 ```
-Fonte 1: faturamento_tiss ──migração──→ contas_convenio_itens + contas_convenio_resumo
+Fonte 1: staging_faturamento_xml ──migração──→ contas_convenio_itens + contas_convenio_resumo
 Fonte 2: Banco Warleine ──buscarConta──→ contas_convenio_itens + contas_convenio_resumo
 
 contas_convenio_itens ──comparação──→ padroesCobranca
@@ -179,7 +179,7 @@ Módulo de aprendizado e definição de padrões. Analisa os XMLs importados par
 | `feedback_divergencias` | Feedback do auditor que refina os padrões ao longo do tempo | INSERT, SELECT |
 | `faturamento_unificado`* | Fonte de dados para geração de padrões e autocomplete de códigos | SELECT (leitura) |
 
-> *A tabela `faturamento_unificado` é uma tabela física (não uma view) populada pelo serviço `faturamentoUnificadoService.ts` a partir de três fontes: Warleine (`integ_faturado`), Tasy (`dadosTasy`) e XML TISS (`faturamento_tiss`).
+> *A tabela `faturamento_unificado` é uma tabela física (não uma view) populada pelo serviço `faturamentoUnificadoService.ts` a partir de três fontes: Warleine (`integ_faturado`), Tasy (`dadosTasy`) e XML TISS (`staging_faturamento_xml`).
 
 **Páginas do Frontend:**
 - `PadroesCobranca.tsx` — Listagem de padrões com filtros e navegação
@@ -294,7 +294,7 @@ Módulo analítico que consolida dados de múltiplas fontes para gerar dashboard
 | `padroesContas` | Padrões de conta para sugestões de IA | SELECT (leitura) |
 | `regrasIA` | Regras configuráveis para geração de alertas de IA | INSERT, SELECT, UPDATE, DELETE |
 | `demonstrativo` | Dados de demonstrativo para relatórios | SELECT (leitura) |
-| `faturamento_tiss` | Dados TISS para relatórios de faturamento | SELECT (leitura) |
+| `staging_faturamento_xml` | Dados TISS para relatórios de faturamento | SELECT (leitura) |
 
 **Páginas do Frontend:**
 - `Home.tsx` (Dashboard) — Dashboard principal com métricas resumidas
@@ -461,7 +461,7 @@ A tabela `faturamento_unificado` é o **hub central** do sistema, consolidando d
 
 ```
 ┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│   integ_faturado    │     │     dadosTasy         │     │  faturamento_tiss   │
+│   integ_faturado    │     │     dadosTasy         │     │  staging_faturamento_xml   │
 │  (Banco Warleine)   │     │   (Importação Tasy)   │     │   (Upload XML)      │
 └────────┬────────────┘     └──────────┬───────────┘     └──────────┬──────────┘
          │                             │                            │
@@ -578,7 +578,7 @@ A tabela abaixo lista todas as **52 tabelas** definidas no schema do sistema, or
 | Tabela | Linhas Schema | Descrição |
 |--------|:------------:|-----------|
 | `arquivos` | 77-96 | Metadados de arquivos enviados/retornados (S3) |
-| `faturamento_tiss` | 2132-2184 | Dados extraídos dos XMLs TISS de faturamento |
+| `staging_faturamento_xml` | 2132-2184 | Dados extraídos dos XMLs TISS de faturamento |
 | `faturamento_unificado` | (dinâmica) | Hub central unificando Warleine + Tasy + XML |
 
 ### 6.3. Tabelas de Recebimento e Demonstrativo

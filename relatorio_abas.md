@@ -4,7 +4,7 @@
 
 | Tabela | Registros | Observação |
 |--------|-----------|------------|
-| `faturamento_tiss` | 61.357 | Dados de envio XML TISS |
+| `staging_faturamento_xml` | 61.357 | Dados de envio XML TISS |
 | `demonstrativo` | 37.971 | Dados consolidados de recebimento |
 | `recebimento_tiss` | 720 | Dados de retorno XML TISS |
 | `recebimentos_excel` | 37.251 | Dados de retorno Excel |
@@ -61,7 +61,7 @@
 | `comparacoes` | Estatísticas de comparações realizadas |
 
 ### Status atual:
-**61.357 registros** em `faturamento_tiss` e **37.971** em `demonstrativo`. Esta aba deve estar funcional com dados. Os filtros disponíveis são: estabelecimento, mês/ano de referência e código do prestador executante.
+**61.357 registros** em `staging_faturamento_xml` e **37.971** em `demonstrativo`. Esta aba deve estar funcional com dados. Os filtros disponíveis são: estabelecimento, mês/ano de referência e código do prestador executante.
 
 ---
 

@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
  * Testes para validar a padronização de competência no sistema.
  * 
  * A competência deve seguir o formato AAAA/MM em todas as tabelas:
- * - faturamento_tiss.competencia
+ * - staging_faturamento_xml.competencia
  * - contas_convenio_resumo.competencia
  * - contas_convenio_itens.competencia
  * - conciliados_automatico.competencia
@@ -135,7 +135,7 @@ describe("Padronização de Competência", () => {
   });
 
   describe("Consistência entre tabelas", () => {
-    it("deve usar o mesmo formato AAAA/MM em faturamento_tiss e contas_convenio_resumo", () => {
+    it("deve usar o mesmo formato AAAA/MM em staging_faturamento_xml e contas_convenio_resumo", () => {
       // Simula dados de ambas as tabelas
       const competenciaFaturamento = "2026/02";
       const competenciaResumo = "2026/02";
@@ -149,7 +149,7 @@ describe("Padronização de Competência", () => {
       const filtroAno = 2026;
       const competenciaFiltro = `${filtroAno}/${String(filtroMes).padStart(2, '0')}`;
       
-      // Dados simulados de faturamento_tiss
+      // Dados simulados de staging_faturamento_xml
       const dadosFaturamento = [
         { competencia: "2026/01", valor: 100 },
         { competencia: "2026/02", valor: 200 },

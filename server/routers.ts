@@ -79,7 +79,7 @@ function sanitizeFilename(filename: string): string {
 }
 
 /**
- * Mapeia tipoDespesa do parser para tipoItem legível na tabela faturamento_tiss
+ * Mapeia tipoDespesa do parser para tipoItem legível na tabela staging_faturamento_xml
  * Conforme padrão TISS ANS: codigoDespesa 1=gás, 2=medicamento, 3=material, 5=diária, 7=taxa
  */
 function mapTipoDespesaParaTipoItem(tipoDespesa?: string): string {
@@ -670,7 +670,7 @@ export const appRouter = router({
           const uploadResult = await storagePut(s3Key, buffer, contentType);
           url = uploadResult.url;
           
-          // Excluir faturamento_tiss antigo (para reimportação de XML enviado)
+          // Excluir staging_faturamento_xml antigo (para reimportação de XML enviado)
           await db.deleteFaturamentoTissByArquivo(arquivoId);
           
           // Excluir contas_convenio_itens antigos deste arquivo
@@ -869,17 +869,17 @@ export const appRouter = router({
                 }
               }
               
-              // === FLUXO SIMPLIFICADO: Popular faturamento_tiss diretamente do XML/Excel enviado (sem tabela procedimentos) ===
+              // === FLUXO SIMPLIFICADO: Popular staging_faturamento_xml diretamente do XML/Excel enviado (sem tabela procedimentos) ===
               const totalItensToProcess = parseResult.procedimentos.length;
               await db.updateArquivoProgresso(arquivoId, 0, 0, totalItensToProcess);
               
               // Suportar tanto XML quanto Excel como arquivo enviado
               if (input.direcao === "enviado" && (input.tipoArquivo === "xml" || input.tipoArquivo === "excel")) {
                 try {
-                  console.log('[Upload] Populando faturamento_tiss diretamente do XML enviado...');
+                  console.log('[Upload] Populando staging_faturamento_xml diretamente do XML enviado...');
                   const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
                   
-                  // Mapear procedimentos para registros de faturamento_tiss
+                  // Mapear procedimentos para registros de staging_faturamento_xml
                   // Usar prestadoresComEstabelecimento para atribuir o estabelecimentoId correto por prestador
                   const faturamentoRecords: InsertFaturamentoTiss[] = [];
                   let seqItem = 0;
@@ -930,7 +930,7 @@ export const appRouter = router({
                       const progresso = Math.round((processados / faturamentoRecords.length) * 90);
                       await db.updateArquivoProgresso(arquivoId, progresso, processados, faturamentoRecords.length);
                     }
-                    console.log(`[Upload] faturamento_tiss populado: ${faturamentoRecords.length} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
+                    console.log(`[Upload] staging_faturamento_xml populado: ${faturamentoRecords.length} registros para ${prestadoresComEstabelecimento.length} prestador(es)`);
                     
                     // === MIGRAÇÃO AUTOMÁTICA: Popular contas_convenio_itens e contas_convenio_resumo ===
                     // Isso garante que os dados apareçam na tela de Conta Convênio imediatamente
@@ -1090,8 +1090,8 @@ export const appRouter = router({
                     }
                   }
                 } catch (fatError) {
-                  console.error('[Upload] Erro ao popular faturamento_tiss:', fatError);
-                  // Não falhar o upload se a inserção no faturamento_tiss falhar
+                  console.error('[Upload] Erro ao popular staging_faturamento_xml:', fatError);
+                  // Não falhar o upload se a inserção no staging_faturamento_xml falhar
                 }
               }
               
@@ -1361,7 +1361,7 @@ export const appRouter = router({
     procedimentos: protectedProcedure
       .input(z.object({ arquivoId: z.number() }))
       .query(async ({ input }) => {
-        // Buscar de faturamento_tiss em vez da tabela procedimentos (removida)
+        // Buscar de staging_faturamento_xml em vez da tabela procedimentos (removida)
         return db.getFaturamentoTissByArquivo(input.arquivoId);
       }),
 
@@ -1376,7 +1376,7 @@ export const appRouter = router({
         if (arquivo.userId !== ctx.user.id && ctx.user.role !== 'admin') {
           throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para excluir este arquivo" });
         }
-               // Delete associated faturamento_tiss
+               // Delete associated staging_faturamento_xml
         await db.deleteFaturamentoTissByArquivo(input.id);
         
         // Delete associated recebimento_tiss (XML retornados)
@@ -1800,7 +1800,7 @@ export const appRouter = router({
           status: "pendente",
         });
 
-        // Get itens faturados (de faturamento_tiss)
+        // Get itens faturados (de staging_faturamento_xml)
         const [procEnviados, procRetornados] = await Promise.all([
           db.getFaturamentoTissByArquivo(input.arquivoEnviadoId),
           db.getFaturamentoTissByArquivo(input.arquivoRetornadoId),
@@ -7070,7 +7070,7 @@ export const appRouter = router({
 
   // ============ FATURAMENTO TISS ============
   faturamentoTiss: router({
-    // Listar itens de faturamento_tiss com filtros e paginação
+    // Listar itens de staging_faturamento_xml com filtros e paginação
     list: protectedProcedure
       .input(z.object({
         estabelecimentoId: z.number().optional(),

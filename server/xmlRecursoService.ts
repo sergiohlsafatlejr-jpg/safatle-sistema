@@ -75,7 +75,7 @@ interface DadosConvenio {
  * 07 = Taxa
  */
 function mapearCodigoTabela(tipoItem: string | null, codigoTabelaOriginal: string | null): string {
-  // Se temos o código original do faturamento_tiss, usar mapeamento direto
+  // Se temos o código original do staging_faturamento_xml, usar mapeamento direto
   if (codigoTabelaOriginal) {
     const mapa: Record<string, string> = {
       '02': '20', // Medicamento -> 20
@@ -150,7 +150,7 @@ function extrairCodigoGlosaNumerico(codigoGlosa: string | null): string | null {
 /**
  * Busca TODOS os itens das guias selecionadas na conciliados_automatico
  * (pagos, glosados, divergentes - tudo)
- * e enriquece com dados do faturamento_unificado e faturamento_tiss
+ * e enriquece com dados do faturamento_unificado e staging_faturamento_xml
  */
 async function buscarDadosGuiasCompletas(
   estabelecimentoId: number,
@@ -215,13 +215,13 @@ async function buscarDadosGuiasCompletas(
     fuMap.set(String(fu.numeroGuia), fu);
   }
 
-  // Buscar codigo_tabela do faturamento_tiss original
+  // Buscar codigo_tabela do staging_faturamento_xml original
   const [ftResult] = await db.execute(sql.raw(`
     SELECT 
       numero_guia_prestador as numeroGuia,
       codigo_item as codigoItem,
       codigo_tabela as codigoTabela
-    FROM faturamento_tiss
+    FROM staging_faturamento_xml
     WHERE numero_guia_prestador IN (${guiasStr})
   `));
 

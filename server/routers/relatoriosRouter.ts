@@ -62,7 +62,7 @@ export const relatoriosRouter = router({
       faturamentoTiss: Object.entries(CAMPOS_FATURAMENTO_TISS).map(([key, label]) => ({
         id: key,
         label,
-        tabela: "faturamento_tiss",
+        tabela: "staging_faturamento_xml",
       })),
       demonstrativo: Object.entries(CAMPOS_DEMONSTRATIVO).map(([key, label]) => ({
         id: key,
@@ -81,7 +81,7 @@ export const relatoriosRouter = router({
         camposSelecionados: z.array(
           z.object({
             id: z.string(),
-            tabela: z.enum(["faturamento_tiss", "demonstrativo"]),
+            tabela: z.enum(["staging_faturamento_xml", "demonstrativo"]),
           })
         ),
         estabelecimentoId: z.number(),
@@ -96,7 +96,7 @@ export const relatoriosRouter = router({
       try {
         // Separar campos por tabela
         const camposFaturamento = input.camposSelecionados
-          .filter((c) => c.tabela === "faturamento_tiss")
+          .filter((c) => c.tabela === "staging_faturamento_xml")
           .map((c) => c.id);
 
         const camposDemonstrativo = input.camposSelecionados
@@ -105,7 +105,7 @@ export const relatoriosRouter = router({
 
         const dados: any[] = [];
 
-        // Buscar dados de faturamento_tiss se houver campos selecionados
+        // Buscar dados de staging_faturamento_xml se houver campos selecionados
         if (camposFaturamento.length > 0) {
           const registrosFaturamento = await db.getRelatorioFaturamento(
             input.estabelecimentoId,

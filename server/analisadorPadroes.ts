@@ -58,8 +58,8 @@ export class AnalisadorPadroes {
           AVG(CAST(ft2.quantidade AS DECIMAL(10,3))) as quantidadeMedia,
           AVG(CAST(ft2.valor_faturado AS DECIMAL(12,2))) as valorMedio,
           COUNT(DISTINCT ft1.numero_guia_prestador) as totalGuias
-        FROM faturamento_tiss ft1
-        INNER JOIN faturamento_tiss ft2 
+        FROM staging_faturamento_xml ft1
+        INNER JOIN staging_faturamento_xml ft2 
           ON ft1.numero_guia_prestador = ft2.numero_guia_prestador 
           AND ft1.numero_guia_operadora = ft2.numero_guia_operadora
           AND ft1.id != ft2.id
@@ -189,7 +189,7 @@ export class AnalisadorPadroes {
           COUNT(*) as totalItens,
           AVG(CAST(valor_faturado AS DECIMAL(12,2))) as valorMedio,
           STDDEV(CAST(valor_faturado AS DECIMAL(12,2))) as desvio
-        FROM faturamento_tiss
+        FROM staging_faturamento_xml
         WHERE estabelecimentoId = ${estabelecimentoId}
           ${convenioId ? sql`AND convenioId = ${convenioId}` : sql``}
         GROUP BY numero_guia_prestador, numero_guia_operadora

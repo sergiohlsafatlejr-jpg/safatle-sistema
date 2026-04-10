@@ -143,7 +143,7 @@ describe('xmlRecursoService', () => {
             dataFimFat: '2025-12-15',
           },
         ]])
-        // Mock: faturamento_tiss codigo_tabela
+        // Mock: staging_faturamento_xml codigo_tabela
         .mockResolvedValueOnce([[
           { numeroGuia: '18414424', codigoItem: '10101012', codigoTabela: '04' },
           { numeroGuia: '18414424', codigoItem: '30101012', codigoTabela: '04' },
@@ -226,7 +226,7 @@ describe('xmlRecursoService', () => {
           { numeroGuia: '18414424', numeroGuiaOperadora: '018414424', senha: null, pacienteNome: 'MARIA', carteiraBeneficiario: null, protocolo: null, lotePrestador: 'LOTE1', dataInicioFat: '2025-12-01', dataFimFat: '2025-12-01' },
           { numeroGuia: '18560945', numeroGuiaOperadora: '018560945', senha: null, pacienteNome: 'JOAO', carteiraBeneficiario: null, protocolo: null, lotePrestador: 'LOTE1', dataInicioFat: '2025-12-05', dataFimFat: '2025-12-05' },
         ]])
-        .mockResolvedValueOnce([[]])  // faturamento_tiss
+        .mockResolvedValueOnce([[]])  // staging_faturamento_xml
         .mockResolvedValueOnce([[ { nome: 'HEMOLABOR', cnpj: '01234567000189' } ]])  // prestador
         .mockResolvedValueOnce([[ { nome: 'IPASGO', codigo: '346659' } ]])  // convênio
         .mockResolvedValueOnce([[ { codigoPrestador: 'P001' } ]])  // cep

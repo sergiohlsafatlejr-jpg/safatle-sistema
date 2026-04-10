@@ -44,7 +44,7 @@ export const faturamentoRouter = router({
 
         // Cria faturamento no banco usando Drizzle ORM
         const resultado = await db.execute(
-          sql`INSERT INTO faturamento_tiss (estabelecimentoId, convenioId, data_referencia, data_importacao)
+          sql`INSERT INTO staging_faturamento_xml (estabelecimentoId, convenioId, data_referencia, data_importacao)
               VALUES (${input.estabelecimentoId}, ${input.convenioId}, ${input.dataReferencia}, NOW())`
         );
 
@@ -97,10 +97,10 @@ export const faturamentoRouter = router({
           const db = await getDb();
           if (!db) return [];
 
-          let query = sql`SELECT * FROM faturamento_tiss WHERE estabelecimentoId = ${input.estabelecimentoId}`;
+          let query = sql`SELECT * FROM staging_faturamento_xml WHERE estabelecimentoId = ${input.estabelecimentoId}`;
 
           if (input.convenioId) {
-            query = sql`SELECT * FROM faturamento_tiss WHERE estabelecimentoId = ${input.estabelecimentoId} AND convenioId = ${input.convenioId}`;
+            query = sql`SELECT * FROM staging_faturamento_xml WHERE estabelecimentoId = ${input.estabelecimentoId} AND convenioId = ${input.convenioId}`;
           }
 
           const resultado = await db.execute(
@@ -134,7 +134,7 @@ export const faturamentoRouter = router({
           if (!db) return null;
 
           const resultado = await db.execute(
-            sql`SELECT * FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
+            sql`SELECT * FROM staging_faturamento_xml WHERE id = ${input.id} LIMIT 1`
           );
 
           return Array.isArray(resultado) && resultado.length > 0 ? resultado[0] : null;
@@ -164,7 +164,7 @@ export const faturamentoRouter = router({
 
         // Obtém faturamento atual para invalidar cache
         const faturamento = await db.execute(
-          sql`SELECT estabelecimentoId FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
+          sql`SELECT estabelecimentoId FROM staging_faturamento_xml WHERE id = ${input.id} LIMIT 1`
         );
 
         if (!Array.isArray(faturamento) || !faturamento[0]) {
@@ -173,7 +173,7 @@ export const faturamentoRouter = router({
 
         // Atualiza faturamento
         await db.execute(
-          sql`UPDATE faturamento_tiss SET data_importacao = NOW() WHERE id = ${input.id}`
+          sql`UPDATE staging_faturamento_xml SET data_importacao = NOW() WHERE id = ${input.id}`
         );
 
         // Invalida cache
@@ -216,7 +216,7 @@ export const faturamentoRouter = router({
 
         // Obtém faturamento atual
         const faturamento = await db.execute(
-          sql`SELECT estabelecimentoId FROM faturamento_tiss WHERE id = ${input.id} LIMIT 1`
+          sql`SELECT estabelecimentoId FROM staging_faturamento_xml WHERE id = ${input.id} LIMIT 1`
         );
 
         if (!Array.isArray(faturamento) || !faturamento[0]) {
@@ -225,7 +225,7 @@ export const faturamentoRouter = router({
 
         // Deleta faturamento
         await db.execute(
-          sql`DELETE FROM faturamento_tiss WHERE id = ${input.id}`
+          sql`DELETE FROM staging_faturamento_xml WHERE id = ${input.id}`
         );
 
         // Invalida cache

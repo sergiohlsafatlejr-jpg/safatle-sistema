@@ -740,7 +740,7 @@ export const atendimentosHistorico = mysqlTable(
  * INTEG_FATURADO - Dados de faturamento do hospital via banco Warleine
  * Tabela já existente no banco, sincronizada automaticamente.
  * Contém apenas dados de faturamento (sem recebimento/glosa).
- * Usada em conjunto com faturamento_tiss para popular faturamento_unificado.
+ * Usada em conjunto com staging_faturamento_xml para popular faturamento_unificado.
  */
 export const integFaturado = mysqlTable(
   "integ_faturado",
@@ -1119,3 +1119,129 @@ export const faturamentoExterno = mysqlTable(
     uniqueIdx: uniqueIndex("idx_fat_ext_unique").on(table.estabelecimentoId, table.convenio, table.mesAno),
   })
 );
+
+
+export const staging_atendimento_warleine = mysqlTable("staging_atendimento_warleine", {
+  id: int("id").primaryKey().autoincrement(),
+  importacaoId: int("importacaoId"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Mapeamento Basico
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  dataEntrada: datetime("dataEntrada"),
+  dataSaida: datetime("dataSaida"),
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 500 }),
+  
+  // Dump Completo do Original
+  rawData: json("rawData"),
+  
+  processado: boolean("processado").default(false),
+  criadoEm: timestamp("criadoEm").defaultNow(),
+});
+
+export type InsertStagingAtendimentoWarleine = typeof staging_atendimento_warleine.$inferInsert;
+export type SelectStagingAtendimentoWarleine = typeof staging_atendimento_warleine.$inferSelect;
+
+
+export const staging_atendimento_omni = mysqlTable("staging_atendimento_omni", {
+  id: int("id").primaryKey().autoincrement(),
+  importacaoId: int("importacaoId"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Mapeamento Basico
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  dataEntrada: datetime("dataEntrada"),
+  dataSaida: datetime("dataSaida"),
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 500 }),
+  
+  // Dump Completo do Original
+  rawData: json("rawData"),
+  
+  processado: boolean("processado").default(false),
+  criadoEm: timestamp("criadoEm").defaultNow(),
+});
+
+export type InsertStagingAtendimentoOmni = typeof staging_atendimento_omni.$inferInsert;
+export type SelectStagingAtendimentoOmni = typeof staging_atendimento_omni.$inferSelect;
+
+
+export const staging_atendimento_promedico = mysqlTable("staging_atendimento_promedico", {
+  id: int("id").primaryKey().autoincrement(),
+  importacaoId: int("importacaoId"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Mapeamento Basico
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  dataEntrada: datetime("dataEntrada"),
+  dataSaida: datetime("dataSaida"),
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 500 }),
+  
+  // Dump Completo do Original
+  rawData: json("rawData"),
+  
+  processado: boolean("processado").default(false),
+  criadoEm: timestamp("criadoEm").defaultNow(),
+});
+
+export type InsertStagingAtendimentoPromedico = typeof staging_atendimento_promedico.$inferInsert;
+export type SelectStagingAtendimentoPromedico = typeof staging_atendimento_promedico.$inferSelect;
+
+
+export const staging_atendimento_easyvision = mysqlTable("staging_atendimento_easyvision", {
+  id: int("id").primaryKey().autoincrement(),
+  importacaoId: int("importacaoId"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Mapeamento Basico
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  dataEntrada: datetime("dataEntrada"),
+  dataSaida: datetime("dataSaida"),
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 500 }),
+  
+  // Dump Completo do Original
+  rawData: json("rawData"),
+  
+  processado: boolean("processado").default(false),
+  criadoEm: timestamp("criadoEm").defaultNow(),
+});
+
+export type InsertStagingAtendimentoEasyvision = typeof staging_atendimento_easyvision.$inferInsert;
+export type SelectStagingAtendimentoEasyvision = typeof staging_atendimento_easyvision.$inferSelect;
+
+
+export const staging_atendimento_tasy = mysqlTable("staging_atendimento_tasy", {
+  id: int("id").primaryKey().autoincrement(),
+  importacaoId: int("importacaoId"),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  
+  // Mapeamento Basico
+  numeroAtendimento: varchar("numeroAtendimento", { length: 100 }),
+  pacienteNome: varchar("pacienteNome", { length: 255 }),
+  convenioNome: varchar("convenioNome", { length: 255 }),
+  dataEntrada: datetime("dataEntrada"),
+  dataSaida: datetime("dataSaida"),
+  tipoAtendimento: varchar("tipoAtendimento", { length: 50 }),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 500 }),
+  
+  // Dump Completo do Original
+  rawData: json("rawData"),
+  
+  processado: boolean("processado").default(false),
+  criadoEm: timestamp("criadoEm").defaultNow(),
+});
+
+export type InsertStagingAtendimentoTasy = typeof staging_atendimento_tasy.$inferInsert;
+export type SelectStagingAtendimentoTasy = typeof staging_atendimento_tasy.$inferSelect;
+

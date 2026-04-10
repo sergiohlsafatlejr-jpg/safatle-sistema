@@ -28,7 +28,7 @@ async function run() {
     { table: "recebimentos_excel", name: "idx_rec_paciente", ddl: "ALTER TABLE recebimentos_excel ADD INDEX idx_rec_paciente (nome_beneficiario(30));" },
 
     // --- FATURAMENTO TISS ---
-    { table: "faturamento_tiss", name: "idx_tiss_est_lote", ddl: "ALTER TABLE faturamento_tiss ADD INDEX idx_tiss_est_lote (estabelecimentoId, numero_lote);" },
+    { table: "staging_faturamento_xml", name: "idx_tiss_est_lote", ddl: "ALTER TABLE staging_faturamento_xml ADD INDEX idx_tiss_est_lote (estabelecimentoId, numero_lote);" },
     
     // --- INTEG FATURADO (WARLEINE) ---
     { table: "integ_faturado", name: "idx_warleine_est_mes", ddl: "ALTER TABLE integ_faturado ADD INDEX idx_warleine_est_mes (estabelecimento_id, mesprod);" }

@@ -59,7 +59,7 @@ export function PopularHistoricoXml() {
             Este processo vai:
           </p>
           <ul className="list-disc list-inside space-y-2 ml-2">
-            <li>Ler todos os XMLs já importados na tabela <code className="bg-muted px-2 py-1 rounded">faturamento_tiss</code></li>
+            <li>Ler todos os XMLs já importados na tabela <code className="bg-muted px-2 py-1 rounded">staging_faturamento_xml</code></li>
             <li>Agrupar por arquivo e estabelecimento</li>
             <li>Calcular conformidade e estatísticas</li>
             <li>Detectar outliers e padrões de erro</li>

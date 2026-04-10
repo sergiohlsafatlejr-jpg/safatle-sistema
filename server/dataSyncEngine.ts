@@ -2,7 +2,12 @@ import { logger } from "./_core/logger";
 import { WarleineConnector, WarleineAtendimento } from "./connectors/WarleineConnector";
 import { OracleConnector } from "./connectors/OracleConnector";
 import { getDb } from "./db";
-import { warleineAtendimentosStaging, warleineFaturamentoStaging, tasyMaternidadeElaAtendimentosStaging, queryConfiguracoes } from "../drizzle/schema-integracao";
+import { 
+  warleineFaturamentoStaging, 
+  tasyMaternidadeElaAtendimentosStaging, 
+  queryConfiguracoes,
+  staging_atendimento_warleine 
+} from "../drizzle/schema-integracao";
 // Para pegar o ID da config:
 import { eq, sql } from "drizzle-orm";
 
@@ -113,7 +118,7 @@ export class DataSyncEngine {
         
         // Janela Fixa: Limpa staging antigo antes de inserir os novos (Incremental)
         if (configId > 0) {
-          await db.delete(warleineAtendimentosStaging).where(eq(warleineAtendimentosStaging.configId, configId));
+          await db.delete(staging_atendimento_warleine).where(eq(staging_atendimento_warleine.estabelecimentoId, config.estabelecimentoId));
           
           if (registrosBrutos.length > 0) {
             // Insere em lotes
@@ -121,10 +126,15 @@ export class DataSyncEngine {
             for (let i = 0; i < registrosBrutos.length; i += BATCH_SIZE) {
                const batch = registrosBrutos.slice(i, i + BATCH_SIZE).map(d => ({
                  estabelecimentoId: config.estabelecimentoId,
-                 configId: configId,
-                 dadosBrutos: d
+                 importacaoId: configId,
+                 rawData: d,
+                 numeroAtendimento: d.numatend || d.numconta ? String(d.numatend || d.numconta) : null,
+                 pacienteNome: d.nomepac ? String(d.nomepac).substring(0, 255) : null,
+                 convenioNome: (d.nomeplaco || d.nomeconv) ? String(d.nomeplaco || d.nomeconv).substring(0, 255) : null,
+                 tipoAtendimento: d.tipoatend ? String(d.tipoatend).substring(0, 50) : null,
+                 processado: false
                }));
-               await db.insert(warleineAtendimentosStaging).values(batch);
+               await db.insert(staging_atendimento_warleine).values(batch);
             }
           }
         }

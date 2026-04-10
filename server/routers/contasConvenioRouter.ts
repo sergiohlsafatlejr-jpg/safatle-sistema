@@ -1390,7 +1390,7 @@ export const contasConvenioRouter = router({
     }),
 
   // ============================================================
-  // IMPORTAR DE XML (reutiliza dados já parseados do faturamento_tiss)
+  // IMPORTAR DE XML (reutiliza dados já parseados do staging_faturamento_xml)
   // ============================================================
   importarDeXml: protectedProcedure
     .input(z.object({
@@ -1401,7 +1401,7 @@ export const contasConvenioRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
 
-      // Buscar itens do faturamento_tiss para este arquivo
+      // Buscar itens do staging_faturamento_xml para este arquivo
       const itensXml = await db.execute(sql`
         SELECT 
           ft.numero_guia_prestador as numeroGuia,
@@ -1421,7 +1421,7 @@ export const contasConvenioRouter = router({
           ft.nome_prof as profissionalExecutante,
           ft.convenioId,
           ft.estabelecimentoId
-        FROM faturamento_tiss ft
+        FROM staging_faturamento_xml ft
         WHERE ft.arquivo_id = ${input.arquivoId}
           AND ft.estabelecimentoId = ${input.estabelecimentoId}
         ORDER BY ft.data_execucao, ft.tipo_item, ft.descricao_item
@@ -1919,7 +1919,7 @@ export const contasConvenioRouter = router({
     }),
 
   // ============================================================
-  // MIGRAR DADOS XML (faturamento_tiss) PARA contas_convenio_itens
+  // MIGRAR DADOS XML (staging_faturamento_xml) PARA contas_convenio_itens
   // ============================================================
   migrarDadosXml: protectedProcedure
     .input(z.object({
@@ -1929,7 +1929,7 @@ export const contasConvenioRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
 
-      // Buscar dados do faturamento_tiss para o estabelecimento
+      // Buscar dados do staging_faturamento_xml para o estabelecimento
       // Usando SQL direto para JOIN com convênios
       const rows = await db.execute(sql`
         SELECT 
@@ -1957,7 +1957,7 @@ export const contasConvenioRouter = router({
           ft.data_importacao,
           c.nome as convenio_nome,
           a.dataReferencia as arquivo_data_referencia
-        FROM faturamento_tiss ft
+        FROM staging_faturamento_xml ft
         LEFT JOIN convenios c ON c.id = ft.convenioId
         LEFT JOIN arquivos a ON a.id = ft.arquivo_id
         WHERE ft.estabelecimentoId = ${input.estabelecimentoId}

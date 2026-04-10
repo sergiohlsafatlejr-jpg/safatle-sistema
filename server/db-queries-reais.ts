@@ -17,7 +17,7 @@ export async function getItemsPorCategoria(input: any): Promise<any[]> {
           COALESCE(ft.tipo_lancamento, 'Outros') as categoria,
           COUNT(ft.id) as quantidade,
           SUM(ft.valor_unitario * ft.quantidade) as valor
-        FROM faturamento_tiss ft
+        FROM staging_faturamento_xml ft
         WHERE ft.estabelecimento_id = ${input.estabelecimentoId}
           ${input.anoReferencia ? sql`AND YEAR(ft.data_processamento) = ${input.anoReferencia}` : sql``}
           ${input.mesReferencia ? sql`AND MONTH(ft.data_processamento) = ${input.mesReferencia}` : sql``}
@@ -100,8 +100,8 @@ export async function getPerformanceMedico(input: any): Promise<any[]> {
           SUM(ft.valor_unitario * ft.quantidade) as faturado,
           COALESCE(SUM(CASE WHEN ag.id IS NOT NULL THEN ag.valor_recebido ELSE ft.valor_unitario * ft.quantidade END), 0) as recebido,
           COALESCE(SUM(ag.valor_glosado), 0) as glosado
-        FROM faturamento_tiss ft
-        LEFT JOIN analise_glosa ag ON ft.id = ag.faturamento_tiss_id
+        FROM staging_faturamento_xml ft
+        LEFT JOIN analise_glosa ag ON ft.id = ag.staging_faturamento_xml_id
         WHERE ft.estabelecimento_id = ${input.estabelecimentoId}
           ${input.anoReferencia ? sql`AND YEAR(ft.data_processamento) = ${input.anoReferencia}` : sql``}
           ${input.mesReferencia ? sql`AND MONTH(ft.data_processamento) = ${input.mesReferencia}` : sql``}

@@ -53,12 +53,7 @@ import {
   InsertInsightIA,
   regrasIA,
   InsertRegraIA,
-  faturadoTasy,
-  InsertFaturadoTasy,
-  // Tabelas antigas do Tasy (mantidas para compatibilidade)
-  dadosTasy,
   InsertDadoTasy,
-  importacoesTasy,
   InsertImportacaoTasy,
   apiKeys,
   InsertApiKey,
@@ -70,23 +65,13 @@ import {
   InsertHistoricoAlertaVariacao,
   compartilhamentosDashboard,
   InsertCompartilhamentoDashboard,
-  contasPagasTasy,
   InsertContaPagaTasy,
-  itensPagosTasy,
   InsertItemPagoTasy,
-  procedimentosTasy,
   InsertProcedimentoTasy,
-  matMedTasy,
-  InsertMatMedTasy,
-  contasTasy,
   InsertContaTasy,
-  itensContaTasy,
   InsertItemContaTasy,
-  resultadosConciliacaoTasy,
   InsertResultadoConciliacaoTasy,
-  itensConciliacaoTasy,
   InsertItemConciliacaoTasy,
-  detalhesItensConciliacaoTasy,
   InsertDetalheItemConciliacaoTasy,
   recebimentoTiss,
   InsertRecebimentoTiss,
@@ -102,6 +87,16 @@ import {
   InsertNotificacaoAtendimentoItem,
   auditLogs,
   InsertAuditLog,
+  recebimentoUnificado,
+  InsertRecebimentoUnificado,
+  staging_faturamento_warleine,
+  InsertStagingFaturamentoWarleine,
+  staging_faturamento_omni,
+  InsertStagingFaturamentoOmni,
+  staging_faturamento_promedico,
+  InsertStagingFaturamentoPromedico,
+  staging_faturamento_easyvision,
+  InsertStagingFaturamentoEasyvision,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -8715,7 +8710,7 @@ export async function analisarPadroesCobranca(params: {
 
   const arquivoIds = arquivosEnviados.map(a => a.id);
 
-  // Buscar todos os itens faturados (de faturamento_tiss)
+  // Buscar todos os itens faturados (de staging_faturamento_xml)
   const procs = await db
     .select()
     .from(faturamentoTiss)
@@ -9008,7 +9003,7 @@ export async function gerarInsightsContaIA(params: {
   const db = await getDb();
   if (!db) return [];
 
-  // Buscar itens faturados do arquivo (de faturamento_tiss)
+  // Buscar itens faturados do arquivo (de staging_faturamento_xml)
   const procsArquivo = await db
     .select()
     .from(faturamentoTiss)
@@ -9989,7 +9984,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
   // TISS 3.02: nomeContratado max 70 chars (st_texto70)
   nomeContratado = nomeContratado.substring(0, 70);
 
-  // Buscar registroANS do faturamento_tiss (fonte mais confiável)
+  // Buscar registroANS do staging_faturamento_xml (fonte mais confiável)
   let registroANS = "";
   const guiasDoLote = [...new Set(recursosDoLote.map(r => r.guiaNumero).filter(Boolean))];
   if (guiasDoLote.length > 0) {
@@ -10030,7 +10025,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
   // TISS 3.02: numeroGuiaRecGlosaPrestador deve ser numérico, max 20 chars
   const numeroGuiaRecGlosa = apenasNumeros(lote.numeroLote || String(lote.id)).slice(0, 20);
 
-  // Buscar dados complementares do faturamento_tiss e demonstrativo para cada guia
+  // Buscar dados complementares do staging_faturamento_xml e demonstrativo para cada guia
   // (senha, guia operadora, data execução real, código tabela, código glosa numérico)
   const dadosComplementares: Record<string, {
     senha?: string;
@@ -10052,7 +10047,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
   for (const guiaNumero of guiasDoLote) {
     if (!guiaNumero) continue;
 
-    // Buscar do faturamento_tiss (dados do XML enviado)
+    // Buscar do staging_faturamento_xml (dados do XML enviado)
     const fatItens = await db
       .select({
         senha: faturamentoTiss.senha,
@@ -10175,7 +10170,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
         if (demoItem?.dataExecucao) {
           dataExecucao = demoItem.dataExecucao.toISOString().split('T')[0];
         } else {
-          // Tentar encontrar no faturamento_tiss
+          // Tentar encontrar no staging_faturamento_xml
           const fatItem = complementar.itensFat.find(f => f.codigoItem === recurso.codigoProcedimento);
           if (fatItem?.dataExecucao) {
             dataExecucao = fatItem.dataExecucao;
@@ -10183,7 +10178,7 @@ export async function gerarXmlsRecursoGlosaPorProtocolo(loteId: number): Promise
         }
       }
 
-      // Buscar código de tabela real do faturamento_tiss
+      // Buscar código de tabela real do staging_faturamento_xml
       let codigoTabela = "22"; // default: procedimentos
       if (complementar) {
         const fatItem = complementar.itensFat.find(f => f.codigoItem === recurso.codigoProcedimento);
@@ -13088,7 +13083,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
 
   const { estabelecimentoId, mesReferencia, anoReferencia, convenioId, tipo, setor, paciente, procedimento, codigoPrestadorExecutante } = filtros;
 
-  // ===== NOVA LÓGICA: Filtrar diretamente por competencia (AAAA/MM) da faturamento_tiss =====
+  // ===== NOVA LÓGICA: Filtrar diretamente por competencia (AAAA/MM) da staging_faturamento_xml =====
   // Construir competência no formato AAAA/MM
   let competenciaFiltro: string | undefined;
   if (mesReferencia && anoReferencia) {
@@ -13111,7 +13106,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   if (competenciaFiltro || anoReferencia) {
     // Filtrar por competência da CONTA (via contas_convenio_resumo)
     // Usa subquery para encontrar as guias da competência selecionada
-    // Depois pega TODOS os itens dessas guias (de qualquer competência no faturamento_tiss)
+    // Depois pega TODOS os itens dessas guias (de qualquer competência no staging_faturamento_xml)
     // Isso garante que o total bata com o valorTotal da Conta Convênio
     const subqueryParts: string[] = [
       'SELECT DISTINCT ccr.numeroConta FROM contas_convenio_resumo ccr',
@@ -13122,14 +13117,14 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     else if (anoReferencia) subqueryParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
     
     const sqlParts: string[] = [
-      'SELECT ft.* FROM faturamento_tiss ft',
+      'SELECT ft.* FROM staging_faturamento_xml ft',
       'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
       'AND ft.numero_guia_prestador IN (' + subqueryParts.join(' ') + ')',
     ];
-    // NÃO filtrar por convenioId no faturamento_tiss!
+    // NÃO filtrar por convenioId no staging_faturamento_xml!
     // O convênio é filtrado na subquery (contas_convenio_resumo)
     // Isso garante que TODOS os itens das guias do convênio sejam incluídos,
-    // mesmo que alguns itens tenham convenioId diferente no faturamento_tiss
+    // mesmo que alguns itens tenham convenioId diferente no staging_faturamento_xml
     // (ex: itens de competências anteriores importados via outro arquivo XML)
     
     const rawResult = await db.execute(sql.raw(sqlParts.join(' ')));
@@ -13326,7 +13321,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
   }
 
-  // Aplicar filtros adicionais para itens faturados (faturamento_tiss)
+  // Aplicar filtros adicionais para itens faturados (staging_faturamento_xml)
   const filtrarFaturado = (item: any) => {
     if (tipo && tipo !== "todos") {
       const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
@@ -13539,12 +13534,12 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
   }
 
-  // Agrupar por descrição do item - combina dados de faturamento_tiss E demonstrativo
+  // Agrupar por descrição do item - combina dados de staging_faturamento_xml E demonstrativo
   // Usa CÓDIGO DO ITEM como chave de agrupamento para garantir match correto
   const porDescricaoMap = new Map<string, DadosBIAgrupado & { codigo?: string }>();
   const codigoDescricaoMap = new Map<string, string>();
   
-  // Primeiro, adicionar dados dos arquivos enviados (faturamento_tiss)
+  // Primeiro, adicionar dados dos arquivos enviados (staging_faturamento_xml)
   for (const item of itensFaturadosFiltrados) {
     const codigo = item.codigoItem || 'SEM_CODIGO';
     const descOriginal = item.descricaoItem || 'Sem Descrição';
@@ -13809,13 +13804,13 @@ export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
 
   const arquivoIds = arquivosEstab.map(a => a.id);
 
-  // Buscar itens únicos de faturamento_tiss + demonstrativo
+  // Buscar itens únicos de staging_faturamento_xml + demonstrativo
   let procedimentosUnicos: Array<{ codigo: string; descricao: string }> = [];
   let pacientesUnicos: string[] = [];
   let tiposUnicos: string[] = [];
 
   if (arquivoIds.length > 0) {
-    // Buscar de faturamento_tiss (envios)
+    // Buscar de staging_faturamento_xml (envios)
     const itensFat = await db
       .select({
         codigoItem: faturamentoTiss.codigoItem,
@@ -13864,10 +13859,10 @@ export async function getOpcoesFiltroBi(estabelecimentoId: number): Promise<{
     tiposUnicos = Array.from(tiposSet).sort();
   }
 
-  // Buscar meses disponíveis a partir do campo competencia da faturamento_tiss
+  // Buscar meses disponíveis a partir do campo competencia da staging_faturamento_xml
   const mesesSet = new Set<string>();
   
-  // Buscar competências únicas diretamente da faturamento_tiss
+  // Buscar competências únicas diretamente da staging_faturamento_xml
   if (arquivoIds.length > 0) {
     const competenciasResult = await db
       .selectDistinct({ competencia: faturamentoTiss.competencia })
@@ -16982,7 +16977,7 @@ export async function deleteRecebimentoTissByArquivo(arquivoId: number): Promise
 // ==================== FATURAMENTO TISS ====================
 
 /**
- * Busca itens de faturamento_tiss com filtros e paginação
+ * Busca itens de staging_faturamento_xml com filtros e paginação
  */
 export async function getFaturamentoTiss(params: {
   estabelecimentoId?: number;
@@ -17009,7 +17004,7 @@ export async function getFaturamentoTiss(params: {
     conditions.push(eq(faturamentoTiss.arquivoId, arquivoId));
   }
 
-  // Filtro por convênio direto na tabela faturamento_tiss
+  // Filtro por convênio direto na tabela staging_faturamento_xml
   if (convenioId) {
     conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
@@ -17111,7 +17106,7 @@ export async function getFaturamentoTiss(params: {
 }
 
 /**
- * Busca itens individuais de uma guia específica no faturamento_tiss (sem agrupamento)
+ * Busca itens individuais de uma guia específica no staging_faturamento_xml (sem agrupamento)
  */
 export async function getFaturamentoTissItensGuia(params: {
   estabelecimentoId?: number;
@@ -17150,7 +17145,7 @@ export async function getFaturamentoTissItensGuia(params: {
 }
 
 /**
- * Busca resumo de faturamento_tiss
+ * Busca resumo de staging_faturamento_xml
  */
 export async function getFaturamentoTissResumo(params: {
   estabelecimentoId?: number;
@@ -17169,7 +17164,7 @@ export async function getFaturamentoTissResumo(params: {
     conditions.push(eq(faturamentoTiss.estabelecimentoId, estabelecimentoId));
   }
 
-  // Filtro por convênio direto na tabela faturamento_tiss
+  // Filtro por convênio direto na tabela staging_faturamento_xml
   if (convenioId) {
     conditions.push(eq(faturamentoTiss.convenioId, convenioId));
   }
@@ -17198,7 +17193,7 @@ export async function getFaturamentoTissResumo(params: {
 }
 
 /**
- * Exclui itens de faturamento_tiss por arquivo
+ * Exclui itens de staging_faturamento_xml por arquivo
  */
 export async function deleteFaturamentoTissByArquivo(arquivoId: number): Promise<number> {
   const db = await getDb();
@@ -17262,7 +17257,7 @@ export async function getGuiasMultiplosLotes(params: {
 
 
 /**
- * Insere múltiplos registros de faturamento_tiss em lote
+ * Insere múltiplos registros de staging_faturamento_xml em lote
  * Usado para popular diretamente a partir dos dados do XML TISS enviado
  */
 export async function insertFaturamentoTissBatch(
@@ -17278,7 +17273,7 @@ export async function insertFaturamentoTissBatch(
   const totalItens = records.length;
   const startTime = Date.now();
 
-  console.log(`[DB] Inserindo ${totalItens} registros em faturamento_tiss...`);
+  console.log(`[DB] Inserindo ${totalItens} registros em staging_faturamento_xml...`);
 
   const batches: InsertFaturamentoTiss[][] = [];
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
@@ -17298,15 +17293,15 @@ export async function insertFaturamentoTissBatch(
     }
     const elapsed = (Date.now() - startTime) / 1000;
     const rate = elapsed > 0 ? inserted / elapsed : 0;
-    console.log(`[DB] faturamento_tiss: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec`);
+    console.log(`[DB] staging_faturamento_xml: ${inserted}/${totalItens} (${progresso}%) - ${Math.round(rate)} items/sec`);
   }
 
-  console.log(`[DB] Inserção faturamento_tiss concluída: ${inserted} registros em ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+  console.log(`[DB] Inserção staging_faturamento_xml concluída: ${inserted} registros em ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
   return inserted;
 }
 
 /**
- * Busca registros de faturamento_tiss por arquivo
+ * Busca registros de staging_faturamento_xml por arquivo
  * Substitui a antiga getProcedimentosByArquivoId
  */
 export async function getFaturamentoTissByArquivo(arquivoId: number) {
@@ -18144,7 +18139,7 @@ export async function excluirAvisoInterno(id: number) {
 
 
 /**
- * Buscar dados de faturamento_tiss para relatório
+ * Buscar dados de staging_faturamento_xml para relatório
  */
 export async function getRelatorioFaturamento(
   estabelecimentoId: number,
@@ -19097,7 +19092,7 @@ export async function getDadosAnahp(filtros: {
     SELECT 
       SUM(CAST(valor_faturado AS DECIMAL(15,2))) as totalFaturado,
       SUM(CAST(valor_unitario AS DECIMAL(15,2)) * quantidade) as totalCobrado
-    FROM faturamento_tiss
+    FROM staging_faturamento_xml
     WHERE ${tissFilter}
   `));
   
@@ -19130,7 +19125,7 @@ export async function getDadosAnahp(filtros: {
     SELECT 
       tipo_item as grupo,
       SUM(CAST(valor_faturado AS DECIMAL(15,2))) as valorTotal
-    FROM faturamento_tiss
+    FROM staging_faturamento_xml
     WHERE ${tissFilter} AND tipo_item IS NOT NULL
     GROUP BY tipo_item
     ORDER BY valorTotal DESC

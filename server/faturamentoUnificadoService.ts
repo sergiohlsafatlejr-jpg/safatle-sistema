@@ -2,7 +2,7 @@
  * Service para popular e manter a tabela faturamento_unificado
  * Unifica dados de duas fontes:
  * - WARLEINE (tabela integ_faturado): dados do faturamento do hospital via banco Warleine
- * - XML_TISS (tabela faturamento_tiss): dados dos XMLs enviados aos convênios
+ * - XML_TISS (tabela staging_faturamento_xml): dados dos XMLs enviados aos convênios
  */
 
 import { getDb } from "./db";
@@ -243,11 +243,11 @@ export async function contarTasyStaging(
 }
 
 // ============================================================
-// POPULAÇÃO A PARTIR DO XML TISS (faturamento_tiss)
+// POPULAÇÃO A PARTIR DO XML TISS (staging_faturamento_xml)
 // ============================================================
 
 /**
- * Popula faturamento_unificado a partir dos dados do faturamento_tiss (XML)
+ * Popula faturamento_unificado a partir dos dados do staging_faturamento_xml (XML)
  * para um estabelecimento e data de referência específicos.
  */
 export async function popularDeXmlTiss(
@@ -313,7 +313,7 @@ export async function popularDeXmlTiss(
           PARTITION BY ft.numero_guia_prestador, ft.sequencial_item, ft.codigo_item, ft.data_execucao, ft.quantidade, ft.valor_faturado
           ORDER BY ft.id ASC
         ) as rn
-      FROM faturamento_tiss ft
+      FROM staging_faturamento_xml ft
       WHERE ft.estabelecimentoId = ${estabelecimentoId}
     ) dedup
     LEFT JOIN convenios c ON dedup.convenioId = c.id
@@ -350,7 +350,7 @@ export async function popularDeXmlTiss(
 /**
  * Popula faturamento_unificado a partir de todas as fontes:
  * - WARLEINE (integ_faturado): dados do faturamento do hospital
- * - XML_TISS (faturamento_tiss): dados dos XMLs enviados aos convênios
+ * - XML_TISS (staging_faturamento_xml): dados dos XMLs enviados aos convênios
  * - TASY_STAGING: dados já importados do Tasy (apenas contagem, não re-popula)
  */
 export async function popularFaturamentoUnificado(
@@ -2080,11 +2080,34 @@ export async function lotesXmlTissDisponiveis(params: {
 
   const [rows] = await db.execute(sql.raw(
     `SELECT ft.numero_lote as lote, COUNT(*) as total
-     FROM faturamento_tiss ft
+     FROM staging_faturamento_xml ft
      ${where}
      AND ft.numero_lote IS NOT NULL AND ft.numero_lote != ''
      GROUP BY ft.numero_lote
      ORDER BY ft.numero_lote DESC`
   ));
   return (rows as unknown as any[]).filter((r: any) => r.lote);
+}
+
+
+// ============================================================
+// POPULAÇÃO A PARTIR DOS NOVOS STAGINGS (Robôs ETL a definir)
+// ============================================================
+
+export async function popularDeOmni(estabelecimentoId: number, competencia?: string) {
+  // TODO: Implementar mapeamento DE-PARA da staging_faturamento_omni para faturamento_unificado
+  console.log('ETL: Omni -> Unificado (Não implementado)');
+  return { inseridos: 0, total: 0 };
+}
+
+export async function popularDePromedico(estabelecimentoId: number, competencia?: string) {
+  // TODO: Implementar mapeamento DE-PARA da staging_faturamento_promedico para faturamento_unificado
+  console.log('ETL: Promedico -> Unificado (Não implementado)');
+  return { inseridos: 0, total: 0 };
+}
+
+export async function popularDeEasyvision(estabelecimentoId: number, competencia?: string) {
+  // TODO: Implementar mapeamento DE-PARA da staging_faturamento_easyvision para faturamento_unificado
+  console.log('ETL: Easyvision -> Unificado (Não implementado)');
+  return { inseridos: 0, total: 0 };
 }

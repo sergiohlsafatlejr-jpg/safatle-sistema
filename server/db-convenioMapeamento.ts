@@ -50,7 +50,7 @@ function similaridade(a: string, b: string): number {
 
 /**
  * Buscar nomes distintos de convênios vindos de TODAS as fontes de dados do hospital
- * Busca em: recebimento_geral, integ_faturado_x_recebido, faturamento_tiss (via join), recebimento_tiss (via join)
+ * Busca em: recebimento_geral, integ_faturado_x_recebido, staging_faturamento_xml (via join), recebimento_tiss (via join)
  */
 export async function listarConveniosOrigem(estabelecimentoId: number) {
   const db = await getDb();
@@ -92,11 +92,11 @@ export async function listarConveniosOrigem(estabelecimentoId: number) {
     }
   } catch (e) { /* tabela pode não existir */ }
   
-  // 3. Buscar de faturamento_tiss (via join com convenios para pegar o nome)
+  // 3. Buscar de staging_faturamento_xml (via join com convenios para pegar o nome)
   try {
     const rows3Result = await db.execute(
       sql.raw(`SELECT DISTINCT c.nome as nome, c.codigo as codigo 
-              FROM faturamento_tiss f 
+              FROM staging_faturamento_xml f 
               JOIN convenios c ON f.convenioId = c.id 
               WHERE f.estabelecimentoId = ${estabelecimentoId}`)
     );
@@ -104,7 +104,7 @@ export async function listarConveniosOrigem(estabelecimentoId: number) {
     for (const r of rows3) {
       const key = (r.nome || "").trim().toUpperCase();
       if (key && !nomesSet.has(key)) {
-        nomesSet.set(key, { nome: (r.nome || "").trim(), codigo: r.codigo || null, fonte: "faturamento_tiss" });
+        nomesSet.set(key, { nome: (r.nome || "").trim(), codigo: r.codigo || null, fonte: "staging_faturamento_xml" });
       }
     }
   } catch (e) { /* tabela pode não existir */ }

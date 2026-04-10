@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * Testa a lógica de filtro por competência da conta no getDadosBI.
  * A correção principal: quando há filtro de competência, o getDadosBI deve
  * usar SUBQUERY com contas_convenio_resumo para encontrar as guias da competência,
- * depois buscar TODOS os itens dessas guias no faturamento_tiss (sem filtrar por competência do item).
+ * depois buscar TODOS os itens dessas guias no staging_faturamento_xml (sem filtrar por competência do item).
  * O filtro de convênio é aplicado APENAS na subquery (contas_convenio_resumo),
- * NÃO no faturamento_tiss, para garantir que todos os itens das guias sejam incluídos.
+ * NÃO no staging_faturamento_xml, para garantir que todos os itens das guias sejam incluídos.
  */
 
 describe("getDadosBI - Filtro por competência da conta via subquery", () => {
@@ -24,7 +24,7 @@ describe("getDadosBI - Filtro por competência da conta via subquery", () => {
     else if (anoReferencia) subqueryParts.push(`AND ccr.competencia LIKE '${anoReferencia}/%'`);
     
     const sqlParts: string[] = [
-      'SELECT ft.* FROM faturamento_tiss ft',
+      'SELECT ft.* FROM staging_faturamento_xml ft',
       'WHERE ft.estabelecimentoId = ' + (estabelecimentoId || 0),
       'AND ft.numero_guia_prestador IN (' + subqueryParts.join(' ') + ')',
     ];
@@ -39,7 +39,7 @@ describe("getDadosBI - Filtro por competência da conta via subquery", () => {
     expect(finalSql).toContain("ccr.competencia = '2026/01'");
     expect(finalSql).toContain('ft.estabelecimentoId = 3');
     expect(finalSql).toContain('ft.numero_guia_prestador IN (');
-    // NÃO deve filtrar por competência do item no faturamento_tiss
+    // NÃO deve filtrar por competência do item no staging_faturamento_xml
     expect(finalSql).not.toContain('ft.competencia');
   });
 
@@ -50,12 +50,12 @@ describe("getDadosBI - Filtro por competência da conta via subquery", () => {
     expect(finalSql).toContain("ccr.competencia LIKE '2026/%'");
   });
 
-  it("deve filtrar convênio APENAS na subquery, NÃO no faturamento_tiss", () => {
+  it("deve filtrar convênio APENAS na subquery, NÃO no staging_faturamento_xml", () => {
     const finalSql = buildQuery({ estabelecimentoId: 1, competenciaFiltro: "2026/01", convenioId: 60008 });
     
     // Convênio deve estar na subquery
     expect(finalSql).toContain('ccr.convenioId = 60008');
-    // Convênio NÃO deve estar no faturamento_tiss
+    // Convênio NÃO deve estar no staging_faturamento_xml
     // Contar ocorrências de "convenioId = 60008" - deve ser apenas 1 (na subquery)
     const matches = finalSql.match(/convenioId = 60008/g);
     expect(matches).toHaveLength(1);

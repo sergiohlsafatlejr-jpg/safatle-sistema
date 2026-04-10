@@ -14,7 +14,7 @@ import {
   popularFaturamentoUnificado,
 } from "./faturamentoUnificadoService";
 
-describe("integFaturado - junção com faturamento_tiss", () => {
+describe("integFaturado - junção com staging_faturamento_xml", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecute.mockResolvedValue([[]]);
@@ -178,7 +178,7 @@ describe("integFaturado - junção com faturamento_tiss", () => {
   });
 
   describe("popularDeXmlTiss", () => {
-    it("deve inserir dados do faturamento_tiss com origemSistema XML_TISS", async () => {
+    it("deve inserir dados do staging_faturamento_xml com origemSistema XML_TISS", async () => {
       // DELETE
       mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
       // INSERT SELECT
@@ -192,7 +192,7 @@ describe("integFaturado - junção com faturamento_tiss", () => {
 
       const insertCall = JSON.stringify(mockExecute.mock.calls[1][0]);
       expect(insertCall).toContain("XML_TISS");
-      expect(insertCall).toContain("faturamento_tiss");
+      expect(insertCall).toContain("staging_faturamento_xml");
     });
   });
 });

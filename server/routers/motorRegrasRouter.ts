@@ -76,7 +76,7 @@ export const motorRegrasRouter = router({
 
   /**
    * Popular histórico a partir dos XMLs já importados
-   * Lê dados da tabela faturamento_tiss e calcula conformidade
+   * Lê dados da tabela staging_faturamento_xml e calcula conformidade
    */
   populateFromImportedXml: adminProcedure
     .input(
@@ -106,7 +106,7 @@ export const motorRegrasRouter = router({
             AVG(CAST(scoreConformidade AS DECIMAL(5,2))) as scoreConformidadeMedio,
             MAX(dataImportacao) as dataProcessamento,
             GROUP_CONCAT(DISTINCT usuarioId) as usuarioIds
-          FROM faturamento_tiss
+          FROM staging_faturamento_xml
           WHERE nomeArquivo IS NOT NULL AND nomeArquivo != ''
         `;
 
@@ -155,7 +155,7 @@ export const motorRegrasRouter = router({
                 procedimentoCodigo,
                 procedimentoDescricao,
                 valorConta
-              FROM faturamento_tiss
+              FROM staging_faturamento_xml
               WHERE nomeArquivo = ${arq.nomeArquivo} AND estabelecimentoId = ${arq.estabelecimentoId}
               ORDER BY dataImportacao ASC
             `

@@ -28,7 +28,7 @@ describe("deduplicação na popularDeXmlTiss", () => {
     mockExecute.mockResolvedValue([[]]);
   });
 
-  it("deve usar ROW_NUMBER para deduplicar registros do faturamento_tiss", async () => {
+  it("deve usar ROW_NUMBER para deduplicar registros do staging_faturamento_xml", async () => {
     // DELETE
     mockExecute.mockResolvedValueOnce([{ affectedRows: 0 }]);
     // INSERT (com dedup)

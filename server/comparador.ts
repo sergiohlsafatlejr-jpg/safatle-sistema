@@ -23,7 +23,7 @@ export interface DivergenciaDetalhada {
 
 interface ProcedimentoComparavel {
   id: number;
-  // Campos da tabela procedimentos (legado) ou faturamento_tiss
+  // Campos da tabela procedimentos (legado) ou staging_faturamento_xml
   codigo?: string;
   codigoItem?: string | null;
   quantidade?: number | string | null;
@@ -36,7 +36,7 @@ interface ProcedimentoComparavel {
   numeroGuiaPrestador?: string | null;
 }
 
-/** Normaliza campos para comparação (suporta tanto procedimentos quanto faturamento_tiss) */
+/** Normaliza campos para comparação (suporta tanto procedimentos quanto staging_faturamento_xml) */
 function normalizarItem(p: ProcedimentoComparavel) {
   return {
     id: p.id,

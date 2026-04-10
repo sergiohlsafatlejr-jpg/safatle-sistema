@@ -1107,13 +1107,13 @@
 
 - [x] Adicionar coluna Prof. Executante no relatório Excel de itens detalhados da tela Conciliação Contas Pagas
 
-- [x] Criar tabela faturamento_tiss no schema do banco de dados para armazenar dados de faturamento TISS
+- [x] Criar tabela staging_faturamento_xml no schema do banco de dados para armazenar dados de faturamento TISS
 
-- [x] Processar todos os arquivos XML enviados da tabela arquivos e popular a tabela faturamento_tiss (796 arquivos, 13.795 itens, R$ 1.117.402,67)
+- [x] Processar todos os arquivos XML enviados da tabela arquivos e popular a tabela staging_faturamento_xml (796 arquivos, 13.795 itens, R$ 1.117.402,67)
 
-- [x] Reprocessar todos os arquivos XML e popular tabela faturamento_tiss com todos os campos corretamente preenchidos (796 arquivos, 23.311 itens, R$ 1.886.387,52)
+- [x] Reprocessar todos os arquivos XML e popular tabela staging_faturamento_xml com todos os campos corretamente preenchidos (796 arquivos, 23.311 itens, R$ 1.886.387,52)
 
-- [x] Corrigir mapeamento dos campos conselho e numeroConselhoProfissional na tabela faturamento_tiss (conselho_prof agora armazena apenas o número do CRM, ex: 11382)
+- [x] Corrigir mapeamento dos campos conselho e numeroConselhoProfissional na tabela staging_faturamento_xml (conselho_prof agora armazena apenas o número do CRM, ex: 11382)
 
 - [x] Integrar tabela recebimento_tiss com o ORM Drizzle (adicionar definição no schema)
 
@@ -1127,7 +1127,7 @@
 
 - [x] Alterar telas Contas Demonstrativo e Demonstrativo para buscar dados da tabela recebimento_tiss em vez de procedimentos
 
-- [x] Alterar tela Conta Convênio para buscar dados da tabela faturamento_tiss em vez de procedimentos
+- [x] Alterar tela Conta Convênio para buscar dados da tabela staging_faturamento_xml em vez de procedimentos
 
 - [x] Criar nova tabela recebimentos_excel no banco de dados com campos: Data Pagto, Processado, Protocolo TISS, Lote Prestador, Código Prestador, Nome Prestador, Número Guia, Seq, Beneficiário, Nome Beneficiário, Data Execução, Hora Execução, Item, Item Desc, Quantidade, Valor Pagamento, Tipo Lançamento, Erro TISS, Situação Item, Código Solicitante, Nome Solicitante, Acomodação da Internação, Data Inicio/Fim Faturamento Internação, Prestador Executante
 
@@ -1135,11 +1135,11 @@
 
 
 ## Integração de Campos convenioId e dataReferencia nas Tabelas TISS
-- [x] Adicionar campos convenioId e dataReferencia na tabela faturamento_tiss (arquivos XML enviados)
+- [x] Adicionar campos convenioId e dataReferencia na tabela staging_faturamento_xml (arquivos XML enviados)
 - [x] Adicionar campos convenioId, dataReferencia e dataPagamento nas tabelas recebimento_tiss (XML) e recebimentos_excel (Excel)
 - [x] Atualizar fluxo de upload para popular convenioId, dataReferencia e dataPagamento nas tabelas específicas
 - [x] Separar importação: recebimentos_excel para Excel de retorno, recebimento_tiss para XML de retorno
-- [x] Atualizar registros existentes de faturamento_tiss com convenioId e arquivoId (23.082 de 23.311 registros - 99%)
+- [x] Atualizar registros existentes de staging_faturamento_xml com convenioId e arquivoId (23.082 de 23.311 registros - 99%)
 
 
 ## Separação de Tabelas de Retorno (Excel vs XML)
@@ -1184,8 +1184,8 @@
 - [x] Atualizar fluxo de upload para incluir estabelecimentoId
 
 
-## Correção da Tela Conta Convênio (faturamento_tiss)
-- [x] Corrigir query para carregar dados da tabela faturamento_tiss
+## Correção da Tela Conta Convênio (staging_faturamento_xml)
+- [x] Corrigir query para carregar dados da tabela staging_faturamento_xml
 - [x] Aplicar layout igual a tela Conta Demonstrativo (cards de contas agrupadas)
 - [x] KPIs com totais de todas as contas (não apenas da página atual)
 - [x] Adicionar paginação para navegar entre todas as contas
@@ -1298,7 +1298,7 @@
 ## Limpeza de Dados - Estabelecimento 3 - 06/02/2026
 
 - [x] Identificar estabelecimento 3 (Ox Uti) e tabelas associadas
-- [x] Limpar faturamento_tiss do estabelecimento 3 (10.598 registros)
+- [x] Limpar staging_faturamento_xml do estabelecimento 3 (10.598 registros)
 - [x] Limpar recebimentos_excel do estabelecimento 3 (2.000 registros)
 - [x] Limpar demonstrativo do estabelecimento 3 (2.000 registros)
 - [x] Verificar limpeza completa
@@ -1309,20 +1309,20 @@
 ## Correção Schema + Fluxo Importação XML - 06/02/2026
 
 - [x] Corrigir mismatch de colunas no schema Drizzle (estabelecimentoId, convenioId) para alinhar com banco
-- [x] Alterar fluxo de importação XML enviados: popular faturamento_tiss diretamente (sem passar por procedimentos)
+- [x] Alterar fluxo de importação XML enviados: popular staging_faturamento_xml diretamente (sem passar por procedimentos)
 - [x] Criar função insertFaturamentoTissBatch no db.ts
 - [x] Alterar routers.ts para chamar nova função no upload de XML enviados
-- [x] Migrar dados existentes de procedimentos para faturamento_tiss (estab 3: 6.209 registros via SQL)
-- [x] Verificar migração: faturamento_tiss agora tem 6.209 registros para estab 3
+- [x] Migrar dados existentes de procedimentos para staging_faturamento_xml (estab 3: 6.209 registros via SQL)
+- [x] Verificar migração: staging_faturamento_xml agora tem 6.209 registros para estab 3
 
-## Correção Mapeamento XML → faturamento_tiss - 06/02/2026
+## Correção Mapeamento XML → staging_faturamento_xml - 06/02/2026
 
-- [x] Investigar campos do parser XML que não estão sendo mapeados para faturamento_tiss
+- [x] Investigar campos do parser XML que não estão sendo mapeados para staging_faturamento_xml
 - [x] Corrigir mapeamento: codigo_item, descricao_item, valor_unitario, valor_faturado, nome_prof, conselho_prof - OK, já estão populados
 - [x] Extrair registroANS do cabeçalho da guia no parser XML
 - [x] Extrair numeroGuiaOperadora do dadosAutorizacao no parser XML
 - [x] Extrair senha do dadosAutorizacao no parser XML
-- [x] Mapear novos campos para faturamento_tiss no routers.ts
+- [x] Mapear novos campos para staging_faturamento_xml no routers.ts
 - [x] Testar importação e verificar dados populados corretamente
 
 ## Correção Detalhes da Guia - Conta Convênio - 06/02/2026
@@ -1347,7 +1347,7 @@
 - [x] Identificar campos que não estão sendo extraídos corretamente (codigoDespesa, servicosExecutados)
 - [x] Corrigir extração de outrasDespesas no parser XML
 - [x] Testar com XML real para validar a correção (4 testes vitest passaram)
-- [x] Verificar mapeamento para faturamento_tiss
+- [x] Verificar mapeamento para staging_faturamento_xml
 
 ## Correção estabelecimentoId na tabela regrasIA - 06/02/2026
 
@@ -1361,7 +1361,7 @@
 
 ## Limpeza de Dados - Todas as Tabelas TISS - 06/02/2026
 
-- [x] Limpar tabela faturamento_tiss (todos os estabelecimentos) - 18.922 registros removidos
+- [x] Limpar tabela staging_faturamento_xml (todos os estabelecimentos) - 18.922 registros removidos
 - [x] Limpar tabela demonstrativo (todos os estabelecimentos) - 48.849 registros removidos
 - [x] Limpar tabela recebimentos_excel (todos os estabelecimentos) - 35.672 registros removidos
 - [x] Limpar tabela recebimento_tiss (todos os estabelecimentos) - 169 registros removidos
@@ -1370,7 +1370,7 @@
 
 ## Correção Tipo de Despesa (outrasDespesas) - 06/02/2026
 
-- [x] Analisar como codigoDespesa é extraído do XML e mapeado para faturamento_tiss (parser já extrai corretamente)
+- [x] Analisar como codigoDespesa é extraído do XML e mapeado para staging_faturamento_xml (parser já extrai corretamente)
 - [x] Mapear codigoDespesa para tipos específicos: 1=GÁS MEDICINAL, 2=MEDICAMENTO, 3=MATERIAL, 5=DIÁRIA, 7=TAXA/ALUGUÉIS
 - [x] Corrigir routers.ts: função mapTipoDespesaParaTipoItem substitui mapeamento binário PROCEDIMENTO/DESPESA
 - [x] Testar: 427 testes passaram, correção validada
@@ -1506,13 +1506,13 @@
 
 ## Simplificação da Arquitetura (Remoção de Tabela Intermediária)
 
-- [x] Upload de XML enviados salva diretamente em faturamento_tiss (sem tabela procedimentos intermediária)
-- [x] Fluxo de reprocessamento atualizado para usar faturamento_tiss
-- [x] Comparador atualizado para aceitar campos de faturamento_tiss (codigoItem, valorFaturado, carteiraBeneficiario, numeroGuiaPrestador)
-- [x] Função de análise de padrões de cobrança (IA) atualizada para usar faturamento_tiss
-- [x] Função de geração de insights (IA) atualizada para usar faturamento_tiss
-- [x] Rota de comparação atualizada para buscar de faturamento_tiss via getFaturamentoTissByArquivo
-- [x] Rota de procedimentos do arquivo atualizada para buscar de faturamento_tiss
+- [x] Upload de XML enviados salva diretamente em staging_faturamento_xml (sem tabela procedimentos intermediária)
+- [x] Fluxo de reprocessamento atualizado para usar staging_faturamento_xml
+- [x] Comparador atualizado para aceitar campos de staging_faturamento_xml (codigoItem, valorFaturado, carteiraBeneficiario, numeroGuiaPrestador)
+- [x] Função de análise de padrões de cobrança (IA) atualizada para usar staging_faturamento_xml
+- [x] Função de geração de insights (IA) atualizada para usar staging_faturamento_xml
+- [x] Rota de comparação atualizada para buscar de staging_faturamento_xml via getFaturamentoTissByArquivo
+- [x] Rota de procedimentos do arquivo atualizada para buscar de staging_faturamento_xml
 - [x] Removido import de toProcedimentoInsert (não mais necessário)
 - [x] Removida inserção em tabela procedimentos no fluxo de upload
 - [x] Removida chamada a deleteProcedimentosByArquivoId no fluxo de delete/reprocessar
@@ -1520,11 +1520,11 @@
 - [x] Todos os 435 testes do projeto passando (36 arquivos de teste)
 - [x] Migração completa: todas as referências .from(procedimentos) removidas do db.ts (38 refs em 22 funções migradas para faturamentoTiss/demonstrativo)
 
-## Relatórios BI: Integrar faturamento_tiss + demonstrativos
+## Relatórios BI: Integrar staging_faturamento_xml + demonstrativos
 
-- [x] Atualizar getDadosBI para buscar envios de faturamento_tiss e retornos de demonstrativo
-- [x] Atualizar getOpcoesFiltroBi para buscar filtros de faturamento_tiss + demonstrativo
-- [x] Atualizar getResumoGeral (dashboard) para usar faturamento_tiss (envios) e demonstrativo (retornos)
+- [x] Atualizar getDadosBI para buscar envios de staging_faturamento_xml e retornos de demonstrativo
+- [x] Atualizar getOpcoesFiltroBi para buscar filtros de staging_faturamento_xml + demonstrativo
+- [x] Atualizar getResumoGeral (dashboard) para usar staging_faturamento_xml (envios) e demonstrativo (retornos)
 - [x] Garantir que relatórios BI mostrem dados cruzados (faturado vs recebido)
 - [x] Executar testes e validar compilação (435 testes passando, 0 erros TypeScript)
 
@@ -1532,8 +1532,8 @@
 ## Migração Completa: Remover todas as referências .from(procedimentos) no db.ts
 
 - [x] Mapear e categorizar todas as 40 referências .from(procedimentos) por função (38 refs em 22 funções)
-- [x] Migrar funções de conciliação e comparação para usar demonstrativo/faturamento_tiss
-- [x] Migrar funções de detalhes de arquivo e listagem para usar faturamento_tiss/demonstrativo
+- [x] Migrar funções de conciliação e comparação para usar demonstrativo/staging_faturamento_xml
+- [x] Migrar funções de detalhes de arquivo e listagem para usar staging_faturamento_xml/demonstrativo
 - [x] Migrar funções de análise estatística e prestadores
 - [x] Migrar funções de insights IA e alertas
 - [x] Limpar imports e referências residuais à tabela procedimentos (removido import, removido createProcedimentos)
@@ -1882,7 +1882,7 @@
 
 ## Fase 7 - Ler XMLs Importados e Popular Histórico (Semana 8)
 
-- [x] Criar procedure tRPC `populateFromImportedXml` para ler XMLs da tabela faturamento_tiss
+- [x] Criar procedure tRPC `populateFromImportedXml` para ler XMLs da tabela staging_faturamento_xml
 - [x] Agrupar XMLs por arquivo e estabelecimento
 - [x] Calcular conformidade e estatísticas de cada arquivo
 - [x] Detectar outliers e padrões de erro
@@ -2276,7 +2276,7 @@
 - [x] Corrigir sincronização para copiar campo receber corretamente
 - [x] Adicionar filtro "A Receber" (Hospital S / Terceiros N / Todos) no backend das queries de recebimento_geral
 - [x] Adicionar filtro "A Receber" no relatório Recebimento Geral (frontend)
-- [x] Filtro "A Receber" não aplicável ao Dashboard BI (usa faturamento_tiss, não recebimento_geral)
+- [x] Filtro "A Receber" não aplicável ao Dashboard BI (usa staging_faturamento_xml, não recebimento_geral)
 - [x] Filtro "A Receber" disponível no BIFilters como prop opcional (para telas que usam recebimento_geral)
 - [x] Criar tabela conciliacao no banco (resultado do cruzamento faturado x demonstrativo)
 - [x] Criar tabela vinculacao_codigos no banco (de-para códigos hospital x convênio)
@@ -2315,7 +2315,7 @@
 - [x] Mapear campos integ_faturado → faturamento_unificado
 - [x] Criar schema Drizzle espelhando integ_faturado existente (40 colunas, índices criados)
 - [x] Criar popularDeIntegFaturado() no faturamentoUnificadoService (INSERT SELECT)
-- [x] Atualizar popularFaturamentoUnificado() para juntar integ_faturado + faturamento_tiss (WARLEINE + XML_TISS)
+- [x] Atualizar popularFaturamentoUnificado() para juntar integ_faturado + staging_faturamento_xml (WARLEINE + XML_TISS)
 - [x] Remover faturadoTasy do fluxo de população (mantido como legado, não usado no popularTudo)
 - [x] Atualizar router tRPC para expor nova fonte WARLEINE (popularDeIntegFaturado procedure)
 - [x] Atualizar frontend para mostrar as duas fontes (ConciliacaoCruzada atualizada)
@@ -2458,8 +2458,8 @@
 - [x] Feature: após importar conta com sucesso, redirecionar automaticamente para tela de Conta Convênio (1s delay)
 - [x] Feature: botão de edição na tabela de Mapeamentos de Dados para editar query SQL e configurações
 - [x] Ajustar mapeamento de campos no buscarConta para nova query (lancamen/contas/faturas com campos: nomepaciente, codrecur, complrecur, codtiss, descmotivo, tipoatend, databaixa, codplaco, nomeplaco, medsolic, nomemedsolic)
-- [x] Popular tela Conta Convênio com dados importados dos XMLs do Pronto Socorro Infantil (migrar dados de faturamento_tiss para contas_convenio_itens)
-- [x] Botão "Importar XMLs" na tela Conta Convênio para migrar dados XML do faturamento_tiss para contas_convenio_itens
+- [x] Popular tela Conta Convênio com dados importados dos XMLs do Pronto Socorro Infantil (migrar dados de staging_faturamento_xml para contas_convenio_itens)
+- [x] Botão "Importar XMLs" na tela Conta Convênio para migrar dados XML do staging_faturamento_xml para contas_convenio_itens
 - [x] Testes unitários para migrarDadosXml (14 testes passando: migração, listagem, itens, divergências)
 - [x] Adicionar filtro de mês/período (competência MM/AAAA) na tela de Conta Convênio para análise mensal
 - [x] Corrigir competência das contas XML na Conta Convênio para usar data_referencia do upload em vez de dataExecucao calculada
@@ -3312,7 +3312,7 @@
 ## Bug: Terceiros ainda aparecendo como glosados
 - [x] Investigar por que item 20104294 (Erich Pires Marota) na guia 17007812 ainda aparece como glosado
 - [x] Corrigir lógica de classificação de terceiros na conciliação automática (causa: nenhum terceiro cadastrado, invertida lógica para usar códigos próprios)
-- [x] Bug persistente: guia 17007116 item 20104294 - causa: codigoPrestadorExecutante NULL no faturamento_tiss. Corrigido parser para extrair do equipeSadt + lógica de fallback na conciliação (NULL com itens próprios na mesma guia = terceiro)
+- [x] Bug persistente: guia 17007116 item 20104294 - causa: codigoPrestadorExecutante NULL no staging_faturamento_xml. Corrigido parser para extrair do equipeSadt + lógica de fallback na conciliação (NULL com itens próprios na mesma guia = terceiro)
 
 ## Bug: Duplicação de itens ao reimportar XML
 - [x] Guia 17007812 mostrando 42 itens com R$ 93.146,43 (duplicado) - causa: contas_convenio_itens não era limpa ao excluir/reimportar arquivo
@@ -3337,8 +3337,8 @@
 - [ ] Corrigir se necessário para que ambas as telas mostrem valores consistentes
 
 ## Padronização de Competência MM/AAAA em todo o sistema
-- [x] Mapear como cada tabela armazena competência (faturamento_tiss, contas_convenio_resumo, recebimento_geral, faturamento_unificado, etc.)
-- [x] Adicionar campo competencia na tabela faturamento_tiss (atualmente usa dataReferencia do arquivo)
+- [x] Mapear como cada tabela armazena competência (staging_faturamento_xml, contas_convenio_resumo, recebimento_geral, faturamento_unificado, etc.)
+- [x] Adicionar campo competencia na tabela staging_faturamento_xml (atualmente usa dataReferencia do arquivo)
 - [x] Padronizar formato de competência como AAAA/MM em todas as tabelas
 - [x] Atualizar getDadosBI para filtrar por campo competencia em vez de dataReferencia do arquivo
 - [x] Atualizar queries de Conta Convênio para usar mesma lógica de competência
@@ -3432,10 +3432,10 @@
 - [x] Adicionado índice composto idx_conciliados_estab_comp para otimizar queries de conciliação
 
 ## Limpeza de dados duplicados XML_TISS do Hemolabor
-- [x] Analisar duplicatas XML_TISS (enviados) no Hemolabor: 228 arquivos, 22.038 faturamento_tiss, 22.038 faturamento_unificado, 22.020 conciliados
+- [x] Analisar duplicatas XML_TISS (enviados) no Hemolabor: 228 arquivos, 22.038 staging_faturamento_xml, 22.038 faturamento_unificado, 22.020 conciliados
 - [x] Limpar conciliados_automatico do Hemolabor (22.020 registros)
 - [x] Limpar faturamento_unificado XML_TISS do Hemolabor (22.038 registros)
-- [x] Limpar faturamento_tiss do Hemolabor (22.038 registros)
+- [x] Limpar staging_faturamento_xml do Hemolabor (22.038 registros)
 - [x] Limpar arquivos enviados do Hemolabor (228 registros)
 - [x] Validar dados após limpeza: TASY_STAGING preservado (1.337.761), retorno preservado (1)
 
@@ -3515,11 +3515,11 @@
 
 ## Bug - Divergência Valores Conta Convênio vs Rel BI (24/03/2026)
 - [x] Investigar diferença: Conta Convênio Unimed Jan/2026 Estab 3 = R$ 417.819,46 vs Rel BI Faturado = R$ 436.025,18 (causa: 3 guias de internação longa com itens em 2 competências)
-- [x] Identificar fonte de dados de cada tela (contas_convenio_resumo vs faturamento_tiss) e corrigir inconsistência
+- [x] Identificar fonte de dados de cada tela (contas_convenio_resumo vs staging_faturamento_xml) e corrigir inconsistência
 - [x] Corrigir para que ambas as telas mostrem valores consistentes (JOIN com contas_convenio_resumo para usar competência da conta)
 - [x] Corrigir Rel BI getDadosBI: usar competência da conta/importação como base + mapeamento snake_case → camelCase
 
 ## Bug - Divergência Rel BI Pronto Socorro após JOIN (24/03/2026)
 - [x] Investigar divergência Vivacom Pronto Socorro: Conta Convênio R$ 19.098,72 vs Rel BI R$ 16.244,41 (causa: guias com itens em múltiplas competências + filtro de convênio no ft excluía itens de outros convênios)
-- [x] Corrigido: subquery para encontrar guias da competência, depois pegar TODOS os itens dessas guias sem filtrar por convênio no faturamento_tiss
+- [x] Corrigido: subquery para encontrar guias da competência, depois pegar TODOS os itens dessas guias sem filtrar por convênio no staging_faturamento_xml
 - [x] Testes atualizados (6 passando) validando que convênio é filtrado apenas na subquery (contas_convenio_resumo)
