@@ -396,6 +396,8 @@ export const contasConvenioRouter = router({
             if (row[name] !== undefined && row[name] !== null) return row[name];
             // Tentar lowercase
             if (row[name.toLowerCase()] !== undefined && row[name.toLowerCase()] !== null) return row[name.toLowerCase()];
+            // Tentar uppercase (especialmente importante para o Oracle)
+            if (row[name.toUpperCase()] !== undefined && row[name.toUpperCase()] !== null) return row[name.toUpperCase()];
           }
           return null;
         };
@@ -410,8 +412,8 @@ export const contasConvenioRouter = router({
           const batch = dados.slice(i, i + BATCH_SIZE);
           const values = batch.map((row: any) => {
             // Flexibilizar nomes de campos - aceita tanto aliases quanto nomes originais do banco
-            const vlUnitario = getField(row, 'valorunitario', 'vl_unitario', 'valor_unitario', 'vlunitario');
-            const vlTotal = getField(row, 'valortotal', 'vl_faturado', 'valor_total', 'vlfaturado', 'valor_faturado');
+            const vlUnitario = getField(row, 'valorunitario', 'vl_unitario', 'valor_unitario', 'vlunitario', 'vl_medico');
+            const vlTotal = getField(row, 'valortotal', 'vl_faturado', 'valor_total', 'vlfaturado', 'valor_faturado', 'vl_produzido');
             const qtd = getField(row, 'quantidade', 'qtd', 'qtde');
             const numConta = getField(row, 'numconta', 'numero_conta', 'conta');
             const guia = getField(row, 'guiacobra', 'guia_cobra', 'guia');
@@ -421,10 +423,10 @@ export const contasConvenioRouter = router({
             const codItem = getField(row, 'codigoitem', 'procdisco', 'cod_item', 'cd_item', 'codigo_item');
             const codTuss = getField(row, 'codigoitemtuss', 'codproprio', 'cod_tuss', 'codigo_tuss', 'cd_item_tuss');
             const desc = getField(row, 'descricao', 'desc_item', 'ds_item');
-            const dataExec = getField(row, 'dataexecucao', 'data', 'dt_item', 'data_execucao');
-            const dataInt = getField(row, 'datainternacao', 'dataint', 'data_internacao');
-            const dataAlta = getField(row, 'dataalta', 'datasai', 'data_alta', 'data_saida');
-            const comp = getField(row, 'competencia', 'mesprod', 'mes_prod', 'comp');
+            const dataExec = getField(row, 'dataexecucao', 'data', 'dt_item', 'data_execucao', 'dt_procedimento', 'dt_conta');
+            const dataInt = getField(row, 'datainternacao', 'dataint', 'data_internacao', 'dt_inicio');
+            const dataAlta = getField(row, 'dataalta', 'datasai', 'data_alta', 'data_saida', 'dt_fim');
+            const comp = getField(row, 'competencia', 'mesprod', 'mes_prod', 'comp', 'encerramento');
             const prest = getField(row, 'nomeprest', 'prestexe', 'nome_prest', 'prof_exec');
             const setor = getField(row, 'setor', 'nomecc', 'nome_cc', 'centro_custo');
             const paciente = getField(row, 'pacientenome', 'nomepaciente', 'nomepac', 'nome_paciente', 'paciente');

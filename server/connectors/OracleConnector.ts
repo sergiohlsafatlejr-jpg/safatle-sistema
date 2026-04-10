@@ -79,7 +79,7 @@ export class OracleConnector {
     }
   }
 
-  async executarQuery(query: string, params?: any[]): Promise<any[]> {
+  async executarQuery(query: string, params?: any[] | Record<string, any>): Promise<any[]> {
     if (!this.connection) {
       throw new Error("Conexão não estabelecida");
     }
@@ -89,19 +89,31 @@ export class OracleConnector {
       
       // Converter syntax do PostgreSQL/SQLServer ($1, $2) para Oracle (:1, :2)
       let oracleQuery = query;
-      let oracledbParams: any[] = [];
+      let oracledbParams: any = Array.isArray(params) ? [] : {};
       
-      // Se tiver parâmetros, converter formatação se necessário
-      if (params && params.length > 0) {
-        oracledbParams = [...params];
-        for (let i = 1; i <= params.length; i++) {
-           oracleQuery = oracleQuery.replace(new RegExp(`\\$${i}`, 'g'), `:${i}`);
+      // Se tiver parâmetros relacionais ($1, $2), converter formatação
+      // Se tiver parâmetros relacionais ($1, $2), injetar diretamente na query para evitar bugs de parse ORA-01036
+      if (params && Array.isArray(params) && params.length > 0) {
+        let finalQuery = oracleQuery;
+        for (let i = 0; i < params.length; i++) {
+            const val = String(params[i]).replace(/'/g, "''"); // Escape simples para prevenir quebra de string
+            finalQuery = finalQuery.replace(new RegExp(`\\$${i + 1}`, 'g'), `'${val}'`);
         }
+        oracleQuery = finalQuery;
+        oracledbParams = {}; // Passa vazio, pois os binds já foram embutidos
+      } else if (params && !Array.isArray(params)) {
+        oracledbParams = params;
       }
 
-      const result = await this.connection.execute(oracleQuery, oracledbParams, { maxRows: 0 });
-      logger.info({ message: "DEBUG ORACLE RAW RESULT", query: oracleQuery, hasParams: !!params, rowCount: result.rows?.length });
-      return (result.rows as any[]) || [];
+      console.log('DEBUG ORACLE BIND: ', { oracleQuery, oracledbParams });
+
+      try {
+          const result = await this.connection.execute(oracleQuery, oracledbParams, { maxRows: 0 });
+          logger.info({ message: "DEBUG ORACLE RAW RESULT", query: oracleQuery, hasParams: !!params, rowCount: result.rows?.length });
+          return (result.rows as any[]) || [];
+      } catch (err: any) {
+          throw err;
+      }
     } catch (error) {
       logger.error({
         message: "Erro ao executar query no Oracle",

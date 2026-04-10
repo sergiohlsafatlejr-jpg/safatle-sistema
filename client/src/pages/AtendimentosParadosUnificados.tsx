@@ -298,7 +298,7 @@ async function gerarPDFNotificacao(
 }
 
 export default function AtendimentosParadosUnificados() {
-  const { selecionado } = useEstabelecimento();
+  const { estabelecimentoAtual } = useEstabelecimento();
   const [sortColumn, setSortColumn] = useState<SortColumn>("data_entrada");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [searchTerm, setSearchTerm] = useState("");
@@ -346,7 +346,7 @@ export default function AtendimentosParadosUnificados() {
 
   // Buscar dados com paginação server-side
   const queryInput = useMemo(() => ({
-    estabelecimentoId: selecionado?.id,
+    estabelecimentoId: estabelecimentoAtual?.id,
     page: currentPage,
     pageSize: PAGE_SIZE,
     origemSistema: filtroOrigem !== "all" ? filtroOrigem : undefined,
@@ -360,7 +360,7 @@ export default function AtendimentosParadosUnificados() {
     descricao: filtroServico || undefined,
     sortColumn,
     sortOrder,
-  }), [selecionado?.id, currentPage, filtroOrigem, filtroTipo, filtroConvenio, filtroEtapa, filtroProtocolo, filtroAno, filtroMes, debouncedSearch, filtroServico, sortColumn, sortOrder]);
+  }), [estabelecimentoAtual?.id, currentPage, filtroOrigem, filtroTipo, filtroConvenio, filtroEtapa, filtroProtocolo, filtroAno, filtroMes, debouncedSearch, filtroServico, sortColumn, sortOrder]);
 
   const { data: paginatedResult, isLoading, refetch, isFetching } = trpc.atendimentos.listarPaginado.useQuery(queryInput);
 

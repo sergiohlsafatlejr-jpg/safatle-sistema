@@ -21,7 +21,8 @@ export function startDailyReportSync() {
       }
 
       // Buscar todos os estabelecimentos que possuem conexão Warleine ativa
-      const [conexoes] = await db.execute("SELECT estabelecimentoId FROM integracao_conexoes");
+      const conexoesRes = await db.execute("SELECT estabelecimentoId FROM integracao_conexoes");
+      const conexoes = (conexoesRes as any)[0] || [];
       
       const estabIds = (conexoes as any[]).map(c => c.estabelecimentoId);
       console.log(`[DailyReportSync] Encontrados ${estabIds.length} estabelecimentos com integrações ativas`);
@@ -33,7 +34,10 @@ export function startDailyReportSync() {
           // 1. Sincronizar Atendimentos
           console.log(`\t- Atendimentos...`);
           try {
-             await sincronizarRelatorioAtendimentos(estabId);
+             const hoje = new Date();
+             const anoAtualStr = `${hoje.getFullYear()}-12-31`;
+             const anoAnteriorStr = `${hoje.getFullYear() - 1}-01-01`;
+             await sincronizarRelatorioAtendimentos(estabId, anoAnteriorStr, anoAtualStr);
           } catch(e) { console.error(`Erro ao sincronizar Atendimentos para ${estabId}:`, e); }
 
           // 2. Sincronizar Custos

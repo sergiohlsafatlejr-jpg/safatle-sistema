@@ -5,17 +5,27 @@ import { ENV } from './_core/env';
 
 type StorageConfig = { baseUrl: string; apiKey: string };
 
-function getStorageConfig(): StorageConfig {
+function getStorageConfig(): StorageConfig | null {
   const baseUrl = ENV.forgeApiUrl;
   const apiKey = ENV.forgeApiKey;
 
   if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
+    console.warn("[Storage] Forge API credentials missing, using local filesystem fallback.");
+    return null;
   }
 
   return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
+}
+
+import fs from 'fs';
+import path from 'path';
+
+function getLocalUploadsDir() {
+  const dir = path.resolve(process.cwd(), 'uploads');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
 }
 
 function buildUploadUrl(baseUrl: string, relKey: string): URL {
@@ -72,13 +82,36 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
+  const config = getStorageConfig();
   const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
+  
+  if (!config) {
+    // Fallback: Local filesystem
+    const uploadsDir = getLocalUploadsDir();
+    const safeKey = key.replace(/[^a-zA-Z0-9._/-]/g, '_');
+    const filePath = path.resolve(uploadsDir, safeKey.split('/').pop() || safeKey);
+    
+    let bufferData: Buffer;
+    if (typeof data === 'string') {
+      bufferData = Buffer.from(data, 'utf-8');
+    } else if (Buffer.isBuffer(data)) {
+      bufferData = data;
+    } else if (data instanceof Uint8Array) {
+      bufferData = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+    } else {
+      bufferData = data as Buffer;
+    }
+    
+    fs.writeFileSync(filePath, bufferData);
+    // Return a dummy url or a local express static route prefix
+    return { key, url: `/uploads/${path.basename(filePath)}` };
+  }
+
+  const uploadUrl = buildUploadUrl(config.baseUrl, key);
   const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
   const response = await fetch(uploadUrl, {
     method: "POST",
-    headers: buildAuthHeaders(apiKey),
+    headers: buildAuthHeaders(config.apiKey),
     body: formData,
   });
 
@@ -93,10 +126,27 @@ export async function storagePut(
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
-  const { baseUrl, apiKey } = getStorageConfig();
+  const config = getStorageConfig();
   const key = normalizeKey(relKey);
+  
+  if (!config) {
+    // Fallback: Local filesystem
+    const uploadsDir = getLocalUploadsDir();
+    const safeKey = key.replace(/[^a-zA-Z0-9._/-]/g, '_');
+    const filePath = path.resolve(uploadsDir, safeKey.split('/').pop() || safeKey);
+    
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+    
+    return {
+      key,
+      url: `/uploads/${path.basename(filePath)}`
+    };
+  }
+  
   return {
     key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
+    url: await buildDownloadUrl(config.baseUrl, key, config.apiKey),
   };
 }

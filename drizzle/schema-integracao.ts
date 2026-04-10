@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, text, timestamp, decimal, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, text, timestamp, datetime, decimal, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -270,6 +270,81 @@ export const tasyHemolaborAtendimentosStaging = mysqlTable(
   (table) => ({
     estabelecimentoIdx: index("idx_tasy_hemolabor_estab").on(table.estabelecimentoId),
     configIdx: index("idx_tasy_hemolabor_config").on(table.configId),
+  })
+);
+
+// TASY - Relatório Financeiro (Staging)
+export const tasyRelatorioFinanceiroStaging = mysqlTable(
+  "Tasy_relatorio_financeiro_stagion",
+  {
+    id: int().primaryKey().autoincrement(),
+    estabelecimentoId: int().notNull(),
+    configId: int(), // Reference for connection
+    
+    estabelecimento: varchar({ length: 50 }),
+    sequencia: varchar({ length: 100 }),
+    convenio: varchar({ length: 255 }),
+    prod: varchar({ length: 20 }),
+    competencia: varchar({ length: 20 }),
+    dtReferencia: datetime(),
+    entrega: datetime(),
+    protocolo: varchar({ length: 100 }),
+    nrProtocolo: varchar({ length: 100 }),
+    nrTitulo: varchar({ length: 100 }),
+    nmUsuario: varchar({ length: 100 }),
+    dtAtualizacao: datetime(),
+    statusProt: varchar({ length: 50 }),
+    tipoProt: varchar({ length: 50 }),
+    docConvenio: varchar({ length: 100 }),
+    atend: varchar({ length: 100 }),
+    entrada: varchar({ length: 20 }),
+    stEntrada: varchar({ length: 255 }),
+    conta: varchar({ length: 100 }),
+    autorizacao: varchar({ length: 100 }),
+    senha: varchar({ length: 100 }),
+    dtInicio: datetime(),
+    dtFim: datetime(),
+    encerramento: varchar({ length: 20 }),
+    matricula: varchar({ length: 100 }),
+    paciente: varchar({ length: 255 }),
+    cdMotivoExcConta: varchar({ length: 100 }),
+    dsComplMotivoExcon: varchar({ length: 500 }),
+    tipo: varchar({ length: 50 }),
+    tipoItem: varchar({ length: 50 }),
+    setor: varchar({ length: 255 }),
+    profExec: varchar({ length: 255 }),
+    crm: varchar({ length: 50 }),
+    cdItem: varchar({ length: 50 }),
+    cdItemTuss: varchar({ length: 50 }),
+    dtItem: datetime(),
+    descricao: text(),
+    credito: varchar({ length: 50 }),
+    qtd: decimal({ precision: 12, scale: 4 }),
+    vlProduzido: decimal({ precision: 15, scale: 2 }),
+    vlMedico: decimal({ precision: 15, scale: 2 }),
+    aReceber: decimal({ precision: 15, scale: 2 }),
+    vlPago: decimal({ precision: 15, scale: 2 }),
+    vlGlosa: decimal({ precision: 15, scale: 2 }),
+    vlAMaior: decimal({ precision: 15, scale: 2 }),
+    tReceb: decimal({ precision: 15, scale: 2 }),
+    motivoGlosa: text(),
+    retorno: varchar({ length: 100 }),
+    pgto: varchar({ length: 20 }),
+    dtPgto: datetime(),
+    
+    hashId: varchar({ length: 255 }), 
+    
+    dadosBrutos: json(),
+    criadoEm: timestamp().defaultNow(),
+    atualizadoEm: timestamp().defaultNow(),
+  },
+  (table) => ({
+    estabelecimentoIdx: index("idx_tasy_finstg_estab").on(table.estabelecimentoId),
+    configIdx: index("idx_tasy_finstg_config").on(table.configId),
+    contaIdx: index("idx_tasy_finstg_conta").on(table.conta),
+    competenciaIdx: index("idx_tasy_finstg_comp").on(table.competencia),
+    dtItemIdx: index("idx_tasy_finstg_dtitem").on(table.dtItem),
+    hashIdIdx: uniqueIndex("idx_tasy_finstg_hashid").on(table.hashId),
   })
 );
 

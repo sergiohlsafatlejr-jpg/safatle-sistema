@@ -63,7 +63,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
   // Buscar detalhes do mapeamento para edição
   const mapeamentoDetalhe = trpc.integradorDados.mapeamentos.obter.useQuery(
     { id: editingId! },
-    { enabled: editingId !== null && editingId > 0 }
+    { enabled: editingId !== null }
   );
 
   // Buscar colunas da tabela de destino selecionada
@@ -124,7 +124,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
 
   // Preencher formulário quando os dados do mapeamento são carregados para edição
   useEffect(() => {
-    if (editingId && mapeamentoDetalhe.data) {
+    if (editingId !== null && mapeamentoDetalhe.data) {
       const m = mapeamentoDetalhe.data;
       setNome(m.nome || "");
       setDescricao(m.descricao || "");
@@ -212,7 +212,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
 
     const camposValidos = campos.filter((c) => c.colunaOrigemNome && c.colunaDestinoId > 0);
 
-    if (editingId) {
+    if (editingId !== null) {
       // Atualizar mapeamento existente
       atualizarMapeamento.mutate({
         id: editingId,
@@ -500,20 +500,20 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
           <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingId ? "Editar Mapeamento" : "Novo Mapeamento de Dados"}</DialogTitle>
+              <DialogTitle>{editingId !== null ? "Editar Mapeamento" : "Novo Mapeamento de Dados"}</DialogTitle>
               <DialogDescription>
-                {editingId
+                {editingId !== null
                   ? "Altere a query SQL, frequência e outras configurações do mapeamento"
                   : "Configure a origem dos dados, a tabela de destino e o mapeamento de campos"}
               </DialogDescription>
             </DialogHeader>
 
-            {editingId && mapeamentoDetalhe.isLoading ? (
+            {editingId !== null && mapeamentoDetalhe.isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-muted-foreground">Carregando dados do mapeamento...</span>
               </div>
-            ) : !editingId && showTemplateStep ? (
+            ) : editingId === null && showTemplateStep ? (
               /* === STEP 1: Seleção de Template === */
               <div className="space-y-6">
                 <div className="text-center pb-2">
@@ -575,7 +575,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
             ) : (
               <div className="space-y-6">
                 {/* Banner do template selecionado */}
-                {templateSelec && !editingId && (
+                {templateSelec && editingId === null && (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -619,7 +619,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     <Select
                       value={String(conexaoOrigemId || "")}
                       onValueChange={(v) => setConexaoOrigemId(Number(v))}
-                      disabled={!!editingId}
+                      disabled={editingId !== null}
                     >
                       <SelectTrigger><SelectValue placeholder="Selecione a conexão" /></SelectTrigger>
                       <SelectContent>
@@ -628,7 +628,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                         ))}
                       </SelectContent>
                     </Select>
-                    {editingId && (
+                    {editingId !== null && (
                       <p className="text-xs text-muted-foreground mt-1">Conexão e tabela não podem ser alteradas após criação</p>
                     )}
                   </div>
@@ -637,7 +637,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     <Select
                       value={String(tabelaDestinoId || "")}
                       onValueChange={(v) => setTabelaDestinoId(Number(v))}
-                      disabled={!!editingId}
+                      disabled={editingId !== null}
                     >
                       <SelectTrigger><SelectValue placeholder="Selecione a tabela" /></SelectTrigger>
                       <SelectContent>
@@ -658,7 +658,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                     placeholder="SELECT * FROM tabela_origem WHERE ..."
                     className="font-mono text-sm min-h-[150px]"
                   />
-                  {editingId && (
+                  {editingId !== null && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Edite a query SQL acima para alterar os dados que serão importados
                     </p>
@@ -830,7 +830,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                 </div>
 
                 {/* Preview dos campos do template */}
-                {templateSelec && !editingId && (
+                {templateSelec && editingId === null && (
                   <div className="border rounded-lg p-4 bg-muted/20">
                     <div className="flex items-center gap-2 mb-3">
                       <Info className="w-4 h-4 text-blue-500" />
@@ -866,7 +866,7 @@ export function MapeamentosTab({ estabelecimentoId }: MapeamentosTabProps) {
                   <Button variant="outline" onClick={resetForm}>Cancelar</Button>
                   <Button onClick={handleSubmit} disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    {editingId ? "Salvar Alterações" : "Criar Mapeamento"}
+                    {editingId !== null ? "Salvar Alterações" : "Criar Mapeamento"}
                   </Button>
                 </div>
               </div>

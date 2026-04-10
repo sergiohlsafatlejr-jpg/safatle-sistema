@@ -13168,7 +13168,58 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     }
   }
 
-  console.log('[getDadosBI] Itens faturados encontrados:', itensFaturados.length);
+  console.log('[getDadosBI] Itens faturados (TISS) encontrados:', itensFaturados.length);
+
+  // ===== INTEGRAÇÃO COM INTEG_FATURADO (POSTGRES LEGADO) =====
+  let integFaturadoConditions = `WHERE estabelecimento_id = ${estabelecimentoId || 0}`;
+  if (competenciaFiltro) {
+    integFaturadoConditions += ` AND mesprod = '${competenciaFiltro}'`;
+  } else if (anoReferencia) {
+    integFaturadoConditions += ` AND mesprod LIKE '${anoReferencia}/%'`;
+  }
+  
+  // Como `convenioId` vem do filtro principal, tentaremos mapear para o nome textual
+  let nomeConvFiltro = '';
+  if (convenioId) {
+    nomeConvFiltro = convenioMap.get(convenioId) || '';
+    if (nomeConvFiltro) {
+      integFaturadoConditions += ` AND TRIM(nomeconv) = '${nomeConvFiltro.replace(/'/g, "''")}'`;
+    }
+  }
+
+  try {
+    const rawIntegResult = await db.execute(sql.raw(`
+      SELECT
+        nomeconv as convenioNomeManual,
+        mesprod as competencia,
+        nomecc as setor,
+        tipoatend as tipoItem,
+        codtiss as codigoItem,
+        descricao as descricaoItem,
+        matricula as carteiraBeneficiario,
+        numconta as numeroGuiaPrestador,
+        nomeprest as nomeProf,
+        quantidade as quantidade,
+        COALESCE(CAST(REPLACE(REPLACE(vl_faturado, ',', '.'), ' ', '') AS DECIMAL(14,2)), 0) as valorFaturado
+      FROM integ_faturado
+      ${integFaturadoConditions}
+    `));
+    
+    const rawIntegRows = (rawIntegResult as any)[0] || [];
+
+    for (const row of rawIntegRows as any[]) {
+      if (row.valorFaturado || row.valorFaturado === 0) {
+        itensFaturados.push({
+          ...row,
+          convenioId: convenioId || undefined,
+          arquivoId: -1,
+        });
+      }
+    }
+    console.log('[getDadosBI] Itens após anexar integ_faturado:', itensFaturados.length);
+  } catch (err) {
+    console.log('[getDadosBI] Tabela integ_faturado não disponível ou vazia:', err);
+  }
 
   // ===== BUSCAR DEMONSTRATIVO (recebidos) - ainda usa arquivos pois demonstrativo não tem competencia =====
   const arquivosConditions: any[] = [
@@ -13218,6 +13269,44 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       .select()
       .from(demonstrativo)
       .where(inArray(demonstrativo.arquivoId, retornadosIds));
+  }
+
+  // ===== INTEGRAÇÃO COM FATURAMENTO_EXTERNO (EXCEL LEGADO) =====
+  let fatExternoConditions = `WHERE estabelecimento_id = ${estabelecimentoId || 0}`;
+  if (competenciaFiltro) {
+    fatExternoConditions += ` AND mes_ano = '${competenciaFiltro}'`;
+  } else if (anoReferencia) {
+    fatExternoConditions += ` AND mes_ano LIKE '${anoReferencia}/%'`;
+  }
+  if (nomeConvFiltro) {
+    fatExternoConditions += ` AND TRIM(convenio) = '${nomeConvFiltro.replace(/'/g, "''")}'`;
+  }
+
+  try {
+    const rawFatExternoResult = await db.execute(sql.raw(`
+      SELECT
+        convenio as convenioNomeManual,
+        mes_ano as dataReferencia,
+        valor_faturado as valorInformado,
+        valor_recebido as valorPago,
+        0 as valorGlosa
+      FROM faturamento_externo
+      ${fatExternoConditions}
+    `));
+    
+    const rawFatExternoRows = (rawFatExternoResult as any)[0] || [];
+
+    for (const row of rawFatExternoRows as any[]) {
+      itensRecebidos.push({
+        ...row,
+        convenioId: convenioId || undefined,
+        arquivoId: -2,
+        tipoLancamento: 'Não Informado',
+      });
+    }
+    console.log('[getDadosBI] Itens Recebidos após anexar faturamento_externo:', itensRecebidos.length);
+  } catch (err) {
+    console.log('[getDadosBI] Tabela faturamento_externo não disponível ou vazia:', err);
   }
 
   // Criar mapa de arquivo para convênio (para demonstrativos)
@@ -13307,7 +13396,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   const porConvenioMap = new Map<string, DadosBIAgrupado>();
   for (const item of itensFaturadosFiltrados) {
     const convId = item.convenioId || arquivoConvenioMap.get(item.arquivoId);
-    const chave = convenioMap.get(convId || 0) || "Sem Convênio";
+    const chave = item.convenioNomeManual || convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
       porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
@@ -13318,7 +13407,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
   for (const item of itensRecebidosFiltrados) {
     const convId = item.convenioId;
-    const chave = convenioMap.get(convId || 0) || "Sem Convênio";
+    const chave = item.convenioNomeManual || convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
       porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
     }
@@ -19037,7 +19126,7 @@ export async function getDadosAnahp(filtros: {
   const glosaRaw = (glosasStats as any)[0] || {};
   
   // 3. Receita por grupo
-  const [receitaGrupo] = await db.execute(sql.raw(`
+  const receitaGrupoResult = await db.execute(sql.raw(`
     SELECT 
       tipo_item as grupo,
       SUM(CAST(valor_faturado AS DECIMAL(15,2))) as valorTotal
@@ -19047,6 +19136,7 @@ export async function getDadosAnahp(filtros: {
     ORDER BY valorTotal DESC
     LIMIT 10
   `));
+  const receitaGrupo = (receitaGrupoResult as any)[0] || [];
 
   const totalInternacoes = Number(atRaw.totalInternacoes || 0);
   const totalDemonstrativoFaturado = Number(glosaRaw.totalDemonstrativoFaturado || 0);

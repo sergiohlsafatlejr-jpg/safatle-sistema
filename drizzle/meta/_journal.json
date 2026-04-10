@@ -57,6 +57,27 @@
       "when": 1775062157767,
       "tag": "0099_oval_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "5",
+      "when": 1775663053333,
+      "tag": "0100_lame_bedlam",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1775675124815,
+      "tag": "0101_brave_firestar",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "5",
+      "when": 1775675500888,
+      "tag": "0102_wooden_colonel_america",
+      "breakpoints": true
     }
   ]
 }

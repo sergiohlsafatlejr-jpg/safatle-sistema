@@ -38,6 +38,7 @@ import { propostasRouter } from "./routers/propostasRouter";
 import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 import { auditSystemRouter } from "./routers/auditSystemRouter";
+import { tasyRouter } from "./routers/tasyRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -105,6 +106,7 @@ export const appRouter = router({
   contratos: contratosRouter,
   propostas: propostasRouter,
   auditSystem: auditSystemRouter,
+  tasy: tasyRouter,
   
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
@@ -603,8 +605,24 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // Decode base64 content
-        const buffer = Buffer.from(input.conteudo, "base64");
+        // Decode base64 content (and strip prefix if exists)
+        let base64Data = input.conteudo;
+        if (base64Data.includes("base64,")) {
+          base64Data = base64Data.split("base64,")[1];
+        }
+        const buffer = Buffer.from(base64Data, "base64");
+        
+        // Helper to parse dates safely
+        const parseSafely = (dRaw?: string): Date | null => {
+          if (!dRaw) return null;
+          if (dRaw.match(/^\d{4}-\d{2}-\d{2}/)) return new Date(dRaw);
+          if (dRaw.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+            const [dd, mm, yyyy] = dRaw.split("/");
+            return new Date(`${yyyy}-${mm}-${dd}T12:00:00Z`);
+          }
+          const d = new Date(dRaw);
+          return isNaN(d.getTime()) ? null : d;
+        };
         
         // Validar arquivo vazio
         if (buffer.length === 0) {
@@ -754,8 +772,8 @@ export const appRouter = router({
             s3Url: url,
             tamanho: buffer.length,
             status: "pendente",
-            dataReferencia: input.dataReferencia ? new Date(input.dataReferencia) : null,
-            dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
+            dataReferencia: parseSafely(input.dataReferencia),
+            dataPagamento: parseSafely(input.dataPagamento),
           });
           arquivoId = result.id;
         }

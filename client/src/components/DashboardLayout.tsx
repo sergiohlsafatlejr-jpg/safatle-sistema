@@ -90,6 +90,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { MotorRegrasNotificationBell } from "./MotorRegrasNotificationBell";
 import { SettingsMenu } from "./SettingsMenu";
 import { supabase } from "@/lib/supabase";
+import { BackgroundProcessingToaster } from "./BackgroundProcessingToaster";
 
 import type { ModuloPermissao } from "@/contexts/EstabelecimentoContext";
 import { SAFATLE_ESTABELECIMENTO_ID } from "@shared/const";
@@ -157,6 +158,7 @@ const menuItems: MenuItem[] = [
   { icon: PieChart, label: "Relatórios BI", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
     // Subpasta: Faturamento
     { icon: Receipt, label: "Faturamento", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
+      { icon: BarChart3, label: "BI Financeiro (TASY)", path: "/bi-financeiro-tasy", modulo: "relFaturadoRecebido" },
       { icon: BarChart3, label: "Faturado x Recebido x Glosado", path: "/relatorios-bi", modulo: "relFaturadoRecebido" },
       { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relRecebimentoGeral" },
       { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relFaturamento" },
@@ -448,6 +450,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
+      <BackgroundProcessingToaster />
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
       </DashboardLayoutContent>

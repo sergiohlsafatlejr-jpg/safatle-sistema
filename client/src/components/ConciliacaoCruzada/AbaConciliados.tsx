@@ -15,8 +15,8 @@ interface AbaConciliadosProps {
   setGuiaConciliadaSelecionada: (val: any) => void;
   itensConciliadosGuia: any[];
   isLoadingItensConciliados: boolean;
-  modoGlosa: string;
-  setModoGlosa: (val: string) => void;
+  modoGlosa: 'selecionados' | 'todos';
+  setModoGlosa: (val: 'selecionados' | 'todos') => void;
   setModalGlosaAberto: (val: boolean) => void;
   itensSelecionadosGlosa: Set<number>;
   setItensSelecionadosGlosa: (val: Set<number>) => void;

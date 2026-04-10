@@ -27,7 +27,7 @@ import {
   Zap, RotateCcw, BarChart3, Info, ListChecks, Table2, ChevronRight, ArrowLeft,
   Ban, Undo2, CheckSquare, FileCode, Package, ExternalLink, FileDown
 } from "lucide-react";
-import { getStatusBadge, getMetodoBadge, formatarMoeda, formatarCompetencia, formatDateBR, formatDateTimeBR, isTerceiro } from "@/lib/utils";
+
 import { AbaXmlRecurso } from "@/components/ConciliacaoCruzada/AbaXmlRecurso";
 import { AbaFaturamento } from "@/components/ConciliacaoCruzada/AbaFaturamento";
 import { AbaConciliados } from "@/components/ConciliacaoCruzada/AbaConciliados";
@@ -812,7 +812,7 @@ export default function ConciliacaoCruzada() {
             <AbaConciliados 
               guiaConciliadaSelecionada={guiaConciliadaSelecionada}
               setGuiaConciliadaSelecionada={setGuiaConciliadaSelecionada}
-              itensConciliadosGuia={itensConciliadosGuia}
+              itensConciliadosGuia={itensConciliadosGuia || []}
               isLoadingItensConciliados={isLoadingItensConciliados}
               modoGlosa={modoGlosa}
               setModoGlosa={setModoGlosa}

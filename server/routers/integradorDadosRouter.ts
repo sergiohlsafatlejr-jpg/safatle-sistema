@@ -1594,12 +1594,17 @@ export const integradorDadosRouter = router({
           const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
           let rows: Record<string, any>[] = [];
           
+          let rawQuery = input.querySql.trim().replace(/;$/, "");
+          if (!/^SELECT\b/i.test(rawQuery) && !/^WITH\b/i.test(rawQuery)) {
+            rawQuery = "SELECT " + rawQuery;
+          }
+
           if (conexao.tipo === "postgresql") {
             const connector = new EasyVisionConnector({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
             await connector.conectar();
-            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            let queryLimitada = rawQuery;
             if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
             rows = await connector.executarQuery(queryLimitada) || [];
             await connector.desconectar();
@@ -1608,7 +1613,7 @@ export const integradorDadosRouter = router({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
             await connector.conectar();
-            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            let queryLimitada = rawQuery;
             if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
             rows = await connector.executarQuery(queryLimitada) || [];
             await connector.desconectar();
@@ -1617,21 +1622,25 @@ export const integradorDadosRouter = router({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
             await connector.conectar();
-            rows = await connector.executarQuery(input.querySql) || [];
+            rows = await connector.executarQuery(rawQuery) || [];
             await connector.desconectar();
           } else if (conexao.tipo === "oracle") {
             const connector = new OracleConnector({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha,
             });
             await connector.conectar();
-            rows = await connector.executarQuery(input.querySql) || [];
+            let queryLimitada = rawQuery;
+            if (!/\bROWNUM\b/i.test(queryLimitada) && !/\bFETCH FIRST\b/i.test(queryLimitada)) {
+              queryLimitada = `SELECT * FROM (${queryLimitada}) WHERE ROWNUM <= ${input.limite}`;
+            }
+            rows = await connector.executarQuery(queryLimitada) || [];
             await connector.desconectar();
           } else {
             const connector = new WarleineConnector({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha, ssl: false,
             });
             await connector.conectar();
-            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            let queryLimitada = rawQuery;
             if (!/\bLIMIT\b/i.test(queryLimitada)) queryLimitada += ` LIMIT ${input.limite}`;
             rows = await connector.executarQuery(queryLimitada) || [];
             await connector.desconectar();
@@ -1814,6 +1823,11 @@ export const integradorDadosRouter = router({
         const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
         let rows: Record<string, any>[] = [];
         
+        let rawQuery = input.querySql.trim().replace(/;$/, "");
+        if (!/^SELECT\b/i.test(rawQuery) && !/^WITH\b/i.test(rawQuery)) {
+          rawQuery = "SELECT " + rawQuery;
+        }
+
         try {
           if (conexao.tipo === "postgresql") {
             const connector = new EasyVisionConnector({
@@ -1824,9 +1838,24 @@ export const integradorDadosRouter = router({
               password: senha,
             });
             await connector.conectar();
-            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            let queryLimitada = rawQuery;
             if (!/\bLIMIT\b/i.test(queryLimitada)) {
               queryLimitada += " LIMIT 10";
+            }
+            rows = (await connector.executarQuery(queryLimitada)) || [];
+            await connector.desconectar();
+          } else if (conexao.tipo === "oracle") {
+            const connector = new OracleConnector({
+              host: conexao.host,
+              port: conexao.porta,
+              database: conexao.banco,
+              user: conexao.usuario,
+              password: senha,
+            });
+            await connector.conectar();
+            let queryLimitada = rawQuery;
+            if (!/\bROWNUM\b/i.test(queryLimitada) && !/\bFETCH FIRST\b/i.test(queryLimitada)) {
+              queryLimitada = `SELECT * FROM (${queryLimitada}) WHERE ROWNUM <= 10`;
             }
             rows = (await connector.executarQuery(queryLimitada)) || [];
             await connector.desconectar();
@@ -1840,7 +1869,7 @@ export const integradorDadosRouter = router({
               ssl: false, // Forçar SSL desabilitado
             });
             await connector.conectar();
-            let queryLimitada = input.querySql.trim().replace(/;$/, "");
+            let queryLimitada = rawQuery;
             if (!/\bLIMIT\b/i.test(queryLimitada)) {
               queryLimitada += " LIMIT 10";
             }

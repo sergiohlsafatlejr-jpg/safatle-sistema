@@ -533,11 +533,11 @@ export default function RelatorioFaturamento() {
               </Button>
               <Button 
                 onClick={handleSincronizar} 
-                disabled={syncMutation.isLoading || estabelecimentoId === 0} 
+                disabled={syncMutation.isPending || estabelecimentoId === 0} 
                 variant="outline" 
                 className="border-primary text-primary hover:bg-primary/10 gap-2"
               >
-                {syncMutation.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
+                {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
                 Sincronizar Base
               </Button>
               {estabelecimentoId === 0 && (

@@ -591,38 +591,65 @@ export default function RecebimentosXml() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  {/* Drop Zone */}
+                  {/* File Drop Zone with WOW Factor */}
                   <div
-                    className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                      isDragOver ? "border-blue-500 bg-blue-50 scale-[1.02]" :
-                      selectedFiles.length > 0 ? "border-green-300 bg-green-50" :
-                      "border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                    className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-500 ease-out cursor-pointer group hover:shadow-xl ${
+                      isDragOver
+                        ? "border-blue-500 bg-blue-500/10 scale-[1.02] shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]"
+                        : selectedFiles.length > 0
+                        ? "border-emerald-400 bg-emerald-500/5 hover:border-emerald-500"
+                        : "border-slate-300 hover:border-blue-400 hover:bg-slate-50/50"
                     }`}
                     onClick={() => fileInputRef.current?.click()}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                   >
+                    <div className={`absolute inset-0 bg-gradient-to-br from-blue-100/20 via-blue-100/10 to-indigo-100/20 opacity-0 transition-opacity duration-700 ${isDragOver ? 'opacity-100' : 'group-hover:opacity-100'}`} />
                     <input ref={fileInputRef} type="file" accept=".xml" onChange={handleFileChange} className="hidden" multiple />
-                    {isDragOver ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <Files className="h-12 w-12 text-blue-500 animate-bounce" />
-                        <p className="font-medium text-blue-600">Solte os arquivos XML aqui</p>
-                      </div>
-                    ) : selectedFiles.length > 0 ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <CheckCircle2 className="h-12 w-12 text-green-500" />
-                        <p className="font-medium text-slate-900">{selectedFiles.length} arquivo(s) selecionado(s)</p>
-                        <p className="text-sm text-slate-500">Clique ou arraste para adicionar mais</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-3">
-                        <UploadIcon className="h-12 w-12 text-slate-400" />
-                        <p className="font-medium text-slate-900">Arraste e solte os arquivos XML aqui</p>
-                        <p className="text-sm text-slate-500">ou clique para selecionar</p>
-                        <p className="text-xs text-slate-400">Apenas arquivos XML de retorno dos convênios</p>
-                      </div>
-                    )}
+                    
+                    <div className="relative z-10">
+                      {isDragOver ? (
+                        <div className="flex flex-col items-center gap-4 animate-in zoom-in duration-300">
+                          <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center p-4 animate-pulse">
+                            <Files className="h-10 w-10 text-blue-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-blue-700">Solte os Arquivos XML!</h3>
+                          <p className="text-blue-500/80 font-medium tracking-wide">Iniciando análise de retornos...</p>
+                        </div>
+                      ) : selectedFiles.length > 0 ? (
+                        <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-30 rounded-full"></div>
+                            <CheckCircle2 className="h-16 w-16 text-emerald-500 relative z-10" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600">
+                              {selectedFiles.length} arquivo(s) na fila
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-2 font-medium">
+                              Clique ou arraste mais XMLs para processamento em lote
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-5 transition-transform duration-300 group-hover:-translate-y-1">
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-blue-400 blur-2xl opacity-0 group-hover:opacity-20 transition-opacity duration-500 rounded-full"></div>
+                            <div className="h-20 w-20 bg-white shadow-sm border border-slate-100 rounded-2xl flex items-center justify-center rotate-3 group-hover:rotate-6 transition-all duration-300">
+                               <FileCode2 className="h-10 w-10 text-blue-500 group-hover:scale-110 transition-transform duration-300" />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-lg font-bold text-slate-800">Arraste e solte seus XMLs de Retorno</h3>
+                            <p className="text-sm text-slate-500 font-medium">ou <span className="text-blue-600 hover:text-blue-700 hover:underline decoration-blue-300 underline-offset-4">procure no seu computador</span></p>
+                          </div>
+                          <div className="flex gap-2 justify-center mt-2">
+                            <Badge variant="outline" className="bg-slate-50/50 text-slate-600 border-slate-200">XML</Badge>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* File List */}

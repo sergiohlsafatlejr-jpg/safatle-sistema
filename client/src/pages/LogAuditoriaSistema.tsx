@@ -17,13 +17,13 @@ export default function LogAuditoriaSistema() {
   const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [jsonDetails, setJsonDetails] = useState<any>(null);
 
-  const { data, isLoading } = trpc.auditSystem.list.useQuery({
-    limit: 100,
-    offset: 0,
+  const { data, isLoading } = trpc.auditSystem.getLogs.useQuery({
+    pageSize: 100,
+    page: 1,
     entidade: entidadeBusca || undefined
   });
 
-  const logs = data?.logs || [];
+  const logs = data?.items || [];
 
   const handleOpenDetalhes = (detalhes: any) => {
     setJsonDetails(detalhes);
@@ -105,7 +105,7 @@ export default function LogAuditoriaSistema() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    logs.map((log) => (
+                    logs.map((log: any) => (
                       <TableRow key={log.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">
                           {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
