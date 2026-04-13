@@ -86,6 +86,8 @@ const PainelExecutivo = lazy(() => import("./pages/PainelExecutivo"));
 const PermissoesSafatle = lazy(() => import("./pages/PermissoesSafatle"));
 const LogAuditoriaSistema = lazy(() => import("./pages/LogAuditoriaSistema"));
 const BiFinanceiroTasy = lazy(() => import("./pages/BiFinanceiroTasy"));
+const RelatorioProtocolos = lazy(() => import("./pages/RelatorioProtocolos"));
+const PrevisaoRecebimentos = lazy(() => import("./pages/PrevisaoRecebimentos"));
 
 function PageLoader() {
   return (
@@ -184,6 +186,8 @@ function Router() {
         <Route path={"/conferencia-correcao/:snapshotId"} component={ConferenciaCorrecaoDetalhes} />
         <Route path={"/relatorio-faturamento"} component={RelatorioFaturamento} />
         <Route path={"/bi-financeiro-tasy"} component={BiFinanceiroTasy} />
+        <Route path={"/relatorio-protocolos"} component={RelatorioProtocolos} />
+        <Route path={"/previsao-recebimentos"} component={PrevisaoRecebimentos} />
         <Route path={"/faturamento-externo"} component={FaturamentoExterno} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
         <Route path={"/relatorio-custos"} component={RelatorioCustos} />

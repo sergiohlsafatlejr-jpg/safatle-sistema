@@ -554,8 +554,8 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
     console.log(`[inserirDadosTabela] Nome tabela seguro: ${nomeSeguro}, Colunas SQL: ${colunasSQL}`);
 
     let inseridos = 0;
-    // Inserir em lotes de 100
-    const BATCH_SIZE = 100;
+    // Inserir em lotes maiores para performance (2000 registros por vez)
+    const BATCH_SIZE = 2000;
     for (let i = 0; i < registros.length; i += BATCH_SIZE) {
       const lote = registros.slice(i, i + BATCH_SIZE);
       const valoresSQL = lote.map(reg => {
@@ -564,12 +564,11 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       }).join(",\n");
 
       let insertSQL = `INSERT INTO \`${nomeSeguro}\` (${colunasSQL}) VALUES\n${valoresSQL}`;
-      console.log(`[inserirDadosTabela] Lote ${i}-${i + lote.length}: SQL length=${insertSQL.length}, primeiros 300 chars:`, insertSQL.substring(0, 300));
       
-      // Se tem campo chave, usar ON DUPLICATE KEY UPDATE para upsert
+      // Se tem campo chave, usar ON DUPLICATE KEY UPDATE para upsert eficiente
       if (campoChave) {
         const updateCols = colunas
-          .filter(c => c !== campoChave)
+          .filter(c => c !== campoChave && !c.startsWith("_"))
           .map(c => {
             const safe = `\`${c.replace(/[^a-zA-Z0-9_]/g, "")}\``;
             return `${safe} = VALUES(${safe})`;
@@ -583,7 +582,9 @@ export async function inserirDadosTabela(nomeTabela: string, registros: Record<s
       try {
         await db.execute(sql.raw(insertSQL));
         inseridos += lote.length;
-        console.log(`[inserirDadosTabela] Lote ${i}-${i + lote.length} inserido com sucesso. Total acumulado: ${inseridos}`);
+        if (i % 10000 === 0 && i > 0) {
+          console.log(`[inserirDadosTabela] ${inseridos} registros processados...`);
+        }
       } catch (err: any) {
         console.error(`[inserirDadosTabela] Erro ao inserir lote ${i}-${i + lote.length} na tabela ${nomeSeguro}:`, err.message);
         // Tentar inserir registro por registro para identificar o problemático

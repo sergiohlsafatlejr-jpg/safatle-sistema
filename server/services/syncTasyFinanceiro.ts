@@ -3,7 +3,7 @@ import { OracleConnector } from "../connectors/OracleConnector";
 import { getDb } from "../db";
 import { queryConfiguracoes, tasyRelatorioFinanceiroStaging } from "../../drizzle/schema-integracao";
 import { eq, sql } from "drizzle-orm";
-import crypto from "crypto";
+import * as crypto from "crypto";
 
 export async function syncRelatorioFinanceiroTasy(
   estabelecimentoId: number,

@@ -97,6 +97,7 @@ import {
   InsertStagingFaturamentoPromedico,
   staging_faturamento_easyvision,
   InsertStagingFaturamentoEasyvision,
+  faturadoTasy
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 

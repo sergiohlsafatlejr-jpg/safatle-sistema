@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import QueryStream from "pg-query-stream";
 import { logger } from "../_core/logger";
 
 export interface WarleineAtendimento {
@@ -125,6 +126,40 @@ export class WarleineConnector {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
+    }
+  }
+
+  /**
+   * Executa uma query no WARLEINE usando Streaming (pg-query-stream)
+   * Útil para grandes volumes de dados (100k+ registros)
+   */
+  async executarQueryStream(query: string, callback: (row: any) => Promise<void>): Promise<number> {
+    if (!this.pool) {
+      throw new Error("Conexão não estabelecida");
+    }
+
+    const client = await this.pool.connect();
+    try {
+      const queryStream = new QueryStream(query);
+      const stream = client.query(queryStream);
+
+      let count = 0;
+      for await (const row of stream) {
+        await callback(row);
+        count++;
+        if (count % 1000 === 0) {
+          logger.info({ message: "Warleine Stream Progress", count });
+        }
+      }
+      return count;
+    } catch (error) {
+      logger.error({
+        message: "Erro ao executar query stream no WARLEINE",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    } finally {
+      client.release();
     }
   }
 

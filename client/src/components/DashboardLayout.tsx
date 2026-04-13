@@ -80,6 +80,7 @@ import {
   Package,
   ClipboardCheck,
   FileCheck,
+  CalendarClock,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -159,6 +160,8 @@ const menuItems: MenuItem[] = [
     // Subpasta: Faturamento
     { icon: Receipt, label: "Faturamento", path: "/relatorios-bi", modulo: "relatoriosBi", children: [
       { icon: BarChart3, label: "BI Financeiro (TASY)", path: "/bi-financeiro-tasy", modulo: "relFaturadoRecebido" },
+      { icon: Receipt, label: "Protocolos TASY", path: "/relatorio-protocolos", modulo: "relFaturadoRecebido" },
+      { icon: CalendarClock, label: "Previsão Recebimentos", path: "/previsao-recebimentos", modulo: "relFaturadoRecebido" },
       { icon: BarChart3, label: "Faturado x Recebido x Glosado", path: "/relatorios-bi", modulo: "relFaturadoRecebido" },
       { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relRecebimentoGeral" },
       { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relFaturamento" },

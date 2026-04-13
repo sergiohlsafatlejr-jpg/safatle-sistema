@@ -69,20 +69,54 @@ export class DataSyncEngine {
     });
   }
 
+  private async prepararQueryDelta(configId: number, querySql: string, sistema?: string): Promise<{ query: string, lastSyncDate: Date | null }> {
+    const db = await getDb();
+    if (!db) return { query: querySql, lastSyncDate: null };
+
+    const config = await db.select({
+      ultimaSincronizacao: queryConfiguracoes.ultimaSincronizacao,
+      totalRegistros: queryConfiguracoes.totalRegistrosSincronizados
+    })
+    .from(queryConfiguracoes)
+    .where(eq(queryConfiguracoes.id, configId))
+    .limit(1);
+
+    // Valor padrão caso nunca tenha sincronizado
+    let dateStr = "1900-01-01 00:00:00";
+    let lastSyncDate: Date | null = null;
+
+    if (config.length > 0 && config[0].ultimaSincronizacao) {
+      lastSyncDate = config[0].ultimaSincronizacao;
+      dateStr = lastSyncDate.toISOString().slice(0, 19).replace('T', ' '); // YYYY-MM-DD HH:MM:SS
+    }
+
+    // Para Oracle, o ideal é usar Bind Variables (tratado no OracleConnector)
+    // Para MySQL/Postgres, o literal TIMESTAMP funciona muito bem.
+    const isOracle = sistema?.toLowerCase() === "tasy" || sistema?.toLowerCase() === "oracle";
+    const replacement = `TIMESTAMP '${dateStr}'`;
+    
+    // Se for Oracle, NÃO forçamos a substituição por string aqui se o placeholder for usado para Bind
+    // mas por compatibilidade, vamos deixar o replace (o OracleConnector dará preferência ao Bind se encontrar o nome)
+    let preparedQuery = querySql.replace(/:last_sync_date/gi, replacement);
+    
+    logger.info({ message: "Delta Sync Query Preparada", configId, sistema, lastSync: dateStr });
+    return { query: preparedQuery, lastSyncDate };
+  }
+
   /**
-   * Sincroniza dados do WARLEINE
+   * Sincroniza dados do WARLEINE usando Streaming
    */
   async sincronizarWarleine(config: SyncConfig): Promise<SyncResult> {
     const inicioSync = Date.now();
+    let totalSincronizados = 0;
 
     try {
       logger.info({
-        message: "Iniciando sincronização WARLEINE",
+        message: "Iniciando sincronização WARLEINE (Stream)",
         tipoDados: config.tipoDados,
         estabelecimentoId: config.estabelecimentoId,
       });
 
-      // Cria connector
       const connector = new WarleineConnector({
         host: config.conexaoConfig?.host || process.env.WARLEINE_DB_HOST!,
         port: config.conexaoConfig?.port || parseInt(process.env.WARLEINE_DB_PORT!),
@@ -91,137 +125,81 @@ export class DataSyncEngine {
         password: config.conexaoConfig?.password || process.env.WARLEINE_DB_PASSWORD!,
       });
 
-      // Conecta
       const conectado = await connector.conectar();
-      if (!conectado) {
-        throw new Error("Falha ao conectar ao banco WARLEINE");
-      }
+      if (!conectado) throw new Error("Falha ao conectar ao banco WARLEINE");
 
-      // Extrai dados
-      let registrosBrutos: any[] = [];
       const db = await getDb();
-      if (!db) {
-        throw new Error("Falha ao conectar ao banco de dados local para staging");
-      }
+      if (!db) throw new Error("Falha ao conectar ao banco local");
 
-      // Descobrir o configId
       const configRow = await db.select({ id: queryConfiguracoes.id }).from(queryConfiguracoes).where(
         eq(queryConfiguracoes.estabelecimentoId, config.estabelecimentoId)
       ).limit(1);
-      
-      // O engine real usaria o configId armazenado. 
-      // Como a chave pode não mapear um ID único limpo, buscamos o primeiro ou assumimos 0.
       const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
-      if (config.tipoDados === "atendimentos") {
-        registrosBrutos = await connector.extrairAtendimentos(config.querySql);
-        
-        // Janela Fixa: Limpa staging antigo antes de inserir os novos (Incremental)
-        if (configId > 0) {
-          await db.delete(staging_atendimento_warleine).where(eq(staging_atendimento_warleine.estabelecimentoId, config.estabelecimentoId));
-          
-          if (registrosBrutos.length > 0) {
-            // Insere em lotes
-            const BATCH_SIZE = 500;
-            for (let i = 0; i < registrosBrutos.length; i += BATCH_SIZE) {
-               const batch = registrosBrutos.slice(i, i + BATCH_SIZE).map(d => ({
-                 estabelecimentoId: config.estabelecimentoId,
-                 importacaoId: configId,
-                 rawData: d,
-                 numeroAtendimento: d.numatend || d.numconta ? String(d.numatend || d.numconta) : null,
-                 pacienteNome: d.nomepac ? String(d.nomepac).substring(0, 255) : null,
-                 convenioNome: (d.nomeplaco || d.nomeconv) ? String(d.nomeplaco || d.nomeconv).substring(0, 255) : null,
-                 tipoAtendimento: d.tipoatend ? String(d.tipoatend).substring(0, 50) : null,
-                 processado: false
-               }));
-               await db.insert(staging_atendimento_warleine).values(batch);
-            }
-          }
-        }
-      } else if (config.tipoDados === "faturamento") {
-        registrosBrutos = await connector.executarQuery(config.querySql);
-        
-        if (configId > 0) {
-          await db.delete(warleineFaturamentoStaging).where(eq(warleineFaturamentoStaging.configId, configId));
-          
-          if (registrosBrutos.length > 0) {
-            const BATCH_SIZE = 500;
-            for (let i = 0; i < registrosBrutos.length; i += BATCH_SIZE) {
-               const batch = registrosBrutos.slice(i, i + BATCH_SIZE).map(d => ({
-                 estabelecimentoId: config.estabelecimentoId,
-                 configId: configId,
-                 dadosBrutos: d
-               }));
-               await db.insert(warleineFaturamentoStaging).values(batch);
-            }
-          }
-        }
-      } else if (config.tipoDados === "bi_relatorio") {
-        registrosBrutos = await connector.executarQuery(config.querySql);
-        const tabelaDestino = config.conexaoConfig?.tabelaDestinoBi;
-        if (tabelaDestino && registrosBrutos.length > 0) {
-          // Identificar as colunas dinamicamente baseado na primeira linha (JSON Keys)
-          const firstRow = registrosBrutos[0];
-          const colunas = Object.keys(firstRow).filter(k => k !== 'id');
-          const definicaoColunas = colunas.map(c => `\`${c}\` TEXT`).join(', ');
+      const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
+      const stagingTable = isFaturamento ? warleineFaturamentoStaging : staging_atendimento_warleine;
+      
+      // Delta Sync detection: Se a query usa :last_sync_date, não deletamos tudo da staging
+      const isDelta = /:last_sync_date/i.test(config.querySql);
+      const prep = isDelta ? await this.prepararQueryDelta(configId, config.querySql, "warleine") : { query: config.querySql, lastSyncDate: null };
+      const queryPronta = prep.query;
+      const syncParams = { last_sync_date: prep.lastSyncDate };
 
-          // Cria a tabela caso não exista (id AUTO_INCREMENT é padrão)
-          const createTableSql = `CREATE TABLE IF NOT EXISTS \`${tabelaDestino}\` (id INT AUTO_INCREMENT PRIMARY KEY, \`configId\` INT NOT NULL, ${definicaoColunas}, criadoEm TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
-          await db.execute(sql.raw(createTableSql));
-
-          // Limpa a tabela para o config atual (Janela Móvel)
-          await db.execute(sql.raw(`DELETE FROM \`${tabelaDestino}\` WHERE \`configId\` = ${configId}`));
-
-          // Insere os dados usando prepared statements para evitar SQL Injection nos valores
-          const insertCols = ['`configId`', ...colunas.map(c => `\`${c}\``)].join(', ');
-
-          try {
-            for (const row of registrosBrutos) {
-              const values = [configId, ...colunas.map(c => row[c] !== undefined && row[c] !== null ? String(row[c]) : null)];
-              const sqlValues = values.map(v => sql`${v}`);
-              const exeSql = sql`INSERT INTO ${sql.raw('\`' + tabelaDestino + '\`')} (${sql.raw(insertCols)}) VALUES (${sql.join(sqlValues, sql`, `)})`;
-              await db.execute(exeSql);
-            }
-          } catch(insertErr: any) {
-             console.error("MYSQL INSERT EXCEPTION: ", insertErr.sqlMessage || insertErr.message || insertErr);
-          }
-        }
+      if (configId > 0 && !isDelta) {
+        await db.delete(stagingTable).where(
+          isFaturamento ? eq(warleineFaturamentoStaging.configId, configId) : eq(staging_atendimento_warleine.estabelecimentoId, config.estabelecimentoId)
+        );
       }
 
-      // Desconecta
+      const BATCH_SIZE = 2000;
+      let buffer: any[] = [];
+
+      const flushBuffer = async () => {
+        if (buffer.length === 0) return;
+        const batch = buffer.map(d => {
+          if (isFaturamento) {
+            return { estabelecimentoId: config.estabelecimentoId, configId, dadosBrutos: d };
+          } else {
+            return {
+              estabelecimentoId: config.estabelecimentoId,
+              importacaoId: configId,
+              rawData: d,
+              numeroAtendimento: d.numatend || d.numconta ? String(d.numatend || d.numconta) : null,
+              pacienteNome: d.nomepac ? String(d.nomepac).substring(0, 255) : null,
+              convenioNome: (d.nomeplaco || d.nomeconv) ? String(d.nomeplaco || d.nomeconv).substring(0, 255) : null,
+              tipoAtendimento: d.tipoatend ? String(d.tipoatend).substring(0, 50) : null,
+              processado: false
+            };
+          }
+        });
+        await db.insert(stagingTable).values(batch as any);
+        totalSincronizados += buffer.length;
+        buffer = [];
+      };
+
+      await connector.executarQueryStream(queryPronta, async (row) => {
+        buffer.push(row);
+        if (buffer.length >= BATCH_SIZE) {
+          await flushBuffer();
+        }
+      }, syncParams);
+
+      await flushBuffer();
       await connector.desconectar();
 
-      // Calcula duração
       const duracao = Math.round((Date.now() - inicioSync) / 1000);
-
-      logger.info({
-        message: "Sincronização WARLEINE concluída com sucesso",
-        tipoDados: config.tipoDados,
-        totalRegistros: registrosBrutos.length,
-        duracao,
-      });
-
       return {
         sucesso: true,
         sistema: config.sistema,
         tipoDados: config.tipoDados,
-        totalRegistrosSincronizados: registrosBrutos.length,
+        totalRegistrosSincronizados: totalSincronizados,
         totalErros: 0,
-        mensagem: `${registrosBrutos.length} registros sincronizados e armazenados no Staging`,
+        mensagem: `${totalSincronizados} registros sincronizados via Stream`,
         duracao,
         timestamp: new Date(),
       };
     } catch (error) {
       const duracao = Math.round((Date.now() - inicioSync) / 1000);
-
-      logger.error({
-        message: "Erro na sincronização WARLEINE",
-        sistema: config.sistema,
-        tipoDados: config.tipoDados,
-        error: error instanceof Error ? error.message : String(error),
-        duracao,
-      });
-
       return {
         sucesso: false,
         sistema: config.sistema,
@@ -231,7 +209,6 @@ export class DataSyncEngine {
         mensagem: error instanceof Error ? error.message : "Erro desconhecido",
         duracao,
         timestamp: new Date(),
-        erros: [error instanceof Error ? error.message : String(error)],
       };
     }
   }
@@ -271,61 +248,99 @@ export class DataSyncEngine {
       ).limit(1);
       const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
-      // Executa a Query configurada no Oracle
-      registrosBrutos = await connector.executarQuery(config.querySql);
+      // Extração via Stream para economia de memória
+      const BATCH_SIZE = 2000;
+      let buffer: any[] = [];
+      let totalSincronizados = 0;
+
+      const flushBuffer = async () => {
+        if (buffer.length === 0) return;
+        
+        if (config.tipoDados === "atendimentos") {
+          const batch = buffer.map(d => ({
+            estabelecimentoId: config.estabelecimentoId,
+            configId: configId,
+            dadosBrutos: d
+          }));
+          await db.insert(tasyMaternidadeElaAtendimentosStaging).values(batch);
+        } else if (config.tipoDados === "bi_relatorio") {
+          const tabelaDestino = config.conexaoConfig?.tabelaDestinoBi;
+          if (tabelaDestino) {
+            const colunas = Object.keys(buffer[0]);
+            const insertCols = ['`configId`', '`estabelecimentoId`', ...colunas.map(c => `\`${c}\``)].join(', ');
+            
+            const valoresLote = buffer.map(row => {
+              const vals = [configId, config.estabelecimentoId, ...colunas.map(c => {
+                const v = row[c];
+                if (v === null || v === undefined) return "NULL";
+                return `'${String(v).replace(/'/g, "''")}'`;
+              })];
+              return `(${vals.join(", ")})`;
+            }).join(",\n");
+
+            const sqlInsert = `REPLACE INTO \`${tabelaDestino}\` (${insertCols}) VALUES ${valoresLote}`;
+            await db.execute(sql.raw(sqlInsert));
+          }
+        }
+        
+        totalSincronizados += buffer.length;
+        buffer = [];
+      };
+
+      // Delta Sync detection for Tasy
+      const isDelta = /:last_sync_date/i.test(config.querySql);
+      const prep = isDelta ? await this.prepararQueryDelta(configId, config.querySql, "tasy") : { query: config.querySql, lastSyncDate: null };
+      const queryPronta = prep.query;
+      const syncParams = { last_sync_date: prep.lastSyncDate };
 
       if (config.tipoDados === "atendimentos") {
-        if (configId > 0) {
-          // Limpa staging antigo
+        if (configId > 0 && !isDelta) {
           await db.delete(tasyMaternidadeElaAtendimentosStaging).where(eq(tasyMaternidadeElaAtendimentosStaging.configId, configId));
-          
-          if (registrosBrutos.length > 0) {
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < registrosBrutos.length; i += BATCH_SIZE) {
-               const batch = registrosBrutos.slice(i, i + BATCH_SIZE).map(d => ({
-                 estabelecimentoId: config.estabelecimentoId,
-                 configId: configId,
-                 dadosBrutos: d
-               }));
-               // A tabela MaternidadeEla foi usada como alias padrão para atendimentos no TASY em schema-integracao
-               await db.insert(tasyMaternidadeElaAtendimentosStaging).values(batch);
-            }
-          }
         }
       } else if (config.tipoDados === "bi_relatorio") {
         const tabelaDestino = config.conexaoConfig?.tabelaDestinoBi;
-        if (tabelaDestino && registrosBrutos.length > 0) {
-          const firstRow = registrosBrutos[0];
-          const colunas = Object.keys(firstRow).filter(k => k !== 'id');
-          const definicaoColunas = colunas.map(c => `\`${c}\` TEXT`).join(', ');
-
-          const createTableSql = `CREATE TABLE IF NOT EXISTS \`${tabelaDestino}\` (id INT AUTO_INCREMENT PRIMARY KEY, \`configId\` INT NOT NULL, ${definicaoColunas}, criadoEm TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
-          await db.execute(sql.raw(createTableSql));
-
-          await db.execute(sql.raw(`DELETE FROM \`${tabelaDestino}\` WHERE \`configId\` = ${configId}`));
-
-          const insertCols = ['`configId`', ...colunas.map(c => `\`${c}\``)].join(', ');
-
-          try {
-            for (const row of registrosBrutos) {
-              const values = [configId, ...colunas.map(c => row[c] !== undefined && row[c] !== null ? String(row[c]) : null)];
-              const sqlValues = values.map(v => sql`${v}`);
-              const exeSql = sql`INSERT INTO ${sql.raw('\`' + tabelaDestino + '\`')} (${sql.raw(insertCols)}) VALUES (${sql.join(sqlValues, sql`, `)})`;
-              await db.execute(exeSql);
-            }
-          } catch(insertErr: any) {
-             console.error("MYSQL INSERT EXCEPTION: ", insertErr.sqlMessage || insertErr.message || insertErr);
-             throw new Error(`Erro ao inserir lote no MySQL: ${insertErr.sqlMessage || insertErr.message}`);
-          }
+        if (tabelaDestino) {
+           // Pré-criação da tabela (apenas na primeira linha)
+           let tabelaCriada = false;
+           
+           await connector.executarQueryStream(queryPronta, async (row) => {
+             if (!tabelaCriada) {
+                const colunas = Object.keys(row);
+                const definicaoColunas = colunas.map(c => `\`${c}\` TEXT`).join(', ');
+                const createTableSql = `CREATE TABLE IF NOT EXISTS \`${tabelaDestino}\` (id INT AUTO_INCREMENT PRIMARY KEY, \`configId\` INT NOT NULL, ${definicaoColunas}, criadoEm TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
+                await db.execute(sql.raw(createTableSql));
+                
+                if (!isDelta) {
+                  await db.execute(sql.raw(`DELETE FROM \`${tabelaDestino}\` WHERE \`configId\` = ${configId}`));
+                }
+                tabelaCriada = true;
+             }
+             
+             buffer.push(row);
+             if (buffer.length >= BATCH_SIZE) {
+               await flushBuffer();
+             }
+           });
+           await flushBuffer();
         }
+      }
+
+      if (config.tipoDados === "atendimentos") {
+        await connector.executarQueryStream(queryPronta, async (row) => {
+          buffer.push(row);
+          if (buffer.length >= BATCH_SIZE) {
+            await flushBuffer();
+          }
+        }, syncParams);
+        await flushBuffer();
       }
 
       await connector.desconectar();
       const duracao = Math.round((Date.now() - inicioSync) / 1000);
 
       logger.info({
-        message: "Sincronização TASY concluída com sucesso",
-        totalRegistros: registrosBrutos.length,
+        message: "Sincronização TASY concluída",
+        totalRegistros: totalSincronizados,
         duracao,
       });
 
@@ -333,9 +348,9 @@ export class DataSyncEngine {
         sucesso: true,
         sistema: config.sistema,
         tipoDados: config.tipoDados,
-        totalRegistrosSincronizados: registrosBrutos.length,
+        totalRegistrosSincronizados: totalSincronizados,
         totalErros: 0,
-        mensagem: `${registrosBrutos.length} registros sincronizados (TASY)`,
+        mensagem: `${totalSincronizados} registros sincronizados via Stream (TASY)`,
         duracao,
         timestamp: new Date(),
       };

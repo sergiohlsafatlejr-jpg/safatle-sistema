@@ -87,23 +87,7 @@ export class OracleConnector {
     try {
       oracledb.fetchAsString = [oracledb.DATE, oracledb.CLOB];
       
-      // Converter syntax do PostgreSQL/SQLServer ($1, $2) para Oracle (:1, :2)
-      let oracleQuery = query;
-      let oracledbParams: any = Array.isArray(params) ? [] : {};
-      
-      // Se tiver parâmetros relacionais ($1, $2), converter formatação
-      // Se tiver parâmetros relacionais ($1, $2), injetar diretamente na query para evitar bugs de parse ORA-01036
-      if (params && Array.isArray(params) && params.length > 0) {
-        let finalQuery = oracleQuery;
-        for (let i = 0; i < params.length; i++) {
-            const val = String(params[i]).replace(/'/g, "''"); // Escape simples para prevenir quebra de string
-            finalQuery = finalQuery.replace(new RegExp(`\\$${i + 1}`, 'g'), `'${val}'`);
-        }
-        oracleQuery = finalQuery;
-        oracledbParams = {}; // Passa vazio, pois os binds já foram embutidos
-      } else if (params && !Array.isArray(params)) {
-        oracledbParams = params;
-      }
+      const { oracleQuery, oracledbParams } = this.processarQueryEParams(query, params);
 
       console.log('DEBUG ORACLE BIND: ', { oracleQuery, oracledbParams });
 
@@ -123,12 +107,101 @@ export class OracleConnector {
     }
   }
 
+  /**
+   * Executa uma query no Oracle usando Streaming (ResultSet)
+   * Útil para grandes volumes de dados (100k+ registros)
+   */
+  async executarQueryStream(query: string, callback: (row: any) => Promise<void>, params?: any[] | Record<string, any>): Promise<number> {
+    if (!this.connection) {
+      throw new Error("Conexão não estabelecida");
+    }
+
+    try {
+      oracledb.fetchAsString = [oracledb.DATE, oracledb.CLOB];
+      const { oracleQuery, oracledbParams } = this.processarQueryEParams(query, params);
+
+      const result = await this.connection.execute(oracleQuery, oracledbParams, { 
+        resultSet: true,
+        prefetchRows: 1000 
+      });
+
+      const rs = result.resultSet;
+      if (!rs) return 0;
+
+      let row;
+      let count = 0;
+      while ((row = await rs.getRow())) {
+        await callback(row);
+        count++;
+        if (count % 1000 === 0) {
+          logger.info({ message: "Oracle Stream Progress", count });
+        }
+      }
+
+      await rs.close();
+      return count;
+    } catch (error) {
+      logger.error({
+        message: "Erro ao executar query stream no Oracle",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  private processarQueryEParams(query: string, params?: any[] | Record<string, any>): { oracleQuery: string; oracledbParams: any } {
+    let oracleQuery = query;
+    let oracledbParams: any = Array.isArray(params) ? [] : { ...(params || {}) };
+
+    // DEBUG: Gravar consulta para inspeção
+    try {
+      const fs = require('fs');
+      fs.writeFileSync("oracle_debug_query.sql", `-- ${new Date().toISOString()}\n${oracleQuery}`);
+    } catch(e) {}
+
+    // Substituição ultra-agressiva: Varremos a string em busca de qualquer variação de :last_sync_date
+    const replacement = (oracledbParams && oracledbParams.last_sync_date instanceof Date)
+        ? `TIMESTAMP '${oracledbParams.last_sync_date.toISOString().slice(0, 19).replace('T', ' ')}'`
+        : `TIMESTAMP '1900-01-01 00:00:00'`;
+    
+    let lowerQuery = oracleQuery.toLowerCase();
+    let placeholder = ":last_sync_date";
+    
+    while (lowerQuery.includes(placeholder)) {
+        const index = lowerQuery.indexOf(placeholder);
+        oracleQuery = oracleQuery.substring(0, index) + replacement + oracleQuery.substring(index + placeholder.length);
+        lowerQuery = oracleQuery.toLowerCase(); // Atualiza para a próxima iteração
+    }
+
+    // Removemos o parâmetro do objeto de bind para não confundir o Oracle
+    if (oracledbParams && !Array.isArray(oracledbParams)) {
+        delete oracledbParams.last_sync_date;
+        delete oracledbParams.LAST_SYNC_DATE;
+    }
+
+    if (params && Array.isArray(params) && params.length > 0) {
+      // ... restant ...
+      let finalQuery = oracleQuery;
+      for (let i = 0; i < params.length; i++) {
+          const val = String(params[i]).replace(/'/g, "''");
+          finalQuery = finalQuery.replace(new RegExp(`\\$${i + 1}`, 'g'), `'${val}'`);
+      }
+      oracleQuery = finalQuery;
+      oracledbParams = {};
+    } else if (params && !Array.isArray(params)) {
+      oracledbParams = params;
+    }
+
+    return { oracleQuery, oracledbParams };
+  }
+
   async testarConexaoEQuery(query: string): Promise<{
     sucesso: boolean;
     mensagem: string;
     totalRegistros: number;
     primeiroRegistro: any | null;
   }> {
+
     try {
       const ok = await this.conectar();
       if (!ok) {

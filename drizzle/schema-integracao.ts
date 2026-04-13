@@ -150,7 +150,7 @@ export const faturamentoGeral = mysqlTable(
 
 // TASY - Maternidade Ela - Atendimentos (Staging)
 export const tasyMaternidadeElaAtendimentosStaging = mysqlTable(
-  "Tasy_maternidadeela_atendimentos_stagion",
+  "staging_atendimentos_tasy",
   {
     id: int().primaryKey().autoincrement(),
     estabelecimentoId: int().notNull(),
