@@ -1955,6 +1955,7 @@ export const contasConvenioRouter = router({
           ft.convenioId,
           ft.data_referencia,
           ft.data_importacao,
+          ft.competencia as competencia_xml,
           c.nome as convenio_nome,
           a.dataReferencia as arquivo_data_referencia
         FROM staging_faturamento_xml ft
@@ -2044,6 +2045,8 @@ export const contasConvenioRouter = router({
         valorTotal: number;
         dataExecucao: Date | null;
         arquivoDataReferencia: Date | null;
+        competenciaXml: string | null;
+        dataReferencia: Date | null;
       }>();
 
       for (const row of data) {
@@ -2056,6 +2059,8 @@ export const contasConvenioRouter = router({
           valorTotal: 0,
           dataExecucao: null,
           arquivoDataReferencia: null,
+          competenciaXml: null,
+          dataReferencia: null,
         };
 
         existing.convenio = existing.convenio || (row.convenio_nome ? String(row.convenio_nome) : null);
@@ -2069,7 +2074,15 @@ export const contasConvenioRouter = router({
         if (row.data_execucao && !existing.dataExecucao) {
           existing.dataExecucao = new Date(row.data_execucao);
         }
-        // Usar data de referência do arquivo de upload como competência
+        // Capturar competência direta do XML (campo competencia da staging)
+        if (row.competencia_xml && !existing.competenciaXml) {
+          existing.competenciaXml = String(row.competencia_xml);
+        }
+        // Capturar data_referencia do item XML
+        if (row.data_referencia && !existing.dataReferencia) {
+          existing.dataReferencia = new Date(row.data_referencia);
+        }
+        // Capturar data de referência do arquivo de upload
         if (row.arquivo_data_referencia && !existing.arquivoDataReferencia) {
           existing.arquivoDataReferencia = new Date(row.arquivo_data_referencia);
         }
@@ -2097,12 +2110,21 @@ export const contasConvenioRouter = router({
           statusAnalise: "pendente" as const,
           buscadoPor: ctx.user?.id || null,
           competencia: (() => {
-            // Prioridade: usar data de referência do arquivo de upload
+            // Prioridade 1: usar competência direta do XML (já no formato AAAA/MM)
+            if (r.competenciaXml) {
+              return r.competenciaXml;
+            }
+            // Prioridade 2: usar data_referencia do item XML
+            if (r.dataReferencia) {
+              const d = r.dataReferencia;
+              return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }
+            // Prioridade 3: usar data de referência do arquivo de upload
             if (r.arquivoDataReferencia) {
               const d = r.arquivoDataReferencia;
               return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
             }
-            // Fallback: usar dataExecucao se não houver data de referência
+            // Prioridade 4: usar dataExecucao como último recurso
             if (r.dataExecucao) {
               const d = r.dataExecucao;
               return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -2116,75 +2138,99 @@ export const contasConvenioRouter = router({
       }
 
       // ============================================================
-      // ANÁLISE AUTOMÁTICA: Comparar cada conta com padrões
+      // ANÁLISE AUTOMÁTICA OTIMIZADA: Comparar contas com padrões
       // ============================================================
       let totalContasAnalisadas = 0;
       let totalContasDivergentes = 0;
 
       try {
-        for (const [guia] of resumoEntries) {
-          try {
-            const resultadoComparacao = await compararContaComPadroes(guia, input.estabelecimentoId);
+        // OTIMIZAÇÃO BULK: Marcar TODOS os itens como "conforme" de uma vez (1 query!)
+        await db.update(contasConvenioItens)
+          .set({ statusAnalise: "conforme", divergencias: null })
+          .where(
+            and(
+              eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId),
+              eq(contasConvenioItens.origem, "XML")
+            )
+          );
 
-            // Mapear divergências por codigoItem
-            const divergenciasPorItem = new Map<string, any[]>();
-            const divergenciasGerais: any[] = [];
+        logger.info({ message: `[Migração] Itens marcados como conforme em bulk. Iniciando análise de ${resumoEntries.length} contas em paralelo...` });
 
-            for (const div of resultadoComparacao.divergencias) {
-              if (div.codigoItem) {
-                if (!divergenciasPorItem.has(div.codigoItem)) {
-                  divergenciasPorItem.set(div.codigoItem, []);
+        // Processar contas em lotes paralelos de 5 para não sobrecarregar o DB
+        const PARALLEL_BATCH = 5;
+        for (let i = 0; i < resumoEntries.length; i += PARALLEL_BATCH) {
+          const lote = resumoEntries.slice(i, i + PARALLEL_BATCH);
+
+          const promises = lote.map(async ([guia]) => {
+            try {
+              const resultadoComparacao = await compararContaComPadroes(guia, input.estabelecimentoId);
+
+              // Mapear divergências por codigoItem
+              const divergenciasPorItem = new Map<string, any[]>();
+              const divergenciasGerais: any[] = [];
+
+              for (const div of resultadoComparacao.divergencias) {
+                if (div.codigoItem) {
+                  if (!divergenciasPorItem.has(div.codigoItem)) {
+                    divergenciasPorItem.set(div.codigoItem, []);
+                  }
+                  divergenciasPorItem.get(div.codigoItem)!.push(div);
+                } else {
+                  divergenciasGerais.push(div);
                 }
-                divergenciasPorItem.get(div.codigoItem)!.push(div);
-              } else {
-                divergenciasGerais.push(div);
               }
-            }
 
-                        // OTIMIZACAO 1: Em vez de atualizar item a item (N+1 queries = 150mil hits no banco),
-            // marcamos a conta inteira como "conforme" com 1 query!
-            await db.update(contasConvenioItens)
-              .set({ statusAnalise: "conforme", divergencias: null })
-              .where(
-                and(
-                  eq(contasConvenioItens.numeroConta, guia),
-                  eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId)
-                )
-              );
-
-            // OTIMIZACAO 2: Atualizar APENAS as divergencias (geralmente uma minoria)
-            for (const [codigoItem, divs] of divergenciasPorItem.entries()) {
-              if (divs && divs.length > 0) {
-                await db.update(contasConvenioItens)
-                  .set({ statusAnalise: "divergente", divergencias: divs })
-                  .where(
-                     and(
-                       eq(contasConvenioItens.numeroConta, guia),
-                       eq(contasConvenioItens.codigoItem, codigoItem),
-                       eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId)
-                     )
+              // Atualizar APENAS os itens divergentes (conforme já está marcado em bulk)
+              const updatePromises: Promise<any>[] = [];
+              for (const [codigoItem, divs] of divergenciasPorItem.entries()) {
+                if (divs && divs.length > 0) {
+                  updatePromises.push(
+                    db.update(contasConvenioItens)
+                      .set({ statusAnalise: "divergente", divergencias: divs })
+                      .where(
+                        and(
+                          eq(contasConvenioItens.numeroConta, guia),
+                          eq(contasConvenioItens.codigoItem, codigoItem),
+                          eq(contasConvenioItens.estabelecimentoId, input.estabelecimentoId)
+                        )
+                      )
                   );
+                }
               }
-            }// Atualizar resumo
-            const statusGeral = resultadoComparacao.statusGeral === "divergente" ? "divergente" : "conforme";
-            if (statusGeral === "divergente") totalContasDivergentes++;
-            await db.update(contasConvenioResumo)
-              .set({
-                statusAnalise: statusGeral,
-                scoreRisco: resultadoComparacao.scoreRisco.score,
-                detalhesRisco: resultadoComparacao.scoreRisco,
-                divergenciasGerais: divergenciasGerais.length > 0 ? divergenciasGerais : null,
-              })
-              .where(
-                and(
-                  eq(contasConvenioResumo.numeroConta, guia),
-                  eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
-                )
+
+              // Atualizar resumo da conta
+              const statusGeral = resultadoComparacao.statusGeral === "divergente" ? "divergente" : "conforme";
+              updatePromises.push(
+                db.update(contasConvenioResumo)
+                  .set({
+                    statusAnalise: statusGeral,
+                    scoreRisco: resultadoComparacao.scoreRisco.score,
+                    detalhesRisco: resultadoComparacao.scoreRisco,
+                    divergenciasGerais: divergenciasGerais.length > 0 ? divergenciasGerais : null,
+                  })
+                  .where(
+                    and(
+                      eq(contasConvenioResumo.numeroConta, guia),
+                      eq(contasConvenioResumo.estabelecimentoId, input.estabelecimentoId),
+                    )
+                  )
               );
 
-            totalContasAnalisadas++;
-          } catch (e) {
-            logger.warn({ message: `Análise falhou para conta ${guia}`, error: String(e) });
+              await Promise.all(updatePromises);
+
+              return { divergente: statusGeral === "divergente" };
+            } catch (e) {
+              logger.warn({ message: `Análise falhou para conta ${guia}`, error: String(e) });
+              return null;
+            }
+          });
+
+          const resultados = await Promise.all(promises);
+          for (const r of resultados) {
+            if (r) {
+              totalContasAnalisadas++;
+              if (r.divergente) totalContasDivergentes++;
+            }
           }
         }
       } catch (e) {

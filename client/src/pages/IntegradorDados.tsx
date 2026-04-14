@@ -138,7 +138,10 @@ export function IntegradorDados() {
         });
         
         try {
-          await transformarParaAtendimentos.mutateAsync({ configId: variables.configId });
+          // Apenas iniciar auto-transformação se não for bi_relatorio
+          if (variables.tipoDados !== 'bi_relatorio') {
+            await transformarParaAtendimentos.mutateAsync({ configId: variables.configId });
+          }
         } catch(e) {
           console.error("Auto-transform falhou", e);
         }
@@ -179,9 +182,9 @@ export function IntegradorDados() {
     },
   });
 
-  const handleSincronizar = async (configId: number) => {
+  const handleSincronizar = async (configId: number, tipoDados: string) => {
     try {
-      await sincronizar.mutateAsync({ configId });
+      await sincronizar.mutateAsync({ configId, tipoDados } as any); // cast for extra UI param
     } catch (e) {
       // Error already handled by onError callback
     }
@@ -679,7 +682,7 @@ export function IntegradorDados() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleSincronizar(config.id)}
+                          onClick={() => handleSincronizar(config.id, config.tipoDados)}
                           disabled={sincronizar.isPending}
                           title="Sincronizar agora"
                         >

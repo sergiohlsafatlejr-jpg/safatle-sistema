@@ -15,11 +15,12 @@ import {
   Package as PackageIcon,
   Gavel,
   Activity,
+  Users,
 } from "lucide-react";
 import { MetricCard } from "@/components/bi/MetricCard";
 import { BIFilters } from "@/components/bi/BIFilters";
 import { ConvenioBarChart, TiposPieChart, EvolucaoMensalChart } from "@/components/bi/BICharts";
-import { ConvenioTable, GlosaTable, DescricaoTable } from "@/components/bi/BITables";
+import { ConvenioTable, GlosaTable, DescricaoTable, TicketMedioTable } from "@/components/bi/BITables";
 import { StackedProgressChart } from "@/components/bi/StackedProgressChart";
 import { TopGlosasChart } from "@/components/bi/TopGlosasChart";
 import { InsightCards } from "@/components/bi/InsightCards";
@@ -97,6 +98,8 @@ export default function RelatoriosBI() {
     valorRecursado?: number;
     valorRecuperado?: number;
     quantidade: number;
+    diarias?: number;
+    ticketMedio?: number;
   }
 
   // Dados por convênio (vindos do backend)
@@ -110,6 +113,8 @@ export default function RelatoriosBI() {
       valorRecursado: item.valorRecursado || 0,
       valorRecuperado: item.valorRecuperado || 0,
       quantidade: item.quantidade || 0,
+      diarias: item.diarias || 0,
+      ticketMedio: item.ticketMedio || 0,
     }));
   }, [biData]);
 
@@ -203,13 +208,15 @@ export default function RelatoriosBI() {
       return { faturado: 0, recebido: 0, glosado: 0, itens: 0, percentualGlosa: "0", ticketMedio: 0 };
     }
     const { totalFaturado, totalRecebido, totalGlosado, totalItens } = biData.resumo;
+    const totalFaturadoTerceiros = (biData.resumo as any).totalFaturadoTerceiros || 0;
     const percentualGlosa =
       totalFaturado > 0 ? ((totalGlosado / totalFaturado) * 100).toFixed(1) : "0";
-    const ticketMedio = totalItens > 0 ? totalFaturado / totalItens : 0;
+    const ticketMedio = (biData.resumo as any).ticketMedio || 0;
     const totalRecursado = biData.resumo.totalRecursado || 0;
     const totalRecuperado = biData.resumo.totalRecuperado || 0;
     return {
       faturado: totalFaturado,
+      faturadoTerceiros: totalFaturadoTerceiros,
       recebido: totalRecebido,
       glosado: totalGlosado,
       recursado: totalRecursado,
@@ -370,7 +377,7 @@ export default function RelatoriosBI() {
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
                 Clique nos cards para filtrar os dados exibidos
               </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
                 <MetricCard
                   title="Faturado"
                   value={fmtCurrency(metricas.faturado)}
@@ -385,6 +392,16 @@ export default function RelatoriosBI() {
                   }))}
                   active={activeMetrics.has("faturado")}
                   onClick={() => toggleMetric("faturado")}
+                />
+                <MetricCard
+                  title="Faturamento Terceiros"
+                  value={fmtCurrency(metricas.faturadoTerceiros)}
+                  subtitle="Valor faturado extra-hospitalar"
+                  icon={Users}
+                  variant="muted"
+                  delay={0.07}
+                  active={activeMetrics.has("terceiros")}
+                  onClick={() => toggleMetric("terceiros")}
                 />
                 <MetricCard
                   title="Recebido"
@@ -451,13 +468,13 @@ export default function RelatoriosBI() {
                 <MetricCard
                   title="Ticket Médio"
                   value={fmtCurrency(metricas.ticketMedio)}
-                  subtitle={`${Math.round(metricas.itens).toLocaleString("pt-BR")} itens`}
+                  subtitle={`Faturado / Diárias (${conveniosData.reduce((s, c) => s + (c.diarias || 0), 0).toLocaleString("pt-BR")} diárias)`}
                   icon={PackageIcon}
                   variant="primary"
                   delay={0.3}
                   breakdown={conveniosData.map((c) => ({
                     nome: c.chave,
-                    valor: c.quantidade > 0 ? c.valorFaturado / c.quantidade : 0,
+                    valor: c.ticketMedio || 0,
                   }))}
                   active={activeMetrics.has("ticketMedio")}
                   onClick={() => toggleMetric("ticketMedio")}
@@ -516,6 +533,7 @@ export default function RelatoriosBI() {
               </TabsContent>
 
               <TabsContent value="tabelas" className="space-y-6">
+                <TicketMedioTable data={conveniosData} />
                 <ConvenioTable data={conveniosData} />
                 <GlosaTable data={motivosGlosaData} />
                 <DescricaoTable data={descricaoData} />

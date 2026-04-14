@@ -382,6 +382,18 @@ export function QueryConfigForm({ onSuccess, onCancel }: QueryConfigFormProps) {
                 <Button variant="outline" onClick={() => setStep("connection")}>
                   Voltar
                 </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setQueryData({ querySql: queryForm.getValues("querySql") });
+                    setQueryTested(true);
+                    setStep("config");
+                    toast.info("Teste pulado. Verifique se a sintaxe da query está correta!");
+                  }}
+                  title="Pule o teste se a query for muito demorada e você tiver certeza que está correta"
+                >
+                  Pular Teste
+                </Button>
                 <Button
                   onClick={queryForm.handleSubmit(handleTestQuery as any)}
                   disabled={testingQuery || queryTested}

@@ -13058,6 +13058,8 @@ export interface DadosBIAgrupado {
   valorRecuperado?: number;
   quantidade: number;
   registros: number;
+  diarias?: number;
+  ticketMedio?: number;
 }
 
 /**
@@ -13356,15 +13358,24 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   let totalMateriais = 0;
   let totalHonorarios = 0;
   let totalProcedimentos = 0;
+  let totalDiarias = 0;
   const pacientesSet = new Set<string>();
   const conveniosSet = new Set<number>();
   const guiasSet = new Set<string>(); // Para contar guias únicas
 
   for (const item of itensFaturadosFiltrados) {
     totalFaturado += parseFloat(item.valorFaturado || "0");
-    const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
+    const rawStr = String(item.tipoItem || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    let tipoItem = rawStr;
+    const desc = String(item.descricaoItem || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (desc.includes("diaria") || desc.includes("internacao") || rawStr === "diaria") {
+      tipoItem = "diaria";
+    } else if (!tipoItem || tipoItem === "taxa/alugueis" || tipoItem === "outros") {
+      tipoItem = determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    }
     if (tipoItem === "material" || tipoItem === "medicamento" || tipoItem === "mat_med") totalMateriais++;
     else if (tipoItem === "procedimento") totalHonorarios++;
+    else if (tipoItem === "diaria") totalDiarias += parseFloat(item.quantidade || "1");
     totalProcedimentos++;
     if (item.carteiraBeneficiario) pacientesSet.add(item.carteiraBeneficiario);
     if (item.numeroGuiaPrestador) guiasSet.add(item.numeroGuiaPrestador);
@@ -13383,7 +13394,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   
   // Calcular novas métricas
   const totalGuias = guiasSet.size;
-  const ticketMedio = totalGuias > 0 ? totalFaturado / totalGuias : 0;
+  const ticketMedio = totalDiarias > 0 ? totalFaturado / totalDiarias : (totalGuias > 0 ? totalFaturado / totalGuias : 0);
   const taxaGlosa = totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0;
   const valorMedioPorItem = totalProcedimentos > 0 ? totalFaturado / totalProcedimentos : 0;
   const valorMedioPorConvenio = conveniosSet.size > 0 ? totalFaturado / conveniosSet.size : 0;
@@ -13394,18 +13405,27 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     const convId = item.convenioId || arquivoConvenioMap.get(item.arquivoId);
     const chave = item.convenioNomeManual || convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
-      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porConvenioMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawStrT = String(item.tipoItem || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    let tItem = rawStrT;
+    const descT = String(item.descricaoItem || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (descT.includes("diaria") || descT.includes("internacao") || rawStrT === "diaria") {
+      tItem = "diaria";
+    } else if (!tItem || tItem === "taxa/alugueis" || tItem === "outros") {
+      tItem = determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    }
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const item of itensRecebidosFiltrados) {
     const convId = item.convenioId;
     const chave = item.convenioNomeManual || convenioMap.get(convId || 0) || "Sem Convênio";
     if (!porConvenioMap.has(chave)) {
-      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porConvenioMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porConvenioMap.get(chave)!;
     entry.valorRecebido += parseFloat(item.valorPago || "0");
@@ -13413,6 +13433,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   }
   for (const entry of Array.from(porConvenioMap.values())) {
     entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
+    entry.ticketMedio = (entry.diarias && entry.diarias > 0) ? entry.valorFaturado / entry.diarias : 0;
   }
 
   // Agrupar por tipo
@@ -13421,18 +13442,21 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     const tipoItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
     const chave = tipoItem;
     if (!porTipoMap.has(chave)) {
-      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porTipoMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const item of itensRecebidosFiltrados) {
     const tipoItem = item.tipoLancamento || determinarTipoProcedimento(item.codigoItem || '', item.descricaoItem || undefined);
     const chave = tipoItem;
     if (!porTipoMap.has(chave)) {
-      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porTipoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porTipoMap.get(chave)!;
     entry.valorRecebido += parseFloat(item.valorPago || "0");
@@ -13448,12 +13472,15 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     // Usar competencia do item (AAAA/MM) convertendo para AAAA-MM para display
     const chave = item.competencia ? item.competencia.replace('/', '-') : 'Sem Data';
     if (!porMesMap.has(chave)) {
-      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porMesMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const item of itensRecebidosFiltrados) {
     // Demonstrativo tem dataReferencia própria (string date)
@@ -13467,7 +13494,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
     }
     if (!porMesMap.has(chave)) {
-      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porMesMap.get(chave)!;
     entry.valorRecebido += parseFloat(item.valorPago || "0");
@@ -13482,12 +13509,15 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   for (const item of itensFaturadosFiltrados) {
     const chave = item.nomeProf || 'Sem Médico';
     if (!porMedicoMap.has(chave)) {
-      porMedicoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porMedicoMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porMedicoMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const entry of Array.from(porMedicoMap.values())) {
     entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
@@ -13498,18 +13528,21 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   for (const item of itensFaturadosFiltrados) {
     const chave = item.carteiraBeneficiario || 'Sem Paciente';
     if (!porPacienteMap.has(chave)) {
-      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porPacienteMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   // Adicionar dados de recebimento por paciente
   for (const item of itensRecebidosFiltrados) {
     const chave = item.nomeBeneficiario || item.carteiraBeneficiario || 'Sem Paciente';
     if (!porPacienteMap.has(chave)) {
-      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porPacienteMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porPacienteMap.get(chave)!;
     entry.valorRecebido += parseFloat(item.valorPago || "0");
@@ -13530,6 +13563,9 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const entry of Array.from(porProcedimentoMap.values())) {
     entry.valorPendente = entry.valorFaturado - entry.valorRecebido - entry.valorGlosado;
@@ -13562,6 +13598,9 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   
   // Depois, adicionar dados dos demonstrativos - criar novos itens se não existirem
@@ -13610,17 +13649,20 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
   for (const item of itensFaturadosFiltrados) {
     const chave = item.numeroGuiaPrestador || 'Sem Guia';
     if (!porGuiaMap.has(chave)) {
-      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porGuiaMap.get(chave)!;
     entry.valorFaturado += parseFloat(item.valorFaturado || "0");
     entry.quantidade += parseFloat(String(item.quantidade || "1"));
     entry.registros++;
+    const rawTItem = item.tipoItem || determinarTipoProcedimento(item.codigoItem || "", item.descricaoItem || undefined);
+    const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
   for (const item of itensRecebidosFiltrados) {
     const chave = item.numeroGuia || item.numeroGuiaPrestador || 'Sem Guia';
     if (!porGuiaMap.has(chave)) {
-      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porGuiaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const entry = porGuiaMap.get(chave)!;
     entry.valorRecebido += parseFloat(item.valorPago || "0");
@@ -13643,7 +13685,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       const chave = descricaoMotivo;
       
       if (!porMotivoGlosaMap.has(chave)) {
-        porMotivoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+        porMotivoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
       }
       const entry = porMotivoGlosaMap.get(chave)!;
       entry.valorGlosado += valorGlosa;
@@ -13668,7 +13710,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
         : chave === 'auto_recursar' ? 'Recursada (Auto)'
         : 'Pendente';
       if (!porStatusGlosaMap.has(chaveFormatada)) {
-        porStatusGlosaMap.set(chaveFormatada, { chave: chaveFormatada, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+        porStatusGlosaMap.set(chaveFormatada, { chave: chaveFormatada, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
       }
       const entry = porStatusGlosaMap.get(chaveFormatada)!;
       entry.valorGlosado += valorGlosa;
@@ -13699,7 +13741,7 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
       : statusOriginal === 'cancelado' ? 'Cancelado'
       : 'Pendente Envio';
     if (!porRecursoGlosaMap.has(chave)) {
-      porRecursoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0 });
+      porRecursoGlosaMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }
     const item = porRecursoGlosaMap.get(chave)!;
     const valorGlosadoRecurso = parseFloat(String(recurso.valorGlosado || "0"));

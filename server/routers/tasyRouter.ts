@@ -5,6 +5,42 @@ import { getDb } from "../db";
 import { tasyRelatorioFinanceiroStaging } from "../../drizzle/schema-integracao";
 import { desc, eq, and, sql } from "drizzle-orm";
 
+/** Helper para normalizar datas do formato YYYY-MM-DD ou DD-MON-YY para YYYY-MM */
+function parseOracleMesAno(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  
+  // Formato YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.substring(0, 7);
+  }
+  
+  // Formato DD-MON-YY ou DD-MON-YYYY (ex: 01-JAN-25)
+  const monthMap: Record<string, string> = {
+    'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
+    'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+  };
+  
+  const m = s.match(/^\d{2}-([a-zA-Z]{3})-(\d{2,4})/);
+  if (m) {
+    const mon = m[1].toUpperCase();
+    let yy = m[2];
+    if (yy.length === 2) {
+      yy = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`;
+    }
+    const mm = monthMap[mon] || '01';
+    return `${yy}-${mm}`;
+  }
+  
+  // Tentar extrair algo que pareça AAAA-MM
+  const fallback = s.match(/(\d{4})[-/]?(\d{2})/);
+  if (fallback) {
+    return `${fallback[1]}-${fallback[2]}`;
+  }
+  
+  return s.substring(0, 7);
+}
+
 /**
  * Router de Integração com Tasy
  * 
@@ -275,10 +311,7 @@ export const tasyRouter = router({
 
         // Aba 2: Agrupar por mês de vencimento do título
         if (vencTitulo) {
-          // Formato Oracle: "29-JUL-26" ou "30-MAY-26"
-          const mesLabel = vencTitulo; // Manter original para agrupar
-          const parts = vencTitulo.split('-');
-          const mesKey = parts.length >= 2 ? `${parts[1]}-${parts[2]}` : vencTitulo;
+          const mesKey = parseOracleMesAno(vencTitulo) || vencTitulo.substring(0, 7);
           
           if (!mapVencimento.has(mesKey)) {
             mapVencimento.set(mesKey, { mes: mesKey, valor: 0, qtd: 0 });
@@ -366,8 +399,8 @@ export const tasyRouter = router({
       for (const r of dados) {
         const valor = parseFloat(r.VL_PROTOCOLO || '0');
         const convenio = r.DS_CONVENIO || 'Sem Convênio';
-        const dtRef = r.DT_MESANO_REFERENCIA ? String(r.DT_MESANO_REFERENCIA).substring(0, 7) : null;
-        const dtVenc = r.VENC_TITULO ? String(r.VENC_TITULO).substring(0, 7) : null;
+        const dtRef = parseOracleMesAno(r.DT_MESANO_REFERENCIA);
+        const dtVenc = parseOracleMesAno(r.VENC_TITULO);
 
         qtdProtocolos++;
         totalFaturado += valor;
@@ -418,6 +451,214 @@ export const tasyRouter = router({
         },
       };
     }),
+
+  /**
+   * Dashboard de BI de Pagamentos
+   * Dados da tabela tasy_pagamentos_bi
+   */
+  getPagamentosBi: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number()
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB offline");
+      if (!input.estabelecimentoId || input.estabelecimentoId <= 0) {
+        return { resumo: {}, porMes: [], porConvenio: [], pagamentosPorConvenio: [] };
+      }
+      const estabId = Number(input.estabelecimentoId);
+
+      // Buscar registros segmentando via estabelecimento
+      const rows = await db.execute(sql.raw(`SELECT * FROM tasy_pagamentos_bi WHERE estabelecimentoId = ${estabId}`)) as any;
+      const dados = (rows[0] || []) as any[];
+
+      const mapMes = new Map<string, { mes: string; recebido: number; vinculado: number; a_vincular: number; qtd: number }>();
+      const mapConv = new Map<string, { convenio: string; recebido: number; vinculado: number; a_vincular: number; qtd: number }>();
+      // Mapa cruzado mês×convênio×estabelecimento
+      const mapMesConvEst = new Map<string, { mes: string; convenio: string; estabelecimento: string; recebido: number; vinculado: number; a_vincular: number; qtd: number; statusCount: Record<string, number> }>();
+
+      let totalRecebido = 0;
+      let totalVinculado = 0;
+      let totalAVincular = 0;
+      let qtdPagamentos = 0;
+
+      for (const r of dados) {
+        const dtStr = r.DT_PAGAMENTO || r.dt_pagamento;
+        const mesParse = parseOracleMesAno(dtStr) || 'Sem Data';
+        
+        const rec = parseFloat(String(r.RECEBIDO || r.recebido || 0).replace(',', '.'));
+        const vinc = parseFloat(String(r.VINCULADO || r.vinculado || 0).replace(',', '.'));
+        const avinc = parseFloat(String(r.A_VINCULAR || r.a_vincular || 0).replace(',', '.'));
+        
+        const recVal = isNaN(rec) ? 0 : rec;
+        const vincVal = isNaN(vinc) ? 0 : vinc;
+        const aVincVal = isNaN(avinc) ? 0 : avinc;
+
+        const convenio = r['CONVÊNIO'] || r['CONVENIO'] || r.convenio || 'Desconhecido';
+        const strStatus = r.STATUS || r.status || 'Desconhecido';
+        const estabelecimento = r.ESTABELECIMENTO || r.estabelecimento || 'Padrão';
+
+        qtdPagamentos++;
+        totalRecebido += recVal;
+        totalVinculado += vincVal;
+        totalAVincular += aVincVal;
+
+        // Agrupar por mes
+        if (!mapMes.has(mesParse)) mapMes.set(mesParse, { mes: mesParse, recebido: 0, vinculado: 0, a_vincular: 0, qtd: 0 });
+        const m = mapMes.get(mesParse)!;
+        m.recebido += recVal;
+        m.vinculado += vincVal;
+        m.a_vincular += aVincVal;
+        m.qtd++;
+
+        // Agrupar por convenio global
+        if (!mapConv.has(convenio)) mapConv.set(convenio, { convenio, recebido: 0, vinculado: 0, a_vincular: 0, qtd: 0 });
+        const c = mapConv.get(convenio)!;
+        c.recebido += recVal;
+        c.vinculado += vincVal;
+        c.a_vincular += aVincVal;
+        c.qtd++;
+
+        // Cruzamento Mes + Convenio + Estabelecimento
+        const chave = `${mesParse}|${convenio}|${estabelecimento}`;
+        if (!mapMesConvEst.has(chave)) mapMesConvEst.set(chave, { mes: mesParse, convenio, estabelecimento, recebido: 0, vinculado: 0, a_vincular: 0, qtd: 0, statusCount: {} });
+        const mc = mapMesConvEst.get(chave)!;
+        mc.recebido += recVal;
+        mc.vinculado += vincVal;
+        mc.a_vincular += aVincVal;
+        mc.qtd++;
+        mc.statusCount[strStatus] = (mc.statusCount[strStatus] || 0) + 1;
+      }
+
+      return {
+        resumo: {
+          totalRecebido,
+          totalVinculado,
+          totalAVincular,
+          qtdPagamentos
+        },
+        porMes: Array.from(mapMes.values()).sort((a,b) => a.mes.localeCompare(b.mes)),
+        porConvenio: Array.from(mapConv.values()).sort((a,b) => b.recebido - a.recebido),
+        pagamentosPorConvenio: Array.from(mapMesConvEst.values()).sort((a,b) => a.mes.localeCompare(b.mes))
+      };
+    }),
+
+  /**
+   * Dashboard BI Faturamento Itens
+   */
+  getFaturamentoItensBi: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number()
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB offline");
+      if (!input.estabelecimentoId || input.estabelecimentoId <= 0) {
+        return { resumo: {}, porMes: [], porConvenio: [], topGlosas: [], topMotivos: [] };
+      }
+      const estabId = Number(input.estabelecimentoId);
+
+      const rows = await db.execute(sql.raw(`SELECT * FROM tasy_faturado_itens_bi WHERE estabelecimentoId = ${estabId}`)) as any;
+      const dados = (rows[0] || []) as any[];
+
+      const mapMes = new Map<string, { competencia: string; produzido: number; recebido: number; glosado: number; a_receber: number; qtd: number }>();
+      const mapConv = new Map<string, { convenio: string; produzido: number; recebido: number; glosado: number; a_receber: number; qtd: number }>();
+      
+      const mapItemGlosa = new Map<string, { descricao: string; convenio: string; codigo: string; tipo: string; setor: string; vl_glosa: number; qtd_glosada: number }>();
+      const mapMotivoGlosa = new Map<string, { motivo: string; vl_glosa: number; qtd_glosada: number }>();
+
+      let totalProduzido = 0;
+      let totalRecebido = 0;
+      let totalGlosado = 0;
+      let totalAReceber = 0;
+
+      for (const r of dados) {
+        // Datas chave
+        const dtComp = r.COMPETENCIA || r.PROD || 'Sem Comp';
+        const convenio = r.CONVENIO || 'Sem Convênio';
+
+        // Parsing monetário tolerante
+        const prod = parseFloat(String(r.VL_PRODUZIDO || 0).replace(',', '.'));
+        const pago = parseFloat(String(r.VL_PAGO || 0).replace(',', '.'));
+        const glosa = parseFloat(String(r.VL_GLOSA || 0).replace(',', '.'));
+        const amaior = parseFloat(String(r.VL_AMAIOR || 0).replace(',', '.'));
+        
+        const rec = pago + amaior; // T_RECEB
+        // Calcular A Receber (pode ser negativo em caso de crédito)
+        const a_rec = parseFloat(String(r.A_RECEBER || 0).replace(',', '.'));
+
+        const vProd = isNaN(prod) ? 0 : prod;
+        const vRec = isNaN(rec) ? 0 : rec;
+        const vGlosa = isNaN(glosa) ? 0 : glosa;
+        const vARec = isNaN(a_rec) ? 0 : a_rec;
+
+        totalProduzido += vProd;
+        totalRecebido += vRec;
+        totalGlosado += vGlosa;
+        totalAReceber += vARec;
+
+        // Agregador Mês
+        if (!mapMes.has(dtComp)) mapMes.set(dtComp, { competencia: dtComp, produzido: 0, recebido: 0, glosado: 0, a_receber: 0, qtd: 0 });
+        const m = mapMes.get(dtComp)!;
+        m.produzido += vProd;
+        m.recebido += vRec;
+        m.glosado += vGlosa;
+        m.a_receber += vARec;
+        m.qtd++;
+
+        // Agregador Convênio
+        if (!mapConv.has(convenio)) mapConv.set(convenio, { convenio, produzido: 0, recebido: 0, glosado: 0, a_receber: 0, qtd: 0 });
+        const c = mapConv.get(convenio)!;
+        c.produzido += vProd;
+        c.recebido += vRec;
+        c.glosado += vGlosa;
+        c.a_receber += vARec;
+        c.qtd++;
+
+        // Tracking de Perdas (Top Glosas)
+        if (vGlosa > 0) {
+          const descricao = r.DESCRICAO || 'Não Descrito';
+          const cdItem = String(r.CD_ITEM || 'N/A');
+          const setor = r.SETOR || 'Não Informado';
+          const tipoItem = r.TIPO_ITEM || 'Misto';
+          const motivosString = r.MOTIVO_GLOSA || 'Não Justificado';
+          
+          // Agregador Item
+          const chaveItem = \`\${descricao}|\${convenio}\`;
+          if (!mapItemGlosa.has(chaveItem)) mapItemGlosa.set(chaveItem, { descricao, codigo: cdItem, convenio, tipo: tipoItem, setor, vl_glosa: 0, qtd_glosada: 0 });
+          const itm = mapItemGlosa.get(chaveItem)!;
+          itm.vl_glosa += vGlosa;
+          itm.qtd_glosada += (parseFloat(String(r.QTD || 1)) || 1);
+
+          // Agregador Motivo (Pode ter múltiplos motios separados por ' / ')
+          const motivos = motivosString.split(' / ');
+          for (const mTexto of motivos) {
+            const mt = mTexto.trim();
+            if(!mt) continue;
+            if (!mapMotivoGlosa.has(mt)) mapMotivoGlosa.set(mt, { motivo: mt, vl_glosa: 0, qtd_glosada: 0 });
+            const mObj = mapMotivoGlosa.get(mt)!;
+            // Evitar duplicar valor se o item tem vários motivos na mesma linha, mas se necessário dividimos;
+            // Pelo escopo de BI simplificado, alocamos o valor total pro motivo.
+            mObj.vl_glosa += (vGlosa / motivos.length);
+            mObj.qtd_glosada += 1;
+          }
+        }
+      }
+
+      return {
+        resumo: {
+          totalProduzido,
+          totalRecebido,
+          totalGlosado,
+          totalAReceber,
+          qtdTotalItens: dados.length
+        },
+        porMes: Array.from(mapMes.values()).sort((a,b) => a.competencia.localeCompare(b.competencia)),
+        porConvenio: Array.from(mapConv.values()).sort((a,b) => b.produzido - a.produzido),
+        topGlosas: Array.from(mapItemGlosa.values()).sort((a,b) => b.vl_glosa - a.vl_glosa).slice(0, 100),
+        topMotivos: Array.from(mapMotivoGlosa.values()).sort((a,b) => b.vl_glosa - a.vl_glosa).slice(0, 20)
+      };
+    })
 });
 
 /**

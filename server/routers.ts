@@ -907,6 +907,7 @@ export const appRouter = router({
                         nomeProf: proc.nomeMedico || undefined,
                         conselhoProf: proc.crmMedico || undefined,
                         codigoPrestadorExecutante: proc.codigoPrestadorExecutante || undefined,
+                        codigoPrestadorOperadora: (proc as any).codigoPrestadorOperadora || undefined,
                         estabelecimentoId: grupo.estabelecimentoId,
                         arquivoId: arquivoId,
                         convenioId: input.convenioId,

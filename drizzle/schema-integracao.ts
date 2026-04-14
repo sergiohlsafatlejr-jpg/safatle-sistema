@@ -686,6 +686,93 @@ export const atendimentosAFaturar = mysqlTable(
  * CAMADA 4: AUDITORIA E HISTÓRICO
  */
 
+export const logLimpezaStaging = mysqlTable('log_limpeza_staging', {
+  id: int('id').autoincrement().primaryKey(),
+  tabela: varchar('tabela', { length: 255 }).notNull(),
+  configId: int('configId').notNull(),
+  registrosRemovidos: int('registrosRemovidos').notNull(),
+  tipoLimpeza: varchar('tipoLimpeza', { length: 50 }).notNull(), // 'DUPLICATAS' ou 'GERAL'
+  dataLimpeza: timestamp('dataLimpeza').defaultNow().notNull()
+});
+
+// TASY - Tabela de BI de Pagamentos (customizada e criada via integração bi_relatorio)
+export const tasyPagamentosBi = mysqlTable("tasy_pagamentos_bi", {
+  id: int().primaryKey().autoincrement(),
+  configId: int().notNull(),
+  estabelecimentoId: int().notNull(),
+  criadoEm: timestamp().defaultNow(),
+  
+  // Colunas do relatório
+  ESTABELECIMENTO: text(),
+  CONVENIO: text("CONVÊNIO"), // map back to the dynamic name with accent
+  DT_PAGAMENTO: text(),
+  LIB_FINANCEIRO: text(),
+  RECEBIDO: text(),
+  VINCULADO: text(),
+  A_VINCULAR: text(),
+  STATUS: text(),
+  NOTA_FISCAL: text(),
+  NR_SEQUENCIA: text(),
+});
+
+export const tasyFaturadoItensBi = mysqlTable("tasy_faturado_itens_bi", {
+  id: int().primaryKey().autoincrement(),
+  configId: int().notNull(),
+  estabelecimentoId: int().notNull(),
+  criadoEm: timestamp().defaultNow(),
+  
+  ESTABELECIMENTO: text(),
+  SEQUENCIA: text(),
+  CONVENIO: text(),
+  PROD: text(),
+  COMPETENCIA: text(),
+  DT_REFERENCIA: text(),
+  ENTREGA: text(),
+  PROTOCOLO: text(),
+  NR_PROTOCOLO: text(),
+  NR_TITULO: text(),
+  NM_USUARIO: text(),
+  DT_ATUALIZACAO: text(),
+  STATUS_PROT: text(),
+  TIPO_PROT: text(),
+  DOC_CONVENIO: text(),
+  ATEND: text(),
+  ENTRADA: text(),
+  ST_ENTRADA: text(),
+  CONTA: text(),
+  AUTORIZACAO: text(),
+  SENHA: text(),
+  DT_INICIO: text(),
+  DT_FIM: text(),
+  ENCERRAMENTO: text(),
+  MATRICULA: text(),
+  PACIENTE: text(),
+  CD_MOTIVO_EXC_CONTA: text(),
+  DS_COMPL_MOTIVO_EXCON: text(),
+  TIPO: text(),
+  TIPO_ITEM: text(),
+  SETOR: text(),
+  PROF_EXEC: text(),
+  CRM: text(),
+  CD_ITEM: text(),
+  CD_ITEM_TUSS: text(),
+  DT_ITEM: text(),
+  DESCRICAO: text(),
+  CREDITO: text(),
+  QTD: text(),
+  VL_PRODUZIDO: text(),
+  VL_MEDICO: text(),
+  A_RECEBER: text(),
+  VL_PAGO: text(),
+  VL_GLOSA: text(),
+  VL_AMAIOR: text(),
+  T_RECEB: text(),
+  MOTIVO_GLOSA: text(),
+  RETORNO: text(),
+  PGTO: text(),
+  DT_PGTO: text(),
+});
+
 export const sincronizacaoLog = mysqlTable(
   "sincronizacao_log",
   {

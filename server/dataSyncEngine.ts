@@ -317,6 +317,7 @@ export class DataSyncEngine {
              }
              
              buffer.push(row);
+             totalSincronizados++;
              if (buffer.length >= BATCH_SIZE) {
                await flushBuffer();
              }

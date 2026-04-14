@@ -163,6 +163,7 @@ const menuItems: MenuItem[] = [
       { icon: Receipt, label: "Protocolos TASY", path: "/relatorio-protocolos", modulo: "relFaturadoRecebido" },
       { icon: CalendarClock, label: "Previsão Recebimentos", path: "/previsao-recebimentos", modulo: "relFaturadoRecebido" },
       { icon: BarChart3, label: "Faturado x Recebido x Glosado", path: "/relatorios-bi", modulo: "relFaturadoRecebido" },
+      { icon: FileSearch, label: "Faturado x Recebido (Itens)", path: "/analise-faturamento-itens", modulo: "relFaturadoRecebido" },
       { icon: Receipt, label: "Recebimento Geral", path: "/relatorio-recebimento-geral", modulo: "relRecebimentoGeral" },
       { icon: FileText, label: "Rel. Faturamento", path: "/relatorio-faturamento", modulo: "relFaturamento" },
       { icon: Clock, label: "Não Recebidos", path: "/nao-recebidos", modulo: "relNaoRecebidos" },

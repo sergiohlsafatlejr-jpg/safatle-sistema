@@ -371,7 +371,7 @@ export const integradorDadosRouter = router({
    * Sincroniza dados de uma configuração
    */
   sincronizar: protectedProcedure
-    .input(z.object({ configId: z.number() }))
+    .input(z.object({ configId: z.number(), tipoDados: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       try {
         if (!(await isAdminOrEstabAdmin(ctx))) {
@@ -888,6 +888,14 @@ export const integradorDadosRouter = router({
 
         // Verificar o tipoDados para direcionar para a tabela correta
         const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
+        
+        if (config.tipoDados === 'bi_relatorio') {
+          return {
+            sucesso: true,
+            mensagem: "Tabela de destino já atualizada de forma nativa. O BI não requer unificação.",
+            registrosTransformados: 0,
+          };
+        }
 
         if (isFaturamento) {
           // FATURAMENTO: transformar de warleine_faturamento_staging para faturamento_geral

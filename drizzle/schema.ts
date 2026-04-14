@@ -1670,6 +1670,7 @@ export const faturamentoTiss = mysqlTable("staging_faturamento_xml", {
   sequencialTransacao: varchar("sequencial_transacao", { length: 20 }),
   dataRegistro: timestamp("data_registro"),
   registroAns: varchar("registro_ans", { length: 10 }),
+  codigoPrestadorOperadora: varchar("codigo_prestador_operadora", { length: 50 }),
   
   // Dados da Guia e Beneficiário
   numeroGuiaPrestador: varchar("numero_guia_prestador", { length: 20 }),
