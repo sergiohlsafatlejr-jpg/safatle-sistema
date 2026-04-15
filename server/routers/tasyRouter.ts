@@ -548,115 +548,211 @@ export const tasyRouter = router({
    */
   getFaturamentoItensBi: protectedProcedure
     .input(z.object({
-      estabelecimentoId: z.number()
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      ano: z.string().optional(),
+      convenio: z.string().optional(),
+      setor: z.string().optional(),
+      tipoItem: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB offline");
       if (!input.estabelecimentoId || input.estabelecimentoId <= 0) {
-        return { resumo: {}, porMes: [], porConvenio: [], topGlosas: [], topMotivos: [] };
+        return { resumo: {}, evolucaoMensal: [], porConvenio: [], porSetor: [], porTipoItem: [], topGlosas: [], topMotivos: [], topProfissionais: [], competencias: [], convenios: [], setores: [] };
       }
       const estabId = Number(input.estabelecimentoId);
 
-      const rows = await db.execute(sql.raw(`SELECT * FROM tasy_faturado_itens_bi WHERE estabelecimentoId = ${estabId}`)) as any;
-      const dados = (rows[0] || []) as any[];
-
-      const mapMes = new Map<string, { competencia: string; produzido: number; recebido: number; glosado: number; a_receber: number; qtd: number }>();
-      const mapConv = new Map<string, { convenio: string; produzido: number; recebido: number; glosado: number; a_receber: number; qtd: number }>();
-      
-      const mapItemGlosa = new Map<string, { descricao: string; convenio: string; codigo: string; tipo: string; setor: string; vl_glosa: number; qtd_glosada: number }>();
-      const mapMotivoGlosa = new Map<string, { motivo: string; vl_glosa: number; qtd_glosada: number }>();
-
-      let totalProduzido = 0;
-      let totalRecebido = 0;
-      let totalGlosado = 0;
-      let totalAReceber = 0;
-
-      for (const r of dados) {
-        // Datas chave
-        const dtComp = r.COMPETENCIA || r.PROD || 'Sem Comp';
-        const convenio = r.CONVENIO || 'Sem Convênio';
-
-        // Parsing monetário tolerante
-        const prod = parseFloat(String(r.VL_PRODUZIDO || 0).replace(',', '.'));
-        const pago = parseFloat(String(r.VL_PAGO || 0).replace(',', '.'));
-        const glosa = parseFloat(String(r.VL_GLOSA || 0).replace(',', '.'));
-        const amaior = parseFloat(String(r.VL_AMAIOR || 0).replace(',', '.'));
-        
-        const rec = pago + amaior; // T_RECEB
-        // Calcular A Receber (pode ser negativo em caso de crédito)
-        const a_rec = parseFloat(String(r.A_RECEBER || 0).replace(',', '.'));
-
-        const vProd = isNaN(prod) ? 0 : prod;
-        const vRec = isNaN(rec) ? 0 : rec;
-        const vGlosa = isNaN(glosa) ? 0 : glosa;
-        const vARec = isNaN(a_rec) ? 0 : a_rec;
-
-        totalProduzido += vProd;
-        totalRecebido += vRec;
-        totalGlosado += vGlosa;
-        totalAReceber += vARec;
-
-        // Agregador Mês
-        if (!mapMes.has(dtComp)) mapMes.set(dtComp, { competencia: dtComp, produzido: 0, recebido: 0, glosado: 0, a_receber: 0, qtd: 0 });
-        const m = mapMes.get(dtComp)!;
-        m.produzido += vProd;
-        m.recebido += vRec;
-        m.glosado += vGlosa;
-        m.a_receber += vARec;
-        m.qtd++;
-
-        // Agregador Convênio
-        if (!mapConv.has(convenio)) mapConv.set(convenio, { convenio, produzido: 0, recebido: 0, glosado: 0, a_receber: 0, qtd: 0 });
-        const c = mapConv.get(convenio)!;
-        c.produzido += vProd;
-        c.recebido += vRec;
-        c.glosado += vGlosa;
-        c.a_receber += vARec;
-        c.qtd++;
-
-        // Tracking de Perdas (Top Glosas)
-        if (vGlosa > 0) {
-          const descricao = r.DESCRICAO || 'Não Descrito';
-          const cdItem = String(r.CD_ITEM || 'N/A');
-          const setor = r.SETOR || 'Não Informado';
-          const tipoItem = r.TIPO_ITEM || 'Misto';
-          const motivosString = r.MOTIVO_GLOSA || 'Não Justificado';
-          
-          // Agregador Item
-          const chaveItem = \`\${descricao}|\${convenio}\`;
-          if (!mapItemGlosa.has(chaveItem)) mapItemGlosa.set(chaveItem, { descricao, codigo: cdItem, convenio, tipo: tipoItem, setor, vl_glosa: 0, qtd_glosada: 0 });
-          const itm = mapItemGlosa.get(chaveItem)!;
-          itm.vl_glosa += vGlosa;
-          itm.qtd_glosada += (parseFloat(String(r.QTD || 1)) || 1);
-
-          // Agregador Motivo (Pode ter múltiplos motios separados por ' / ')
-          const motivos = motivosString.split(' / ');
-          for (const mTexto of motivos) {
-            const mt = mTexto.trim();
-            if(!mt) continue;
-            if (!mapMotivoGlosa.has(mt)) mapMotivoGlosa.set(mt, { motivo: mt, vl_glosa: 0, qtd_glosada: 0 });
-            const mObj = mapMotivoGlosa.get(mt)!;
-            // Evitar duplicar valor se o item tem vários motivos na mesma linha, mas se necessário dividimos;
-            // Pelo escopo de BI simplificado, alocamos o valor total pro motivo.
-            mObj.vl_glosa += (vGlosa / motivos.length);
-            mObj.qtd_glosada += 1;
-          }
-        }
+      // Build filtros dinâmicos
+      const C = (col: string) => `CAST(NULLIF(TRIM(REPLACE(${col}, ',', '.')), '') AS DECIMAL(15,2))`;
+      let filtros = `AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')`;
+      if (input.competencia && input.competencia !== 'todas') {
+        filtros += ` AND COMPETENCIA = '${String(input.competencia).replace(/'/g, "''")}'`;
+      } else if (input.ano && input.ano !== 'todos') {
+        filtros += ` AND COMPETENCIA LIKE '${input.ano}/%'`;
       }
+      if (input.convenio && input.convenio !== 'todos') filtros += ` AND CONVENIO = '${String(input.convenio).replace(/'/g, "''")}'`;
+      if (input.setor && input.setor !== 'todos') filtros += ` AND SETOR = '${String(input.setor).replace(/'/g, "''")}'`;
+      if (input.tipoItem && input.tipoItem !== 'todos') filtros += ` AND TIPO_ITEM = '${input.tipoItem}'`;
 
+      const baseWhere = `WHERE estabelecimentoId = ${estabId} ${filtros}`;
+
+      // ─── KPIs PRINCIPAIS ───────────────────────────────────────────────────
+      const [resumoRows] = await db.execute(sql.raw(`
+        SELECT 
+          SUM(${C('A_RECEBER')}) as totalFaturado,
+          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as totalRecebido,
+          SUM(${C('VL_GLOSA')}) as totalGlosado,
+          SUM(${C('VL_MEDICO')}) as totalMedico,
+          COUNT(*) as qtdTotal,
+          COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtdGlosados
+        FROM tasy_faturado_itens_bi
+        ${baseWhere}
+      `)) as any;
+      const rv = resumoRows[0] || {};
+      const totalFaturado = Number(rv.totalFaturado) || 0;
+      const totalRecebido = Number(rv.totalRecebido) || 0;
+      const totalGlosado  = Number(rv.totalGlosado)  || 0;
+      const totalMedico   = Number(rv.totalMedico)   || 0;
+      const qtdTotal      = Number(rv.qtdTotal)      || 0;
+      const qtdGlosados   = Number(rv.qtdGlosados)   || 0;
+      const taxaGlosa     = totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0;
+
+      // ─── EVOLUÇÃO MENSAL ───────────────────────────────────────────────────
+      const evolMensal = `WHERE estabelecimentoId = ${estabId}
+          AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')
+          ${input.ano && input.ano !== 'todos' ? `AND COMPETENCIA LIKE '${input.ano}/%'` : ''}`;
+      const [evolucaoRows] = await db.execute(sql.raw(`
+        SELECT COMPETENCIA as competencia,
+          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_GLOSA')}) as glosado,
+          COUNT(*) as qtd_itens,
+          COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados
+        FROM tasy_faturado_itens_bi ${evolMensal}
+        GROUP BY COMPETENCIA ORDER BY COMPETENCIA ASC LIMIT 60
+      `)) as any;
+
+      // ─── POR CONVÊNIO ──────────────────────────────────────────────────────
+      const [convenioRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(NULLIF(TRIM(CONVENIO), ''), 'Não informado') as convenio,
+          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_GLOSA')}) as glosado,
+          COUNT(*) as qtd_itens,
+          COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+        FROM tasy_faturado_itens_bi ${baseWhere}
+        GROUP BY CONVENIO ORDER BY glosado DESC LIMIT 20
+      `)) as any;
+
+      // ─── POR SETOR ─────────────────────────────────────────────────────────
+      const [setorRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(NULLIF(TRIM(SETOR), ''), 'Não informado') as setor,
+          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_GLOSA')}) as glosado,
+          COUNT(*) as qtd_itens,
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+        FROM tasy_faturado_itens_bi ${baseWhere}
+        GROUP BY SETOR ORDER BY glosado DESC LIMIT 30
+      `)) as any;
+
+      // ─── POR TIPO DE ITEM ──────────────────────────────────────────────────
+      const [tipoItemRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(NULLIF(TRIM(TIPO_ITEM), ''), 'Não informado') as tipo_item,
+          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_GLOSA')}) as glosado,
+          COUNT(*) as qtd_itens,
+          COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+        FROM tasy_faturado_itens_bi ${baseWhere}
+        GROUP BY TIPO_ITEM ORDER BY faturado DESC
+      `)) as any;
+
+      // ─── TOP MOTIVOS DE GLOSA ──────────────────────────────────────────────
+      const [motivosRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA), ''), 'Sem motivo informado') as motivo,
+          SUM(${C('VL_GLOSA')}) as vl_glosa,
+          COUNT(*) as qtd_glosada
+        FROM tasy_faturado_itens_bi ${baseWhere}
+          AND ${C('VL_GLOSA')} > 0
+        GROUP BY MOTIVO_GLOSA ORDER BY vl_glosa DESC LIMIT 20
+      `)) as any;
+
+      // ─── TOP ITENS GLOSADOS ────────────────────────────────────────────────
+      const [glosasRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(DESCRICAO, 'Sem descrição') as descricao,
+          COALESCE(CD_ITEM, '') as codigo,
+          COALESCE(CD_ITEM_TUSS, '') as codigo_tuss,
+          COALESCE(CONVENIO, '') as convenio,
+          COALESCE(SETOR, '') as setor,
+          COALESCE(TIPO_ITEM, '') as tipo_item,
+          SUM(${C('VL_GLOSA')}) as vl_glosa,
+          SUM(${C('A_RECEBER')}) as vl_faturado,
+          COUNT(*) as qtd_glosada
+        FROM tasy_faturado_itens_bi ${baseWhere}
+          AND ${C('VL_GLOSA')} > 0
+        GROUP BY DESCRICAO, CD_ITEM, CD_ITEM_TUSS, CONVENIO, SETOR, TIPO_ITEM
+        ORDER BY vl_glosa DESC LIMIT 100
+      `)) as any;
+
+      // ─── TOP PROFISSIONAIS ─────────────────────────────────────────────────
+      const [profRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(NULLIF(TRIM(PROF_EXEC), ''), 'Não informado') as profissional,
+          COALESCE(CRM, '') as crm,
+          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${C('VL_GLOSA')}) as glosado,
+          COUNT(*) as qtd_itens,
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+        FROM tasy_faturado_itens_bi ${baseWhere}
+          AND ${C('VL_GLOSA')} > 0 AND PROF_EXEC IS NOT NULL
+        GROUP BY PROF_EXEC, CRM ORDER BY glosado DESC LIMIT 20
+      `)) as any;
+
+      // ─── FILTROS DISPONÍVEIS ───────────────────────────────────────────────
+      const [competenciasRows] = await db.execute(sql.raw(`
+        SELECT DISTINCT COMPETENCIA as competencia FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId} AND COMPETENCIA IS NOT NULL AND COMPETENCIA NOT LIKE '3%'
+        ORDER BY COMPETENCIA DESC
+      `)) as any;
+      const [conveniosRows] = await db.execute(sql.raw(`
+        SELECT DISTINCT CONVENIO as convenio FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId} AND CONVENIO IS NOT NULL AND TRIM(CONVENIO) != ''
+        ORDER BY CONVENIO ASC
+      `)) as any;
+      const [setoresRows] = await db.execute(sql.raw(`
+        SELECT DISTINCT SETOR as setor FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId} AND SETOR IS NOT NULL AND TRIM(SETOR) != ''
+        ORDER BY SETOR ASC
+      `)) as any;
+
+      const n = (v: any) => Number(v) || 0;
       return {
         resumo: {
-          totalProduzido,
-          totalRecebido,
-          totalGlosado,
-          totalAReceber,
-          qtdTotalItens: dados.length
+          totalFaturado, totalRecebido, totalGlosado, totalMedico,
+          totalAReceber: totalFaturado - totalRecebido - totalGlosado,
+          qtdTotalItens: qtdTotal, qtdGlosados,
+          taxaGlosa: Number(taxaGlosa.toFixed(2))
         },
-        porMes: Array.from(mapMes.values()).sort((a,b) => a.competencia.localeCompare(b.competencia)),
-        porConvenio: Array.from(mapConv.values()).sort((a,b) => b.produzido - a.produzido),
-        topGlosas: Array.from(mapItemGlosa.values()).sort((a,b) => b.vl_glosa - a.vl_glosa).slice(0, 100),
-        topMotivos: Array.from(mapMotivoGlosa.values()).sort((a,b) => b.vl_glosa - a.vl_glosa).slice(0, 20)
+        evolucaoMensal: (evolucaoRows || []).map((row: any) => ({
+          competencia: row.competencia,
+          faturado: n(row.faturado), recebido: n(row.recebido), glosado: n(row.glosado),
+          qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
+          pct_glosa: n(row.faturado) > 0 ? Number(((n(row.glosado) / n(row.faturado)) * 100).toFixed(2)) : 0
+        })),
+        porConvenio: (convenioRows || []).map((row: any) => ({
+          convenio: row.convenio, faturado: n(row.faturado), recebido: n(row.recebido),
+          glosado: n(row.glosado), qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
+          pct_glosa: Number(n(row.pct_glosa).toFixed(2))
+        })),
+        porSetor: (setorRows || []).map((row: any) => ({
+          setor: row.setor, faturado: n(row.faturado), recebido: n(row.recebido),
+          glosado: n(row.glosado), qtd_itens: n(row.qtd_itens),
+          pct_glosa: Number(n(row.pct_glosa).toFixed(2))
+        })),
+        porTipoItem: (tipoItemRows || []).map((row: any) => ({
+          tipo_item: row.tipo_item, faturado: n(row.faturado), recebido: n(row.recebido),
+          glosado: n(row.glosado), qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
+          pct_glosa: Number(n(row.pct_glosa).toFixed(2))
+        })),
+        topGlosas: (glosasRows || []).map((row: any) => ({
+          descricao: row.descricao, codigo: row.codigo, codigo_tuss: row.codigo_tuss,
+          convenio: row.convenio, setor: row.setor, tipo_item: row.tipo_item,
+          vl_glosa: n(row.vl_glosa), vl_faturado: n(row.vl_faturado), qtd_glosada: n(row.qtd_glosada)
+        })),
+        topMotivos: (motivosRows || []).map((row: any) => ({
+          motivo: row.motivo, vl_glosa: n(row.vl_glosa), qtd_glosada: n(row.qtd_glosada)
+        })),
+        topProfissionais: (profRows || []).map((row: any) => ({
+          profissional: row.profissional, crm: row.crm,
+          faturado: n(row.faturado), glosado: n(row.glosado),
+          qtd_itens: n(row.qtd_itens), pct_glosa: Number(n(row.pct_glosa).toFixed(2))
+        })),
+        competencias: (competenciasRows || []).map((row: any) => row.competencia),
+        convenios: (conveniosRows || []).map((row: any) => row.convenio),
+        setores: (setoresRows || []).map((row: any) => row.setor)
       };
     })
 });
@@ -671,5 +767,5 @@ export async function tasyFallback(
   ctx: any
 ): Promise<any> {
   // TODO: Implementar fallback para monolito
-  throw new Error(`Procedure {procedure} não implementada em módulo tasy`);
+  throw new Error(`Procedure ${procedure} não implementada em módulo tasy`);
 }
