@@ -86,6 +86,7 @@ export function IntegradorDados() {
     conexaoDatabase: string;
     conexaoUser: string;
     conexaoPassword: string;
+    conexaoTabelaDestinoBi: string;
     showPassword: boolean;
   }>({
     querySql: "",
@@ -98,6 +99,7 @@ export function IntegradorDados() {
     conexaoDatabase: "",
     conexaoUser: "",
     conexaoPassword: "",
+    conexaoTabelaDestinoBi: "",
     showPassword: false,
   });
   const [savingEdit, setSavingEdit] = useState(false);
@@ -362,6 +364,7 @@ export function IntegradorDados() {
       conexaoDatabase: conexao.database || "",
       conexaoUser: conexao.user || "",
       conexaoPassword: conexao.password || "",
+      conexaoTabelaDestinoBi: conexao.tabelaDestinoBi || "",
       showPassword: false,
     });
     setEditingConfig(config);
@@ -384,6 +387,7 @@ export function IntegradorDados() {
           database: editForm.conexaoDatabase,
           user: editForm.conexaoUser,
           password: editForm.conexaoPassword,
+          tabelaDestinoBi: editForm.conexaoTabelaDestinoBi,
         },
       });
     } catch (e) {
@@ -963,6 +967,21 @@ export function IntegradorDados() {
                   </div>
                 </div>
               </div>
+              
+              {editForm.tipoDados === "bi_relatorio" && (
+                <div className="space-y-2 mt-4 pt-4 border-t">
+                  <Label>Nome da Tabela de Destino</Label>
+                  <p className="text-xs text-muted-foreground mb-2">A tabela será criada automaticamente no MySQL.</p>
+                  <Input 
+                    value={editForm.conexaoTabelaDestinoBi}
+                    placeholder="Ex: bi_relatorio_tasy_financeiro" 
+                    onChange={(e) => {
+                      const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+                      setEditForm(prev => ({ ...prev, conexaoTabelaDestinoBi: val }));
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Query SQL */}

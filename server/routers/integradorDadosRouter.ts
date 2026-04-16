@@ -665,6 +665,7 @@ export const integradorDadosRouter = router({
         database: z.string(),
         user: z.string(),
         password: z.string(),
+        tabelaDestinoBi: z.string().optional(),
       }).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1361,7 +1362,22 @@ export const integradorDadosRouter = router({
 
         let registrosRemovidosUnificados = 0;
 
-        if (isFaturamento) {
+        if (config.tipoDados === 'bi_relatorio') {
+          let conexao = config.conexaoConfig;
+          while (typeof conexao === 'string') {
+            try { conexao = JSON.parse(conexao); } catch(e) { break; }
+          }
+          const tabelaDestino = (conexao as any)?.tabelaDestinoBi;
+          if (tabelaDestino) {
+            await db.execute(
+              sql.raw(`DELETE FROM \`${tabelaDestino}\` WHERE \`configId\` = ${input.configId}`)
+            );
+            const [countResult] = await db.execute(
+              sql.raw(`SELECT ROW_COUNT() as cnt`)
+            );
+            registrosRemovidosUnificados = (countResult as any)?.cnt || 0;
+          }
+        } else if (isFaturamento) {
           // Limpar faturamento_geral
           await db.execute(
             sql.raw(`DELETE FROM faturamento_geral WHERE configId = ${input.configId}`)
@@ -2555,7 +2571,7 @@ export const integradorDadosRouter = router({
           if (conexao.tipo === "postgresql") {
             const pgLib = await import("pg");
             console.log(`[EXEC] Fatia ${label}: conectando ao PostgreSQL ${conexao.host}:${conexao.porta}/${conexao.banco}`);
-            const client = new pgLib.default.Client({
+            const client = new pgLib.Client({
               host: conexao.host,
               port: conexao.porta,
               database: conexao.banco,

@@ -1,4 +1,5 @@
 import { logger } from "./_core/logger";
+import mysql from "mysql2";
 import { WarleineConnector, WarleineAtendimento } from "./connectors/WarleineConnector";
 import { OracleConnector } from "./connectors/OracleConnector";
 import { getDb } from "./db";
@@ -199,6 +200,7 @@ export class DataSyncEngine {
         timestamp: new Date(),
       };
     } catch (error) {
+      logger.error({ message: "ERRO FATAL sincronizarTasy", error: String(error) });
       const duracao = Math.round((Date.now() - inicioSync) / 1000);
       return {
         sucesso: false,
@@ -249,7 +251,7 @@ export class DataSyncEngine {
       const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
       // Extração via Stream para economia de memória
-      const BATCH_SIZE = 2000;
+      const BATCH_SIZE = config.tipoDados === "bi_relatorio" ? 250 : 2000;
       let buffer: any[] = [];
       let totalSincronizados = 0;
 
@@ -273,7 +275,7 @@ export class DataSyncEngine {
               const vals = [configId, config.estabelecimentoId, ...colunas.map(c => {
                 const v = row[c];
                 if (v === null || v === undefined) return "NULL";
-                return `'${String(v).replace(/'/g, "''")}'`;
+                return mysql.escape(String(v));
               })];
               return `(${vals.join(", ")})`;
             }).join(",\n");
@@ -319,10 +321,21 @@ export class DataSyncEngine {
              buffer.push(row);
              totalSincronizados++;
              if (buffer.length >= BATCH_SIZE) {
-               await flushBuffer();
+               try {
+                 await flushBuffer();
+                 logger.info({ message: "Flush sucess do lote bi_relatorio!" });
+               } catch(e) {
+                 logger.error({ message: "Erro no flushBuffer do lote", error: String(e) });
+                 throw e;
+               }
              }
            });
-           await flushBuffer();
+           try {
+             await flushBuffer();
+           } catch(e) {
+             logger.error({ message: "Erro no flushBuffer final", error: String(e) });
+             throw e;
+           }
         }
       }
 
