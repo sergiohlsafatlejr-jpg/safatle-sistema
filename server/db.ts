@@ -188,7 +188,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (user.openId === ENV.ownerOpenId || (user.email && ENV.ownerEmail && user.email === ENV.ownerEmail)) {
       values.role = "admin";
       updateSet.role = "admin";
     }
@@ -7893,7 +7893,8 @@ export async function deleteUsuario(userId: number, adminId: number): Promise<{ 
 
   // Verificar se é o owner do sistema (não pode ser excluído)
   const ownerOpenId = process.env.OWNER_OPEN_ID;
-  if (usuario.openId === ownerOpenId) {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if ((ownerOpenId && usuario.openId === ownerOpenId) || (ownerEmail && usuario.email === ownerEmail)) {
     return { success: false, message: "O proprietário do sistema não pode ser excluído" };
   }
 

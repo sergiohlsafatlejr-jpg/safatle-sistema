@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -63,6 +64,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function AnaliseFaturamentosBi() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
+  const [, setLocation] = useLocation();
 
   const [anoSelecionado, setAnoSelecionado] = useState<string>("todos");
   const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>("todas");
@@ -168,7 +170,7 @@ export default function AnaliseFaturamentosBi() {
                 Faturamento Geral <span className="text-indigo-400">(Por Item)</span>
               </h1>
               <p className="text-muted-foreground text-sm mt-0.5">
-                {kpis.qtdTotalItens?.toLocaleString("pt-BR")} itens · {kpis.qtdGlosados?.toLocaleString("pt-BR")} glosados
+                {kpis.qtdTotal?.toLocaleString("pt-BR")} itens · {kpis.qtdGlosados?.toLocaleString("pt-BR")} glosados
               </p>
             </div>
           </div>
@@ -214,25 +216,28 @@ export default function AnaliseFaturamentosBi() {
         </div>
 
         {/* ── KPI CARDS ──────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           <MetricCard title="Faturado" value={fmtCur(kpis.totalFaturado ?? 0)}
-            subtitle={`${kpis.qtdTotalItens?.toLocaleString("pt-BR")} itens`}
+            subtitle="Definitivos (STATUS_PROT = 2)"
             icon={DollarSign} variant="primary" delay={0.05} active={true} />
+          <MetricCard title="Provisório" value={fmtCur(kpis.totalProvisorio ?? 0)}
+            subtitle="Provisórios (STATUS_PROT = 1)"
+            icon={AlertCircle} variant="warning" delay={0.10} active={true} />
           <MetricCard title="Recebido" value={fmtCur(kpis.totalRecebido ?? 0)}
             subtitle={`${((kpis.totalRecebido / Math.max(kpis.totalFaturado, 1)) * 100).toFixed(1)}% do faturado`}
-            icon={CheckCircle2} variant="success" delay={0.10} active={true} />
+            icon={CheckCircle2} variant="success" delay={0.15} active={true} />
           <MetricCard title="Glosado" value={fmtCur(kpis.totalGlosado ?? 0)}
             subtitle={`${kpis.taxaGlosa?.toFixed(1)}% de perdas`}
-            icon={AlertTriangle} variant="danger" delay={0.15} active={true} />
+            icon={AlertTriangle} variant="danger" delay={0.20} active={true} />
+          <MetricCard title="A Receber" value={fmtCur(Math.abs(kpis.totalAReceber ?? 0))}
+            subtitle="Saldo pendente (Contas Tasy)"
+            icon={Clock} variant="warning" delay={0.25} active={true} />
           <MetricCard title="Taxa de Glosa" value={`${kpis.taxaGlosa?.toFixed(2) ?? 0}%`}
             subtitle={`${kpis.qtdGlosados?.toLocaleString("pt-BR")} itens glosados`}
-            icon={TrendingDown} variant="warning" delay={0.20} active={true} />
+            icon={TrendingDown} variant="warning" delay={0.30} active={true} />
           <MetricCard title="Honorários" value={fmtCur(kpis.totalMedico ?? 0)}
             subtitle="Médico executante"
-            icon={Stethoscope} variant="primary" delay={0.25} active={true} />
-          <MetricCard title="A Receber" value={fmtCur(Math.abs(kpis.totalAReceber ?? 0))}
-            subtitle="Faturado − Recebido − Glosado"
-            icon={Clock} variant="warning" delay={0.30} active={true} />
+            icon={Stethoscope} variant="primary" delay={0.35} active={true} />
         </div>
 
         {/* ── GRÁFICO EVOLUÇÃO MENSAL ───────────────────────────────────────── */}
@@ -546,7 +551,7 @@ export default function AnaliseFaturamentosBi() {
                       <TableCell className="text-right py-2.5">
                         <Button variant="ghost" size="sm"
                           className="h-7 gap-1 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-full px-2.5"
-                          onClick={() => window.location.href = '#/sistema/motor/regras'}>
+                          onClick={() => setLocation('/sistema/motor/regras')}>
                           <Wand2 className="h-3 w-3" />
                           <span className="text-[10px] font-medium">Regra IA</span>
                         </Button>

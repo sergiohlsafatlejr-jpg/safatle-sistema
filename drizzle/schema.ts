@@ -4089,3 +4089,64 @@ export const faturadoTasy = mysqlTable("faturado_tasy_mock", {
 });
 export type InsertFaturadoTasy = typeof faturadoTasy.$inferInsert;
 export type SelectFaturadoTasy = typeof faturadoTasy.$inferSelect;
+
+/**
+ * Contratos entre Hospital (Estabelecimento) e Convênios
+ */
+export const contratosConvenios = mysqlTable("contratos_convenios", {
+  id: int("id").autoincrement().primaryKey(),
+  estabelecimentoId: int("estabelecimentoId").notNull(),
+  convenioId: int("convenioId").notNull(),
+  numeroContrato: varchar("numeroContrato", { length: 50 }),
+  dataInicio: date("dataInicio"),
+  dataFim: date("dataFim"),
+  diasAvisoVencimento: int("diasAvisoVencimento").default(45),
+  status: mysqlEnum("status", ["ativo", "vencendo", "vencido", "inativo", "renovado"]).default("ativo"),
+  observacoes: text("observacoes"),
+  
+  // Dados de Negociação
+  emailContato: varchar("emailContato", { length: 255 }),
+  reajusteProposto: decimal("reajusteProposto", { precision: 5, scale: 2 }),
+  modeloEmailProposta: text("modeloEmailProposta"),
+  dataEnvioProposta: date("dataEnvioProposta"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ContratoConvenio = typeof contratosConvenios.$inferSelect;
+export type InsertContratoConvenio = typeof contratosConvenios.$inferInsert;
+
+/**
+ * Tabelas de Preços Negociadas (Anexas ao Contrato)
+ */
+export const contratosTabelasFechadas = mysqlTable("contratos_tabelas_fechadas", {
+  id: int("id").autoincrement().primaryKey(),
+  contratoId: int("contratoId").notNull(),
+  nomeTabela: varchar("nomeTabela", { length: 255 }).notNull(), // Ex: 'Tabela de Diárias', 'Procedimentos Cirúrgicos'
+  tipoItem: varchar("tipoItem", { length: 100 }), // Ex: DIARIA, MEDICAMENTO, MATERIAL
+  arquivoUrl: text("arquivoUrl"), 
+  observacoes: text("observacoes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ContratoTabelaFechada = typeof contratosTabelasFechadas.$inferSelect;
+export type InsertContratoTabelaFechada = typeof contratosTabelasFechadas.$inferInsert;
+
+/**
+ * Itens Fechados em Contrato Carga (Valores Importados)
+ */
+export const contratosTabelasValores = mysqlTable("contratos_tabelas_valores", {
+  id: int("id").autoincrement().primaryKey(),
+  tabelaId: int("tabelaId").notNull(),
+  codigoProcedimento: varchar("codigoProcedimento", { length: 50 }),
+  nomeProcedimento: varchar("nomeProcedimento", { length: 255 }),
+  valorAcordado: decimal("valorAcordado", { precision: 10, scale: 2 }),
+  codigoPorte: varchar("codigoPorte", { length: 50 }),
+  ativo: boolean("ativo").default(true),
+});
+
+export type ContratoTabelaValor = typeof contratosTabelasValores.$inferSelect;
+export type InsertContratoTabelaValor = typeof contratosTabelasValores.$inferInsert;
+

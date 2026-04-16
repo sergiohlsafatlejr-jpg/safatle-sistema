@@ -39,6 +39,7 @@ import * as dbRecebGeral from "./db-recebimentoGeral";
 import * as dbConvMap from "./db-convenioMapeamento";
 import { auditSystemRouter } from "./routers/auditSystemRouter";
 import { tasyRouter } from "./routers/tasyRouter";
+import { contratosConveniosRouter } from "./routers/contratosConveniosRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -107,6 +108,7 @@ export const appRouter = router({
   propostas: propostasRouter,
   auditSystem: auditSystemRouter,
   tasy: tasyRouter,
+  contratosConvenios: contratosConveniosRouter,
   
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),

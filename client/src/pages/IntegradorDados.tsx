@@ -657,7 +657,7 @@ export function IntegradorDados() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {TIPO_DADOS_LABELS[config.tipoDados] || config.tipoDados}
+                        {config.tipoDados === 'bi_relatorio' ? 'Relatório Customizado (BI)' : (TIPO_DADOS_LABELS[config.tipoDados] || config.tipoDados)}
                       </TableCell>
                       <TableCell>
                         <select
@@ -672,7 +672,14 @@ export function IntegradorDados() {
                         </select>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {config.descricao || "-"}
+                        <div className="flex flex-col">
+                          <span>{config.descricao || "-"}</span>
+                          {config.tipoDados === 'bi_relatorio' && config.conexaoConfig?.tabelaDestinoBi && (
+                            <span className="text-xs text-blue-600 font-mono mt-1 font-semibold">
+                              Destino: {config.conexaoConfig.tabelaDestinoBi}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
@@ -877,6 +884,7 @@ export function IntegradorDados() {
                       <SelectItem value="procedimentos">Procedimentos</SelectItem>
                       <SelectItem value="pacientes">Pacientes</SelectItem>
                       <SelectItem value="busca_conta">Busca Conta</SelectItem>
+                      <SelectItem value="bi_relatorio">Relatório Customizado (BI)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

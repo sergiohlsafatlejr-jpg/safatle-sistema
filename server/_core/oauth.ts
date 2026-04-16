@@ -65,7 +65,7 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
-  if (process.env.NODE_ENV === "development") {
+  if ((process.env.NODE_ENV || "").trim() === "development") {
     app.get("/api/dev-login", async (req: Request, res: Response) => {
       try {
         const mockOpenId = "dev-admin-id";

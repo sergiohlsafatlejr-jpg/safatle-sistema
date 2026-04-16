@@ -81,6 +81,7 @@ const FaturamentoExterno = lazy(() => import("./pages/FaturamentoExterno"));
 const NfseModule = lazy(() => import("./pages/NfseModule"));
 const FinanceiroModule = lazy(() => import("./pages/FinanceiroModule"));
 const ContratosModule = lazy(() => import("./pages/ContratosModule"));
+const ContratosConvenios = lazy(() => import("./pages/ContratosConvenios"));
 const PropostasModule = lazy(() => import("./pages/PropostasModule"));
 const PainelExecutivo = lazy(() => import("./pages/PainelExecutivo"));
 const PermissoesSafatle = lazy(() => import("./pages/PermissoesSafatle"));
@@ -196,6 +197,7 @@ function Router() {
         <Route path={"/nfse"} component={NfseModule} />
         <Route path={"/financeiro"} component={FinanceiroModule} />
         <Route path={"/contratos"} component={ContratosModule} />
+        <Route path={"/contratos-convenios"} component={ContratosConvenios} />
         <Route path={"/propostas"} component={PropostasModule} />
         <Route path={"/painel-executivo"} component={PainelExecutivo} />
         <Route path={"/permissoes-safatle"} component={PermissoesSafatle} />

@@ -1,0 +1,71 @@
+  /**
+   * Dashboard BI Faturamento Itens (Aggregated securely in DB)
+   */
+  getFaturamentoItensBi: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number()
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB offline");
+      if (!input.estabelecimentoId || input.estabelecimentoId <= 0) {
+        return { resumo: {}, porMes: [], porConvenio: [], topGlosas: [], topMotivos: [] };
+      }
+      const estabId = Number(input.estabelecimentoId);
+
+      // Aggregates
+      const [resumoRows] = await db.execute(sql.raw(`
+        SELECT 
+          SUM(CAST(REPLACE(VL_PRODUZIDO, ',', '.') AS DECIMAL(15,2))) as totalProduzido,
+          SUM(CAST(REPLACE(VL_PAGO, ',', '.') AS DECIMAL(15,2)) + CAST(REPLACE(VL_AMAIOR, ',', '.') AS DECIMAL(15,2))) as totalRecebido,
+          SUM(CAST(REPLACE(VL_GLOSA, ',', '.') AS DECIMAL(15,2))) as totalGlosado,
+          SUM(CAST(REPLACE(A_RECEBER, ',', '.') AS DECIMAL(15,2))) as totalAReceber,
+          COUNT(*) as qtd
+        FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId}
+      `)) as any;
+      const resumo = resumoRows[0] || { totalProduzido: 0, totalRecebido: 0, totalGlosado: 0, totalAReceber: 0, qtd: 0 };
+
+      // Top Glosas
+      const [glosasRows] = await db.execute(sql.raw(`
+        SELECT 
+          DESCRICAO as descricao,
+          CONVENIO as convenio,
+          CD_ITEM as codigo,
+          SETOR as setor,
+          SUM(CAST(REPLACE(VL_GLOSA, ',', '.') AS DECIMAL(15,2))) as vl_glosa,
+          SUM(QTD) as qtd_glosada
+        FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId} AND CAST(REPLACE(VL_GLOSA, ',', '.') AS DECIMAL(15,2)) > 0
+        GROUP BY DESCRICAO, CONVENIO, CD_ITEM, SETOR
+        ORDER BY vl_glosa DESC
+        LIMIT 100
+      `)) as any;
+
+      // Top Motivos
+      const [motivosRows] = await db.execute(sql.raw(`
+        SELECT 
+          MOTIVO_GLOSA as motivo,
+          SUM(CAST(REPLACE(VL_GLOSA, ',', '.') AS DECIMAL(15,2))) as vl_glosa,
+          SUM(QTD) as qtd_glosada
+        FROM tasy_faturado_itens_bi
+        WHERE estabelecimentoId = ${estabId} AND CAST(REPLACE(VL_GLOSA, ',', '.') AS DECIMAL(15,2)) > 0 AND MOTIVO_GLOSA IS NOT NULL
+        GROUP BY MOTIVO_GLOSA
+        ORDER BY vl_glosa DESC
+        LIMIT 20
+      `)) as any;
+
+      return {
+        resumo: {
+          totalProduzido: Number(resumo.totalProduzido) || 0,
+          totalRecebido: Number(resumo.totalRecebido) || 0,
+          totalGlosado: Number(resumo.totalGlosado) || 0,
+          totalAReceber: Number(resumo.totalAReceber) || 0,
+          qtdTotalItens: Number(resumo.qtd) || 0
+        },
+        porMes: [], // Removido para simplificar
+        porConvenio: [], // Removido para simplificar
+        topGlosas: glosasRows || [],
+        topMotivos: motivosRows || []
+      };
+    })

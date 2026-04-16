@@ -204,9 +204,14 @@ export const tasyRouter = router({
       return {
         kpis: {
           totalFaturado,
+          totalProvisorio,
+          totalAReceber,
           totalRecebido,
           totalGlosado,
-          totalAReceber
+          totalMedico,
+          qtdTotal,
+          qtdGlosados,
+          taxaGlosa
         },
         historicoMeses: Array.from(mapMes.values()).sort((a,b) => a.competencia.localeCompare(b.competencia)),
         porConvenio: Array.from(mapConvenio.values()).sort((a,b) => b.faturado - a.faturado),
@@ -575,12 +580,20 @@ export const tasyRouter = router({
       if (input.setor && input.setor !== 'todos') filtros += ` AND SETOR = '${String(input.setor).replace(/'/g, "''")}'`;
       if (input.tipoItem && input.tipoItem !== 'todos') filtros += ` AND TIPO_ITEM = '${input.tipoItem}'`;
 
-      const baseWhere = `WHERE estabelecimentoId = ${estabId} ${filtros}`;
+      const baseWhere  = `WHERE estabelecimentoId = ${estabId} ${filtros}`;
+      // WHERE com condição extra para queries que filtram apenas itens glosados
+      const glosaWhere = `${baseWhere} AND ${C('VL_GLOSA')} > 0`;
+      const profWhere  = `${glosaWhere} AND PROF_EXEC IS NOT NULL`;
+
+      const FATURADO_EXPR = `CASE WHEN STATUS_PROT = '2' THEN ${C('VL_PRODUZIDO')} ELSE 0 END`;
+      const PROVISORIO_EXPR = `CASE WHEN STATUS_PROT = '1' THEN ${C('VL_PRODUZIDO')} ELSE 0 END`;
 
       // ─── KPIs PRINCIPAIS ───────────────────────────────────────────────────
       const [resumoRows] = await db.execute(sql.raw(`
         SELECT 
-          SUM(${C('A_RECEBER')}) as totalFaturado,
+          SUM(${FATURADO_EXPR}) as totalFaturado,
+          SUM(${PROVISORIO_EXPR}) as totalProvisorio,
+          SUM(${C('A_RECEBER')}) as totalAReceber,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as totalRecebido,
           SUM(${C('VL_GLOSA')}) as totalGlosado,
           SUM(${C('VL_MEDICO')}) as totalMedico,
@@ -591,6 +604,8 @@ export const tasyRouter = router({
       `)) as any;
       const rv = resumoRows[0] || {};
       const totalFaturado = Number(rv.totalFaturado) || 0;
+      const totalProvisorio = Number(rv.totalProvisorio) || 0;
+      const totalAReceber = Number(rv.totalAReceber) || 0;
       const totalRecebido = Number(rv.totalRecebido) || 0;
       const totalGlosado  = Number(rv.totalGlosado)  || 0;
       const totalMedico   = Number(rv.totalMedico)   || 0;
@@ -604,7 +619,7 @@ export const tasyRouter = router({
           ${input.ano && input.ano !== 'todos' ? `AND COMPETENCIA LIKE '${input.ano}/%'` : ''}`;
       const [evolucaoRows] = await db.execute(sql.raw(`
         SELECT COMPETENCIA as competencia,
-          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
@@ -616,12 +631,12 @@ export const tasyRouter = router({
       // ─── POR CONVÊNIO ──────────────────────────────────────────────────────
       const [convenioRows] = await db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(CONVENIO), ''), 'Não informado') as convenio,
-          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
-          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY CONVENIO ORDER BY glosado DESC LIMIT 20
       `)) as any;
@@ -629,11 +644,11 @@ export const tasyRouter = router({
       // ─── POR SETOR ─────────────────────────────────────────────────────────
       const [setorRows] = await db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(SETOR), ''), 'Não informado') as setor,
-          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
-          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY SETOR ORDER BY glosado DESC LIMIT 30
       `)) as any;
@@ -641,12 +656,12 @@ export const tasyRouter = router({
       // ─── POR TIPO DE ITEM ──────────────────────────────────────────────────
       const [tipoItemRows] = await db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(TIPO_ITEM), ''), 'Não informado') as tipo_item,
-          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
-          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY TIPO_ITEM ORDER BY faturado DESC
       `)) as any;
@@ -656,8 +671,7 @@ export const tasyRouter = router({
         SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA), ''), 'Sem motivo informado') as motivo,
           SUM(${C('VL_GLOSA')}) as vl_glosa,
           COUNT(*) as qtd_glosada
-        FROM tasy_faturado_itens_bi ${baseWhere}
-          AND ${C('VL_GLOSA')} > 0
+        FROM tasy_faturado_itens_bi ${glosaWhere}
         GROUP BY MOTIVO_GLOSA ORDER BY vl_glosa DESC LIMIT 20
       `)) as any;
 
@@ -670,10 +684,9 @@ export const tasyRouter = router({
           COALESCE(SETOR, '') as setor,
           COALESCE(TIPO_ITEM, '') as tipo_item,
           SUM(${C('VL_GLOSA')}) as vl_glosa,
-          SUM(${C('A_RECEBER')}) as vl_faturado,
+          SUM(${FATURADO_EXPR}) as vl_faturado,
           COUNT(*) as qtd_glosada
-        FROM tasy_faturado_itens_bi ${baseWhere}
-          AND ${C('VL_GLOSA')} > 0
+        FROM tasy_faturado_itens_bi ${glosaWhere}
         GROUP BY DESCRICAO, CD_ITEM, CD_ITEM_TUSS, CONVENIO, SETOR, TIPO_ITEM
         ORDER BY vl_glosa DESC LIMIT 100
       `)) as any;
@@ -682,12 +695,11 @@ export const tasyRouter = router({
       const [profRows] = await db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(PROF_EXEC), ''), 'Não informado') as profissional,
           COALESCE(CRM, '') as crm,
-          SUM(${C('A_RECEBER')}) as faturado,
+          SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
-          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${C('A_RECEBER')}), 0)) * 100 as pct_glosa
-        FROM tasy_faturado_itens_bi ${baseWhere}
-          AND ${C('VL_GLOSA')} > 0 AND PROF_EXEC IS NOT NULL
+          (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
+        FROM tasy_faturado_itens_bi ${profWhere}
         GROUP BY PROF_EXEC, CRM ORDER BY glosado DESC LIMIT 20
       `)) as any;
 
