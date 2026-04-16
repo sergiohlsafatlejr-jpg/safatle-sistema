@@ -160,8 +160,10 @@ result.txt
 
 # Backups e arquivos temporarios
 backup_*
+backups/
 *.7z
 backup_tmp.sql
+*.sql
 
 # Scripts de patch temporarios
 patch_*.cjs
