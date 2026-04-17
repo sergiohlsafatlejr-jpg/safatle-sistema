@@ -309,7 +309,7 @@ export class DataSyncEngine {
              if (!tabelaCriada) {
                 const colunas = Object.keys(row);
                 const definicaoColunas = colunas.map(c => `\`${c}\` TEXT`).join(', ');
-                const createTableSql = `CREATE TABLE IF NOT EXISTS \`${tabelaDestino}\` (id INT AUTO_INCREMENT PRIMARY KEY, \`configId\` INT NOT NULL, ${definicaoColunas}, criadoEm TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
+                const createTableSql = `CREATE TABLE IF NOT EXISTS \`${tabelaDestino}\` (id INT AUTO_INCREMENT PRIMARY KEY, \`configId\` INT NOT NULL, \`estabelecimentoId\` INT NOT NULL, ${definicaoColunas}, criadoEm TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
                 await db.execute(sql.raw(createTableSql));
                 
                 if (!isDelta) {

@@ -3434,6 +3434,7 @@ export const appRouter = router({
           dataInicio: z.string().optional(),
           dataFim: z.string().optional(),
           search: z.string().optional(),
+          tipoRelatorio: z.string().optional(),
           page: z.number().optional().default(1),
           pageSize: z.number().optional().default(50),
         }).optional()
@@ -3446,6 +3447,7 @@ export const appRouter = router({
           dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
           search: input?.search,
+          tipoRelatorio: input?.tipoRelatorio,
           page: input?.page || 1,
           pageSize: input?.pageSize || 50,
         });
@@ -3460,6 +3462,7 @@ export const appRouter = router({
           dataInicio: z.string().optional(),
           dataFim: z.string().optional(),
           search: z.string().optional(),
+          tipoRelatorio: z.string().optional(),
         }).optional()
       )
       .query(async ({ input, ctx }) => {
@@ -3470,6 +3473,7 @@ export const appRouter = router({
           dataInicio: input?.dataInicio ? new Date(input.dataInicio) : undefined,
           dataFim: input?.dataFim ? new Date(input.dataFim) : undefined,
           search: input?.search,
+          tipoRelatorio: input?.tipoRelatorio,
           page: 1,
           pageSize: 100000, // Buscar todos os registros
         });

@@ -3381,184 +3381,123 @@ export async function getRepasseData(filters: {
   search?: string;
   page: number;
   pageSize: number;
-}): Promise<{ items: RepasseItem[]; total: number; resumo: any }> {
+  tipoRelatorio?: string;
+}): Promise<{ items: any[]; total: number; resumo: any }> {
+  const emptyResult = { items: [], total: 0, resumo: { totalFaturado: 0, totalPago: 0, totalGlosado: 0, totalItens: 0, totalMedicos: 0, resumoPorConvenio: {} } };
+  
   const db = await getDb();
-  if (!db) return { items: [], total: 0, resumo: null };
+  if (!db) return emptyResult;
 
-  // Buscar arquivos enviados do usuário
-  const arquivosConditions: any[] = [
-    eq(arquivos.direcao, "enviado"),
-    eq(arquivos.status, "processado"),
-  ];
+  // Verificar permissões do usuário
+  const idsPermitidos = await getEstabelecimentosPermitidos(filters.userId);
+  if (idsPermitidos.length === 0) return emptyResult;
 
-  if (filters.estabelecimentoId) {
-    arquivosConditions.push(eq(arquivos.estabelecimentoId, filters.estabelecimentoId));
+  const estabIds = filters.estabelecimentoId
+    ? [filters.estabelecimentoId]
+    : idsPermitidos;
+
+  if (filters.estabelecimentoId && !idsPermitidos.includes(filters.estabelecimentoId)) {
+    return emptyResult;
   }
+
+  // Mapa de convênios para nome
+  const convMap = new Map<number, string>();
+  const allConv = await db.select().from(convenios);
+  for (const c of allConv) convMap.set(c.id, c.nome || "Sem Convênio");
+
+  // ==========================================
+  // Buscar TUDO do demonstrativo
+  // ==========================================
+  const conditions: any[] = [
+    inArray(demonstrativo.estabelecimentoId, estabIds),
+  ];
 
   if (filters.convenioId) {
-    arquivosConditions.push(eq(arquivos.convenioId, filters.convenioId));
+    conditions.push(eq(demonstrativo.convenioId, filters.convenioId));
   }
-
-  const arquivosEnviados = await db
-    .select()
-    .from(arquivos)
-    .where(and(...arquivosConditions));
-
-  if (arquivosEnviados.length === 0) {
-    return { items: [], total: 0, resumo: null };
-  }
-
-  const arquivoIds = arquivosEnviados.map(a => a.id);
-
-  // Buscar itens faturados (enviados)
-  const procConditions: any[] = [
-    inArray(faturamentoTiss.arquivoId, arquivoIds),
-  ];
-
   if (filters.dataInicio) {
-    procConditions.push(gte(faturamentoTiss.dataExecucao, filters.dataInicio));
+    conditions.push(gte(demonstrativo.dataExecucao, filters.dataInicio));
   }
   if (filters.dataFim) {
-    procConditions.push(lte(faturamentoTiss.dataExecucao, filters.dataFim));
+    conditions.push(lte(demonstrativo.dataExecucao, filters.dataFim));
   }
-
-  // Adicionar filtro de busca
   if (filters.search) {
     const searchOr = or(
-      like(faturamentoTiss.codigoItem, `%${filters.search}%`),
-      like(faturamentoTiss.descricaoItem, `%${filters.search}%`),
-      like(faturamentoTiss.numeroGuiaPrestador, `%${filters.search}%`),
-      like(faturamentoTiss.carteiraBeneficiario, `%${filters.search}%`),
-      like(faturamentoTiss.nomeProf, `%${filters.search}%`)
+      like(demonstrativo.codigoItem, `%${filters.search}%`),
+      like(demonstrativo.descricaoItem, `%${filters.search}%`),
+      like(demonstrativo.numeroGuia, `%${filters.search}%`),
+      like(demonstrativo.nomeBeneficiario, `%${filters.search}%`)
     );
-    if (searchOr) procConditions.push(searchOr);
+    if (searchOr) conditions.push(searchOr);
   }
 
-  // Buscar TODOS os itens faturados para calcular resumo
-  const allProcsEnviados = await db
-    .select()
-    .from(faturamentoTiss)
-    .where(and(...procConditions))
-    .orderBy(desc(faturamentoTiss.dataExecucao));
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // Buscar arquivos retornados para comparar
-  const arquivosRetornadosConditions = [
-    eq(arquivos.userId, filters.userId),
-    eq(arquivos.direcao, "retornado"),
-    eq(arquivos.status, "processado"),
-  ];
+  const res = await db.select().from(demonstrativo).where(whereClause);
 
-  if (filters.convenioId) {
-    arquivosRetornadosConditions.push(eq(arquivos.convenioId, filters.convenioId));
-  }
-
-  const arquivosRetornados = await db
-    .select()
-    .from(arquivos)
-    .where(and(...arquivosRetornadosConditions));
-
-  // Criar mapa de procedimentos retornados
-  const retornadosMap = new Map<string, any>();
-  
-  for (const arq of arquivosRetornados) {
-    const procs = await db
-      .select()
-      .from(demonstrativo)
-      .where(eq(demonstrativo.arquivoId, arq.id));
-    
-    for (const proc of procs) {
-      const chave = `${proc.codigoItem}|${proc.numeroGuia || ""}`.toLowerCase();
-      if (!retornadosMap.has(chave)) {
-        retornadosMap.set(chave, proc);
-      }
-    }
-  }
-
-  // Buscar convênios para nomes
-  const convList = await db.select().from(convenios);
-  const convMap = new Map(convList.map(c => [c.id, c.nome]));
-
-  // Mapear arquivo para convênio
-  const arquivoConvenioMap = new Map(arquivosEnviados.map(a => [a.id, a.convenioId]));
-
-  // Processar itens de repasse
-  const items: RepasseItem[] = allProcsEnviados.map((proc: any) => {
-    const chave = `${proc.codigoItem}|${proc.numeroGuiaPrestador || ""}`.toLowerCase();
-    const retornado = retornadosMap.get(chave);
-    
-    const valorFaturado = parseFloat(proc.valorFaturado || "0");
-    let valorPago = 0;
-    let valorGlosado = 0;
-
-    if (retornado) {
-      valorPago = parseFloat(retornado.valorPago || "0");
-      valorGlosado = parseFloat(retornado.valorGlosa || "0");
-      if (valorGlosado > 0 && valorPago === 0) {
-        valorPago = valorFaturado - valorGlosado;
-      }
-    } else {
-      // Não encontrado no retorno - considerar pendente
-      valorGlosado = valorFaturado;
-    }
-
-    const convenioId = arquivoConvenioMap.get(proc.arquivoId);
-
-    return {
-      id: proc.id,
-      guiaNumero: proc.numeroGuiaPrestador || "",
-      dataExecucao: proc.dataExecucao,
-      codigo: proc.codigoItem,
-      descricao: proc.descricaoItem || "",
-      pacienteNome: proc.carteiraBeneficiario || "",
-      nomeMedico: proc.nomeProf || "",
-      crmMedico: proc.conselhoProf || "",
-      convenioNome: convenioId ? convMap.get(convenioId) || "" : "",
-      valorFaturado: valorFaturado.toFixed(2),
-      valorPago: valorPago.toFixed(2),
-      valorGlosado: valorGlosado.toFixed(2),
-    };
-  });
-
-  // Calcular resumo de todos os itens
+  // Calcular resumo
   let totalFaturado = 0;
   let totalPago = 0;
   let totalGlosado = 0;
   const medicos = new Set<string>();
+  const resumoPorConvenio: Record<string, { faturado: number; pago: number; glosado: number; itens: number }> = {};
 
-  for (const item of items) {
-    totalFaturado += parseFloat(item.valorFaturado);
-    totalPago += parseFloat(item.valorPago);
-    totalGlosado += parseFloat(item.valorGlosado);
-    if (item.nomeMedico) medicos.add(item.nomeMedico);
-  }
+  const items = res.map(row => {
+    const vFat = parseFloat(row.valorInformado as string) || 0;
+    const vPago = parseFloat(row.valorPago as string) || 0;
+    const vGlosado = parseFloat(row.valorGlosa as string) || 0;
 
-  const resumo = {
-    totalFaturado,
-    totalPago,
-    totalGlosado,
-    totalItens: items.length,
-    totalMedicos: medicos.size,
-  };
+    totalFaturado += vFat;
+    totalPago += vPago;
+    totalGlosado += vGlosado;
 
-  // Aplicar paginação
+    const convNome = row.convenioId ? convMap.get(row.convenioId) || "Sem Convênio" : "Sem Convênio";
+    if (!resumoPorConvenio[convNome]) {
+      resumoPorConvenio[convNome] = { faturado: 0, pago: 0, glosado: 0, itens: 0 };
+    }
+    resumoPorConvenio[convNome].faturado += vFat;
+    resumoPorConvenio[convNome].pago += vPago;
+    resumoPorConvenio[convNome].glosado += vGlosado;
+    resumoPorConvenio[convNome].itens += 1;
+
+    if (row.nomeBeneficiario && row.nomeBeneficiario !== "Próprio Estabelecimento") {
+      medicos.add(row.nomeBeneficiario);
+    }
+
+    return {
+      id: row.id,
+      pacienteNome: row.nomeBeneficiario || "Desconhecido",
+      dataAtendimento: row.dataExecucao ? new Date(row.dataExecucao) : null,
+      convenioNome: convNome,
+      codigoItem: row.codigoItem || "",
+      descricaoItem: row.descricaoItem || "",
+      valorFaturado: vFat.toFixed(2),
+      valorPago: vPago.toFixed(2),
+      valorGlosado: vGlosado.toFixed(2),
+      nomeMedico: row.nomeBeneficiario || "",
+      numeroGuia: row.numeroGuia || "",
+    };
+  });
+
+  // Paginação
   const offset = (filters.page - 1) * filters.pageSize;
   const paginatedItems = items.slice(offset, offset + filters.pageSize);
 
-  return { items: paginatedItems, total: items.length, resumo };
+  return {
+    items: paginatedItems,
+    total: items.length,
+    resumo: {
+      totalFaturado,
+      totalPago,
+      totalGlosado,
+      totalItens: items.length,
+      totalMedicos: medicos.size,
+      resumoPorConvenio,
+    },
+  };
 }
 
 
-// ============ HISTÓRICO DE CONTESTAÇÕES E IA ============
-
-import { invokeLLM } from "./_core/llm";
-import { 
-  obterInfoGlosa, 
-  obterArgumentoContestacao, 
-  obterAcoesRecomendadas,
-  obterDocumentosSugeridos,
-  traduzirCodigoGlosa
-} from "../shared/glossaryGlosas";
-import type { SQL } from "drizzle-orm";
 
 export async function registrarHistoricoContestacao(data: {
   recursoId?: number;
@@ -6478,6 +6417,13 @@ export async function getPermissoesUsuario(userId: number) {
 export async function getEstabelecimentosPermitidos(userId: number): Promise<number[]> {
   const db = await getDb();
   if (!db) return [];
+
+  // Se o usuario e admin, retorna todos os estabelecimentos
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role === "admin") {
+    const todos = await db.select({ id: estabelecimentos.id }).from(estabelecimentos);
+    return todos.map(e => e.id);
+  }
 
   const permissoes = await db
     .select({ estabelecimentoId: permissoesEstabelecimento.estabelecimentoId })
@@ -19198,3 +19144,6 @@ export async function getDadosAnahp(filtros: {
     }))
   };
 }
+
+
+

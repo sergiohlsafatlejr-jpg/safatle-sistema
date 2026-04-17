@@ -5,6 +5,7 @@
  */
 
 import * as XLSX from "xlsx";
+import * as xml2js from "xml2js";
 import { InsertRecebimentoTiss } from "../drizzle/schema";
 
 // Mapeamento de colunas do Excel para campos da tabela recebimento_tiss (estrutura unificada)
@@ -347,7 +348,7 @@ export async function parseXmlRecebimentoTiss(
     console.log('[RecebimentoTiss XML Parser] Starting parse with xml2js, buffer size: ' + (content.length / 1024).toFixed(1) + ' KB');
     
     // Configurar o parser do xml2js para remover prefixos 'ans:' e 'tiss:'
-    const xml2js = require("xml2js");
+    // const xml2js = require("xml2js");
     const parser = new xml2js.Parser({
       explicitArray: false,
       ignoreAttrs: false,
