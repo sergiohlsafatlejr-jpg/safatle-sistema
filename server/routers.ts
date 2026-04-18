@@ -7719,10 +7719,8 @@ export const appRouter = router({
             notificacoes: JSON.parse(h.notificacoes_json),
           }));
         } catch (err: any) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Erro ao listar histórico: ${err.message}`,
-          });
+          console.error("[atendimentos.listarHistorico] Erro:", err.message);
+          return [];
         }
       }),
 
@@ -7791,7 +7789,7 @@ export const appRouter = router({
             filterConditions.push(eq(atendimentosUnificados.origemSistema, input.origemSistema));
           }
           if (input.tipo) {
-            filterConditions.push(eq(atendimentosUnificados.tipo_atendimento, input.tipo));
+            filterConditions.push(like(atendimentosUnificados.tipo_atendimento, `%${input.tipo}%`));
           }
           if (input.convenio) {
             filterConditions.push(eq(atendimentosUnificados.convenio, input.convenio));

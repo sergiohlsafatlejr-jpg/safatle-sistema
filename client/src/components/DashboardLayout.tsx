@@ -181,8 +181,9 @@ const menuItems: MenuItem[] = [
   ]},
 
   // Módulo 5b - Atendimentos
-  { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos", children: [
-    { icon: Users, label: "Atendimentos", path: "/atendimentos", modulo: "atendimentos" },
+  { icon: Users, label: "Atendimentos", path: "/atendimentos-unificados", modulo: "atendimentos", children: [
+    { icon: LayoutGrid, label: "Visão Unificada", path: "/atendimentos-unificados", modulo: "atendimentos" },
+    { icon: Users, label: "Atendimentos (Legado)", path: "/atendimentos", modulo: "atendimentos" },
     { icon: FileText, label: "Atendimentos a Faturar", path: "/atendimentos-faturar", modulo: "atendimentosFaturar" },
     { icon: Shield, label: "Atendimentos com Protocolo", path: "/atendimentos-com-protocolo", modulo: "atendimentos" },
   ]},

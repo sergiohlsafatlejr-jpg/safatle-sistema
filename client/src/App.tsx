@@ -56,6 +56,7 @@ const RecebimentosExcel = lazy(() => import("./pages/RecebimentosExcel"));
 const Atendimentos = lazy(() => import("./pages/Atendimentos"));
 const AtendimentosFaturar = lazy(() => import("./pages/AtendimentosFaturar"));
 const AtendimentosSemProtocolo = lazy(() => import("./pages/AtendimentosSemProtocolo"));
+const AtendimentosUnificados = lazy(() => import("./pages/AtendimentosUnificados"));
 const GerenciarAvisos = lazy(() => import("./pages/GerenciarAvisos"));
 const AuditDashboard = lazy(() => import("./pages/AuditDashboard"));
 const PrevisaoGlosa = lazy(() => import("./pages/PrevisaoGlosa").then(m => ({ default: m.PrevisaoGlosa })));
@@ -170,6 +171,7 @@ function Router() {
         <Route path={"/atendimentos"} component={Atendimentos} />
         <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
         <Route path={"/atendimentos-com-protocolo"} component={AtendimentosSemProtocolo} />
+        <Route path={"/atendimentos-unificados"} component={AtendimentosUnificados} />
         <Route path={"/gerenciar-avisos"} component={GerenciarAvisos} />
         <Route path={"/auditoria"} component={AuditDashboard} />
         <Route path={"/cache-dashboard"} component={CacheDashboard} />
