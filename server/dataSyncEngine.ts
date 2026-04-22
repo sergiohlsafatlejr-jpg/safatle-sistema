@@ -7,7 +7,7 @@ import {
   warleineFaturamentoStaging, 
   tasyMaternidadeElaAtendimentosStaging, 
   queryConfiguracoes,
-  staging_atendimento_warleine 
+  warleineAtendimentosStaging
 } from "../drizzle/schema-integracao";
 // Para pegar o ID da config:
 import { eq, sql } from "drizzle-orm";
@@ -138,7 +138,7 @@ export class DataSyncEngine {
       const configId = config.configId || (configRow.length > 0 ? configRow[0].id : 0);
 
       const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
-      const stagingTable = isFaturamento ? warleineFaturamentoStaging : staging_atendimento_warleine;
+      const stagingTable = isFaturamento ? warleineFaturamentoStaging : warleineAtendimentosStaging;
       
       // Delta Sync detection: Se a query usa :last_sync_date, não deletamos tudo da staging
       const isDelta = /:last_sync_date/i.test(config.querySql);
@@ -148,7 +148,7 @@ export class DataSyncEngine {
 
       if (configId > 0 && !isDelta) {
         await db.delete(stagingTable).where(
-          isFaturamento ? eq(warleineFaturamentoStaging.configId, configId) : eq(staging_atendimento_warleine.estabelecimentoId, config.estabelecimentoId)
+          isFaturamento ? eq(warleineFaturamentoStaging.configId, configId) : eq(warleineAtendimentosStaging.configId, configId)
         );
       }
 
@@ -158,20 +158,7 @@ export class DataSyncEngine {
       const flushBuffer = async () => {
         if (buffer.length === 0) return;
         const batch = buffer.map(d => {
-          if (isFaturamento) {
-            return { estabelecimentoId: config.estabelecimentoId, configId, dadosBrutos: d };
-          } else {
-            return {
-              estabelecimentoId: config.estabelecimentoId,
-              importacaoId: configId,
-              rawData: d,
-              numeroAtendimento: d.numatend || d.numconta ? String(d.numatend || d.numconta) : null,
-              pacienteNome: d.nomepac ? String(d.nomepac).substring(0, 255) : null,
-              convenioNome: (d.nomeplaco || d.nomeconv) ? String(d.nomeplaco || d.nomeconv).substring(0, 255) : null,
-              tipoAtendimento: d.tipoatend ? String(d.tipoatend).substring(0, 50) : null,
-              processado: false
-            };
-          }
+          return { estabelecimentoId: config.estabelecimentoId, configId, dadosBrutos: d };
         });
         await db.insert(stagingTable).values(batch as any);
         totalSincronizados += buffer.length;

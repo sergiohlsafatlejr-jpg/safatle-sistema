@@ -1,14 +1,6 @@
 import { getDb } from "./db";
-import { sql } from "drizzle-orm";
-
-/**
- * Service para popular e manter a tabela atendimentos_unificados
- * (Variável Drizzle: `atendimentos`) a partir das tabelas Staging
- */
-
-// ============================================================
-// POPULAÇÃO A PARTIR DA STAGING WARLEINE
-// ============================================================
+import { sql, eq } from "drizzle-orm";
+import { warleineAtendimentosStaging } from "../drizzle/schema-integracao";
 
 export async function popularDeWarleine(
   estabelecimentoId: number
@@ -16,9 +8,15 @@ export async function popularDeWarleine(
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  // PASSO 1: Opcional, deletar atendimentos antigos não faturados se for replace total, 
-  // Na maioria dos casos usaremos o ON DUPLICATE KEY UPDATE ou delete/insert para a competência.
-  // Como Atendimentos muda de estado, vamos fazer um Delete-Insert completo para o Warleine:
+  // Fetch staging data
+  const stagingData = await db
+    .select()
+    .from(warleineAtendimentosStaging)
+    .where(eq(warleineAtendimentosStaging.estabelecimentoId, estabelecimentoId));
+
+  if (stagingData.length === 0) return { inseridos: 0, total: 0 };
+
+  // Remove existing
   const deleteQuery = `
     DELETE FROM atendimentos_unificados 
     WHERE origemSistema = 'WARLEINE' 
@@ -26,63 +24,75 @@ export async function popularDeWarleine(
   `;
   await db.execute(sql.raw(deleteQuery));
 
-  // PASSO 2: Inserir a partir da staging recém populada
-  const insertQuery = `
-    INSERT INTO atendimentos_unificados (
-      origemSistema, 
-      origemId, 
-      estabelecimentoId,
-      numero_atendimento, 
-      convenio, 
-      paciente,
-      data_entrada, 
-      data_saida, 
-      tipo_atendimento, 
-      codigo_procedimento
-    )
-    SELECT
-      'WARLEINE',
-      CAST(st.id AS CHAR),
-      st.estabelecimentoId,
-      st.numeroAtendimento,
-      st.convenioNome,
-      st.pacienteNome,
-      st.dataEntrada,
-      st.dataSaida,
-      st.tipoAtendimento,
-      st.codigoProcedimento
-    FROM staging_atendimento_warleine st
-    WHERE st.estabelecimentoId = ${estabelecimentoId}
-  `;
+  let registrosTransformados = 0;
+  const BATCH_SIZE = 1000;
 
-  await db.execute(sql.raw(insertQuery));
+  for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
+    const batch = stagingData.slice(i, i + BATCH_SIZE);
+    
+    const valuesPart = batch.map(row => {
+      const dados = typeof row.dadosBrutos === 'string' ? JSON.parse(row.dadosBrutos) : (row.dadosBrutos as any);
+      
+      const uuid = String(dados?.numatend || row.id || '');
+      const numero_atendimento = dados?.numatend || null;
+      const convenio = dados?.nomeplaco || dados?.convenio || null;
+      const paciente = dados?.nomepac || dados?.paciente || null;
+      
+      const dtEntradaStr = dados?.datatend || dados?.dataAdmissao || null;
+      const dtSaidaStr = dados?.datasai || dados?.dataAlta || null;
+      
+      const dtEntradaSQL = dtEntradaStr ? \`'\${new Date(dtEntradaStr).toISOString().slice(0, 19).replace('T', ' ')}'\` : 'NULL';
+      const dtSaidaSQL = dtSaidaStr ? \`'\${new Date(dtSaidaStr).toISOString().slice(0, 19).replace('T', ' ')}'\` : 'NULL';
 
-  // Contar registros inseridos
-  const countQuery = `
-    SELECT COUNT(*) as total FROM atendimentos_unificados 
-    WHERE origemSistema = 'WARLEINE' AND estabelecimentoId = ${estabelecimentoId}
-  `;
-  const [countResult] = await db.execute(sql.raw(countQuery));
-  const total = (countResult as any)?.[0]?.total || 0;
+      const tipo_atendimento = dados?.tipoatendimentodescricao || dados?.tipoAtendimento || null;
+      const codigo_procedimento = dados?.procprin || dados?.procedimentoPrincipal || null;
 
-  // Marcar como processado
-  await db.execute(sql.raw(`
-    UPDATE staging_atendimento_warleine 
-    SET processado = TRUE 
-    WHERE estabelecimentoId = ${estabelecimentoId}
-  `));
+      // Escape strings to prevent sql injection
+      const escape = (str: string | null) => str ? \`'\${str.replace(/'/g, "''")}'\` : 'NULL';
 
-  return { inseridos: Number(total), total: Number(total) };
+      return \`(
+        'WARLEINE',
+        \${escape(uuid)},
+        \${estabelecimentoId},
+        \${escape(String(numero_atendimento || ''))},
+        \${escape(convenio)},
+        \${escape(paciente)},
+        \${dtEntradaSQL},
+        \${dtSaidaSQL},
+        \${escape(tipo_atendimento)},
+        \${escape(codigo_procedimento)}
+      )\`;
+    }).join(',');
+
+    if (!valuesPart) continue;
+
+    const insertQuery = \`
+      INSERT INTO atendimentos_unificados (
+        origemSistema, 
+        origemId, 
+        estabelecimentoId,
+        numero_atendimento, 
+        convenio, 
+        paciente,
+        data_entrada, 
+        data_saida, 
+        tipo_atendimento, 
+        codigo_procedimento
+      ) VALUES \${valuesPart}
+    \`;
+
+    await db.execute(sql.raw(insertQuery));
+    registrosTransformados += batch.length;
+  }
+
+  // Marcar como processado (não existe no schema novo, skip)
+
+  return { inseridos: registrosTransformados, total: registrosTransformados };
 }
-
-// ============================================================
-// POPULAÇÃO A PARTIR DA STAGING EASYVISION
-// ============================================================
 
 export async function popularDeEasyvision(
   estabelecimentoId: number
 ): Promise<{ inseridos: number; total: number }> {
-  // Lógica similar usando a tabela staging_atendimento_easyvision
   console.log('Orquestrador Easyvision ainda não implementado.');
   return { inseridos: 0, total: 0 };
 }

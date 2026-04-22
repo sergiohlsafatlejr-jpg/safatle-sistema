@@ -11,6 +11,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { logger } from "../_core/logger";
+import { analisarPadroesTasyBi } from "../padroesTasyBiService";
 
 /**
  * Router para Padrões de Cobrança por Convênio
@@ -309,6 +310,8 @@ export const padroesCobrancaRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // Padrões de outras fontes (faturamento_unificado) serão gerados a seguir.
+      
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
 
@@ -348,16 +351,17 @@ export const padroesCobrancaRouter = router({
       `));
 
       const itens = (itensResult as any)[0] || [];
-      if (itens.length === 0) {
-        return { total: 0, message: "Nenhum dado encontrado" };
-      }
+      
+      // Variáveis compartilhadas entre os dois fluxos  
+      const padroesParaSalvarUnificado: any[] = [];
+      const contasMapUnificado = new Map<string, any[]>();
 
+      if (itens.length > 0) {
       // Agrupar por conta+setor (cada setor da conta gera padrões separados)
-      const contasMap = new Map<string, any[]>();
       for (const item of itens) {
         const key = `${item.contaNumero}|${item.setor || 'GERAL'}`;
-        if (!contasMap.has(key)) contasMap.set(key, []);
-        contasMap.get(key)!.push(item);
+        if (!contasMapUnificado.has(key)) contasMapUnificado.set(key, []);
+        contasMapUnificado.get(key)!.push(item);
       }
 
       // Se agruparPorProfissional, buscar profissional por conta
@@ -403,7 +407,7 @@ export const padroesCobrancaRouter = router({
         }>;
       }>();
 
-      for (const [contaSetorKey, itensConta] of Array.from(contasMap.entries())) {
+      for (const [contaSetorKey, itensConta] of Array.from(contasMapUnificado.entries())) {
         const setorDaConta = itensConta[0]?.setor || 'GERAL';
         
         // Procedimentos principais: deve ser tipo de procedimento E não pode ser tipo excluído
@@ -467,7 +471,6 @@ export const padroesCobrancaRouter = router({
       }
 
       // Filtrar padrões com mínimo de ocorrências e salvar
-      const padroesParaSalvar: any[] = [];
       for (const [, padrao] of Array.from(padroesMap.entries())) {
         if (padrao.contas < input.minOcorrencias) continue;
 
@@ -485,7 +488,7 @@ export const padroesCobrancaRouter = router({
 
         if (itensFrequentes.length === 0) continue;
 
-        padroesParaSalvar.push({
+        padroesParaSalvarUnificado.push({
           convenioId: null,
           estabelecimentoId: input.estabelecimentoId,
           setor: padrao.setor !== 'GERAL' ? padrao.setor : null,
@@ -503,6 +506,8 @@ export const padroesCobrancaRouter = router({
         });
       }
 
+      } // fim do if (itens.length > 0)
+
       // Limpar padrões antigos gerados automaticamente (não gabaritos)
       const deleteConditions: any[] = [
         eq(padroesCobranca.estabelecimentoId, input.estabelecimentoId),
@@ -514,22 +519,39 @@ export const padroesCobrancaRouter = router({
         .delete(padroesCobranca)
         .where(and(...deleteConditions));
 
-      if (padroesParaSalvar.length > 0) {
+      if (padroesParaSalvarUnificado.length > 0) {
         const batchSize = 50;
-        for (let i = 0; i < padroesParaSalvar.length; i += batchSize) {
-          const batch = padroesParaSalvar.slice(i, i + batchSize);
+        for (let i = 0; i < padroesParaSalvarUnificado.length; i += batchSize) {
+          const batch = padroesParaSalvarUnificado.slice(i, i + batchSize);
           await db.insert(padroesCobranca).values(batch as any);
         }
       }
 
       // Contar setores distintos nos padrões gerados
-      const setoresDistintos = new Set(padroesParaSalvar.map(p => p.setor || 'GERAL'));
+      const setoresDistintos = new Set(padroesParaSalvarUnificado.map(p => p.setor || 'GERAL'));
+
+      // APÓS limpar e salvar faturamento_unificado, processar Tasy_Faturado_Itens_Bi para unificarmos as fontes.
+      let tasyMessage = "";
+      let tasyNovos = 0;
+      let tasyAtuais = 0;
+      try {
+        const resTasy = await analisarPadroesTasyBi({ 
+          estabelecimentoId: input.estabelecimentoId,
+          agrupamentoProfissional: input.agruparProfissional
+        });
+        tasyNovos = resTasy.ineditos;
+        tasyAtuais = resTasy.atuais;
+        tasyMessage = ` | + Tasy BI (Novos: ${tasyNovos}, Atualizados: ${tasyAtuais})`;
+      } catch (e) {
+        logger.error("Erro ao gerar padrões Tasy BI", e);
+        tasyMessage = " | (Erro ao gerar Tasy BI)";
+      }
 
       return {
-        total: padroesParaSalvar.length,
-        totalContas: contasMap.size,
+        total: padroesParaSalvarUnificado.length + tasyNovos,
+        totalContas: contasMapUnificado.size,
         totalSetores: setoresDistintos.size,
-        message: `${padroesParaSalvar.length} padrões de composição gerados a partir de ${contasMap.size} contas em ${setoresDistintos.size} setor(es)`,
+        message: `${padroesParaSalvarUnificado.length} padrões (unificado) + ${tasyNovos} novos (Tasy BI)${tasyMessage}`,
       };
     }),
 

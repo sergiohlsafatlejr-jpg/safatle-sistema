@@ -471,8 +471,8 @@ export default function PadroesCobranca() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos os setores</SelectItem>
-                  {setores.data?.map((s: string) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  {(setores.data as any[])?.map((s: any) => (
+                    <SelectItem key={s.setor} value={s.setor}>{s.setor}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -578,16 +578,27 @@ export default function PadroesCobranca() {
                           <div><p className="text-muted-foreground text-xs">Pago</p><p className="font-medium text-green-400">{formatCurrency(item.valorTotalPago)}</p></div>
                           <div><p className="text-muted-foreground text-xs">Ocorrências</p><p className="font-medium">{item.totalFaturado} faturados / {item.totalGlosado} glosados</p></div>
                         </div>
-                        {item.codigosGlosaFrequentes && (item.codigosGlosaFrequentes as any[]).length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border">
-                            <p className="text-xs text-muted-foreground mb-2">Códigos de glosa frequentes:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {(item.codigosGlosaFrequentes as any[]).slice(0, 5).map((cg: any, idx: number) => (
-                                <Badge key={idx} variant="outline" className="text-xs" title={cg.descricao}>{cg.codigoGlosa} ({cg.frequencia}x)</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        {(() => {
+                          const getCodigosGlosa = (v: any) => {
+                            if (!v) return [];
+                            if (Array.isArray(v)) return v;
+                            try { return JSON.parse(v); } catch(e) { return []; }
+                          };
+                          const glosaArr = getCodigosGlosa(item.codigosGlosaFrequentes);
+                          if (glosaArr.length > 0) {
+                            return (
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <p className="text-xs text-muted-foreground mb-2">Códigos de glosa frequentes:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {glosaArr.slice(0, 5).map((cg: any, idx: number) => (
+                                    <Badge key={idx} variant="outline" className="text-xs" title={cg.descricao}>{cg.codigoGlosa} ({cg.frequencia}x)</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </Card>
                   ))}

@@ -6,7 +6,8 @@
  */
 
 import { getDb } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { warleineFaturamentoStaging } from "../drizzle/schema-integracao";
 
 // ============================================================
 // POPULAÇÃO A PARTIR DO WARLEINE (integ_faturado)
@@ -98,7 +99,7 @@ export async function popularDeIntegFaturado(
     FROM integ_faturado ig
     LEFT JOIN faturamento_unificado fu 
       ON fu.origemSistema = 'WARLEINE' 
-      AND fu.origemId = CAST(ig._id AS CHAR)
+      AND fu.origemId COLLATE utf8mb4_unicode_ci = CAST(ig._id AS CHAR) COLLATE utf8mb4_unicode_ci
       AND fu.estabelecimentoId = ig.estabelecimento_id
     WHERE ig.estabelecimento_id = ${estabelecimentoId}
       AND fu.id IS NULL
@@ -186,7 +187,7 @@ export async function popularDeTasy(
     FROM faturadoTasy ft
     LEFT JOIN faturamento_unificado fu 
       ON fu.origemSistema = 'TASY' 
-      AND fu.origemId = CAST(ft.id AS CHAR)
+      AND fu.origemId COLLATE utf8mb4_unicode_ci = CAST(ft.id AS CHAR) COLLATE utf8mb4_unicode_ci
       AND fu.estabelecimentoId = ft.estabelecimentoId
     WHERE ft.estabelecimentoId = ${estabelecimentoId}
       AND fu.id IS NULL
@@ -319,7 +320,7 @@ export async function popularDeXmlTiss(
     LEFT JOIN convenios c ON dedup.convenioId = c.id
     LEFT JOIN faturamento_unificado fu 
       ON fu.origemSistema = 'XML_TISS' 
-      AND fu.origemId = CAST(dedup.id AS CHAR)
+      AND fu.origemId COLLATE utf8mb4_unicode_ci = CAST(dedup.id AS CHAR) COLLATE utf8mb4_unicode_ci
       AND fu.estabelecimentoId = dedup.estabelecimentoId
     WHERE dedup.rn = 1
       AND fu.id IS NULL
@@ -344,28 +345,138 @@ export async function popularDeXmlTiss(
 }
 
 // ============================================================
-// POPULAÇÃO COMPLETA (ambas as fontes)
+// ============================================================
+// POPULAÇÃO A PARTIR DO TASY BI (tasy_faturado_itens_bi)
+// ============================================================
+export async function popularDeTasyBi(
+  estabelecimentoId: number,
+  competencia?: string
+): Promise<{ inseridos: number; total: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  const compFU = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
+  const compTB = competencia ? `AND tb.COMPETENCIA LIKE '${competencia.replace(/'/g, "''")}%'` : '';
+
+  await db.execute(sql.raw(`
+    DELETE FROM faturamento_unificado 
+    WHERE origemSistema = 'TASY_BI' 
+      AND estabelecimentoId = ${estabelecimentoId}
+      AND statusConciliacao = 'pendente'
+      ${compFU}
+  `));
+
+  await db.execute(sql.raw(`
+    INSERT INTO faturamento_unificado (
+      origemSistema, origemId, estabelecimentoId,
+      contaNumero, protocolo, atendimento,
+      pacienteNome, carteiraBeneficiario, senha,
+      lotePrestador, convenio, competencia,
+      profissionalExecutante, setor,
+      tipoItem, codigoItem, codigoItemTuss,
+      descricaoItem, dataExecucao, quantidade,
+      valorUnitario, valorFaturado, valorPago, valorGlosa,
+      motivoGlosa, retorno, dataPagamento,
+      dataSincronizacao
+    )
+    SELECT
+      'TASY_BI',
+      CAST(tb.id AS CHAR),
+      tb.estabelecimentoId,
+      NULLIF(TRIM(tb.CONTA), ''),
+      NULLIF(TRIM(tb.PROTOCOLO), ''),
+      NULLIF(TRIM(tb.ATEND), ''),
+      NULLIF(TRIM(tb.PACIENTE), ''),
+      NULLIF(TRIM(tb.MATRICULA), ''),
+      NULLIF(TRIM(tb.AUTORIZACAO), ''),
+      NULLIF(TRIM(tb.NR_PROTOCOLO), ''),
+      NULLIF(TRIM(tb.CONVENIO), ''),
+      NULLIF(TRIM(tb.COMPETENCIA), ''),
+      NULLIF(TRIM(tb.PROF_EXEC), ''),
+      NULLIF(TRIM(tb.SETOR), ''),
+      NULLIF(TRIM(tb.TIPO_ITEM), ''),
+      NULLIF(TRIM(tb.CD_ITEM), ''),
+      NULLIF(TRIM(tb.CD_ITEM_TUSS), ''),
+      NULLIF(TRIM(tb.DESCRICAO), ''),
+      CASE WHEN tb.DT_ITEM IS NOT NULL AND TRIM(tb.DT_ITEM) != '' 
+        THEN STR_TO_DATE(TRIM(tb.DT_ITEM), '%d-%b-%y') ELSE NULL END,
+      CASE WHEN tb.QTD IS NOT NULL AND TRIM(tb.QTD) != '' 
+        THEN CAST(TRIM(tb.QTD) AS DECIMAL(12,4)) ELSE NULL END,
+      CASE WHEN tb.VL_PRODUZIDO IS NOT NULL AND TRIM(tb.VL_PRODUZIDO) != '' 
+           AND tb.QTD IS NOT NULL AND TRIM(tb.QTD) != ''
+           AND CAST(TRIM(tb.QTD) AS DECIMAL(12,4)) > 0
+        THEN ROUND(CAST(TRIM(tb.VL_PRODUZIDO) AS DECIMAL(12,4)) 
+          / CAST(TRIM(tb.QTD) AS DECIMAL(12,4)), 4) ELSE NULL END,
+      CASE WHEN tb.VL_PRODUZIDO IS NOT NULL AND TRIM(tb.VL_PRODUZIDO) != '' 
+        THEN CAST(TRIM(tb.VL_PRODUZIDO) AS DECIMAL(12,4)) ELSE NULL END,
+      CASE WHEN tb.VL_PAGO IS NOT NULL AND TRIM(tb.VL_PAGO) != '' 
+        THEN CAST(TRIM(tb.VL_PAGO) AS DECIMAL(12,4)) ELSE NULL END,
+      CASE WHEN tb.VL_GLOSA IS NOT NULL AND TRIM(tb.VL_GLOSA) != '' 
+        THEN CAST(TRIM(tb.VL_GLOSA) AS DECIMAL(12,4)) ELSE NULL END,
+      NULLIF(TRIM(tb.MOTIVO_GLOSA), ''),
+      NULLIF(TRIM(tb.RETORNO), ''),
+      CASE WHEN tb.DT_PGTO IS NOT NULL AND TRIM(tb.DT_PGTO) != '' 
+        THEN STR_TO_DATE(TRIM(tb.DT_PGTO), '%d-%b-%y') ELSE NULL END,
+      NOW()
+    FROM tasy_faturado_itens_bi tb
+    LEFT JOIN faturamento_unificado fu_check
+      ON fu_check.origemSistema = 'TASY_BI'
+      AND fu_check.origemId COLLATE utf8mb4_unicode_ci = CAST(tb.id AS CHAR) COLLATE utf8mb4_unicode_ci
+      AND fu_check.estabelecimentoId = tb.estabelecimentoId
+    WHERE tb.estabelecimentoId = ${estabelecimentoId}
+      AND tb.CD_ITEM IS NOT NULL AND TRIM(tb.CD_ITEM) != ''
+      AND fu_check.id IS NULL
+      ${compTB}
+  `));
+
+  const [countResult] = await db.execute(sql.raw(`
+    SELECT COUNT(*) as total FROM faturamento_unificado 
+    WHERE origemSistema = 'TASY_BI' AND estabelecimentoId = ${estabelecimentoId} ${compFU}
+  `));
+  const total = (countResult as any)?.[0]?.total || 0;
+  console.log(`[TasyBI->Unificado] Estabelecimento ${estabelecimentoId}: ${total} itens`);
+  return { inseridos: Number(total), total: Number(total) };
+}
+
+// ============================================================
+// POPULAÇÃO COMPLETA (todas as fontes)
 // ============================================================
 
 /**
  * Popula faturamento_unificado a partir de todas as fontes:
  * - WARLEINE (integ_faturado): dados do faturamento do hospital
  * - XML_TISS (staging_faturamento_xml): dados dos XMLs enviados aos convênios
+ * - TASY_BI (tasy_faturado_itens_bi): dados do Tasy via relatório BI (Oracle)
  * - TASY_STAGING: dados já importados do Tasy (apenas contagem, não re-popula)
  */
 export async function popularFaturamentoUnificado(
   estabelecimentoId: number,
   competencia?: string
-): Promise<{ warleine: { inseridos: number; total: number }; xmlTiss: { inseridos: number; total: number }; tasyStaging: { total: number }; totalGeral: number }> {
-  const warleine = await popularDeIntegFaturado(estabelecimentoId, competencia);
-  const xmlTiss = await popularDeXmlTiss(estabelecimentoId, competencia);
-  const tasyStaging = await contarTasyStaging(estabelecimentoId, competencia);
+): Promise<{ warleine: { inseridos: number; total: number }; xmlTiss: { inseridos: number; total: number }; tasyBi: { inseridos: number; total: number }; tasyStaging: { total: number }; totalGeral: number }> {
+  const empty = { inseridos: 0, total: 0 };
+  
+  let warleine = { ...empty };
+  try { warleine = await popularDeIntegFaturado(estabelecimentoId, competencia); }
+  catch (e) { console.log(`[PopularUnificado] Warleine ignorado para estab ${estabelecimentoId}:`, (e as any)?.message?.substring(0,100)); }
+
+  let xmlTiss = { ...empty };
+  try { xmlTiss = await popularDeXmlTiss(estabelecimentoId, competencia); }
+  catch (e) { console.log(`[PopularUnificado] XML_TISS ignorado para estab ${estabelecimentoId}:`, (e as any)?.message?.substring(0,100)); }
+
+  let tasyBi = { ...empty };
+  try { tasyBi = await popularDeTasyBi(estabelecimentoId, competencia); }
+  catch (e) { console.log(`[PopularUnificado] TasyBI ignorado para estab ${estabelecimentoId}:`, (e as any)?.message?.substring(0,100)); }
+
+  let tasyStaging = { total: 0 };
+  try { tasyStaging = await contarTasyStaging(estabelecimentoId, competencia); }
+  catch (e) { console.log(`[PopularUnificado] TasyStaging ignorado para estab ${estabelecimentoId}:`, (e as any)?.message?.substring(0,100)); }
 
   return {
     warleine,
     xmlTiss,
+    tasyBi,
     tasyStaging,
-    totalGeral: warleine.total + xmlTiss.total + tasyStaging.total,
+    totalGeral: warleine.total + xmlTiss.total + tasyBi.total + tasyStaging.total,
   };
 }
 
