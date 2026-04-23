@@ -41,32 +41,32 @@ export async function popularDeWarleine(
       const dtEntradaStr = dados?.datatend || dados?.dataAdmissao || null;
       const dtSaidaStr = dados?.datasai || dados?.dataAlta || null;
       
-      const dtEntradaSQL = dtEntradaStr ? \`'\${new Date(dtEntradaStr).toISOString().slice(0, 19).replace('T', ' ')}'\` : 'NULL';
-      const dtSaidaSQL = dtSaidaStr ? \`'\${new Date(dtSaidaStr).toISOString().slice(0, 19).replace('T', ' ')}'\` : 'NULL';
+      const dtEntradaSQL = dtEntradaStr ? `'${new Date(dtEntradaStr).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL';
+      const dtSaidaSQL = dtSaidaStr ? `'${new Date(dtSaidaStr).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL';
 
       const tipo_atendimento = dados?.tipoatendimentodescricao || dados?.tipoAtendimento || null;
       const codigo_procedimento = dados?.procprin || dados?.procedimentoPrincipal || null;
 
       // Escape strings to prevent sql injection
-      const escape = (str: string | null) => str ? \`'\${str.replace(/'/g, "''")}'\` : 'NULL';
+      const escape = (str: string | null) => str ? `'${str.replace(/'/g, "''")}'` : 'NULL';
 
-      return \`(
+      return `(
         'WARLEINE',
-        \${escape(uuid)},
-        \${estabelecimentoId},
-        \${escape(String(numero_atendimento || ''))},
-        \${escape(convenio)},
-        \${escape(paciente)},
-        \${dtEntradaSQL},
-        \${dtSaidaSQL},
-        \${escape(tipo_atendimento)},
-        \${escape(codigo_procedimento)}
-      )\`;
+        ${escape(uuid)},
+        ${estabelecimentoId},
+        ${escape(String(numero_atendimento || ''))},
+        ${escape(convenio)},
+        ${escape(paciente)},
+        ${dtEntradaSQL},
+        ${dtSaidaSQL},
+        ${escape(tipo_atendimento)},
+        ${escape(codigo_procedimento)}
+      )`;
     }).join(',');
 
     if (!valuesPart) continue;
 
-    const insertQuery = \`
+    const insertQuery = `
       INSERT INTO atendimentos_unificados (
         origemSistema, 
         origemId, 
@@ -78,8 +78,8 @@ export async function popularDeWarleine(
         data_saida, 
         tipo_atendimento, 
         codigo_procedimento
-      ) VALUES \${valuesPart}
-    \`;
+      ) VALUES ${valuesPart}
+    `;
 
     await db.execute(sql.raw(insertQuery));
     registrosTransformados += batch.length;

@@ -101,19 +101,19 @@ export async function syncDemonstrativoByArquivo(
           estabelecimentoId: item.estabelecimentoId,
           
           // Identificação
-          numeroGuia: item.numeroGuia,
-          protocolo: item.protocoloTiss,
-          lotePrestador: item.lotePrestador,
+          numeroGuia: item.numeroGuia ? String(item.numeroGuia).substring(0, 50) : null,
+          protocolo: item.protocoloTiss ? String(item.protocoloTiss).substring(0, 50) : null,
+          lotePrestador: item.lotePrestador ? String(item.lotePrestador).substring(0, 50) : null,
           dataPagamento: item.dataPagto || item.dataPagamentoUpload || item.dataPagamento,
           
           // Beneficiário
-          carteiraBeneficiario: item.beneficiario,
-          nomeBeneficiario: item.nomeBeneficiario,
+          carteiraBeneficiario: item.beneficiario ? String(item.beneficiario).substring(0, 50) : null,
+          nomeBeneficiario: item.nomeBeneficiario ? String(item.nomeBeneficiario).substring(0, 255) : null,
           
           // Detalhes do Item
           sequencialItem: item.seq,
-          codigoItem: item.item,
-          descricaoItem: item.itemDesc || null,
+          codigoItem: item.item ? String(item.item).substring(0, 50) : null,
+          descricaoItem: item.itemDesc,
           dataExecucao: item.dataExecucao,
           quantidade: item.quantidade ? String(item.quantidade) : null,
           valorInformado: item.valorInformado ? String(item.valorInformado) : '0.00',
@@ -123,10 +123,10 @@ export async function syncDemonstrativoByArquivo(
           valorGlosa,
           
           // Status
-          tipoLancamento: item.tipoLancamento,
-          erroTiss: item.erroTiss,
-          situacaoItem: item.situacaoItem,
-          codigoGlosa: item.codigoGlosa || null, // Usar codigoGlosa direto de recebimentos_excel
+          tipoLancamento: item.tipoLancamento ? String(item.tipoLancamento).substring(0, 100) : null,
+          erroTiss: item.erroTiss ? String(item.erroTiss).substring(0, 255) : null,
+          situacaoItem: item.situacaoItem ? String(item.situacaoItem).substring(0, 100) : null,
+          codigoGlosa: item.codigoGlosa ? String(item.codigoGlosa).substring(0, 500) : null,
           
           // Data de referência - normalizar para evitar problemas de fuso horário
           dataReferencia: normalizeDateForDB(item.dataReferencia),
@@ -198,9 +198,9 @@ export async function syncDemonstrativoByArquivo(
           valorGlosa: hasGlosa ? String(valorGlosadoNum.toFixed(2)) : null,
           
           // Status
-          codigoGlosa: item.codigoGlosa || null,
-          situacaoItem: situacao,
-          erroTiss: item.codigoGlosa ? `${item.codigoGlosa}${item.descricaoGlosa ? ' - ' + item.descricaoGlosa : ''}` : null,
+          codigoGlosa: item.codigoGlosa ? String(item.codigoGlosa).substring(0, 500) : null,
+          situacaoItem: situacao ? String(situacao).substring(0, 100) : situacao,
+          erroTiss: item.codigoGlosa ? String(`${item.codigoGlosa}${item.descricaoGlosa ? ' - ' + item.descricaoGlosa : ''}`).substring(0, 255) : null,
           
           // Data de referência - normalizar para evitar problemas de fuso horário
           dataReferencia: normalizeDateForDB(item.dataReferencia),

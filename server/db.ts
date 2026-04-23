@@ -17710,7 +17710,7 @@ export async function getDemonstrativoContas(params: {
 
   // Buscar contas agrupadas por chave composta (guia + lote + protocolo)
   // Isso permite separar altas administrativas (mesma guia, lotes diferentes)
-  const contasQuery = db
+  let contasQuery = db
     .select({
       numeroGuia: demonstrativo.numeroGuia,
       protocolo: demonstrativo.protocolo,
@@ -17742,13 +17742,27 @@ export async function getDemonstrativoContas(params: {
       demonstrativo.convenioId,
       demonstrativo.arquivoId,
       demonstrativo.origemTipo
-    )
+    );
+
+  let havingClause: any = undefined;
+  if (params.statusGlosa && params.statusGlosa !== "todos") {
+    if (params.statusGlosa === "pago") {
+      havingClause = sql`SUM(COALESCE(${demonstrativo.valorGlosa}, 0)) = 0 AND SUM(COALESCE(${demonstrativo.valorPago}, 0)) > 0`;
+    } else if (params.statusGlosa === "glosado") {
+      havingClause = sql`SUM(COALESCE(${demonstrativo.valorGlosa}, 0)) > 0`;
+    } else if (params.statusGlosa === "parcial") {
+      havingClause = sql`SUM(COALESCE(${demonstrativo.valorGlosa}, 0)) > 0 AND SUM(COALESCE(${demonstrativo.valorPago}, 0)) > 0`;
+    }
+    if (havingClause) contasQuery = contasQuery.having(havingClause);
+  }
+
+  contasQuery = contasQuery
     .orderBy(desc(demonstrativo.dataPagamento))
     .limit(pageSize)
     .offset(offset);
 
   // Contar total de contas (usando chave composta: guia + lote + protocolo)
-  const countQuery = db
+  let countQuery: any = db
     .select({ 
       count: sql<number>`COUNT(DISTINCT CONCAT(
         COALESCE(${demonstrativo.numeroGuia}, ''), '-', 
@@ -17758,6 +17772,25 @@ export async function getDemonstrativoContas(params: {
     })
     .from(demonstrativo)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  if (havingClause) {
+    countQuery = db.select({ guia: demonstrativo.numeroGuia })
+      .from(demonstrativo)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(
+        demonstrativo.numeroGuia,
+        demonstrativo.protocolo,
+        demonstrativo.lotePrestador,
+        demonstrativo.carteiraBeneficiario,
+        demonstrativo.nomeBeneficiario,
+        demonstrativo.dataPagamento,
+        demonstrativo.dataReferencia,
+        demonstrativo.convenioId,
+        demonstrativo.arquivoId,
+        demonstrativo.origemTipo
+      )
+      .having(havingClause);
+  }
 
   const [contas, countResult] = await Promise.all([contasQuery, countQuery]);
 
@@ -17783,25 +17816,8 @@ export async function getDemonstrativoContas(params: {
     totalLotesGuia: guiasMultiplosLotes.find(g => g.numeroGuia === conta.numeroGuia)?.totalLotes || 1,
   }));
 
-  // Filtrar por status de glosa se necessário
   let filteredContas = contasComFlag;
-  if (params.statusGlosa && params.statusGlosa !== "todos") {
-    filteredContas = contasComFlag.filter(conta => {
-      const valorGlosa = parseFloat(conta.valorGlosado || "0");
-      const valorPago = parseFloat(conta.valorTotal || "0");
-      
-      if (params.statusGlosa === "pago") {
-        return valorGlosa === 0 && valorPago > 0;
-      } else if (params.statusGlosa === "glosado") {
-        return valorGlosa > 0 && valorPago === 0;
-      } else if (params.statusGlosa === "parcial") {
-        return valorGlosa > 0 && valorPago > 0;
-      }
-      return true;
-    });
-  }
-
-  const total = countResult[0]?.count || 0;
+  const total = havingClause ? countResult.length : (countResult[0]?.count || 0);
 
   return {
     items: filteredContas,

@@ -716,30 +716,38 @@ export async function listarXmlsGerados(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
-  if (params.convenioId) {
-    whereClause += ` AND convenioId = ${params.convenioId}`;
+  try {
+    let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
+    if (params.convenioId) {
+      whereClause += ` AND convenioId = ${params.convenioId}`;
+    }
+    if (params.competencia) {
+      whereClause += ` AND competencia = '${params.competencia.replace(/'/g, "''")}'`;
+    }
+
+    const limit = params.limit || 50;
+    const offset = params.offset || 0;
+
+    const [countResult] = await db.execute(sql.raw(`
+      SELECT COUNT(*) as total FROM xml_recursos_gerados ${whereClause}
+    `));
+    const total = Number((countResult as unknown as any[])[0]?.total || 0);
+
+    const [result] = await db.execute(sql.raw(`
+      SELECT * FROM xml_recursos_gerados 
+      ${whereClause}
+      ORDER BY createdAt DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `));
+
+    return { registros: result as unknown as any[], total };
+  } catch (e: any) {
+    // Tabela pode não existir ainda - retornar vazio
+    if (e?.cause?.code === 'ER_NO_SUCH_TABLE' || e?.message?.includes("doesn't exist")) {
+      return { registros: [], total: 0 };
+    }
+    throw e;
   }
-  if (params.competencia) {
-    whereClause += ` AND competencia = '${params.competencia.replace(/'/g, "''")}'`;
-  }
-
-  const limit = params.limit || 50;
-  const offset = params.offset || 0;
-
-  const [countResult] = await db.execute(sql.raw(`
-    SELECT COUNT(*) as total FROM xml_recursos_gerados ${whereClause}
-  `));
-  const total = Number((countResult as unknown as any[])[0]?.total || 0);
-
-  const [result] = await db.execute(sql.raw(`
-    SELECT * FROM xml_recursos_gerados 
-    ${whereClause}
-    ORDER BY createdAt DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `));
-
-  return { registros: result as unknown as any[], total };
 }
 
 /**
@@ -775,6 +783,7 @@ export async function guiasGlosadasDisponiveis(params: {
   }
 
   // Buscar todas as guias que têm pelo menos um item glosado
+  // OTIMIZAÇÃO: Sem JOIN com faturamento_unificado (1.8M rows)
   const [result] = await db.execute(sql.raw(`
     SELECT 
       ca.numeroGuia,
@@ -790,21 +799,52 @@ export async function guiasGlosadasDisponiveis(params: {
       MAX(ca.xmlRecursoGerado) as xmlGerado,
       MAX(ca.xmlRecursoData) as xmlGeradoEm,
       MAX(ca.xmlRecursoLoteId) as xmlLoteId,
-      -- Lote e Protocolo do XML (faturamento_unificado)
-      MAX(fu.lotePrestador) as loteXml,
-      MAX(fu.protocolo) as protocoloXml,
-      -- Lote e Protocolo do Retorno (demonstrativo)
-      (SELECT d.lote_prestador FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as loteRetorno,
-      (SELECT d.protocolo FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as protocoloRetorno,
       MAX(ca.codigoPrestadorExecutante) as codigoPrestadorExecutante
     FROM conciliados_automatico ca
-    LEFT JOIN faturamento_unificado fu ON ca.faturamentoUnificadoId = fu.id
     ${whereClause}
     GROUP BY ca.numeroGuia, ca.convenio, ca.convenioId, ca.competencia, ca.estabelecimentoId
     ORDER BY ca.competencia DESC, ca.numeroGuia
   `));
 
   let guias = result as unknown as any[];
+
+  // Enriquecer com lote/protocolo apenas para as guias retornadas
+  if (guias.length > 0) {
+    const esc = (v: string) => `'${v.replace(/'/g, "''")}'`;
+    const guiasList = guias.map((g: any) => esc(String(g.numeroGuia || ''))).filter(g => g !== "''").join(',');
+    if (guiasList) {
+      try {
+        const [fuRows] = await db.execute(sql.raw(`
+          SELECT numeroGuia, MAX(lotePrestador) as loteXml, MAX(protocolo) as protocoloXml
+          FROM faturamento_unificado
+          WHERE estabelecimentoId = ${params.estabelecimentoId} AND numeroGuia IN (${guiasList})
+          GROUP BY numeroGuia
+        `));
+        const fuMap = new Map<string, any>();
+        for (const r of fuRows as unknown as any[]) { fuMap.set(String(r.numeroGuia), r); }
+        for (const g of guias) {
+          const fu = fuMap.get(String(g.numeroGuia || ''));
+          g.loteXml = fu?.loteXml || null;
+          g.protocoloXml = fu?.protocoloXml || null;
+        }
+      } catch (e) { /* informativo */ }
+      try {
+        const [dRows] = await db.execute(sql.raw(`
+          SELECT numero_guia, lote_prestador, protocolo
+          FROM demonstrativo
+          WHERE estabelecimentoId = ${params.estabelecimentoId} AND numero_guia IN (${guiasList})
+          GROUP BY numero_guia, lote_prestador, protocolo
+        `));
+        const dMap = new Map<string, any>();
+        for (const r of dRows as unknown as any[]) { dMap.set(String(r.numero_guia), r); }
+        for (const g of guias) {
+          const d = dMap.get(String(g.numeroGuia || ''));
+          g.loteRetorno = d?.lote_prestador || null;
+          g.protocoloRetorno = d?.protocolo || null;
+        }
+      } catch (e) { /* informativo */ }
+    }
+  }
 
   // Filtrar apenas não geradas se solicitado
   if (params.apenasNaoGeradas) {

@@ -1332,3 +1332,25 @@ export const staging_atendimento_tasy = mysqlTable("staging_atendimento_tasy", {
 export type InsertStagingAtendimentoTasy = typeof staging_atendimento_tasy.$inferInsert;
 export type SelectStagingAtendimentoTasy = typeof staging_atendimento_tasy.$inferSelect;
 
+
+export const fato_conciliacao_guias = mysqlTable('fato_conciliacao_guias', {
+  id: int('id').autoincrement().primaryKey(),
+  estabelecimentoId: int('estabelecimentoId').notNull(),
+  competencia: varchar('competencia', { length: 20 }),
+  convenioId: int('convenioId'),
+  convenio: varchar('convenio', { length: 100 }),
+  guia: varchar('guia', { length: 100 }),
+  pacienteNome: varchar('pacienteNome', { length: 150 }),
+  valorFaturado: decimal('valorFaturado', { precision: 12, scale: 4 }).default('0'),
+  valorPago: decimal('valorPago', { precision: 12, scale: 4 }).default('0'),
+  valorGlosa: decimal('valorGlosa', { precision: 12, scale: 4 }).default('0'),
+  diferenca: decimal('diferenca', { precision: 12, scale: 4 }).default('0'),
+  statusGuia: varchar('statusGuia', { length: 50 }),
+  totalItens: int('totalItens'),
+  itensConciliados: int('itensConciliados'),
+  itensDivergentes: int('itensDivergentes'),
+  itensGlosados: int('itensGlosados'),
+  itensNaoRecebidos: int('itensNaoRecebidos'),
+  itensTerceiros: int('itensTerceiros'),
+  atualizadoEm: timestamp('atualizadoEm').defaultNow(),
+});

@@ -631,23 +631,23 @@ export async function resumoFaturamentoPorGuia(params: {
   const offset = params.offset || 0;
 
   // Agrupar por guia/conta
-  const groupKey = `COALESCE(fu.contaNumero, fu.numeroGuia, CAST(fu.id AS CHAR))`;
+  const groupKey = `COALESCE(fu.contaNumero, fu.numeroGuia)`;
 
   const query = `
     SELECT
       ${groupKey} as chaveGuia,
-      fu.contaNumero,
-      fu.numeroGuia,
-      fu.atendimento,
-      fu.pacienteNome,
-      fu.carteiraBeneficiario,
-      fu.convenio,
-      fu.convenioId,
-      fu.competencia,
-      fu.profissionalExecutante,
-      fu.setor,
-      fu.protocolo,
-      fu.origemSistema,
+      MAX(fu.contaNumero) as contaNumero,
+      MAX(fu.numeroGuia) as numeroGuia,
+      MAX(fu.atendimento) as atendimento,
+      MAX(fu.pacienteNome) as pacienteNome,
+      MAX(fu.carteiraBeneficiario) as carteiraBeneficiario,
+      MAX(fu.convenio) as convenio,
+      MAX(fu.convenioId) as convenioId,
+      MAX(fu.competencia) as competencia,
+      MAX(fu.profissionalExecutante) as profissionalExecutante,
+      MAX(fu.setor) as setor,
+      MAX(fu.protocolo) as protocolo,
+      MAX(fu.origemSistema) as origemSistema,
       COUNT(*) as totalItens,
       SUM(COALESCE(fu.valorFaturado, 0)) as valorFaturado,
       SUM(COALESCE(fu.valorPago, 0)) as valorPago,
@@ -657,15 +657,13 @@ export async function resumoFaturamentoPorGuia(params: {
       MAX(fu.dataPagamento) as dataPagamento
     FROM faturamento_unificado fu
     ${whereClause}
-    GROUP BY ${groupKey}, fu.contaNumero, fu.numeroGuia, fu.atendimento,
-      fu.pacienteNome, fu.carteiraBeneficiario, fu.convenio, fu.convenioId,
-      fu.competencia, fu.profissionalExecutante, fu.setor, fu.protocolo, fu.origemSistema
-    ORDER BY valorFaturado DESC
+    GROUP BY ${groupKey}
+    ORDER BY chaveGuia DESC
     LIMIT ${limite} OFFSET ${offset}
   `;
 
   const countQuery = `
-    SELECT COUNT(DISTINCT ${groupKey}) as total
+    SELECT COUNT(*) as total
     FROM faturamento_unificado fu
     ${whereClause}
   `;
@@ -674,7 +672,7 @@ export async function resumoFaturamentoPorGuia(params: {
   const resumoQuery = `
     SELECT
       COUNT(*) as totalItens,
-      COUNT(DISTINCT ${groupKey}) as totalContas,
+      0 as totalContas,
       SUM(COALESCE(fu.valorFaturado, 0)) as totalFaturado,
       SUM(COALESCE(fu.valorPago, 0)) as totalPago,
       SUM(COALESCE(fu.valorGlosa, 0)) as totalGlosado,
@@ -788,7 +786,7 @@ export async function conveniosDisponiveis(params: {
     FROM faturamento_unificado fu
     ${whereClause}
       AND fu.convenio IS NOT NULL
-    GROUP BY TRIM(UPPER(fu.convenio))
+    GROUP BY fu.convenioId
     ORDER BY MAX(fu.convenio)
   `;
 
@@ -1666,6 +1664,57 @@ export async function executarConciliacaoAutomatica(params: {
   }
   console.log(`[Conciliacao] UPDATE concluído em ${((Date.now()-t1)/1000).toFixed(1)}s`);
 
+  // -------------------------------------------------------
+  // PASSO 8: Atualizar a View Materializada de Guias (fato_conciliacao_guias)
+  // Essencial para carregar a página da UI quase instantaneamente
+  // -------------------------------------------------------
+  try {
+    console.log(`[Conciliacao] Atualizando fato_conciliacao_guias para competência ${params.competencia}...`);
+    const t2 = Date.now();
+    let compWhere = `estabelecimentoId = ${params.estabelecimentoId}`;
+    if (params.competencia) {
+      compWhere += ` AND competencia = '${params.competencia.replace(/'/g, "''")}'`;
+    }
+    if (params.convenioId) {
+      compWhere += ` AND convenioId = ${params.convenioId}`;
+    }
+
+    // Deletar as guias anteriores desse filtro para evitar lixo
+    await db.execute(sql.raw(`DELETE FROM fato_conciliacao_guias WHERE ${compWhere}`));
+
+    // Inserir os dados agregados atualizados
+    await db.execute(sql.raw(`
+      INSERT INTO fato_conciliacao_guias (
+        estabelecimentoId, competencia, convenioId, convenio, guia, pacienteNome, 
+        valorFaturado, valorPago, valorGlosa, diferenca, statusGuia, 
+        totalItens, itensConciliados, itensDivergentes, itensGlosados, itensNaoRecebidos, itensTerceiros
+      )
+      SELECT 
+        estabelecimentoId, MAX(competencia), MAX(convenioId), MAX(convenio),
+        COALESCE(numeroGuia, contaNumero) as guia, MAX(pacienteNome),
+        COALESCE(SUM(valorFaturado), 0), COALESCE(SUM(valorPago), 0), COALESCE(SUM(valorGlosa), 0), COALESCE(SUM(diferenca), 0),
+        CASE
+          WHEN SUM(CASE WHEN statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
+          WHEN SUM(CASE WHEN statusConciliacao = 'glosado' THEN 1 ELSE 0 END) > 0 THEN 'glosado'
+          WHEN SUM(CASE WHEN statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
+          WHEN SUM(CASE WHEN statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) = 0 THEN 'terceiro'
+          ELSE 'conciliado'
+        END as statusGuia,
+        COUNT(*),
+        SUM(CASE WHEN statusConciliacao = 'conciliado' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'divergente' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'glosado' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'terceiro' THEN 1 ELSE 0 END)
+      FROM conciliados_automatico
+      WHERE ${compWhere}
+      GROUP BY COALESCE(numeroGuia, contaNumero), numeroGuia, contaNumero, estabelecimentoId
+    `));
+    console.log(`[Conciliacao] fato_conciliacao_guias atualizada em ${((Date.now()-t2)/1000).toFixed(1)}s`);
+  } catch (err: any) {
+    console.error(`[Conciliacao] Erro ao atualizar fato_conciliacao_guias:`, err.message);
+  }
+
   return resultado;
 }
 
@@ -1803,62 +1852,41 @@ export async function resumoConciliadosAutomatico(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
+  let whereClause = `WHERE fcg.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
-    whereClause += ` AND ca.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
+    whereClause += ` AND fcg.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
   }
   if (params.convenioId) {
-    whereClause += ` AND ca.convenioId = ${params.convenioId}`;
+    whereClause += ` AND fcg.convenioId = ${params.convenioId}`;
   }
 
   const query = `
     SELECT 
-      ca.statusConciliacao,
-      COUNT(*) as total,
-      COALESCE(SUM(ca.valorFaturado), 0) as valorFaturado,
-      COALESCE(SUM(ca.valorPago), 0) as valorPago,
-      COALESCE(SUM(ca.valorGlosa), 0) as valorGlosa,
-      COALESCE(SUM(ca.diferenca), 0) as diferenca
-    FROM conciliados_automatico ca
+      COALESCE(SUM(fcg.itensConciliados), 0) as totalConciliados,
+      COALESCE(SUM(fcg.itensDivergentes), 0) as totalDivergentes,
+      COALESCE(SUM(fcg.itensNaoRecebidos), 0) as totalNaoRecebidos,
+      COALESCE(SUM(fcg.itensTerceiros), 0) as totalTerceiros,
+      COALESCE(SUM(fcg.valorFaturado), 0) as valorTotalFaturado,
+      COALESCE(SUM(fcg.valorPago), 0) as valorTotalPago,
+      COALESCE(SUM(fcg.valorGlosa), 0) as valorTotalGlosa,
+      COALESCE(SUM(fcg.diferenca), 0) as valorTotalDiferenca
+    FROM fato_conciliacao_guias fcg
     ${whereClause}
-    GROUP BY ca.statusConciliacao
   `;
 
   const [rows] = await db.execute(sql.raw(query));
-  const data = rows as unknown as any[];
+  const row = (rows as unknown as any[])[0] || {};
 
-  const resumo = {
-    totalConciliados: 0,
-    totalDivergentes: 0,
-    totalNaoRecebidos: 0,
-    totalTerceiros: 0,
-    valorTotalFaturado: 0,
-    valorTotalPago: 0,
-    valorTotalGlosa: 0,
-    valorTotalDiferenca: 0,
+  return {
+    totalConciliados: Number(row.totalConciliados) || 0,
+    totalDivergentes: Number(row.totalDivergentes) || 0,
+    totalNaoRecebidos: Number(row.totalNaoRecebidos) || 0,
+    totalTerceiros: Number(row.totalTerceiros) || 0,
+    valorTotalFaturado: Number(row.valorTotalFaturado) || 0,
+    valorTotalPago: Number(row.valorTotalPago) || 0,
+    valorTotalGlosa: Number(row.valorTotalGlosa) || 0,
+    valorTotalDiferenca: Number(row.valorTotalDiferenca) || 0,
   };
-
-  for (const row of data) {
-    const count = Number(row.total) || 0;
-    const valFat = Number(row.valorFaturado) || 0;
-    const valPago = Number(row.valorPago) || 0;
-    const valGlosa = Number(row.valorGlosa) || 0;
-    const valDif = Number(row.diferenca) || 0;
-
-    resumo.valorTotalFaturado += valFat;
-    resumo.valorTotalPago += valPago;
-    resumo.valorTotalGlosa += valGlosa;
-    resumo.valorTotalDiferenca += valDif;
-
-    switch (row.statusConciliacao) {
-      case 'conciliado': resumo.totalConciliados = count; break;
-      case 'divergente': resumo.totalDivergentes = count; break;
-      case 'nao_recebido': resumo.totalNaoRecebidos = count; break;
-      case 'terceiro': resumo.totalTerceiros = count; break;
-    }
-  }
-
-  return resumo;
 }
 
 // ============================================================
@@ -1912,7 +1940,7 @@ export async function conveniosConciliados(estabelecimentoId: number, competenci
     `SELECT MAX(convenioId) as convenioId, MAX(convenio) as convenio, COUNT(*) as total
      FROM conciliados_automatico
      ${where}
-     GROUP BY TRIM(UPPER(convenio))
+     GROUP BY convenioId
      ORDER BY total DESC`
   ));
   return (rows as unknown as any[]).filter((r: any) => r.convenioId);
@@ -1936,29 +1964,19 @@ export async function resumoConciliadosPorGuia(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
+  let whereClause = `WHERE fcg.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
-    whereClause += ` AND ca.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
+    whereClause += ` AND fcg.competencia LIKE '${params.competencia.replace(/'/g, "''")}%'`;
   }
   if (params.convenioId) {
-    whereClause += ` AND ca.convenioId = ${params.convenioId}`;
+    whereClause += ` AND fcg.convenioId = ${params.convenioId}`;
   }
   if (params.statusConciliacao && params.statusConciliacao !== 'todos') {
-    // Filtrar guias que tenham pelo menos 1 item com esse status
-    whereClause += ` AND ca.statusConciliacao = '${params.statusConciliacao.replace(/'/g, "''")}'`;
+    whereClause += ` AND fcg.statusGuia = '${params.statusConciliacao.replace(/'/g, "''")}'`;
   }
   if (params.busca) {
     const b = params.busca.replace(/'/g, "''");
-    whereClause += ` AND (ca.numeroGuia LIKE '%${b}%' OR ca.contaNumero LIKE '%${b}%' OR ca.pacienteNome LIKE '%${b}%' OR ca.convenio LIKE '%${b}%')`;
-  }
-  if (params.loteXml) {
-    // Filtrar pelo lote do XML TISS via JOIN com faturamento_unificado
-    whereClause += ` AND ca.faturamentoUnificadoId IN (SELECT fu.id FROM faturamento_unificado fu WHERE fu.lotePrestador = '${params.loteXml.replace(/'/g, "''")}' AND fu.estabelecimentoId = ${params.estabelecimentoId})`;
-  }
-  if (params.loteRetorno) {
-    // Filtrar pelo lote do retorno/demonstrativo via guia
-    const lr = params.loteRetorno.replace(/'/g, "''");
-    whereClause += ` AND ca.numeroGuia IN (SELECT DISTINCT d.numero_guia FROM demonstrativo d WHERE d.estabelecimentoId = ${params.estabelecimentoId} AND d.lote_prestador = '${lr}')`;
+    whereClause += ` AND (fcg.guia LIKE '%${b}%' OR fcg.pacienteNome LIKE '%${b}%' OR fcg.convenio LIKE '%${b}%')`;
   }
 
   const limit = params.limit || 50;
@@ -1966,59 +1984,112 @@ export async function resumoConciliadosPorGuia(params: {
 
   // Contar total de guias distintas
   const [countRows] = await db.execute(sql.raw(
-    `SELECT COUNT(DISTINCT COALESCE(ca.numeroGuia, ca.contaNumero)) as total
-     FROM conciliados_automatico ca ${whereClause}`
+    `SELECT COUNT(*) as total FROM fato_conciliacao_guias fcg ${whereClause}`
   ));
   const total = Number((countRows as unknown as any[])?.[0]?.total || 0);
 
-  // Buscar guias agrupadas
+  // Buscar guias agregadas instantaneamente
   const query = `
     SELECT 
-      COALESCE(ca.numeroGuia, ca.contaNumero) as guia,
-      ca.numeroGuia,
-      ca.contaNumero,
-      MAX(ca.pacienteNome) as pacienteNome,
-      MAX(ca.convenio) as convenio,
-      MAX(ca.convenioId) as convenioId,
-      MAX(ca.competencia) as competencia,
-      MAX(ca.origemSistema) as origemSistema,
-      COUNT(*) as totalItens,
-      COALESCE(SUM(ca.valorFaturado), 0) as valorFaturado,
-      COALESCE(SUM(ca.valorPago), 0) as valorPago,
-      COALESCE(SUM(ca.valorGlosa), 0) as valorGlosa,
-      COALESCE(SUM(ca.diferenca), 0) as diferenca,
-      -- Lote e Protocolo do XML (faturamento_unificado)
-      MAX(fu.lotePrestador) as loteXml,
-      MAX(fu.protocolo) as protocoloXml,
-      -- Lote e Protocolo do Retorno (demonstrativo) via subquery
-      (SELECT d.lote_prestador FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as loteRetorno,
-      (SELECT d.protocolo FROM demonstrativo d WHERE d.numero_guia = ca.numeroGuia AND d.estabelecimentoId = ca.estabelecimentoId LIMIT 1) as protocoloRetorno,
-      -- Status da guia: prioridade: divergente > glosado > nao_recebido > terceiro > conciliado
-      CASE
-        WHEN SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
-        WHEN SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN 1 ELSE 0 END) > 0 THEN 'glosado'
-        WHEN SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
-        WHEN SUM(CASE WHEN ca.statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN ca.statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) = 0 THEN 'terceiro'
-        ELSE 'conciliado'
-      END as statusGuia,
-      SUM(CASE WHEN ca.statusConciliacao = 'conciliado' THEN 1 ELSE 0 END) as itensConciliados,
-      SUM(CASE WHEN ca.statusConciliacao = 'divergente' THEN 1 ELSE 0 END) as itensDivergentes,
-      SUM(CASE WHEN ca.statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) as itensNaoRecebidos,
-      SUM(CASE WHEN ca.statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) as itensTerceiros,
-      SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN 1 ELSE 0 END) as itensGlosados,
-      SUM(CASE WHEN ca.metodoConciliacao = 'agrupamento' THEN 1 ELSE 0 END) as itensAgrupados,
-      COUNT(DISTINCT ca.contaNumero) as totalContas,
-      MAX(ca.codigoPrestadorExecutante) as codigoPrestadorExecutante
-    FROM conciliados_automatico ca
-    LEFT JOIN faturamento_unificado fu ON ca.faturamentoUnificadoId = fu.id
+      fcg.guia,
+      fcg.guia as numeroGuia,
+      fcg.guia as contaNumero,
+      fcg.pacienteNome,
+      fcg.convenio,
+      fcg.convenioId,
+      fcg.competencia,
+      'sistema' as origemSistema,
+      fcg.totalItens,
+      fcg.valorFaturado,
+      fcg.valorPago,
+      fcg.valorGlosa,
+      fcg.diferenca,
+      fcg.statusGuia,
+      fcg.itensConciliados,
+      fcg.itensDivergentes,
+      fcg.itensNaoRecebidos,
+      fcg.itensTerceiros,
+      fcg.itensGlosados,
+      0 as itensAgrupados,
+      1 as totalContas,
+      '' as codigoPrestadorExecutante
+    FROM fato_conciliacao_guias fcg
     ${whereClause}
-    GROUP BY COALESCE(ca.numeroGuia, ca.contaNumero), ca.numeroGuia, ca.contaNumero, ca.estabelecimentoId
-    ORDER BY SUM(ABS(ca.diferenca)) DESC, guia
+    ORDER BY ABS(fcg.diferenca) DESC, fcg.guia
     LIMIT ${limit} OFFSET ${offset}
   `;
 
   const [rows] = await db.execute(sql.raw(query));
-  return { items: rows as unknown as any[], total };
+  const items = rows as any[];
+
+  // ENRIQUECIMENTO: Buscar lotes e protocolos apenas para a página atual (muito mais rápido que fazer JOIN na query principal inteira)
+  if (items.length > 0) {
+    const guias = items.map(i => i.numeroGuia).filter(Boolean);
+    const contas = items.map(i => i.contaNumero).filter(Boolean);
+    
+    // Buscar Lote XML de faturamento_unificado
+    if (guias.length > 0 || contas.length > 0) {
+      let fuWhere = `estabelecimentoId = ${params.estabelecimentoId}`;
+      let orConditions = [];
+      if (guias.length > 0) orConditions.push(`numeroGuia IN (${guias.map(g => `'${g.replace(/'/g, "''")}'`).join(',')})`);
+      if (contas.length > 0) orConditions.push(`contaNumero IN (${contas.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`);
+      fuWhere += ` AND (${orConditions.join(' OR ')})`;
+
+      const [fuRows] = await db.execute(sql.raw(`
+        SELECT COALESCE(numeroGuia, contaNumero) as chave, MAX(lotePrestador) as loteXml, MAX(protocolo) as protocoloXml
+        FROM faturamento_unificado
+        WHERE ${fuWhere} AND lotePrestador IS NOT NULL
+        GROUP BY COALESCE(numeroGuia, contaNumero)
+      `));
+      
+      const fuMap = new Map();
+      for (const row of fuRows as any[]) {
+        fuMap.set(String(row.chave), row);
+      }
+      
+      for (const item of items) {
+        const chave = String(item.guia);
+        const match = fuMap.get(chave);
+        if (match) {
+          item.loteXml = match.loteXml;
+          item.protocoloXml = match.protocoloXml;
+        } else {
+          item.loteXml = null;
+          item.protocoloXml = null;
+        }
+      }
+    }
+
+    // Buscar Lote Retorno de demonstrativo
+    if (guias.length > 0) {
+      const [demRows] = await db.execute(sql.raw(`
+        SELECT numero_guia as guia, MAX(lote_prestador) as loteRetorno, MAX(protocolo) as protocoloRetorno
+        FROM demonstrativo
+        WHERE estabelecimentoId = ${params.estabelecimentoId}
+          AND numero_guia IN (${guias.map(g => `'${g.replace(/'/g, "''")}'`).join(',')})
+        GROUP BY numero_guia
+      `));
+      
+      const demMap = new Map();
+      for (const row of demRows as any[]) {
+        demMap.set(String(row.guia), row);
+      }
+      
+      for (const item of items) {
+        const chave = String(item.numeroGuia);
+        const match = demMap.get(chave);
+        if (match) {
+          item.loteRetorno = match.loteRetorno;
+          item.protocoloRetorno = match.protocoloRetorno;
+        } else {
+          item.loteRetorno = item.loteRetorno || null;
+          item.protocoloRetorno = item.protocoloRetorno || null;
+        }
+      }
+    }
+  }
+
+  return { items, total };
 }
 
 /**
