@@ -101,6 +101,13 @@ export default function ConciliacaoCruzada() {
     { enabled: estabelecimentoId > 0 }
   );
 
+  // Auto-selecionar a competencia mais recente ao carregar
+  useEffect(() => {
+    if (competenciasConciliados && competenciasConciliados.length > 0 && competenciaFiltro === "todos") {
+      setCompetenciaFiltro(competenciasConciliados[0].competencia);
+    }
+  }, [competenciasConciliados]);
+
   // Convênios da conciliados_automatico
   const { data: conveniosConciliados } = trpc.faturamentoUnificado.conveniosConciliados.useQuery(
     { estabelecimentoId, competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined },
@@ -185,7 +192,7 @@ export default function ConciliacaoCruzada() {
       limit: ITENS_POR_PAGINA,
       offset: paginaConciliados * ITENS_POR_PAGINA,
     },
-    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" && !guiaConciliadaSelecionada }
+    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" && !guiaConciliadaSelecionada && competenciaFiltro !== "todos" }
   );
 
   // Resumo totais dos conciliados
@@ -195,7 +202,7 @@ export default function ConciliacaoCruzada() {
       competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
       convenioId: convenioIdNum,
     },
-    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" }
+    { enabled: estabelecimentoId > 0 && abaAtiva === "conciliados" && competenciaFiltro !== "todos" }
   );
 
   // Itens detalhados de uma guia conciliada (drill-down)
@@ -227,7 +234,8 @@ export default function ConciliacaoCruzada() {
     {
       estabelecimentoId,
       competencia: competenciaFiltro !== "todos" ? competenciaFiltro : undefined,
-      convenio: convenioFiltro !== "todos" ? convenioFiltro : undefined,
+      convenio: convenioFiltro !== "todos" && isNaN(Number(convenioFiltro)) ? convenioFiltro : undefined,
+      convenioId: convenioIdNum,
       statusConciliacao: statusFiltro !== "todos" ? statusFiltro : undefined,
       busca: busca || undefined,
       loteXml: loteXmlFiltro !== "todos" ? loteXmlFiltro : undefined,
@@ -235,7 +243,7 @@ export default function ConciliacaoCruzada() {
       limite: ITENS_POR_PAGINA,
       offset: paginaAtual * ITENS_POR_PAGINA,
     },
-    { enabled: estabelecimentoId > 0 && abaAtiva === "faturamento" }
+    { enabled: estabelecimentoId > 0 && abaAtiva === "faturamento" && competenciaFiltro !== "todos" }
   );
 
   // Itens da guia selecionada (modal faturamento)

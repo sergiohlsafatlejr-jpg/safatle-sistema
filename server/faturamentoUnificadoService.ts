@@ -781,15 +781,15 @@ export async function conveniosDisponiveis(params: {
   }
 
   const query = `
-    SELECT DISTINCT
-      fu.convenio,
-      fu.convenioId,
+    SELECT 
+      MAX(fu.convenioId) as convenioId,
+      MAX(fu.convenio) as convenio,
       COUNT(*) as total
     FROM faturamento_unificado fu
     ${whereClause}
       AND fu.convenio IS NOT NULL
-    GROUP BY fu.convenio, fu.convenioId
-    ORDER BY fu.convenio
+    GROUP BY TRIM(UPPER(fu.convenio))
+    ORDER BY MAX(fu.convenio)
   `;
 
   const [rows] = await db.execute(sql.raw(query));
@@ -986,6 +986,12 @@ export async function executarConciliacaoAutomatica(params: {
   if (params.convenioId) {
     whereDelete += ` AND convenioId = ${params.convenioId}`;
   }
+  if (params.contaNumero) {
+    whereDelete += ` AND (contaNumero = '${params.contaNumero.replace(/'/g, "''")}' OR numeroGuia = '${params.contaNumero.replace(/'/g, "''")}')`;
+  }
+  if (params.loteXml) {
+    whereDelete += ` AND lotePrestador = '${params.loteXml.replace(/'/g, "''")}'`;
+  }
   await db.execute(sql.raw(`DELETE FROM conciliados_automatico ${whereDelete}`));
 
   // -------------------------------------------------------
@@ -1000,6 +1006,28 @@ export async function executarConciliacaoAutomatica(params: {
   if (params.convenioId) {
     whereFat += ` AND fu.convenioId = ${params.convenioId}`;
   }
+  if (params.contaNumero) {
+    whereFat += ` AND (fu.contaNumero = '${params.contaNumero.replace(/'/g, "''")}' OR fu.numeroGuia = '${params.contaNumero.replace(/'/g, "''")}')`;
+  }
+  if (params.loteXml) {
+    whereFat += ` AND fu.lotePrestador = '${params.loteXml.replace(/'/g, "''")}'`;
+  }
+
+  // -------------------------------------------------------
+  // DEDUPLICAÇÃO: Excluir TASY_BI quando TASY_STAGING existe para a mesma conta.
+  // Passo 1: Buscar contas que têm dados TASY_STAGING
+  // Passo 2: Excluir TASY_BI dessas contas na query principal
+  // -------------------------------------------------------
+  const [stagingContas] = await db.execute(sql.raw(`
+    SELECT DISTINCT contaNumero 
+    FROM faturamento_unificado 
+    ${whereFat.replace(/fu\./g, '')} 
+    AND origemSistema = 'TASY_STAGING'
+    LIMIT 50000
+  `));
+  const contasComStaging = new Set(
+    (stagingContas as unknown as any[]).map(r => String(r.contaNumero))
+  );
 
   const queryFaturamento = `
     SELECT 
@@ -1015,7 +1043,13 @@ export async function executarConciliacaoAutomatica(params: {
   `;
 
   const [fatRows] = await db.execute(sql.raw(queryFaturamento));
-  const itensFaturamento = fatRows as unknown as any[];
+  const fatRowsAll = fatRows as unknown as any[];
+
+  // Filtrar em JS: se conta tem TASY_STAGING, excluir TASY_BI dessa conta
+  const itensFaturamento = contasComStaging.size > 0
+    ? fatRowsAll.filter(r => !(r.origemSistema === 'TASY_BI' && contasComStaging.has(String(r.contaNumero))))
+    : fatRowsAll;
+
   resultado.totalProcessados = itensFaturamento.length;
 
   if (itensFaturamento.length === 0) {
@@ -1042,6 +1076,9 @@ export async function executarConciliacaoAutomatica(params: {
   if (params.convenioId) {
     whereRec += ` AND re.convenioId = ${params.convenioId}`;
   }
+  if (params.loteRetorno) {
+    whereRec += ` AND re.lote_prestador = '${params.loteRetorno.replace(/'/g, "''")}'`;
+  }
 
   const queryRecebimentos = `
     SELECT 
@@ -1060,7 +1097,10 @@ export async function executarConciliacaoAutomatica(params: {
   `;
 
   const [recRows] = await db.execute(sql.raw(queryRecebimentos));
-  const itensRecebimento = recRows as unknown as any[];
+  const itensRecebimento = (recRows as unknown as any[]).map(r => ({
+    ...r,
+    saldoPago: Number(r.valorPago) || 0
+  }));
 
   // -------------------------------------------------------
   // PASSO 3: Carregar tabela de vinculação de códigos (de-para)
@@ -1090,6 +1130,8 @@ export async function executarConciliacaoAutomatica(params: {
   // -------------------------------------------------------
   // Índice por guia+código → lista de recebimentos
   const indexGuiaCodigo = new Map<string, any[]>();
+  // Índice por guia → lista de recebimentos
+  const indexGuia = new Map<string, any[]>();
   // Índice por paciente+código → lista de recebimentos
   const indexPacienteCodigo = new Map<string, any[]>();
   // Índice por carteira+código → lista de recebimentos
@@ -1100,24 +1142,30 @@ export async function executarConciliacaoAutomatica(params: {
   for (const rec of itensRecebimento) {
     const guia = String(rec.numeroGuia || '').trim();
     const codigo = String(rec.codigoItem || '').trim();
+    const codigoNorm = normalizarCodigo(codigo);
     const paciente = normalizarNome(String(rec.nomeBeneficiario || ''));
 
-    if (guia && codigo) {
-      const chave = `${guia}|${codigo}`;
+    if (guia) {
+      if (!indexGuia.has(guia)) indexGuia.set(guia, []);
+      indexGuia.get(guia)!.push(rec);
+    }
+
+    if (guia && codigoNorm) {
+      const chave = `${guia}|${codigoNorm}`;
       if (!indexGuiaCodigo.has(chave)) indexGuiaCodigo.set(chave, []);
       indexGuiaCodigo.get(chave)!.push(rec);
     }
 
-    if (paciente && codigo) {
-      const chave = `${paciente}|${codigo}`;
+    if (paciente && codigoNorm) {
+      const chave = `${paciente}|${codigoNorm}`;
       if (!indexPacienteCodigo.has(chave)) indexPacienteCodigo.set(chave, []);
       indexPacienteCodigo.get(chave)!.push(rec);
     }
 
     // Indexar por carteira (beneficiario) + código
     const carteira = String(rec.carteira || '').trim();
-    if (carteira && codigo) {
-      const chave = `${carteira}|${codigo}`;
+    if (carteira && codigoNorm) {
+      const chave = `${carteira}|${codigoNorm}`;
       if (!indexCarteiraCodigo.has(chave)) indexCarteiraCodigo.set(chave, []);
       indexCarteiraCodigo.get(chave)!.push(rec);
     }
@@ -1158,8 +1206,11 @@ export async function executarConciliacaoAutomatica(params: {
   for (const fat of itensFaturamento) {
     const guia = String(fat.numeroGuia || fat.contaNumero || '').trim();
     const codigoItem = String(fat.codigoItem || '').trim();
+    const codigoItemNorm = normalizarCodigo(codigoItem);
     const codigoTuss = String(fat.codigoItemTuss || '').trim();
+    const codigoTussNorm = normalizarCodigo(codigoTuss);
     const paciente = normalizarNome(String(fat.pacienteNome || ''));
+    const carteira = String(fat.carteiraBeneficiario || '').trim();
     const valorFaturado = Number(fat.valorFaturado) || 0;
 
     let matchEncontrado = false;
@@ -1167,9 +1218,9 @@ export async function executarConciliacaoAutomatica(params: {
     let metodo = '';
 
     // Estratégia 1: Match exato por guia + código
-    if (guia && codigoItem) {
-      const chave = `${guia}|${codigoItem}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), recebimentosUsados, valorFaturado);
+    if (guia && codigoItemNorm) {
+      const chave = `${guia}|${codigoItemNorm}`;
+      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
       if (recMatch) {
         matchEncontrado = true;
         metodo = 'guia_codigo';
@@ -1177,9 +1228,9 @@ export async function executarConciliacaoAutomatica(params: {
     }
 
     // Estratégia 2: Match por guia + código TUSS
-    if (!matchEncontrado && guia && codigoTuss && codigoTuss !== codigoItem) {
-      const chave = `${guia}|${codigoTuss}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), recebimentosUsados, valorFaturado);
+    if (!matchEncontrado && guia && codigoTussNorm && codigoTussNorm !== codigoItemNorm) {
+      const chave = `${guia}|${codigoTussNorm}`;
+      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
       if (recMatch) {
         matchEncontrado = true;
         metodo = 'guia_codigo_tuss';
@@ -1189,8 +1240,9 @@ export async function executarConciliacaoAutomatica(params: {
     // Estratégia 3: Match com vinculação de códigos (de-para)
     if (!matchEncontrado && guia && codigoItem && mapaVinculacao.has(codigoItem)) {
       const codigoTraduzido = mapaVinculacao.get(codigoItem)!;
-      const chave = `${guia}|${codigoTraduzido}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), recebimentosUsados, valorFaturado);
+      const codigoTraduzidoNorm = normalizarCodigo(codigoTraduzido);
+      const chave = `${guia}|${codigoTraduzidoNorm}`;
+      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
       if (recMatch) {
         matchEncontrado = true;
         metodo = 'vinculacao';
@@ -1198,24 +1250,53 @@ export async function executarConciliacaoAutomatica(params: {
     }
 
     // Estratégia 4: Match por paciente + código (fallback)
-    if (!matchEncontrado && paciente && codigoItem) {
-      const chave = `${paciente}|${codigoItem}`;
-      recMatch = encontrarMelhorMatch(indexPacienteCodigo.get(chave), recebimentosUsados, valorFaturado);
+    if (!matchEncontrado && paciente && codigoItemNorm) {
+      const chave = `${paciente}|${codigoItemNorm}`;
+      recMatch = encontrarMelhorMatch(indexPacienteCodigo.get(chave), valorFaturado);
       if (recMatch) {
         matchEncontrado = true;
         metodo = 'paciente_codigo';
       }
     }
 
-    // Estratégia 5: Match por carteiraBeneficiário + código (fallback quando guias são incompatíveis)
-    if (!matchEncontrado && codigoItem) {
-      const carteiraBenef = String(fat.carteiraBeneficiario || '').trim();
-      if (carteiraBenef) {
-        const chave = `${carteiraBenef}|${codigoItem}`;
-        recMatch = encontrarMelhorMatch(indexCarteiraCodigo.get(chave), recebimentosUsados, valorFaturado);
+    // Estratégia 5: Match por carteira + código (fallback 2)
+    if (!matchEncontrado && carteira && codigoItemNorm) {
+      const chave = `${carteira}|${codigoItemNorm}`;
+      if (indexCarteiraCodigo.has(chave)) {
+        recMatch = encontrarMelhorMatch(indexCarteiraCodigo.get(chave), valorFaturado);
         if (recMatch) {
           matchEncontrado = true;
           metodo = 'carteira_codigo';
+        }
+      }
+    }
+
+    // Estratégia 6: Match por VALOR EXATO na mesma guia (Fallback para códigos diferentes)
+    if (!matchEncontrado && guia && valorFaturado > 0) {
+      const candidatosGuia = indexGuia.get(guia);
+      if (candidatosGuia) {
+        const disponiveisValor = candidatosGuia.filter(c => c.saldoPago > 0.01 && Math.abs(c.saldoPago - valorFaturado) < 0.01);
+        if (disponiveisValor.length > 0) {
+          recMatch = disponiveisValor[0];
+          matchEncontrado = true;
+          metodo = 'guia_valor';
+        }
+      }
+    }
+
+    // Estratégia 7: Agrupamento/Rateio
+    if (!matchEncontrado && guia) {
+      const chaveBusca = codigoItemNorm ? `${guia}|${codigoItemNorm}` : null;
+      let candidatosAgrupamento = chaveBusca ? indexGuiaCodigo.get(chaveBusca) : null;
+      if (!candidatosAgrupamento && codigoTussNorm) {
+         candidatosAgrupamento = indexGuiaCodigo.get(`${guia}|${codigoTussNorm}`);
+      }
+      if (candidatosAgrupamento) {
+        const comSaldo = candidatosAgrupamento.filter(c => c.saldoPago > 0.01);
+        if (comSaldo.length > 0) {
+          recMatch = comSaldo.reduce((prev, current) => (prev.saldoPago > current.saldoPago) ? prev : current);
+          matchEncontrado = true;
+          metodo = 'agrupamento';
         }
       }
     }
@@ -1245,13 +1326,16 @@ export async function executarConciliacaoAutomatica(params: {
     };
 
     if (matchEncontrado && recMatch) {
-      recebimentosUsados.add(recMatch.id);
-      const valorRecebido = Number(recMatch.valorPago) || 0;
+      const valorParaPagar = Math.min(valorFaturado, recMatch.saldoPago);
+      const valorRecebido = valorParaPagar;
+      recMatch.saldoPago -= valorRecebido;
+
       const diferenca = valorFaturado - valorRecebido;
       const percentualDiferenca = valorFaturado > 0 ? (Math.abs(diferenca) / valorFaturado) * 100 : (valorRecebido > 0 ? 100 : 0);
 
-      const valorPagoRec = Number(recMatch.valorPago) || 0;
-      const valorGlosaRec = Number(recMatch.valorGlosa) || 0;
+      const valorPagoRec = valorRecebido;
+      const valorGlosaRec = valorFaturado > 0 && diferenca > 0 ? diferenca : 0;
+
 
       // Enriquecer com dados do recebimento (demonstrativo)
       // Paciente: preferir do recebimento pois vem do demonstrativo
@@ -1367,7 +1451,7 @@ export async function executarConciliacaoAutomatica(params: {
     const candidatos = indexGuiaCodigo.get(chave);
     if (!candidatos) continue;
 
-    const disponiveis = candidatos.filter(c => !recebimentosUsados.has(c.id));
+    const disponiveis = candidatos.filter(c => c.saldoPago > 0.01);
     // Procurar um recebimento cuja quantidade = soma das quantidades do grupo
     let recAgrupado = disponiveis.find(c => {
       const qtdRec = Number(c.quantidade) || 0;
@@ -1376,14 +1460,14 @@ export async function executarConciliacaoAutomatica(params: {
     // Fallback: procurar por valor próximo da soma
     if (!recAgrupado) {
       recAgrupado = disponiveis.find(c => {
-        const valRec = Number(c.valorPago) || 0;
+        const valRec = c.saldoPago;
         return somaValor > 0 && Math.abs(valRec - somaValor) / somaValor <= (tolerancia / 100);
       });
     }
 
     if (recAgrupado) {
-      recebimentosUsados.add(recAgrupado.id);
-      const valorRecTotal = Number(recAgrupado.valorPago) || 0;
+      const valorRecTotal = Math.min(recAgrupado.saldoPago, somaValor);
+      recAgrupado.saldoPago -= valorRecTotal;
       const valorGlosaRec = Number(recAgrupado.valorGlosa) || 0;
 
       // Distribuir o valor pago proporcionalmente entre os itens do grupo
@@ -1440,7 +1524,7 @@ export async function executarConciliacaoAutomatica(params: {
     if (!candidatos) continue;
 
     // Buscar recebimentos NÃO usados com o mesmo guia+código
-    const naoUsados = candidatos.filter(c => !recebimentosUsados.has(c.id));
+    const naoUsados = candidatos.filter(c => c.saldoPago > 0.01);
     if (naoUsados.length === 0) continue;
 
     // Somar o valor pago e glosa dos recebimentos não usados + o recebimento já associado
@@ -1449,9 +1533,11 @@ export async function executarConciliacaoAutomatica(params: {
     const recebimentosAgrupados: any[] = [];
 
     for (const rec of naoUsados) {
-      somaValorPago += Number(rec.valorPago) || 0;
+      const valRec = Math.min(rec.saldoPago, ins.valorFaturado - somaValorPago);
+      if (valRec <= 0.01) continue;
+      somaValorPago += valRec;
       somaValorGlosa += Number(rec.valorGlosa) || 0;
-      recebimentosAgrupados.push(rec);
+      recebimentosAgrupados.push({ rec, valRec });
     }
 
     // Verificar se a soma dos recebimentos agrupados é mais próxima do faturado
@@ -1459,9 +1545,9 @@ export async function executarConciliacaoAutomatica(params: {
     const diferencaAgrupada = Math.abs(ins.valorFaturado - somaValorPago);
 
     if (diferencaAgrupada < diferencaAtual) {
-      // Marcar todos os recebimentos agrupados como usados
-      for (const rec of recebimentosAgrupados) {
-        recebimentosUsados.add(rec.id);
+      // Deduzir o saldo dos recebimentos agrupados
+      for (const item of recebimentosAgrupados) {
+        item.rec.saldoPago -= item.valRec;
       }
 
       // Atualizar o insert com os valores agrupados
@@ -1551,7 +1637,7 @@ export async function executarConciliacaoAutomatica(params: {
 
   // -------------------------------------------------------
   // PASSO 7: UPDATE em massa do statusConciliacao no faturamento_unificado
-  // Agrupa TODOS os IDs por status e faz 1 UPDATE por status (max ~5 queries)
+  // Agrupa TODOS os IDs por status e faz UPDATEs em paralelo com chunks menores
   // -------------------------------------------------------
   const t1 = Date.now();
   const porStatus = new Map<string, number[]>();
@@ -1561,15 +1647,22 @@ export async function executarConciliacaoAutomatica(params: {
     porStatus.get(st)!.push(ins.faturamentoUnificadoId);
   }
 
+  const updatePromises: Promise<void>[] = [];
   for (const [status, ids] of porStatus) {
     if (ids.length === 0) continue;
-    // Processar em chunks de 10000 IDs para evitar query muito longa
-    for (let i = 0; i < ids.length; i += 10000) {
-      const chunk = ids.slice(i, i + 10000);
-      await db.execute(sql.raw(
-        `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${chunk.join(',')})`
-      ));
+    // Chunks de 2000 para queries menores e mais rápidas
+    for (let i = 0; i < ids.length; i += 2000) {
+      const chunk = ids.slice(i, i + 2000);
+      updatePromises.push(
+        db.execute(sql.raw(
+          `UPDATE faturamento_unificado SET statusConciliacao = '${status}' WHERE id IN (${chunk.join(',')})`
+        )).then(() => {})
+      );
     }
+  }
+  // Executar em paralelo (max 4 simultâneos)
+  for (let i = 0; i < updatePromises.length; i += 4) {
+    await Promise.all(updatePromises.slice(i, i + 4));
   }
   console.log(`[Conciliacao] UPDATE concluído em ${((Date.now()-t1)/1000).toFixed(1)}s`);
 
@@ -1779,23 +1872,30 @@ export async function resumoConciliadosAutomatico(params: {
 export async function competenciasConciliados(estabelecimentoId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
-  // Unir competências de ambas as tabelas para que o dropdown mostre todas
-  const [rows] = await db.execute(sql.raw(
-    `SELECT competencia, SUM(total) as total FROM (
-       SELECT competencia, COUNT(*) as total
-       FROM conciliados_automatico
-       WHERE estabelecimentoId = ${estabelecimentoId}
-       GROUP BY competencia
-       UNION ALL
-       SELECT competencia, COUNT(*) as total
-       FROM faturamento_unificado
-       WHERE estabelecimentoId = ${estabelecimentoId}
-       GROUP BY competencia
-     ) combined
-     GROUP BY competencia
-     ORDER BY competencia DESC`
+  // Query rápida: buscar competências distintas de cada tabela separadamente
+  const [rowsConc] = await db.execute(sql.raw(
+    `SELECT competencia, COUNT(*) as total
+     FROM conciliados_automatico
+     WHERE estabelecimentoId = ${estabelecimentoId}
+     GROUP BY competencia`
   ));
-  return (rows as unknown as any[]).filter((r: any) => r.competencia);
+  const [rowsFat] = await db.execute(sql.raw(
+    `SELECT competencia, COUNT(*) as total
+     FROM faturamento_unificado
+     WHERE estabelecimentoId = ${estabelecimentoId}
+     GROUP BY competencia`
+  ));
+  // Combinar em JS (muito mais rápido que UNION ALL + GROUP BY no SQL)
+  const mapa = new Map<string, number>();
+  for (const r of rowsConc as unknown as any[]) {
+    if (r.competencia) mapa.set(r.competencia, (mapa.get(r.competencia) || 0) + Number(r.total));
+  }
+  for (const r of rowsFat as unknown as any[]) {
+    if (r.competencia) mapa.set(r.competencia, (mapa.get(r.competencia) || 0) + Number(r.total));
+  }
+  return Array.from(mapa.entries())
+    .map(([competencia, total]) => ({ competencia, total }))
+    .sort((a, b) => b.competencia.localeCompare(a.competencia));
 }
 
 /**
@@ -1809,10 +1909,10 @@ export async function conveniosConciliados(estabelecimentoId: number, competenci
     where += ` AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`;
   }
   const [rows] = await db.execute(sql.raw(
-    `SELECT convenioId, convenio, COUNT(*) as total
+    `SELECT MAX(convenioId) as convenioId, MAX(convenio) as convenio, COUNT(*) as total
      FROM conciliados_automatico
      ${where}
-     GROUP BY convenioId, convenio
+     GROUP BY TRIM(UPPER(convenio))
      ORDER BY total DESC`
   ));
   return (rows as unknown as any[]).filter((r: any) => r.convenioId);
@@ -2103,29 +2203,38 @@ function normalizarNome(nome: string): string {
 }
 
 /**
+ * Remove zeros à esquerda para comparação de códigos
+ */
+function normalizarCodigo(codigo: string | null | undefined): string {
+  if (!codigo) return '';
+  const limpo = String(codigo).trim().replace(/^0+/, '');
+  return limpo === '' && String(codigo).trim().length > 0 ? '0' : limpo;
+}
+
+
+/**
  * Encontra o melhor match entre uma lista de recebimentos candidatos.
- * Prioriza recebimentos ainda não usados e com valor mais próximo.
+ * Prioriza recebimentos com valor mais próximo do faturado.
  */
 function encontrarMelhorMatch(
   candidatos: any[] | undefined,
-  usados: Set<number>,
   valorFaturado: number
 ): any | null {
   if (!candidatos || candidatos.length === 0) return null;
 
-  // Filtrar candidatos não usados
-  const disponiveis = candidatos.filter(c => !usados.has(c.id));
+  // Filtrar candidatos com saldo > 0.01
+  const disponiveis = candidatos.filter(c => c.saldoPago > 0.01);
   if (disponiveis.length === 0) return null;
 
   // Se só tem um, retorna ele
   if (disponiveis.length === 1) return disponiveis[0];
 
-  // Priorizar por proximidade de valor
+  // Priorizar por proximidade de valor/saldo
   let melhor = disponiveis[0];
-  let menorDiferenca = Math.abs(valorFaturado - (Number(melhor.valorPago) || 0));
+  let menorDiferenca = Math.abs(valorFaturado - melhor.saldoPago);
 
   for (let i = 1; i < disponiveis.length; i++) {
-    const diff = Math.abs(valorFaturado - (Number(disponiveis[i].valorPago) || 0));
+    const diff = Math.abs(valorFaturado - disponiveis[i].saldoPago);
     if (diff < menorDiferenca) {
       menorDiferenca = diff;
       melhor = disponiveis[i];
