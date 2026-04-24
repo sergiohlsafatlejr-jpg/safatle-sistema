@@ -10372,6 +10372,131 @@ export async function getDetalhesConta(params: DetalhesContaParams) {
     );
 
   if (procsEnviados.length === 0) {
+    // Tentar buscar do faturamento_unificado (dados vindos de BI/integração em vez de XML)
+    let fuWhere = `numeroGuia = '${guiaNumero.replace(/'/g, "''")}' OR contaNumero = '${guiaNumero.replace(/'/g, "''")}'`;
+    if (estabelecimentoId) fuWhere += ` AND estabelecimentoId = ${estabelecimentoId}`;
+    
+    const [fuRows] = await db.execute(sql.raw(`SELECT * FROM faturamento_unificado WHERE ${fuWhere}`));
+    const procsUnificados = fuRows as any[];
+
+    if (procsUnificados.length > 0) {
+      // Buscar glosas do demonstrativo / recebimentos_excel
+      let rexWhere = `numero_guia = '${guiaNumero.replace(/'/g, "''")}'`;
+      if (estabelecimentoId) rexWhere += ` AND estabelecimentoId = ${estabelecimentoId}`;
+      
+      const [rexRows] = await db.execute(sql.raw(`SELECT * FROM recebimentos_excel WHERE ${rexWhere}`));
+      const recebimentos = rexRows as any[];
+
+      const recebimentosMap = new Map<string, any>();
+      for (const rec of recebimentos) {
+        const key = String(rec.item || "");
+        const atual = recebimentosMap.get(key) || { valorPago: 0, valorGlosa: 0, codigoGlosa: "" };
+        atual.valorPago += parseFloat(String(rec.valor_pagamento || 0));
+        atual.valorGlosa += parseFloat(String(rec.valor_glosa || 0));
+        if (rec.codigo_glosa) atual.codigoGlosa = rec.codigo_glosa;
+        if (rec.situacao_item === 'GLOSADO' && rec.codigo_glosa) atual.codigoGlosa = rec.codigo_glosa;
+        recebimentosMap.set(key, atual);
+      }
+
+      const itensFallback: any[] = [];
+      let valorTotalFaturadoFb = 0;
+      let valorTotalRecebidoFb = 0;
+      let valorTotalGlosadoFb = 0;
+      let pacienteNomeFb = procsUnificados[0]?.pacienteNome || "";
+      let dataExecucaoFb = procsUnificados[0]?.dataExecucao 
+        ? (procsUnificados[0].dataExecucao instanceof Date ? procsUnificados[0].dataExecucao.toLocaleDateString("pt-BR") : String(procsUnificados[0].dataExecucao))
+        : "";
+
+      for (const procUnif of procsUnificados) {
+        const valorFaturado = parseFloat(String(procUnif.valorFaturado || 0));
+        valorTotalFaturadoFb += valorFaturado;
+
+        const rec = recebimentosMap.get(String(procUnif.codigoItem || ""));
+        
+        let valorPago = 0;
+        let valorGlosado = 0;
+        let motivoGlosa = "";
+        let status: "ok" | "divergente" | "glosado" | "nao_encontrado" | "nao_recebido" = "nao_recebido";
+
+        if (rec) {
+          valorPago = rec.valorPago;
+          valorGlosado = rec.valorGlosa;
+          motivoGlosa = rec.codigoGlosa || "";
+        } else {
+          valorPago = parseFloat(String(procUnif.valorPago || 0));
+          valorGlosado = parseFloat(String(procUnif.valorGlosa || 0));
+          motivoGlosa = procUnif.codigoGlosa || procUnif.motivoGlosa || "";
+        }
+
+        valorTotalRecebidoFb += valorPago;
+        valorTotalGlosadoFb += valorGlosado;
+
+        if (valorGlosado > 0) {
+          status = "glosado";
+        } else if (Math.abs(valorFaturado - valorPago) < 0.01 && valorPago > 0) {
+          status = "ok";
+        } else if (valorPago > 0) {
+          status = "divergente";
+        }
+
+        itensFallback.push({
+          guiaNumero: procUnif.numeroGuia || procUnif.contaNumero || guiaNumero,
+          numeroLote: procUnif.lotePrestador || "",
+          dataExecucao: procUnif.dataExecucao instanceof Date 
+            ? procUnif.dataExecucao.toLocaleDateString("pt-BR")
+            : String(procUnif.dataExecucao || ""),
+          codigo: procUnif.codigoItem,
+          descricao: procUnif.descricaoItem || "",
+          pacienteNome: procUnif.pacienteNome || "",
+          valorFaturado,
+          valorPago,
+          valorGlosado,
+          motivoGlosa,
+          status,
+        });
+      }
+
+      for (const [codigo, rec] of recebimentosMap.entries()) {
+        if (!itensFallback.find(i => String(i.codigo) === codigo)) {
+          valorTotalRecebidoFb += rec.valorPago;
+          valorTotalGlosadoFb += rec.valorGlosa;
+          itensFallback.push({
+            guiaNumero: guiaNumero,
+            numeroLote: "",
+            dataExecucao: "",
+            codigo: codigo,
+            descricao: "Item não encontrado no faturamento (Demonstrativo extra)",
+            pacienteNome: pacienteNomeFb,
+            valorFaturado: 0,
+            valorPago: rec.valorPago,
+            valorGlosado: rec.valorGlosa,
+            motivoGlosa: rec.codigoGlosa || "",
+            status: rec.valorGlosa > 0 ? "glosado" : "divergente",
+          });
+        }
+      }
+
+      let statusContaFb: "ok" | "glosado" | "nao_encontrado" | "parcial" = "ok";
+      if (valorTotalGlosadoFb > 0) {
+        statusContaFb = valorTotalRecebidoFb > 0 ? "parcial" : "glosado";
+      } else if (valorTotalRecebidoFb === 0 && valorTotalFaturadoFb > 0) {
+        statusContaFb = "nao_encontrado";
+      }
+
+      return {
+        guiaNumero,
+        numeroLote: procsUnificados[0]?.lotePrestador || "",  
+        pacienteNome: pacienteNomeFb,
+        dataExecucao: dataExecucaoFb,
+        valorTotalFaturado: valorTotalFaturadoFb,
+        valorTotalRecebido: valorTotalRecebidoFb,
+        valorTotalGlosado: valorTotalGlosadoFb,
+        status: statusContaFb,
+        totalItens: itensFallback.length,
+        itens: itensFallback,
+      };
+    }
+
     return null;
   }
 

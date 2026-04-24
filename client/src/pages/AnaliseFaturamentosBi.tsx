@@ -240,6 +240,99 @@ export default function AnaliseFaturamentosBi() {
             icon={Stethoscope} variant="primary" delay={0.35} active={true} />
         </div>
 
+        {/* ── TABELAS CONSOLIDADAS (DASHBOARD GERAL) ────────────────────────── */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Tabela por Competência */}
+          <Card className="border border-border bg-card/40 backdrop-blur-md rounded-xl overflow-hidden flex flex-col">
+            <CardHeader className="border-b border-border p-4 bg-gradient-to-r from-blue-500/10 to-transparent">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-400" /> Valores por Competência
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 flex-1">
+              <ScrollArea className="h-[320px]">
+                <Table>
+                  <TableHeader className="bg-muted/50 sticky top-0 backdrop-blur-sm z-10 border-b">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="font-semibold text-xs h-9">Competência</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">Faturado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">VL Recebido</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9 text-rose-400">Valor Glosado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">A Receber</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">% Glosa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {evolucaoChart.map((r: any, i: number) => (
+                      <TableRow key={i} className="hover:bg-muted/30 transition-colors border-border/50">
+                        <TableCell className="text-xs py-2.5 font-medium">{r.competencia}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-indigo-400 font-medium">{fmtCur(r.faturado)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-emerald-400 font-medium">{fmtCur(r.recebido)}</TableCell>
+                        <TableCell className={`text-right text-xs py-2.5 font-bold ${r.glosado > 0 ? 'bg-rose-500/10 text-rose-500' : 'text-muted-foreground'}`}>{fmtCur(r.glosado)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-amber-400 font-medium">{fmtCur(r.aReceber)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 font-bold text-white">{r.pct_glosa?.toFixed(2)}%</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="hover:bg-transparent border-t-2 border-border/80 bg-muted/20">
+                      <TableCell className="text-xs py-2.5 font-bold text-rose-500">Total</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalFaturado)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalRecebido)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalGlosado)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalAReceber)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{kpis.taxaGlosa?.toFixed(2)}%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Tabela por Convênio */}
+          <Card className="border border-border bg-card/40 backdrop-blur-md rounded-xl overflow-hidden flex flex-col">
+            <CardHeader className="border-b border-border p-4 bg-gradient-to-r from-emerald-500/10 to-transparent">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-emerald-400" /> Valores por Convênio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 flex-1">
+              <ScrollArea className="h-[320px]">
+                <Table>
+                  <TableHeader className="bg-muted/50 sticky top-0 backdrop-blur-sm z-10 border-b">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="font-semibold text-xs h-9">Convênio</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">Faturado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">VL Recebido</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9 text-rose-400">Valor Glosado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">A Receber</TableHead>
+                      <TableHead className="text-right font-semibold text-xs h-9">% Glosa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(data?.porConvenio as any[] || []).map((r: any, i: number) => (
+                      <TableRow key={i} className="hover:bg-muted/30 transition-colors border-border/50">
+                        <TableCell className="text-xs py-2.5 font-medium max-w-[120px] truncate" title={r.convenio}>{r.convenio}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-indigo-400 font-medium">{fmtCur(r.faturado)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-emerald-400 font-medium">{fmtCur(r.recebido)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-rose-500 font-bold">{fmtCur(r.glosado)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 text-amber-400 font-medium">{fmtCur(r.aReceber)}</TableCell>
+                        <TableCell className="text-right text-xs py-2.5 font-bold text-white">{r.pct_glosa?.toFixed(2)}%</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="hover:bg-transparent border-t-2 border-border/80 bg-muted/20">
+                      <TableCell className="text-xs py-2.5 font-bold text-rose-500">Total</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalFaturado)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalRecebido)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalGlosado)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{fmtCur(kpis.totalAReceber)}</TableCell>
+                      <TableCell className="text-right text-xs py-2.5 font-bold text-rose-500">{kpis.taxaGlosa?.toFixed(2)}%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* ── GRÁFICO EVOLUÇÃO MENSAL ───────────────────────────────────────── */}
         <Card className="border border-border bg-card/40 backdrop-blur-md rounded-xl overflow-hidden">
           <CardHeader className="border-b border-border p-5 bg-gradient-to-r from-indigo-500/10 to-transparent">

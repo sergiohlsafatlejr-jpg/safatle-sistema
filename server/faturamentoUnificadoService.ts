@@ -381,7 +381,7 @@ export async function popularDeTasyBi(
     )
     SELECT
       'TASY_BI',
-      CAST(tb.id AS CHAR),
+      COALESCE(CONCAT_WS('-', NULLIF(TRIM(tb.CONTA), ''), NULLIF(TRIM(tb.SEQUENCIA), '')), CAST(tb.id AS CHAR)),
       tb.estabelecimentoId,
       NULLIF(TRIM(tb.CONTA), ''),
       NULLIF(TRIM(tb.PROTOCOLO), ''),
@@ -421,7 +421,7 @@ export async function popularDeTasyBi(
     FROM tasy_faturado_itens_bi tb
     LEFT JOIN faturamento_unificado fu_check
       ON fu_check.origemSistema = 'TASY_BI'
-      AND fu_check.origemId COLLATE utf8mb4_unicode_ci = CAST(tb.id AS CHAR) COLLATE utf8mb4_unicode_ci
+      AND fu_check.origemId COLLATE utf8mb4_unicode_ci = COALESCE(CONCAT_WS('-', NULLIF(TRIM(tb.CONTA), ''), NULLIF(TRIM(tb.SEQUENCIA), '')), CAST(tb.id AS CHAR)) COLLATE utf8mb4_unicode_ci
       AND fu_check.estabelecimentoId = tb.estabelecimentoId
     WHERE tb.estabelecimentoId = ${estabelecimentoId}
       AND tb.CD_ITEM IS NOT NULL AND TRIM(tb.CD_ITEM) != ''

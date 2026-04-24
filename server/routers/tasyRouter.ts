@@ -622,6 +622,7 @@ export const tasyRouter = router({
           SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
+          SUM(${C('A_RECEBER')}) as a_receber,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados
         FROM tasy_faturado_itens_bi ${evolMensal}
@@ -634,11 +635,12 @@ export const tasyRouter = router({
           SUM(${FATURADO_EXPR}) as faturado,
           SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
+          SUM(${C('A_RECEBER')}) as a_receber,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
           (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
-        GROUP BY CONVENIO ORDER BY glosado DESC LIMIT 20
+        GROUP BY CONVENIO ORDER BY faturado DESC LIMIT 20
       `)) as any;
 
       // ─── POR SETOR ─────────────────────────────────────────────────────────
@@ -730,13 +732,13 @@ export const tasyRouter = router({
         },
         evolucaoMensal: (evolucaoRows || []).map((row: any) => ({
           competencia: row.competencia,
-          faturado: n(row.faturado), recebido: n(row.recebido), glosado: n(row.glosado),
+          faturado: n(row.faturado), recebido: n(row.recebido), glosado: n(row.glosado), aReceber: n(row.a_receber),
           qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
           pct_glosa: n(row.faturado) > 0 ? Number(((n(row.glosado) / n(row.faturado)) * 100).toFixed(2)) : 0
         })),
         porConvenio: (convenioRows || []).map((row: any) => ({
           convenio: row.convenio, faturado: n(row.faturado), recebido: n(row.recebido),
-          glosado: n(row.glosado), qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
+          glosado: n(row.glosado), aReceber: n(row.a_receber), qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
           pct_glosa: Number(n(row.pct_glosa).toFixed(2))
         })),
         porSetor: (setorRows || []).map((row: any) => ({
