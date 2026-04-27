@@ -374,6 +374,32 @@ export const faturamentoUnificadoRouter = router({
       return await faturamentoService.reverterGlosa(input);
     }),
 
+  /**
+   * Listar sobras (itens não vinculados do demonstrativo) para uma guia
+   */
+  listarSobrasPorGuia: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      numeroGuia: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return await faturamentoService.listarSobrasPorGuia(input);
+    }),
+
+  /**
+   * Vincular manualmente um item do faturamento a uma sobra do recebimento
+   */
+  vincularItemManual: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      conciliadoId: z.number(),
+      recebimentoId: z.number(),
+      criarRegraDePara: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await faturamentoService.vincularItemManual(input);
+    }),
+
   // ============================================================
   // XML DE RECURSO DE GLOSA
   // ============================================================

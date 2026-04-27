@@ -1,0 +1,1 @@
+﻿import "dotenv/config"; import { getDb } from "./server/db.js"; import { sql } from "drizzle-orm"; async function run() { const db = await getDb(); const [res1] = await db.execute(sql`SELECT nome_prof FROM staging_faturamento_xml WHERE nome_prof IS NOT NULL LIMIT 5`); console.log(res1); process.exit(0); } run();

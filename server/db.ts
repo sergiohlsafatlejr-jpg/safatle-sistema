@@ -13203,14 +13203,34 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     // (ex: itens de competências anteriores importados via outro arquivo XML)
     
     const rawResult = await db.execute(sql.raw(sqlParts.join(' ')));
-    // sql.raw retorna colunas em snake_case, mas o código espera camelCase
-    // Mapear para manter compatibilidade com o restante da função
+    
+    // Buscar o mapeamento de numeroConta -> competencia em JS para evitar lentidão de subqueries SQL
+    const ccrResult = await db.execute(sql.raw(`
+      SELECT numeroConta, competencia 
+      FROM contas_convenio_resumo 
+      WHERE estabelecimentoId = ${estabelecimentoId || 0}
+      AND numeroConta IN (${subqueryParts.join(' ')})
+    `));
+    const ccrRows = (ccrResult as any)[0] || [];
+    const contaCompetenciaMap = new Map<string, string>();
+    for (const row of ccrRows) {
+      if (row.numeroConta && row.competencia) {
+        contaCompetenciaMap.set(String(row.numeroConta), row.competencia);
+      }
+    }
+
     const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     const rawRows = (rawResult as any)[0] || [];
     itensFaturados = rawRows.map((row: any) => {
       const mapped: any = {};
       for (const key of Object.keys(row)) {
         mapped[snakeToCamel(key)] = row[key];
+      }
+      
+      // SOBRESCREVER a competência do XML pela competência da CONTA
+      const guiaStr = String(mapped.numeroGuiaPrestador || '');
+      if (guiaStr && contaCompetenciaMap.has(guiaStr)) {
+        mapped.competencia = contaCompetenciaMap.get(guiaStr);
       }
       return mapped;
     });
@@ -13554,17 +13574,54 @@ export async function getDadosBI(filtros: DadosBIFiltros): Promise<{
     const tItem = String(rawTItem).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     if (tItem === "diaria") entry.diarias = (entry.diarias || 0) + parseFloat(item.quantidade || "1");
   }
-  for (const item of itensRecebidosFiltrados) {
-    // Demonstrativo tem dataReferencia própria (string date)
-    const dataRefStr = item.dataReferencia;
-    let chave = 'Sem Data';
-    if (dataRefStr) {
-      const d = new Date(dataRefStr);
-      chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    } else {
-      const dataRef = arquivoDataMap.get(item.arquivoId);
-      chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
+  // Buscar mapeamento de competencia para os itens recebidos (usando guiaNumero)
+  const guiasRecebidas = Array.from(new Set(itensRecebidosFiltrados.map(i => i.numeroGuia || i.guiaNumero).filter(Boolean)));
+  const recebidosCompetenciaMap = new Map<string, string>();
+  
+  if (guiasRecebidas.length > 0) {
+    const chunkSize = 1000;
+    for (let i = 0; i < guiasRecebidas.length; i += chunkSize) {
+      const chunk = guiasRecebidas.slice(i, i + chunkSize);
+      const quotedChunk = chunk.map(g => "'" + String(g).replace(/'/g, "") + "'").join(',');
+      
+      try {
+        const ccrRecResult = await db.execute(sql.raw(`
+          SELECT numeroConta, competencia 
+          FROM contas_convenio_resumo 
+          WHERE estabelecimentoId = ${estabelecimentoId || 0}
+          AND numeroConta IN (${quotedChunk})
+        `));
+        const ccrRecRows = (ccrRecResult as any)[0] || [];
+        for (const row of ccrRecRows) {
+          if (row.numeroConta && row.competencia) {
+            recebidosCompetenciaMap.set(String(row.numeroConta), row.competencia);
+          }
+        }
+      } catch (err) {}
     }
+  }
+
+  for (const item of itensRecebidosFiltrados) {
+    let chave = 'Sem Data';
+    
+    // PRIORIDADE 1: Competência da Conta associada
+    const guiaStr = String(item.numeroGuia || item.guiaNumero || '');
+    if (guiaStr && recebidosCompetenciaMap.has(guiaStr)) {
+      const comp = recebidosCompetenciaMap.get(guiaStr);
+      if (comp) chave = comp.replace('/', '-');
+    } else {
+      // PRIORIDADE 2: Mês da exportação do Demonstrativo
+      const dataRefStr = item.dataReferencia;
+      if (dataRefStr) {
+        const d = new Date(dataRefStr);
+        // Usa UTC para evitar que 2025-12-01T00:00:00Z vire 2025-11-30 no fuso horário local
+        chave = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      } else {
+        const dataRef = arquivoDataMap.get(item.arquivoId);
+        chave = dataRef ? `${dataRef.getFullYear()}-${String(dataRef.getMonth() + 1).padStart(2, '0')}` : 'Sem Data';
+      }
+    }
+
     if (!porMesMap.has(chave)) {
       porMesMap.set(chave, { chave, valorFaturado: 0, valorRecebido: 0, valorGlosado: 0, valorPendente: 0, quantidade: 0, registros: 0, diarias: 0 });
     }

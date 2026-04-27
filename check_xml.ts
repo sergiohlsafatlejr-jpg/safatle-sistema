@@ -1,0 +1,1 @@
+﻿import "dotenv/config"; import { getDb } from "./server/db.js"; import { sql } from "drizzle-orm"; async function run() { const db = await getDb(); const [res] = await db.execute(sql`SELECT id, nome, status, totalItens, itensProcessados FROM arquivos WHERE status = "processado" ORDER BY id DESC LIMIT 5`); console.log(res); process.exit(0); } run();

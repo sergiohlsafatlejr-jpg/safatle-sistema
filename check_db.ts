@@ -1,21 +1,19 @@
+import "dotenv/config";
 import { getDb } from "./server/db";
-import { estabelecimentos, users } from "./drizzle/schema";
+import { sql } from "drizzle-orm";
 
-async function check() {
+async function main() {
+  const db = await getDb();
+  if (!db) throw new Error("No db");
+  
   try {
-    const db = await getDb();
-    if (!db) throw new Error("No DB");
-    
-    const est = await db.select().from(estabelecimentos);
-    console.log("Estabelecimentos:", est.map(e => e.nome));
-    
-    const us = await db.select().from(users);
-    console.log("Usuarios:", us.map(u => ({ id: u.id, email: u.email, name: u.name, role: u.role })));
-    
-    process.exit(0);
-  } catch(e) {
-    console.error(e);
-    process.exit(1);
+    const q = `SELECT * FROM conciliados_automatico WHERE estabelecimentoId = 6 AND numeroGuia = '19619793' AND codigoItem = '00065390' LIMIT 5`;
+    const [rows] = await db.execute(sql.raw(q));
+    console.log(rows);
+  } catch (e: any) {
+    console.error("Error:", e.message);
   }
+  process.exit(0);
 }
-check();
+
+main();

@@ -8,6 +8,7 @@
 import { getDb } from "./db";
 import { sql, eq } from "drizzle-orm";
 import { warleineFaturamentoStaging } from "../drizzle/schema-integracao";
+import { executarMatchingMultiFase } from "./services/conciliacaoCruzadaEngine";
 
 // ============================================================
 // POPULAÇÃO A PARTIR DO WARLEINE (integ_faturado)
@@ -1124,468 +1125,29 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // PASSO 4: Indexar recebimentos para busca rápida
+  // PASSO 4 & 5: Executar Motor de Conciliação Multi-Fase (Greedy)
   // -------------------------------------------------------
-  // Índice por guia+código → lista de recebimentos
-  const indexGuiaCodigo = new Map<string, any[]>();
-  // Índice por guia → lista de recebimentos
-  const indexGuia = new Map<string, any[]>();
-  // Índice por paciente+código → lista de recebimentos
-  const indexPacienteCodigo = new Map<string, any[]>();
-  // Índice por carteira+código → lista de recebimentos
-  const indexCarteiraCodigo = new Map<string, any[]>();
-  // Set de recebimentos já usados (para evitar match duplo)
-  const recebimentosUsados = new Set<number>();
+  const engineResult = executarMatchingMultiFase(
+    itensFaturamento as any[],
+    itensRecebimento as any[],
+    mapaVinculacao,
+    codigosProprios,
+    tolerancia
+  );
+  
+  const inserts = engineResult.inserts;
+  
+  // Mesclar resultado estatístico
+  Object.assign(resultado, engineResult.resultado);
 
-  for (const rec of itensRecebimento) {
-    const guia = String(rec.numeroGuia || '').trim();
-    const codigo = String(rec.codigoItem || '').trim();
-    const codigoNorm = normalizarCodigo(codigo);
-    const paciente = normalizarNome(String(rec.nomeBeneficiario || ''));
-
-    if (guia) {
-      if (!indexGuia.has(guia)) indexGuia.set(guia, []);
-      indexGuia.get(guia)!.push(rec);
-    }
-
-    if (guia && codigoNorm) {
-      const chave = `${guia}|${codigoNorm}`;
-      if (!indexGuiaCodigo.has(chave)) indexGuiaCodigo.set(chave, []);
-      indexGuiaCodigo.get(chave)!.push(rec);
-    }
-
-    if (paciente && codigoNorm) {
-      const chave = `${paciente}|${codigoNorm}`;
-      if (!indexPacienteCodigo.has(chave)) indexPacienteCodigo.set(chave, []);
-      indexPacienteCodigo.get(chave)!.push(rec);
-    }
-
-    // Indexar por carteira (beneficiario) + código
-    const carteira = String(rec.carteira || '').trim();
-    if (carteira && codigoNorm) {
-      const chave = `${carteira}|${codigoNorm}`;
-      if (!indexCarteiraCodigo.has(chave)) indexCarteiraCodigo.set(chave, []);
-      indexCarteiraCodigo.get(chave)!.push(rec);
-    }
-  }
-
-  // -------------------------------------------------------
-  // PASSO 5: Executar matching para cada item de faturamento
-  // -------------------------------------------------------
-  // Registros para INSERT na conciliados_automatico
-  const inserts: Array<{
-    faturamentoUnificadoId: number;
-    contaNumero: string;
-    numeroGuia: string;
-    pacienteNome: string;
-    convenio: string;
-    convenioId: number | null;
-    competencia: string;
-    codigoItem: string;
-    codigoItemTuss: string;
-    descricaoItem: string;
-    tipoItem: string;
-    origemSistema: string;
-    valorFaturado: number;
-    quantidade: number;
-    dataExecucao: string | null;
-    recebimentoId: number | null;
-    recebimentoOrigem: string | null;
-    valorPago: number;
-    valorGlosa: number;
-    codigoGlosa: string | null;
-    motivoGlosa: string | null;
-    statusConciliacao: string;
-    metodoConciliacao: string | null;
-    diferenca: number;
-    percentualDiferenca: number;
-  }> = [];
-
-  for (const fat of itensFaturamento) {
-    const guia = String(fat.numeroGuia || fat.contaNumero || '').trim();
-    const codigoItem = String(fat.codigoItem || '').trim();
-    const codigoItemNorm = normalizarCodigo(codigoItem);
-    const codigoTuss = String(fat.codigoItemTuss || '').trim();
-    const codigoTussNorm = normalizarCodigo(codigoTuss);
-    const paciente = normalizarNome(String(fat.pacienteNome || ''));
-    const carteira = String(fat.carteiraBeneficiario || '').trim();
-    const valorFaturado = Number(fat.valorFaturado) || 0;
-
-    let matchEncontrado = false;
-    let recMatch: any = null;
-    let metodo = '';
-
-    // Estratégia 1: Match exato por guia + código
-    if (guia && codigoItemNorm) {
-      const chave = `${guia}|${codigoItemNorm}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
-      if (recMatch) {
-        matchEncontrado = true;
-        metodo = 'guia_codigo';
-      }
-    }
-
-    // Estratégia 2: Match por guia + código TUSS
-    if (!matchEncontrado && guia && codigoTussNorm && codigoTussNorm !== codigoItemNorm) {
-      const chave = `${guia}|${codigoTussNorm}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
-      if (recMatch) {
-        matchEncontrado = true;
-        metodo = 'guia_codigo_tuss';
-      }
-    }
-
-    // Estratégia 3: Match com vinculação de códigos (de-para)
-    if (!matchEncontrado && guia && codigoItem && mapaVinculacao.has(codigoItem)) {
-      const codigoTraduzido = mapaVinculacao.get(codigoItem)!;
-      const codigoTraduzidoNorm = normalizarCodigo(codigoTraduzido);
-      const chave = `${guia}|${codigoTraduzidoNorm}`;
-      recMatch = encontrarMelhorMatch(indexGuiaCodigo.get(chave), valorFaturado);
-      if (recMatch) {
-        matchEncontrado = true;
-        metodo = 'vinculacao';
-      }
-    }
-
-    // Estratégia 4: Match por paciente + código (fallback)
-    if (!matchEncontrado && paciente && codigoItemNorm) {
-      const chave = `${paciente}|${codigoItemNorm}`;
-      recMatch = encontrarMelhorMatch(indexPacienteCodigo.get(chave), valorFaturado);
-      if (recMatch) {
-        matchEncontrado = true;
-        metodo = 'paciente_codigo';
-      }
-    }
-
-    // Estratégia 5: Match por carteira + código (fallback 2)
-    if (!matchEncontrado && carteira && codigoItemNorm) {
-      const chave = `${carteira}|${codigoItemNorm}`;
-      if (indexCarteiraCodigo.has(chave)) {
-        recMatch = encontrarMelhorMatch(indexCarteiraCodigo.get(chave), valorFaturado);
-        if (recMatch) {
-          matchEncontrado = true;
-          metodo = 'carteira_codigo';
-        }
-      }
-    }
-
-    // Estratégia 6: Match por VALOR EXATO na mesma guia (Fallback para códigos diferentes)
-    if (!matchEncontrado && guia && valorFaturado > 0) {
-      const candidatosGuia = indexGuia.get(guia);
-      if (candidatosGuia) {
-        const disponiveisValor = candidatosGuia.filter(c => c.saldoPago > 0.01 && Math.abs(c.saldoPago - valorFaturado) < 0.01);
-        if (disponiveisValor.length > 0) {
-          recMatch = disponiveisValor[0];
-          matchEncontrado = true;
-          metodo = 'guia_valor';
-        }
-      }
-    }
-
-    // Estratégia 7: Agrupamento/Rateio
-    if (!matchEncontrado && guia) {
-      const chaveBusca = codigoItemNorm ? `${guia}|${codigoItemNorm}` : null;
-      let candidatosAgrupamento = chaveBusca ? indexGuiaCodigo.get(chaveBusca) : null;
-      if (!candidatosAgrupamento && codigoTussNorm) {
-         candidatosAgrupamento = indexGuiaCodigo.get(`${guia}|${codigoTussNorm}`);
-      }
-      if (candidatosAgrupamento) {
-        const comSaldo = candidatosAgrupamento.filter(c => c.saldoPago > 0.01);
-        if (comSaldo.length > 0) {
-          recMatch = comSaldo.reduce((prev, current) => (prev.saldoPago > current.saldoPago) ? prev : current);
-          matchEncontrado = true;
-          metodo = 'agrupamento';
-        }
-      }
-    }
-
-    // Dados base do faturamento para o INSERT
-    const descricaoFat = String(fat.descricaoItem || '');
-    const tipoItemFat = String(fat.tipoItem || '');
-    const baseInsert = {
-      faturamentoUnificadoId: fat.id,
-      contaNumero: String(fat.contaNumero || ''),
-      numeroGuia: guia,
-      pacienteNome: String(fat.pacienteNome || ''),
-      convenio: String(fat.convenio || ''),
-      convenioId: fat.convenioId ? Number(fat.convenioId) : null,
-      competencia: String(fat.competencia || ''),
-      codigoItem: codigoItem,
-      codigoItemTuss: codigoTuss,
-      descricaoItem: descricaoFat,
-      tipoItem: tipoItemFat,
-      origemSistema: String(fat.origemSistema || ''),
-      dataExecucao: fat.dataExecucao ? new Date(fat.dataExecucao).toISOString().slice(0, 19).replace('T', ' ') : null,
-      codigoPrestadorExecutante: (fat as any).codigoPrestadorExecutante ? String((fat as any).codigoPrestadorExecutante) : null,
-      valorFaturado,
-      quantidade: Number(fat.quantidade) || 0,
-      codigoGlosa: null as string | null,
-      motivoGlosa: null as string | null,
-    };
-
-    if (matchEncontrado && recMatch) {
-      const valorParaPagar = Math.min(valorFaturado, recMatch.saldoPago);
-      const valorRecebido = valorParaPagar;
-      recMatch.saldoPago -= valorRecebido;
-
-      const diferenca = valorFaturado - valorRecebido;
-      const percentualDiferenca = valorFaturado > 0 ? (Math.abs(diferenca) / valorFaturado) * 100 : (valorRecebido > 0 ? 100 : 0);
-
-      const valorPagoRec = valorRecebido;
-      const valorGlosaRec = valorFaturado > 0 && diferenca > 0 ? diferenca : 0;
-
-
-      // Enriquecer com dados do recebimento (demonstrativo)
-      // Paciente: preferir do recebimento pois vem do demonstrativo
-      if (recMatch.nomeBeneficiario) {
-        baseInsert.pacienteNome = String(recMatch.nomeBeneficiario);
-      }
-      // Descrição: preferir do recebimento se disponível
-      if (recMatch.descricaoItem) {
-        baseInsert.descricaoItem = String(recMatch.descricaoItem);
-      }
-      // Tipo de lançamento do demonstrativo
-      if (recMatch.tipoLancamento) {
-        baseInsert.tipoItem = String(recMatch.tipoLancamento);
-      }
-      // Código e motivo da glosa
-      if (recMatch.codigoGlosa) {
-        baseInsert.codigoGlosa = String(recMatch.codigoGlosa);
-      }
-
-      if (percentualDiferenca <= tolerancia) {
-        inserts.push({ ...baseInsert, recebimentoId: recMatch.id, recebimentoOrigem: 'excel', valorPago: valorPagoRec, valorGlosa: valorGlosaRec, statusConciliacao: 'conciliado', metodoConciliacao: metodo, diferenca, percentualDiferenca });
-        resultado.totalConciliados++;
-      } else {
-        inserts.push({ ...baseInsert, recebimentoId: recMatch.id, recebimentoOrigem: 'excel', valorPago: valorPagoRec, valorGlosa: valorGlosaRec, statusConciliacao: 'divergente', metodoConciliacao: metodo, diferenca, percentualDiferenca });
-        resultado.totalDivergentes++;
-        resultado.divergencias.push({
-          faturamentoId: fat.id,
-          recebimentoId: recMatch.id,
-          codigoItem: codigoItem,
-          numeroGuia: guia,
-          valorFaturado,
-          valorRecebido,
-          diferenca,
-        });
-      }
-
-      // Contabilizar por método
-      switch (metodo) {
-        case 'guia_codigo': resultado.detalhes.conciliadosPorGuiaCodigo++; break;
-        case 'guia_codigo_tuss': resultado.detalhes.conciliadosPorGuiaCodigoTuss++; break;
-        case 'vinculacao': resultado.detalhes.conciliadosPorVinculacao++; break;
-        case 'paciente_codigo': resultado.detalhes.conciliadosPorPacienteCodigo++; break;
-        case 'carteira_codigo': resultado.detalhes.conciliadosPorCarteiraCodigo++; break;
-      }
-    } else {
-      // Não encontrou match no demonstrativo
-      // Verificar se o item é de um prestador terceiro
-      // Terceiro = código do prestador executante NÃO está entre os códigos próprios cadastrados
-      // OU código é NULL mas outros itens da mesma guia têm código próprio (indica que este item é de terceiro)
-      const codPrestExec = baseInsert.codigoPrestadorExecutante;
-      let isTerceiro = false;
-      if (codigosProprios.size > 0) {
-        if (codPrestExec && !codigosProprios.has(codPrestExec)) {
-          // Código preenchido e NÃO é próprio → terceiro
-          isTerceiro = true;
-        } else if (!codPrestExec) {
-          // Código NULL: verificar se outros itens da mesma guia têm código próprio
-          // Se sim, este item provavelmente é de um médico terceiro cujo código não foi extraído
-          const mesmaGuia = itensFaturamento.filter((f: any) => 
-            String(f.numeroGuia) === String(baseInsert.numeroGuia)
-          );
-          const temProprioNaGuia = mesmaGuia.some((f: any) => {
-            const cod = f.codigoPrestadorExecutante ? String(f.codigoPrestadorExecutante) : null;
-            return cod && codigosProprios.has(cod);
-          });
-          if (temProprioNaGuia) {
-            isTerceiro = true;
-          }
-        }
-      }
-      
-      if (isTerceiro) {
-        // Item de terceiro: convênio paga diretamente ao terceiro, não é glosa
-        inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: 0, statusConciliacao: 'terceiro', metodoConciliacao: null, diferenca: 0, percentualDiferenca: 0, codigoGlosa: null });
-        resultado.totalTerceiros = (resultado.totalTerceiros || 0) + 1;
-      } else {
-        // Item próprio sem match: considerar como glosado automaticamente com motivo 5007
-        inserts.push({ ...baseInsert, recebimentoId: null, recebimentoOrigem: null, valorPago: 0, valorGlosa: valorFaturado, statusConciliacao: 'glosado', metodoConciliacao: null, diferenca: valorFaturado, percentualDiferenca: 100, codigoGlosa: '5007' });
-        resultado.totalNaoRecebidos++;
-      }
-    }
-  }
-
-  // -------------------------------------------------------
-  // PASSO 5.5: Agrupamento de itens duplicados (mesmo guia+código)
-  // Quando múltiplos itens do faturamento com mesmo código ficaram "nao_recebido"
-  // mas existe um recebimento com quantidade = soma das quantidades, agrupa e pareia.
-  // Ex: Faturamento tem 2 linhas de código 90465865 (qtd 4 + qtd 2),
-  //     Recebimento tem 1 linha de código 90465865 (qtd 6, valor = soma).
-  // -------------------------------------------------------
-  // Agora itens sem match são marcados como 'glosado' com código 5007,
-  // então filtramos por glosados automáticos (sem recebimentoId e codigoGlosa = '5007')
-  const naoRecebidosIdx = inserts
-    .map((ins, idx) => ({ ins, idx }))
-    .filter(({ ins }) => ins.statusConciliacao === 'glosado' && ins.recebimentoId === null && ins.codigoGlosa === '5007');
-
-  // Agrupar nao_recebidos por guia+código
-  const gruposNaoRecebidos = new Map<string, { ins: typeof inserts[0]; idx: number }[]>();
-  for (const item of naoRecebidosIdx) {
-    const chave = `${item.ins.numeroGuia}|${item.ins.codigoItem}`;
-    if (!gruposNaoRecebidos.has(chave)) gruposNaoRecebidos.set(chave, []);
-    gruposNaoRecebidos.get(chave)!.push(item);
-  }
-
-  // Para cada grupo com 2+ itens, tentar encontrar recebimento agrupado
-  for (const [chave, grupo] of gruposNaoRecebidos) {
-    if (grupo.length < 2) continue;
-
-    const somaQuantidade = grupo.reduce((s, g) => s + g.ins.quantidade, 0);
-    const somaValor = grupo.reduce((s, g) => s + g.ins.valorFaturado, 0);
-
-    // Buscar recebimento não usado com mesmo guia+código e quantidade compatível
-    const candidatos = indexGuiaCodigo.get(chave);
-    if (!candidatos) continue;
-
-    const disponiveis = candidatos.filter(c => c.saldoPago > 0.01);
-    // Procurar um recebimento cuja quantidade = soma das quantidades do grupo
-    let recAgrupado = disponiveis.find(c => {
-      const qtdRec = Number(c.quantidade) || 0;
-      return Math.abs(qtdRec - somaQuantidade) < 0.01;
-    });
-    // Fallback: procurar por valor próximo da soma
-    if (!recAgrupado) {
-      recAgrupado = disponiveis.find(c => {
-        const valRec = c.saldoPago;
-        return somaValor > 0 && Math.abs(valRec - somaValor) / somaValor <= (tolerancia / 100);
-      });
-    }
-
-    if (recAgrupado) {
-      const valorRecTotal = Math.min(recAgrupado.saldoPago, somaValor);
-      recAgrupado.saldoPago -= valorRecTotal;
-      const valorGlosaRec = Number(recAgrupado.valorGlosa) || 0;
-
-      // Distribuir o valor pago proporcionalmente entre os itens do grupo
-      for (const { ins, idx } of grupo) {
-        const proporcao = somaValor > 0 ? ins.valorFaturado / somaValor : 1 / grupo.length;
-        const valorPagoProporcional = Math.round(valorRecTotal * proporcao * 100) / 100;
-        const valorGlosaProporcional = Math.round(valorGlosaRec * proporcao * 100) / 100;
-        const diferenca = ins.valorFaturado - valorPagoProporcional;
-        const percentualDiferenca = ins.valorFaturado > 0 ? (Math.abs(diferenca) / ins.valorFaturado) * 100 : 0;
-
-        // Enriquecer com dados do recebimento
-        if (recAgrupado.nomeBeneficiario) ins.pacienteNome = String(recAgrupado.nomeBeneficiario);
-        if (recAgrupado.codigoGlosa) ins.codigoGlosa = String(recAgrupado.codigoGlosa);
-
-        ins.recebimentoId = recAgrupado.id;
-        ins.recebimentoOrigem = 'excel';
-        ins.valorPago = valorPagoProporcional;
-        ins.valorGlosa = valorGlosaProporcional;
-        ins.diferenca = diferenca;
-        ins.percentualDiferenca = percentualDiferenca;
-        ins.metodoConciliacao = 'agrupamento';
-
-        if (percentualDiferenca <= tolerancia) {
-          ins.statusConciliacao = 'conciliado';
-          resultado.totalConciliados++;
-        } else {
-          ins.statusConciliacao = 'divergente';
-          resultado.totalDivergentes++;
-        }
-        resultado.totalNaoRecebidos--;
-      }
-    }
-  }
-
-  // -------------------------------------------------------
-  // PASSO 5.6: Reagrupar recebimentos duplicados do demonstrativo
-  // Quando o convênio divide 1 item em múltiplas linhas no demonstrativo
-  // (ex: Gencitabina 1000mg faturada, convênio retorna 2x 500mg = R$345 cada)
-  // O matching individual pega apenas 1 recebimento e marca como divergente/glosado.
-  // Este passo soma todos os recebimentos disponíveis com mesmo guia+código
-  // para reclassificar o item.
-  // -------------------------------------------------------
-  const divergentesOuGlosados = inserts
-    .map((ins, idx) => ({ ins, idx }))
-    .filter(({ ins }) => ins.statusConciliacao === 'divergente' || ins.statusConciliacao === 'glosado');
-
-  for (const { ins, idx } of divergentesOuGlosados) {
-    const guia = ins.numeroGuia;
-    const codigo = ins.codigoItem;
-    if (!guia || !codigo) continue;
-
-    const chave = `${guia}|${codigo}`;
-    const candidatos = indexGuiaCodigo.get(chave);
-    if (!candidatos) continue;
-
-    // Buscar recebimentos NÃO usados com o mesmo guia+código
-    const naoUsados = candidatos.filter(c => c.saldoPago > 0.01);
-    if (naoUsados.length === 0) continue;
-
-    // Somar o valor pago e glosa dos recebimentos não usados + o recebimento já associado
-    let somaValorPago = ins.valorPago;
-    let somaValorGlosa = ins.valorGlosa;
-    const recebimentosAgrupados: any[] = [];
-
-    for (const rec of naoUsados) {
-      const valRec = Math.min(rec.saldoPago, ins.valorFaturado - somaValorPago);
-      if (valRec <= 0.01) continue;
-      somaValorPago += valRec;
-      somaValorGlosa += Number(rec.valorGlosa) || 0;
-      recebimentosAgrupados.push({ rec, valRec });
-    }
-
-    // Verificar se a soma dos recebimentos agrupados é mais próxima do faturado
-    const diferencaAtual = Math.abs(ins.valorFaturado - ins.valorPago);
-    const diferencaAgrupada = Math.abs(ins.valorFaturado - somaValorPago);
-
-    if (diferencaAgrupada < diferencaAtual) {
-      // Deduzir o saldo dos recebimentos agrupados
-      for (const item of recebimentosAgrupados) {
-        item.rec.saldoPago -= item.valRec;
-      }
-
-      // Atualizar o insert com os valores agrupados
-      const percentualDiferenca = ins.valorFaturado > 0 ? (diferencaAgrupada / ins.valorFaturado) * 100 : 0;
-      const statusAnterior = ins.statusConciliacao;
-
-      ins.valorPago = somaValorPago;
-      ins.valorGlosa = somaValorGlosa;
-      ins.diferenca = ins.valorFaturado - somaValorPago;
-      ins.percentualDiferenca = percentualDiferenca;
-      ins.metodoConciliacao = 'agrupamento_recebimentos';
-
-      // Reclassificar com base na tolerância
-      if (somaValorGlosa > 0 && somaValorPago < ins.valorFaturado) {
-        // Se há glosa explícita no demonstrativo, manter como glosado
-        ins.statusConciliacao = 'glosado';
-        // Atualizar código de glosa do último recebimento agrupado se disponível
-        const recComGlosa = recebimentosAgrupados.find(r => r.codigoGlosa);
-        if (recComGlosa && !ins.codigoGlosa) {
-          ins.codigoGlosa = String(recComGlosa.codigoGlosa);
-        }
-      } else if (percentualDiferenca <= tolerancia) {
-        ins.statusConciliacao = 'conciliado';
-      } else {
-        ins.statusConciliacao = 'divergente';
-      }
-
-      // Atualizar contadores
-      if (statusAnterior === 'divergente') resultado.totalDivergentes--;
-      if (statusAnterior === 'glosado') resultado.totalGlosados = (resultado.totalGlosados || 0) - 1;
-      if (ins.statusConciliacao === 'conciliado') resultado.totalConciliados++;
-      else if (ins.statusConciliacao === 'divergente') resultado.totalDivergentes++;
-    }
-  }
-
+  
   // -------------------------------------------------------
   // PASSO 6: INSERT em MEGA-BATCH na tabela conciliados_automatico
   // Usa batches de 5000 para minimizar roundtrips ao banco
   // (conciliações anteriores já foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
+  let _firstErrLogged = false;
+  const sn = (v) => isNaN(Number(v)) || !isFinite(Number(v)) ? 0 : Number(v);
   const MEGA_BATCH = 5000;
   const esc = (v: string | null | undefined) => {
     if (v === null || v === undefined || v === '') return 'NULL';
@@ -1597,8 +1159,8 @@ export async function executarConciliacaoAutomatica(params: {
     return `'${sanitized}'`;
   };
 
-  const toRow = (r: typeof inserts[0]) =>
-    `(${r.faturamentoUnificadoId},${params.estabelecimentoId},${esc(r.contaNumero)},${esc(r.numeroGuia)},${esc(r.pacienteNome)},${esc(r.convenio)},${r.convenioId??'NULL'},${esc(r.competencia)},${esc(r.codigoItem)},${esc(r.codigoItemTuss)},${esc(r.descricaoItem)},${esc(r.tipoItem)},${esc(r.origemSistema)},${esc(r.dataExecucao)},${esc((r as any).codigoPrestadorExecutante)},${r.valorFaturado},${r.quantidade},${r.recebimentoId??'NULL'},${r.recebimentoOrigem?esc(r.recebimentoOrigem):'NULL'},${r.valorPago},${r.valorGlosa},${esc(r.codigoGlosa)},${esc(r.motivoGlosa)},${esc(r.statusConciliacao)},${r.metodoConciliacao?esc(r.metodoConciliacao):'NULL'},${r.diferenca},${r.percentualDiferenca},${tolerancia},NOW())`;
+  const toRow = (r: any) =>
+    `(${sn(r.faturamentoUnificadoId)},${params.estabelecimentoId},${esc(r.contaNumero)},${esc(r.numeroGuia)},${esc(r.pacienteNome)},${esc(r.convenio)},${r.convenioId??'NULL'},${esc(r.competencia)},${esc(r.codigoItem)},${esc(r.codigoItemTuss)},${esc(r.descricaoItem)},${esc(r.tipoItem)},${esc(r.origemSistema)},${esc(r.dataExecucao)},${esc(r.codigoPrestadorExecutante)},${sn(r.valorFaturado)},${sn(r.quantidade)},${r.recebimentoId??'NULL'},${r.recebimentoOrigem?esc(r.recebimentoOrigem):'NULL'},${sn(r.valorPago)},${sn(r.valorGlosa)},${esc(r.codigoGlosa)},${esc(r.motivoGlosa)},${esc(r.statusConciliacao)},${r.metodoConciliacao?esc(r.metodoConciliacao):'NULL'},${sn(r.diferenca)},${sn(r.percentualDiferenca)},${tolerancia},NOW())`;
 
   const INSERT_COLS = `(faturamentoUnificadoId,estabelecimentoId,contaNumero,numeroGuia,pacienteNome,convenio,convenioId,competencia,codigoItem,codigoItemTuss,descricaoItem,tipoItem,origemSistema,dataExecucao,codigoPrestadorExecutante,valorFaturado,quantidade,recebimentoId,recebimentoOrigem,valorPago,valorGlosa,codigoGlosa,motivoGlosa,statusConciliacao,metodoConciliacao,diferenca,percentualDiferenca,toleranciaUsada,criadoEm)`;
 
@@ -1624,7 +1186,7 @@ export async function executarConciliacaoAutomatica(params: {
             try {
               await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${toRow(r)}`));
             } catch (e: any) {
-              console.error(`[Conciliacao] Erro id=${r.faturamentoUnificadoId}: ${e.message?.substring(0, 80)}`);
+              console.error(`[Conciliacao] Erro id=${r.faturamentoUnificadoId}: ${e.message}`); if(!_firstErrLogged) { _firstErrLogged = true; console.error('[Conciliacao] SQL:', toRow(r).substring(0, 500)); };
             }
           }
         }
@@ -2104,11 +1666,17 @@ export async function itensConciliadosPorGuia(params: {
   if (!db) throw new Error("Database não disponível");
 
   let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
-  if (params.numeroGuia) {
-    whereClause += ` AND ca.numeroGuia = '${params.numeroGuia.replace(/'/g, "''")}'`;
-  }
-  if (params.contaNumero) {
-    whereClause += ` AND ca.contaNumero = '${params.contaNumero.replace(/'/g, "''")}'`;
+  if (params.numeroGuia && params.contaNumero && params.numeroGuia === params.contaNumero) {
+    // When both are the same (from fato_conciliacao_guias), match either field
+    const guiaEsc = params.numeroGuia.replace(/'/g, "''");
+    whereClause += ` AND (ca.numeroGuia = '${guiaEsc}' OR ca.contaNumero = '${guiaEsc}')`;
+  } else {
+    if (params.numeroGuia) {
+      whereClause += ` AND ca.numeroGuia = '${params.numeroGuia.replace(/'/g, "''")}'`;
+    }
+    if (params.contaNumero) {
+      whereClause += ` AND ca.contaNumero = '${params.contaNumero.replace(/'/g, "''")}'`;
+    }
   }
 
   const query = `
@@ -2313,6 +1881,118 @@ function encontrarMelhorMatch(
   }
 
   return melhor;
+}
+
+// ============================================================
+// VINCULAÇÃO MANUAL DE ITENS
+// ============================================================
+
+/**
+ * Lista sobras (itens do demonstrativo que não foram conciliados) para uma guia
+ */
+export async function listarSobrasPorGuia(params: {
+  estabelecimentoId: number;
+  numeroGuia: string;
+}): Promise<any[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  console.log('--- listarSobrasPorGuia CHAMADO ---', params);
+
+  const query = `
+    SELECT re.id, re.numero_guia as numeroGuia, re.item as codigoItem, 
+           re.item_desc as descricaoItem, re.valor_pagamento as valorPago, 
+           re.valor_informado as valorInformado, re.quantidade, re.situacao_item as situacao
+    FROM recebimentos_excel re
+    LEFT JOIN conciliados_automatico ca ON ca.recebimentoId = re.id
+    WHERE re.numero_guia = '${params.numeroGuia.replace(/'/g, "''")}' 
+      AND re.estabelecimentoId = ${params.estabelecimentoId}
+      AND ca.id IS NULL
+    ORDER BY CAST(re.valor_pagamento AS DECIMAL(10,2)) DESC
+  `;
+
+  console.log('Query executada:', query);
+  const [rows] = await db.execute(sql.raw(query));
+  console.log('Resultados sobras:', (rows as any[]).length);
+  return rows as unknown as any[];
+}
+
+/**
+ * Vincular manualmente um item da conciliados_automatico a um item de recebimentos_excel
+ */
+export async function vincularItemManual(params: {
+  estabelecimentoId: number;
+  conciliadoId: number;
+  recebimentoId: number;
+  criarRegraDePara?: boolean;
+}): Promise<{ sucesso: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  // 1. Buscar detalhes do item conciliado e do recebimento
+  const [concRows] = await db.execute(sql.raw(`SELECT * FROM conciliados_automatico WHERE id = ${params.conciliadoId} AND estabelecimentoId = ${params.estabelecimentoId}`));
+  const conc = (concRows as any[])[0];
+  if (!conc) throw new Error("Item conciliado não encontrado");
+
+  const [recRows] = await db.execute(sql.raw(`SELECT * FROM recebimentos_excel WHERE id = ${params.recebimentoId} AND estabelecimentoId = ${params.estabelecimentoId}`));
+  const rec = (recRows as any[])[0];
+  if (!rec) throw new Error("Item recebimento não encontrado");
+
+  // 2. Calcular novos valores
+  const valorFaturado = Number(conc.valorFaturado) || 0;
+  const valorRecebido = Math.min(valorFaturado, Number(rec.valor_pagamento) || 0);
+  const diferenca = valorFaturado - valorRecebido;
+  const pctDif = valorFaturado > 0 ? (diferenca / valorFaturado) * 100 : 0;
+  
+  // Status
+  const novoStatus = pctDif <= 1 ? 'conciliado' : 'divergente';
+
+  // 3. Atualizar conciliados_automatico
+  await db.execute(sql.raw(`
+    UPDATE conciliados_automatico
+    SET recebimentoId = ${rec.id},
+        recebimentoOrigem = 'excel',
+        valorPago = ${valorRecebido},
+        valorGlosa = CASE WHEN ${diferenca} > 0 THEN ${diferenca} ELSE 0 END,
+        diferenca = ${diferenca},
+        percentualDiferenca = ${pctDif},
+        statusConciliacao = '${novoStatus}',
+        metodoConciliacao = 'manual',
+        codigoGlosa = NULL,
+        motivoGlosa = NULL,
+        pacienteNome = COALESCE(pacienteNome, '${(rec.nome_beneficiario || '').replace(/'/g, "''")}')
+    WHERE id = ${conc.id}
+  `));
+
+  // 4. Criar regra De-Para se solicitado
+  if (params.criarRegraDePara && conc.convenioId && conc.codigoItem && rec.item) {
+    const codHosp = conc.codigoItem;
+    const codConv = rec.item;
+    
+    const [exist] = await db.execute(sql.raw(`
+      SELECT id FROM vinculacao_codigos 
+      WHERE estabelecimentoId = ${params.estabelecimentoId} 
+        AND convenioId = ${conc.convenioId} 
+        AND codigoHospital = '${codHosp}'
+    `));
+    
+    if (!(exist as any[])[0]) {
+      await db.execute(sql.raw(`
+        INSERT INTO vinculacao_codigos (estabelecimentoId, convenioId, codigoHospital, codigoConvenio, ativo)
+        VALUES (${params.estabelecimentoId}, ${conc.convenioId}, '${codHosp}', '${codConv}', 'sim')
+      `));
+    } else {
+      await db.execute(sql.raw(`
+        UPDATE vinculacao_codigos 
+        SET codigoConvenio = '${codConv}', ativo = 'sim'
+        WHERE estabelecimentoId = ${params.estabelecimentoId} 
+          AND convenioId = ${conc.convenioId} 
+          AND codigoHospital = '${codHosp}'
+      `));
+    }
+  }
+
+  return { sucesso: true };
 }
 
 

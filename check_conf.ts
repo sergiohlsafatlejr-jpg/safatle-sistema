@@ -1,0 +1,1 @@
+﻿import "dotenv/config"; import { getDb } from "./server/db.js"; import { sql } from "drizzle-orm"; async function run() { const db = await getDb(); const configs = await db.execute(sql`SELECT id, tipoDados, conexaoConfig FROM query_configuracoes WHERE id IN (103, 104)`); console.log(configs[0]); process.exit(0); } run();

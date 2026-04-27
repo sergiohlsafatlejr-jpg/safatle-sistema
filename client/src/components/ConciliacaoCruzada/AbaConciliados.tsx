@@ -1,7 +1,7 @@
 import { 
   ArrowLeft, FileText, Ban, CheckSquare, Undo2, Loader2, 
   CheckCircle2, AlertCircle, XCircle, ExternalLink, DollarSign, 
-  Download, ListChecks, Eye, ChevronRight 
+  Download, ListChecks, Eye, ChevronRight, Link2
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface AbaConciliadosProps {
   guiaConciliadaSelecionada: any;
@@ -50,6 +54,47 @@ export function AbaConciliados({
   formatarMoeda, formatarCompetencia, formatDateBR,
   getStatusBadge, getMetodoBadge, isTerceiro
 }: AbaConciliadosProps) {
+  // Estados para Vinculação Manual
+  const [modalVinculacaoAberto, setModalVinculacaoAberto] = useState(false);
+  const [conciliadoSelecionado, setConciliadoSelecionado] = useState<number | null>(null);
+  const [sobraSelecionada, setSobraSelecionada] = useState<number | null>(null);
+  const [criarRegraDePara, setCriarRegraDePara] = useState(true);
+
+  const utils = trpc.useUtils();
+
+  const { data: sobrasGuia, isLoading: isLoadingSobras } = trpc.faturamentoUnificado.listarSobrasPorGuia.useQuery(
+    { 
+      estabelecimentoId, 
+      numeroGuia: guiaConciliadaSelecionada?.guia || guiaConciliadaSelecionada?.numeroGuia || guiaConciliadaSelecionada?.contaNumero || '' 
+    },
+    { enabled: !!guiaConciliadaSelecionada && modalVinculacaoAberto }
+  );
+
+  const vincularMut = trpc.faturamentoUnificado.vincularItemManual.useMutation({
+    onSuccess: () => {
+      toast.success("Item vinculado com sucesso!");
+      utils.faturamentoUnificado.itensConciliadosPorGuia.invalidate();
+      utils.faturamentoUnificado.listarSobrasPorGuia.invalidate();
+      utils.faturamentoUnificado.resumoConciliadosPorGuia.invalidate();
+      setConciliadoSelecionado(null);
+      setSobraSelecionada(null);
+    },
+    onError: (err) => toast.error(err.message || "Erro ao vincular item")
+  });
+
+  const handleVincular = () => {
+    if (!conciliadoSelecionado || !sobraSelecionada) {
+      toast.error("Selecione um item do faturamento e uma sobra do demonstrativo.");
+      return;
+    }
+    vincularMut.mutate({
+      estabelecimentoId,
+      conciliadoId: conciliadoSelecionado,
+      recebimentoId: sobraSelecionada,
+      criarRegraDePara
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Se tem guia selecionada, mostra tela de detalhes */}
@@ -160,6 +205,22 @@ export function AbaConciliados({
                         </Button>
                       )}
                     </>
+                  )}
+                  {/* Botão vincular manual */}
+                  {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
+                      onClick={() => {
+                        setConciliadoSelecionado(null);
+                        setSobraSelecionada(null);
+                        setModalVinculacaoAberto(true);
+                      }}
+                    >
+                      <Link2 className="w-4 h-4 mr-1" />
+                      Vincular Sobras Manualmente
+                    </Button>
                   )}
                   {/* Botão reverter glosa */}
                   {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'glosado') && (
@@ -537,6 +598,113 @@ export function AbaConciliados({
           </Card>
         </>
       )}
+      {/* MODAL VINCULAÇÃO MANUAL */}
+      <Dialog open={modalVinculacaoAberto} onOpenChange={setModalVinculacaoAberto}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Vincular Itens Manualmente</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto py-4">
+            <div className="grid grid-cols-2 gap-6 h-full">
+              
+              {/* Lado Esquerdo: Faturamento (Não Recebidos) */}
+              <div className="border rounded-md p-4 flex flex-col gap-4 bg-muted/20">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-red-500" />
+                  Itens Pendentes do Faturamento
+                </h3>
+                <div className="overflow-y-auto flex-1 pr-2 space-y-2 max-h-[500px]">
+                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido').map((item: any) => (
+                    <div 
+                      key={item.id}
+                      onClick={() => setConciliadoSelecionado(item.id)}
+                      className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                        conciliadoSelecionado === item.id 
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500' 
+                          : 'border-border hover:border-blue-300 bg-background'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
+                        <span className="font-bold text-red-600">{formatarMoeda(Number(item.valorFaturado))}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{item.descricaoItem}</p>
+                      <div className="mt-2 text-xs flex gap-3">
+                        <span>Qtd: {item.quantidade}</span>
+                        <span>Data: {formatDateBR(item.dataExecucao)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido').length === 0 && (
+                    <div className="text-center p-8 text-muted-foreground text-sm">Nenhum item pendente no faturamento.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lado Direito: Sobras do Demonstrativo */}
+              <div className="border rounded-md p-4 flex flex-col gap-4 bg-muted/20">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-green-500" />
+                  Sobras do Demonstrativo
+                </h3>
+                <div className="overflow-y-auto flex-1 pr-2 space-y-2 max-h-[500px]">
+                  {isLoadingSobras ? (
+                    <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                  ) : sobrasGuia && sobrasGuia.length > 0 ? (
+                    sobrasGuia.map((item: any) => (
+                      <div 
+                        key={item.id}
+                        onClick={() => setSobraSelecionada(item.id)}
+                        className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                          sobraSelecionada === item.id 
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500' 
+                            : 'border-border hover:border-blue-300 bg-background'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
+                          <span className="font-bold text-green-600">{formatarMoeda(Number(item.valorPago))}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{item.descricaoItem}</p>
+                        <div className="mt-2 text-xs flex gap-3">
+                          <span>Qtd: {item.quantidade}</span>
+                          {Number(item.valorInformado) > 0 && <span>Informado: {formatarMoeda(Number(item.valorInformado))}</span>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center p-8 text-muted-foreground text-sm">Nenhuma sobra disponível neste demonstrativo.</div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+          <DialogFooter className="flex items-center justify-between mt-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="criarRegra" 
+                checked={criarRegraDePara} 
+                onCheckedChange={(c) => setCriarRegraDePara(c as boolean)} 
+              />
+              <Label htmlFor="criarRegra" className="text-sm cursor-pointer">
+                Criar regra automática "De-Para" para o futuro
+              </Label>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setModalVinculacaoAberto(false)}>Cancelar</Button>
+              <Button 
+                disabled={!conciliadoSelecionado || !sobraSelecionada || vincularMut.isPending}
+                onClick={handleVincular}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {vincularMut.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
+                Vincular Itens
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

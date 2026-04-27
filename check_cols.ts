@@ -1,0 +1,1 @@
+﻿import "dotenv/config"; import { getDb } from "./server/db.js"; import { sql } from "drizzle-orm"; async function run() { const db = await getDb(); const [res1] = await db.execute(sql`SHOW COLUMNS FROM tasy_protocolo_bi`); const [res2] = await db.execute(sql`SHOW COLUMNS FROM tasy_pagamentos_bi`); console.log(res2); process.exit(0); } run();

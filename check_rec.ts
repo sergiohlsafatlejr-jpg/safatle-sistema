@@ -1,0 +1,1 @@
+﻿import "dotenv/config"; import { getDb } from "./server/db.js"; import { sql } from "drizzle-orm"; async function run() { const db = await getDb(); try { const [res] = await db.execute(sql`SHOW CREATE TABLE recebimento_itens`); console.log(res[0]["Create Table"]); } catch(e) { console.log(e.message); } process.exit(0); } run();

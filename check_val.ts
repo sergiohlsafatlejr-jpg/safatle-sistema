@@ -1,0 +1,1 @@
+﻿import { parse } from "csv-parse"; import fs from "fs"; const parser = fs.createReadStream("C:/Users/sergi/Downloads/faturamento_tiss_20260417_113844.csv").pipe(parse({columns: true, skip_empty_lines: true, cast: (value) => value === "" ? null : value})); let count = 0; parser.on("data", row => { if(count === 0) { console.log(row.nome_prof); count++; } });

@@ -16,7 +16,12 @@ import {
   Gavel,
   Activity,
   Users,
+  Calendar,
+  Building2,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { MetricCard } from "@/components/bi/MetricCard";
 import { BIFilters } from "@/components/bi/BIFilters";
 import { ConvenioBarChart, TiposPieChart, EvolucaoMensalChart } from "@/components/bi/BICharts";
@@ -492,10 +497,6 @@ export default function RelatoriosBI() {
                   <BarChart3 className="h-3.5 w-3.5" />
                   Gráficos
                 </TabsTrigger>
-                <TabsTrigger value="tabelas" className="gap-1.5 text-xs">
-                  <TableIcon className="h-3.5 w-3.5" />
-                  Tabelas
-                </TabsTrigger>
                 <TabsTrigger value="evolucao" className="gap-1.5 text-xs">
                   <TrendingUp className="h-3.5 w-3.5" />
                   Evolução
@@ -530,13 +531,6 @@ export default function RelatoriosBI() {
                   )}
                   {activeMetrics.has("glosado") && <TopGlosasChart data={motivosGlosaData} />}
                 </div>
-              </TabsContent>
-
-              <TabsContent value="tabelas" className="space-y-6">
-                <TicketMedioTable data={conveniosData} />
-                <ConvenioTable data={conveniosData} />
-                <GlosaTable data={motivosGlosaData} />
-                <DescricaoTable data={descricaoData} />
               </TabsContent>
 
               <TabsContent value="evolucao" className="space-y-6">
@@ -617,6 +611,119 @@ export default function RelatoriosBI() {
               </TabsContent>
 
             </Tabs>
+
+{/* Tabela de Valores por Competência e Convênio - Estilo Escuro Moderno */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-6 mb-6">
+              <Card className="border border-border bg-card/40 backdrop-blur-md rounded-xl overflow-hidden flex flex-col">
+                <CardHeader className="border-b border-border p-4 bg-gradient-to-r from-blue-500/10 to-transparent">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-400" /> Valores por Competência
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                  <ScrollArea className="h-[320px]">
+                    <Table>
+                      <TableHeader className="bg-muted/50 sticky top-0 backdrop-blur-sm z-10 border-b">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="font-semibold text-xs h-9">Competência</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">Faturado</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">VL Recebido</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9 text-rose-400">Valor Glosado</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">A Receber</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">% Glosa</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {mesesData.map((r, i) => {
+                          const aReceber = (r.faturado || 0) - (r.recebido || 0) - (r.glosado || 0);
+                          const pctGlosa = r.faturado ? ((r.glosado || 0) / r.faturado) * 100 : 0;
+                          return (
+                            <TableRow key={i} className="hover:bg-muted/30 transition-colors border-border/50">
+                              <TableCell className="text-xs py-2.5 font-medium">{r.mes}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-indigo-400 font-medium">{fmtCurrency(r.faturado || 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-emerald-400 font-medium">{fmtCurrency(r.recebido || 0)}</TableCell>
+                              <TableCell className={`text-right text-xs py-2.5 font-bold ${(r.glosado || 0) > 0 ? 'bg-rose-500/10 text-rose-500' : 'text-muted-foreground'}`}>{fmtCurrency(r.glosado || 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-amber-400 font-medium">{fmtCurrency(aReceber > 0 ? aReceber : 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 font-medium">{pctGlosa.toFixed(2)}%</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                  <div className="border-t border-border bg-muted/20 p-3">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>Total</span>
+                      <div className="flex gap-4">
+                        <span className="text-indigo-400">{fmtCurrency(metricas.faturado)}</span>
+                        <span className="text-emerald-400">{fmtCurrency(metricas.recebido)}</span>
+                        <span className="text-rose-500">{fmtCurrency(metricas.glosado)}</span>
+                        <span className="text-amber-400">{fmtCurrency(metricas.faturado - metricas.recebido - metricas.glosado)}</span>
+                        <span>{metricas.percentualGlosa}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border bg-card/40 backdrop-blur-md rounded-xl overflow-hidden flex flex-col">
+                <CardHeader className="border-b border-border p-4 bg-gradient-to-r from-emerald-500/10 to-transparent">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-emerald-400" /> Valores por Convênio
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                  <ScrollArea className="h-[320px]">
+                    <Table>
+                      <TableHeader className="bg-muted/50 sticky top-0 backdrop-blur-sm z-10 border-b">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="font-semibold text-xs h-9">Convênio</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">Faturado</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">VL Recebido</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9 text-rose-400">Valor Glosado</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">A Receber</TableHead>
+                          <TableHead className="text-right font-semibold text-xs h-9">% Glosa</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {conveniosData.sort((a, b) => b.valorFaturado - a.valorFaturado).map((r, i) => {
+                          const aReceber = (r.valorFaturado || 0) - (r.valorRecebido || 0) - (r.valorGlosado || 0);
+                          const pctGlosa = r.valorFaturado ? ((r.valorGlosado || 0) / r.valorFaturado) * 100 : 0;
+                          return (
+                            <TableRow key={i} className="hover:bg-muted/30 transition-colors border-border/50">
+                              <TableCell className="text-xs py-2.5 font-medium truncate max-w-[150px]" title={r.chave}>{r.chave}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-indigo-400 font-medium">{fmtCurrency(r.valorFaturado || 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-emerald-400 font-medium">{fmtCurrency(r.valorRecebido || 0)}</TableCell>
+                              <TableCell className={`text-right text-xs py-2.5 font-bold ${(r.valorGlosado || 0) > 0 ? 'bg-rose-500/10 text-rose-500' : 'text-muted-foreground'}`}>{fmtCurrency(r.valorGlosado || 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 text-amber-400 font-medium">{fmtCurrency(aReceber > 0 ? aReceber : 0)}</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 font-medium">{pctGlosa.toFixed(2)}%</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                  <div className="border-t border-border bg-muted/20 p-3">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>Total</span>
+                      <div className="flex gap-4">
+                        <span className="text-indigo-400">{fmtCurrency(metricas.faturado)}</span>
+                        <span className="text-emerald-400">{fmtCurrency(metricas.recebido)}</span>
+                        <span className="text-rose-500">{fmtCurrency(metricas.glosado)}</span>
+                        <span className="text-amber-400">{fmtCurrency(metricas.faturado - metricas.recebido - metricas.glosado)}</span>
+                        <span>{metricas.percentualGlosa}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <TicketMedioTable data={conveniosData} />
+              <GlosaTable data={motivosGlosaData} />
+              <DescricaoTable data={descricaoData} />
+            </div>
+
+            
           </>
         )}
       </div>
