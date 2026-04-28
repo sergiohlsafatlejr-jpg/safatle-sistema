@@ -56,7 +56,7 @@ export function AbaConciliados({
 }: AbaConciliadosProps) {
   // Estados para Vinculação Manual
   const [modalVinculacaoAberto, setModalVinculacaoAberto] = useState(false);
-  const [conciliadoSelecionado, setConciliadoSelecionado] = useState<number | null>(null);
+  const [conciliadosSelecionados, setConciliadosSelecionados] = useState<Set<number>>(new Set());
   const [sobraSelecionada, setSobraSelecionada] = useState<number | null>(null);
   const [criarRegraDePara, setCriarRegraDePara] = useState(true);
 
@@ -71,25 +71,25 @@ export function AbaConciliados({
   );
 
   const vincularMut = trpc.faturamentoUnificado.vincularItemManual.useMutation({
-    onSuccess: () => {
-      toast.success("Item vinculado com sucesso!");
+    onSuccess: (data) => {
+      toast.success(`${data.vinculados || 1} item(ns) vinculado(s) com sucesso!`);
       utils.faturamentoUnificado.itensConciliadosPorGuia.invalidate();
       utils.faturamentoUnificado.listarSobrasPorGuia.invalidate();
       utils.faturamentoUnificado.resumoConciliadosPorGuia.invalidate();
-      setConciliadoSelecionado(null);
+      setConciliadosSelecionados(new Set());
       setSobraSelecionada(null);
     },
     onError: (err) => toast.error(err.message || "Erro ao vincular item")
   });
 
   const handleVincular = () => {
-    if (!conciliadoSelecionado || !sobraSelecionada) {
-      toast.error("Selecione um item do faturamento e uma sobra do demonstrativo.");
+    if (conciliadosSelecionados.size === 0 || !sobraSelecionada) {
+      toast.error("Selecione pelo menos um item do faturamento e uma sobra do demonstrativo.");
       return;
     }
     vincularMut.mutate({
       estabelecimentoId,
-      conciliadoId: conciliadoSelecionado,
+      conciliadoIds: Array.from(conciliadosSelecionados),
       recebimentoId: sobraSelecionada,
       criarRegraDePara
     });
@@ -156,15 +156,32 @@ export function AbaConciliados({
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-2">
-              <CardContent className="p-3 text-center">
-                <p className="text-xs text-muted-foreground">Status</p>
-                <div className="mt-1">{getStatusBadge(guiaConciliadaSelecionada.statusGuia)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {guiaConciliadaSelecionada.totalItens} itens
-                </p>
-              </CardContent>
-            </Card>
+            {(() => {
+              const total = Number(guiaConciliadaSelecionada.totalItens) || 0;
+              const conc = Number(guiaConciliadaSelecionada.itensConciliados) || 0;
+              const glos = Number(guiaConciliadaSelecionada.itensGlosados) || 0;
+              const terc = Number(guiaConciliadaSelecionada.itensTerceiros) || 0;
+              const vinculados = conc + glos;
+              const itensRelevantes = total - terc;
+              const todosVinculados = itensRelevantes > 0 && vinculados >= itensRelevantes;
+              return (
+                <Card className={`border-2 ${todosVinculados ? 'border-green-400 bg-green-50/50 dark:bg-green-950/30' : ''}`}>
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <div className="mt-1">{getStatusBadge(guiaConciliadaSelecionada.statusGuia)}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {total} itens
+                    </p>
+                    {itensRelevantes > 0 && (
+                      <p className={`text-xs font-medium mt-1 ${todosVinculados ? 'text-green-600' : 'text-orange-600'}`}>
+                        {vinculados}/{itensRelevantes} vinculados
+                        {glos > 0 && <span className="text-purple-500 ml-1">({glos} c/ glosa)</span>}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </div>
 
           {/* Tabela de itens detalhados */}
@@ -213,7 +230,7 @@ export function AbaConciliados({
                       variant="outline"
                       className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
                       onClick={() => {
-                        setConciliadoSelecionado(null);
+                        setConciliadosSelecionados(new Set());
                         setSobraSelecionada(null);
                         setModalVinculacaoAberto(true);
                       }}
@@ -563,7 +580,19 @@ export function AbaConciliados({
                             <td className={`p-3 text-right font-medium ${Number(guia.diferenca) > 0 ? 'text-red-600' : Number(guia.diferenca) < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
                               {Number(guia.diferenca) !== 0 ? formatarMoeda(Number(guia.diferenca)) : '-'}
                             </td>
-                            <td className="p-3 text-center">{getStatusBadge(guia.statusGuia)}</td>
+                            <td className="p-3 text-center">
+                              {getStatusBadge(guia.statusGuia)}
+                              {(() => {
+                                const total = Number(guia.totalItens) || 0;
+                                const vinc = (Number(guia.itensConciliados) || 0) + (Number(guia.itensGlosados) || 0);
+                                const terc = Number(guia.itensTerceiros) || 0;
+                                const rel = total - terc;
+                                if (rel > 0) {
+                                  return <p className={`text-[10px] mt-0.5 ${vinc >= rel ? 'text-green-600 font-semibold' : 'text-orange-500'}`}>{vinc}/{rel}</p>;
+                                }
+                                return null;
+                              })()}
+                            </td>
                             <td className="p-3 text-center">
                               <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setGuiaConciliadaSelecionada(guia); }}>
                                 <Eye className="w-4 h-4 mr-1" />
@@ -614,22 +643,48 @@ export function AbaConciliados({
                   Itens Pendentes do Faturamento
                 </h3>
                 <div className="overflow-y-auto flex-1 pr-2 space-y-2 max-h-[500px]">
+                  {/* Selecionar/Desmarcar Todos */}
+                  {(() => {
+                    const pendentes = itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido') || [];
+                    if (pendentes.length <= 1) return null;
+                    const todosSelecionados = pendentes.length > 0 && pendentes.every((i: any) => conciliadosSelecionados.has(i.id));
+                    return (
+                      <div className="flex items-center gap-2 pb-2 border-b mb-1">
+                        <Checkbox
+                          checked={todosSelecionados}
+                          onCheckedChange={(checked) => {
+                            const novos = new Set(conciliadosSelecionados);
+                            pendentes.forEach((i: any) => { if (checked) novos.add(i.id); else novos.delete(i.id); });
+                            setConciliadosSelecionados(novos);
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">Selecionar todos ({pendentes.length} itens)</span>
+                      </div>
+                    );
+                  })()}
                   {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido').map((item: any) => (
                     <div 
                       key={item.id}
-                      onClick={() => setConciliadoSelecionado(item.id)}
+                      onClick={() => {
+                        const novos = new Set(conciliadosSelecionados);
+                        if (novos.has(item.id)) novos.delete(item.id); else novos.add(item.id);
+                        setConciliadosSelecionados(novos);
+                      }}
                       className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                        conciliadoSelecionado === item.id 
+                        conciliadosSelecionados.has(item.id)
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500' 
                           : 'border-border hover:border-blue-300 bg-background'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={conciliadosSelecionados.has(item.id)} tabIndex={-1} />
+                          <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
+                        </div>
                         <span className="font-bold text-red-600">{formatarMoeda(Number(item.valorFaturado))}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{item.descricaoItem}</p>
-                      <div className="mt-2 text-xs flex gap-3">
+                      <p className="text-xs text-muted-foreground line-clamp-2 ml-6">{item.descricaoItem}</p>
+                      <div className="mt-2 text-xs flex gap-3 ml-6">
                         <span>Qtd: {item.quantidade}</span>
                         <span>Data: {formatDateBR(item.dataExecucao)}</span>
                       </div>
@@ -694,12 +749,12 @@ export function AbaConciliados({
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setModalVinculacaoAberto(false)}>Cancelar</Button>
               <Button 
-                disabled={!conciliadoSelecionado || !sobraSelecionada || vincularMut.isPending}
+                disabled={conciliadosSelecionados.size === 0 || !sobraSelecionada || vincularMut.isPending}
                 onClick={handleVincular}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {vincularMut.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
-                Vincular Itens
+                Vincular {conciliadosSelecionados.size > 1 ? `${conciliadosSelecionados.size} Itens` : 'Item'}
               </Button>
             </div>
           </DialogFooter>

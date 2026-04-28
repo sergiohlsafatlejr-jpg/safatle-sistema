@@ -782,7 +782,8 @@ export async function guiasGlosadasDisponiveis(params: {
     whereClause += ` AND ca.numeroGuia IN (SELECT DISTINCT d2.numero_guia FROM demonstrativo d2 WHERE d2.estabelecimentoId = ${params.estabelecimentoId} AND d2.lote_prestador = '${lr}')`;
   }
 
-  // Buscar todas as guias que têm pelo menos um item glosado
+  // Buscar somente guias 100% conciliadas (todos os itens com status 'conciliado')
+  // Essas guias estão prontas para gerar XML de reimportação no sistema de gestão
   // OTIMIZAÇÃO: Sem JOIN com faturamento_unificado (1.8M rows)
   const [result] = await db.execute(sql.raw(`
     SELECT 
@@ -792,10 +793,11 @@ export async function guiasGlosadasDisponiveis(params: {
       ca.competencia,
       MAX(ca.pacienteNome) as pacienteNome,
       COUNT(*) as totalItens,
+      SUM(CASE WHEN ca.statusConciliacao = 'conciliado' THEN 1 ELSE 0 END) as totalItensConciliados,
       SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN 1 ELSE 0 END) as totalItensGlosados,
       SUM(ca.valorFaturado) as valorFaturado,
       SUM(ca.valorPago) as valorPago,
-      SUM(CASE WHEN ca.statusConciliacao = 'glosado' THEN ca.valorGlosa ELSE 0 END) as valorGlosa,
+      SUM(ca.valorGlosa) as valorGlosa,
       MAX(ca.xmlRecursoGerado) as xmlGerado,
       MAX(ca.xmlRecursoData) as xmlGeradoEm,
       MAX(ca.xmlRecursoLoteId) as xmlLoteId,
@@ -803,6 +805,7 @@ export async function guiasGlosadasDisponiveis(params: {
     FROM conciliados_automatico ca
     ${whereClause}
     GROUP BY ca.numeroGuia, ca.convenio, ca.convenioId, ca.competencia, ca.estabelecimentoId
+    HAVING SUM(CASE WHEN ca.statusConciliacao != 'conciliado' THEN 1 ELSE 0 END) = 0
     ORDER BY ca.competencia DESC, ca.numeroGuia
   `));
 

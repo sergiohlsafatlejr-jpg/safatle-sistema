@@ -41,14 +41,14 @@ export function AbaXmlRecurso({
         <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200">
           <CardContent className="p-4 text-center">
             <Ban className="w-6 h-6 mx-auto text-purple-600 mb-1" />
-            <p className="text-xs text-muted-foreground">Total de Guias</p>
+            <p className="text-xs text-muted-foreground">Guias 100% Conciliadas</p>
             <p className="text-2xl font-bold text-purple-600">{guiasGlosadas?.length || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-orange-50 dark:bg-orange-950 border-orange-200">
           <CardContent className="p-4 text-center">
             <FileCode className="w-6 h-6 mx-auto text-orange-600 mb-1" />
-            <p className="text-xs text-muted-foreground">Pendentes XML</p>
+            <p className="text-xs text-muted-foreground">Pendentes Exportação</p>
             <p className="text-2xl font-bold text-orange-600">{guiasGlosadas?.filter((g: any) => !Number(g.xmlGerado)).length || 0}</p>
           </CardContent>
         </Card>
@@ -103,7 +103,7 @@ export function AbaXmlRecurso({
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Ban className="w-5 h-5 text-purple-600" />
-              Guias Disponíveis para XML
+              Guias 100% Conciliadas - Disponíveis para Exportação
             </CardTitle>
             <div className="flex gap-2">
               <Button
@@ -237,8 +237,8 @@ export function AbaXmlRecurso({
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Ban className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma guia conciliada encontrada.</p>
-              <p className="text-sm">Execute a conciliação automática primeiro.</p>
+              <p>Nenhuma guia 100% conciliada encontrada.</p>
+              <p className="text-sm">Execute a conciliação automática e resolva todas as pendências de uma guia para que ela apareça aqui.</p>
             </div>
           )}
         </CardContent>

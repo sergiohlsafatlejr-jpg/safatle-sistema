@@ -1256,11 +1256,11 @@ export async function executarConciliacaoAutomatica(params: {
         COALESCE(numeroGuia, contaNumero) as guia, MAX(pacienteNome),
         COALESCE(SUM(valorFaturado), 0), COALESCE(SUM(valorPago), 0), COALESCE(SUM(valorGlosa), 0), COALESCE(SUM(diferenca), 0),
         CASE
+          WHEN SUM(CASE WHEN statusConciliacao IN ('nao_recebido', 'divergente') THEN 1 ELSE 0 END) = 0 THEN 'conciliado'
           WHEN SUM(CASE WHEN statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
-          WHEN SUM(CASE WHEN statusConciliacao = 'glosado' THEN 1 ELSE 0 END) > 0 THEN 'glosado'
           WHEN SUM(CASE WHEN statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
           WHEN SUM(CASE WHEN statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) = 0 THEN 'terceiro'
-          ELSE 'conciliado'
+          ELSE 'glosado'
         END as statusGuia,
         COUNT(*),
         SUM(CASE WHEN statusConciliacao = 'conciliado' THEN 1 ELSE 0 END),
@@ -2012,20 +2012,27 @@ export async function lotesRetornoDisponiveis(params: {
   if (!db) throw new Error("Database não disponível");
 
   let where = `WHERE d.estabelecimentoId = ${params.estabelecimentoId}`;
-  if (params.competencia) {
-    where += ` AND DATE_FORMAT(d.data_referencia, '%Y-%m') = '${params.competencia.replace(/'/g, "''")}'`;
+  if (params.competencia && params.competencia !== 'todos') {
+    // Usar range de datas em vez de DATE_FORMAT para aproveitar índice
+    const [ano, mes] = params.competencia.split(/[\/\-]/);
+    if (ano && mes) {
+      const dataInicio = `${ano}-${mes.padStart(2, '0')}-01`;
+      const proxMes = Number(mes) === 12 ? `${Number(ano) + 1}-01-01` : `${ano}-${(Number(mes) + 1).toString().padStart(2, '0')}-01`;
+      where += ` AND d.data_referencia >= '${dataInicio}' AND d.data_referencia < '${proxMes}'`;
+    }
   }
   if (params.convenioId) {
     where += ` AND d.convenio_id = ${params.convenioId}`;
   }
 
   const [rows] = await db.execute(sql.raw(
-    `SELECT d.lote_prestador as lote, d.protocolo, COUNT(*) as total
+    `SELECT d.lote_prestador as lote, MAX(d.protocolo) as protocolo, COUNT(*) as total
      FROM demonstrativo d
      ${where}
      AND d.lote_prestador IS NOT NULL AND d.lote_prestador != ''
-     GROUP BY d.lote_prestador, d.protocolo
-     ORDER BY d.lote_prestador DESC`
+     GROUP BY d.lote_prestador
+     ORDER BY d.lote_prestador DESC
+     LIMIT 200`
   ));
   return (rows as unknown as any[]).filter((r: any) => r.lote);
 }
@@ -2041,21 +2048,24 @@ export async function lotesXmlTissDisponiveis(params: {
   const db = await getDb();
   if (!db) throw new Error("Database não disponível");
 
-  let where = `WHERE ft.estabelecimentoId = ${params.estabelecimentoId}`;
-  if (params.competencia) {
-    where += ` AND DATE_FORMAT(ft.data_referencia, '%Y-%m') = '${params.competencia.replace(/'/g, "''")}'`;
+  // Buscar lotes direto do faturamento_unificado usando lotePrestador
+  // que já tem índice por estabelecimentoId
+  let where = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
+  if (params.competencia && params.competencia !== 'todos') {
+    where += ` AND fu.competencia = '${params.competencia.replace(/'/g, "''")}'`;
   }
   if (params.convenioId) {
-    where += ` AND ft.convenioId = ${params.convenioId}`;
+    where += ` AND fu.convenioId = ${params.convenioId}`;
   }
 
   const [rows] = await db.execute(sql.raw(
-    `SELECT ft.numero_lote as lote, COUNT(*) as total
-     FROM staging_faturamento_xml ft
+    `SELECT fu.lotePrestador as lote, COUNT(*) as total
+     FROM faturamento_unificado fu
      ${where}
-     AND ft.numero_lote IS NOT NULL AND ft.numero_lote != ''
-     GROUP BY ft.numero_lote
-     ORDER BY ft.numero_lote DESC`
+     AND fu.lotePrestador IS NOT NULL AND fu.lotePrestador != ''
+     GROUP BY fu.lotePrestador
+     ORDER BY fu.lotePrestador DESC
+     LIMIT 200`
   ));
   return (rows as unknown as any[]).filter((r: any) => r.lote);
 }

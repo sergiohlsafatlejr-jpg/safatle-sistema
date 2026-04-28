@@ -235,6 +235,8 @@ export function executarMatchingMultiFase(
       // Sem match - verificar se terceiro
       let isTerceiro = false;
       const codPrest = baseInsert.codigoPrestadorExecutante;
+      
+      // Regra 1: Código do prestador executante não está nos próprios
       if (codigosProprios.size > 0) {
         if (codPrest && !codigosProprios.has(codPrest)) {
           isTerceiro = true;
@@ -245,6 +247,16 @@ export function executarMatchingMultiFase(
           }
         }
       }
+      
+      // Regra 2: Tipo "P" (Procedimento/Honorário médico) sem match = médico credenciado (terceiro)
+      // Honorários médicos não são recebidos pelo hospital, são pagos diretamente ao médico
+      if (!isTerceiro && baseInsert.tipoItem) {
+        const tipo = String(baseInsert.tipoItem).toUpperCase().trim();
+        if (tipo === 'P' || tipo === 'PROCEDIMENTO' || tipo === 'HONORARIO' || tipo === 'HONORÁRIO') {
+          isTerceiro = true;
+        }
+      }
+      
       if (isTerceiro) {
         inserts.push({
           ...baseInsert, recebimentoId: null, recebimentoOrigem: null,
@@ -358,7 +370,8 @@ export function executarMatchingMultiFase(
       const dif = ins.valorFaturado - somaPago;
       const pct = ins.valorFaturado > 0 ? Math.min(9999.99, (Math.abs(dif) / ins.valorFaturado) * 100) : 0;
       ins.valorPago = somaPago;
-      ins.valorGlosa = somaGlosa;
+      // Glosa = diferença real entre faturado e pago (não acumulada)
+      ins.valorGlosa = dif > 0 ? dif : 0;
       ins.diferenca = dif;
       ins.percentualDiferenca = pct;
       ins.metodoConciliacao = 'agrupamento_recebimentos';
@@ -366,23 +379,28 @@ export function executarMatchingMultiFase(
       ins.statusConciliacao = pct <= tolerancia ? 'conciliado' : 'divergente';
       // Atualizar contadores
       if (oldStatus === 'divergente') resultado.totalDivergentes--;
+      if (oldStatus === 'nao_recebido') resultado.totalNaoRecebidos--;
       if (ins.statusConciliacao === 'conciliado') resultado.totalConciliados++;
       else resultado.totalDivergentes++;
     }
   }
 
   // ==========================================
-  // FASE 4: CONVERTER NÃO RECEBIDOS PARA GLOSA
-  // A pedido do usuário, itens não pagos são marcados
-  // automaticamente como Glosa código 5007.
+  // FASE 4: CONVERTER DIVERGÊNCIAS COM DIFERENÇA PARA GLOSA
+  // Toda divergência com diferença positiva (faturado > pago) é uma glosa.
+  // - Se o demonstrativo já trouxe código de glosa (ex: 1702), mantém.
+  // - Se não tem motivo, atribui código 5007 (glosa automática).
+  // Itens 'nao_recebido' permanecem inalterados.
   // ==========================================
   for (const ins of inserts) {
-    if (ins.statusConciliacao === 'nao_recebido') {
+    if (ins.statusConciliacao === 'divergente' && ins.diferenca > 0) {
       ins.statusConciliacao = 'glosado';
-      ins.valorGlosa = ins.valorFaturado;
-      ins.codigoGlosa = '5007';
-      ins.motivoGlosa = 'Glosa Automática - Não localizado no demonstrativo';
-      resultado.totalNaoRecebidos--;
+      ins.valorGlosa = ins.diferenca;
+      if (!ins.codigoGlosa && !ins.motivoGlosa) {
+        ins.codigoGlosa = '5007';
+        ins.motivoGlosa = 'Glosa Automática - Valor divergente sem motivo no demonstrativo';
+      }
+      resultado.totalDivergentes--;
       resultado.totalGlosados++;
     }
   }

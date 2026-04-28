@@ -392,12 +392,31 @@ export const faturamentoUnificadoRouter = router({
   vincularItemManual: protectedProcedure
     .input(z.object({
       estabelecimentoId: z.number(),
-      conciliadoId: z.number(),
+      conciliadoId: z.number().optional(),
+      conciliadoIds: z.array(z.number()).optional(),
       recebimentoId: z.number(),
       criarRegraDePara: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      return await faturamentoService.vincularItemManual(input);
+      // Suporta tanto conciliadoId único (retrocompatível) quanto conciliadoIds (array)
+      const ids = input.conciliadoIds?.length 
+        ? input.conciliadoIds 
+        : input.conciliadoId 
+          ? [input.conciliadoId] 
+          : [];
+      if (ids.length === 0) throw new Error("Nenhum item selecionado para vincular");
+      
+      let vinculados = 0;
+      for (const conciliadoId of ids) {
+        await faturamentoService.vincularItemManual({
+          estabelecimentoId: input.estabelecimentoId,
+          conciliadoId,
+          recebimentoId: input.recebimentoId,
+          criarRegraDePara: input.criarRegraDePara,
+        });
+        vinculados++;
+      }
+      return { sucesso: true, vinculados };
     }),
 
   // ============================================================
