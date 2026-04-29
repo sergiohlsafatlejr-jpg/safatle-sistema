@@ -1712,6 +1712,60 @@ export async function itensConciliadosPorGuia(params: {
 }
 
 // ============================================================
+// REFRESH PARCIAL DA FATO_CONCILIACAO_GUIAS
+// ============================================================
+
+/**
+ * Atualiza a fato_conciliacao_guias para uma ou mais guias especificas.
+ * Chamada apos operacoes manuais (glosar, reverter, vincular) para manter
+ * os KPIs do header sincronizados com os dados reais.
+ */
+async function atualizarFatoGuia(estabelecimentoId: number, guias: string[]): Promise<void> {
+  if (guias.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const guiasEsc = guias.map(g => `'${g.replace(/'/g, "''")}' `).join(',');
+
+    await db.execute(sql.raw(
+      `DELETE FROM fato_conciliacao_guias WHERE estabelecimentoId = ${estabelecimentoId} AND guia IN (${guiasEsc})`
+    ));
+
+    await db.execute(sql.raw(`
+      INSERT INTO fato_conciliacao_guias (
+        estabelecimentoId, competencia, convenioId, convenio, guia, pacienteNome,
+        valorFaturado, valorPago, valorGlosa, diferenca, statusGuia,
+        totalItens, itensConciliados, itensDivergentes, itensGlosados, itensNaoRecebidos, itensTerceiros
+      )
+      SELECT
+        estabelecimentoId, MAX(competencia), MAX(convenioId), MAX(convenio),
+        COALESCE(numeroGuia, contaNumero) as guia, MAX(pacienteNome),
+        COALESCE(SUM(valorFaturado), 0), COALESCE(SUM(valorPago), 0), COALESCE(SUM(valorGlosa), 0), COALESCE(SUM(diferenca), 0),
+        CASE
+          WHEN SUM(CASE WHEN statusConciliacao IN ('nao_recebido', 'divergente') THEN 1 ELSE 0 END) = 0 THEN 'conciliado'
+          WHEN SUM(CASE WHEN statusConciliacao = 'divergente' THEN 1 ELSE 0 END) > 0 THEN 'divergente'
+          WHEN SUM(CASE WHEN statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END) > 0 THEN 'nao_recebido'
+          WHEN SUM(CASE WHEN statusConciliacao = 'terceiro' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN statusConciliacao != 'terceiro' THEN 1 ELSE 0 END) = 0 THEN 'terceiro'
+          ELSE 'glosado'
+        END as statusGuia,
+        COUNT(*),
+        SUM(CASE WHEN statusConciliacao = 'conciliado' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'divergente' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'glosado' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'nao_recebido' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN statusConciliacao = 'terceiro' THEN 1 ELSE 0 END)
+      FROM conciliados_automatico
+      WHERE estabelecimentoId = ${estabelecimentoId}
+        AND COALESCE(numeroGuia, contaNumero) IN (${guiasEsc})
+      GROUP BY COALESCE(numeroGuia, contaNumero), numeroGuia, contaNumero, estabelecimentoId
+    `));
+  } catch (err: any) {
+    console.error('[atualizarFatoGuia] Erro:', err.message);
+  }
+}
+
+// ============================================================
 // GLOSAR ITENS NÃO RECEBIDOS
 // ============================================================
 
@@ -1749,6 +1803,16 @@ export async function glosarItens(params: {
 
   const [result] = await db.execute(sql.raw(query));
   const atualizados = (result as any)?.affectedRows || 0;
+
+  // Refresh fato_conciliacao_guias para as guias afetadas
+  if (atualizados > 0) {
+    const [guiaRows] = await db.execute(sql.raw(
+      `SELECT DISTINCT COALESCE(numeroGuia, contaNumero) as guia FROM conciliados_automatico WHERE id IN (${ids}) AND estabelecimentoId = ${params.estabelecimentoId}`
+    ));
+    const guias = (guiaRows as any[]).map((r: any) => r.guia).filter(Boolean);
+    await atualizarFatoGuia(params.estabelecimentoId, guias);
+  }
+
   return { atualizados: Number(atualizados) };
 }
 
@@ -1789,6 +1853,13 @@ export async function glosarTodosNaoRecebidosPorGuia(params: {
 
   const [result] = await db.execute(sql.raw(query));
   const atualizados = (result as any)?.affectedRows || 0;
+
+  // Refresh fato_conciliacao_guias para a guia afetada
+  if (atualizados > 0) {
+    const guias = [params.numeroGuia, params.contaNumero].filter(Boolean) as string[];
+    await atualizarFatoGuia(params.estabelecimentoId, guias);
+  }
+
   return { atualizados: Number(atualizados) };
 }
 
@@ -1822,6 +1893,16 @@ export async function reverterGlosa(params: {
 
   const [result] = await db.execute(sql.raw(query));
   const atualizados = (result as any)?.affectedRows || 0;
+
+  // Refresh fato_conciliacao_guias para as guias afetadas
+  if (atualizados > 0) {
+    const [guiaRows] = await db.execute(sql.raw(
+      `SELECT DISTINCT COALESCE(numeroGuia, contaNumero) as guia FROM conciliados_automatico WHERE id IN (${ids}) AND estabelecimentoId = ${params.estabelecimentoId}`
+    ));
+    const guias = (guiaRows as any[]).map((r: any) => r.guia).filter(Boolean);
+    await atualizarFatoGuia(params.estabelecimentoId, guias);
+  }
+
   return { atualizados: Number(atualizados) };
 }
 
@@ -1944,8 +2025,15 @@ export async function vincularItemManual(params: {
   const diferenca = valorFaturado - valorRecebido;
   const pctDif = valorFaturado > 0 ? (diferenca / valorFaturado) * 100 : 0;
   
-  // Status
-  const novoStatus = pctDif <= 1 ? 'conciliado' : 'divergente';
+  // Status: conciliado se diferença <= 1%, glosado se há diferença positiva, senão divergente
+  let novoStatus = 'conciliado';
+  if (pctDif > 1) {
+    novoStatus = diferenca > 0 ? 'glosado' : 'divergente';
+  }
+
+  // Propagar código de glosa do recebimento (se existir)
+  const codigoGlosaRec = rec.codigo_glosa ? `'${String(rec.codigo_glosa).replace(/'/g, "''")}'` : 'NULL';
+  const motivoGlosaRec = rec.erro_tiss ? `'${String(rec.erro_tiss).replace(/'/g, "''")}'` : 'NULL';
 
   // 3. Atualizar conciliados_automatico
   await db.execute(sql.raw(`
@@ -1958,8 +2046,8 @@ export async function vincularItemManual(params: {
         percentualDiferenca = ${pctDif},
         statusConciliacao = '${novoStatus}',
         metodoConciliacao = 'manual',
-        codigoGlosa = NULL,
-        motivoGlosa = NULL,
+        codigoGlosa = ${codigoGlosaRec},
+        motivoGlosa = ${motivoGlosaRec},
         pacienteNome = COALESCE(pacienteNome, '${(rec.nome_beneficiario || '').replace(/'/g, "''")}')
     WHERE id = ${conc.id}
   `));
@@ -1990,6 +2078,12 @@ export async function vincularItemManual(params: {
           AND codigoHospital = '${codHosp}'
       `));
     }
+  }
+
+  // 5. Refresh fato_conciliacao_guias para a guia afetada
+  const guia = conc.numeroGuia || conc.contaNumero;
+  if (guia) {
+    await atualizarFatoGuia(params.estabelecimentoId, [guia]);
   }
 
   return { sucesso: true };
