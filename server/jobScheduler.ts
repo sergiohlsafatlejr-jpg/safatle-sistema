@@ -165,30 +165,11 @@ class JobScheduler {
         conexaoConfig: config.conexaoConfig ? JSON.parse(config.conexaoConfig) : undefined,
       };
 
-      // Executar sincronização baseada no sistema
-      let resultado: any;
-
-      switch (config.sistema) {
-        case "warleine":
-          resultado = await this.syncEngine.sincronizarWarleine(syncConfig);
-          break;
-        case "tasy":
-          console.log(
-            `[JobScheduler] Sincronização TASY não implementada ainda`
-          );
-          return;
-        case "omni":
-          console.log(
-            `[JobScheduler] Sincronização OMNI não implementada ainda`
-          );
-          return;
-        case "gesthor":
-          console.log(
-            `[JobScheduler] Sincronização GESTHOR não implementada ainda`
-          );
-          return;
-        default:
-          throw new Error(`Sistema desconhecido: ${config.sistema}`);
+      // Executar sincronização delegando para o syncEngine
+      const resultado = await this.syncEngine.sincronizar(syncConfig);
+      
+      if (!resultado.sucesso) {
+          throw new Error(resultado.mensagem);
       }
 
       const duration = Date.now() - startTime;

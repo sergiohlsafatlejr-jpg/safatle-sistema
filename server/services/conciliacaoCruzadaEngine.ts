@@ -47,10 +47,11 @@ export function executarMatchingMultiFase(
 
   const inserts: any[] = [];
 
-  // Clone recebimentos com saldo
+  // Clone recebimentos com saldo e flag de utilização para itens glosados
   const recebimentos = itensRecebimento.map((r: any) => ({
     ...r,
-    saldoPago: Number(r.valorPago) || 0
+    saldoPago: Number(r.valorPago) || 0,
+    utilizado: false
   }));
 
   // ==========================================
@@ -88,31 +89,65 @@ export function executarMatchingMultiFase(
     }
   }
 
-  // Helper: encontrar melhor match com saldo disponível
+  // Helper: encontrar melhor match com saldo disponível OU totalmente glosado
   function encontrarMelhorMatch(candidatos: any[] | undefined, valorFaturado: number): any | null {
     if (!candidatos) return null;
-    const disp = candidatos.filter((c: any) => c.saldoPago > 0.01);
+    // Permite itens com saldo pago > 0 OU itens totalmente glosados (valorPago == 0 e não utilizados)
+    const disp = candidatos.filter((c: any) => c.saldoPago > 0.01 || (Number(c.valorPago) === 0 && !c.utilizado));
     if (disp.length === 0) return null;
-    if (disp.length === 1) return disp[0];
+    
+    // Se tivermos itens com saldo e sem saldo, dar preferência para quem tem saldo (se o faturamento for > 0)
+    const dispComSaldo = disp.filter((c: any) => c.saldoPago > 0.01);
+    const dispSemSaldo = disp.filter((c: any) => Number(c.valorPago) === 0 && !c.utilizado);
+
+    let melhores = disp;
+    if (valorFaturado > 0 && dispComSaldo.length > 0) {
+        melhores = dispComSaldo;
+    } else if (valorFaturado === 0 && dispSemSaldo.length > 0) {
+        melhores = dispSemSaldo;
+    }
+
+    if (melhores.length === 1) return melhores[0];
+
     // Preferir match exato de valor
-    const exato = disp.find((c: any) => Math.abs(c.saldoPago - valorFaturado) < 0.01);
+    const exato = melhores.find((c: any) => Math.abs(c.saldoPago - valorFaturado) < 0.01);
     if (exato) return exato;
     // Senão, mais próximo
-    let melhor = disp[0];
+    let melhor = melhores[0];
     let menorDiff = Math.abs(valorFaturado - melhor.saldoPago);
-    for (let i = 1; i < disp.length; i++) {
-      const diff = Math.abs(valorFaturado - disp[i].saldoPago);
-      if (diff < menorDiff) { menorDiff = diff; melhor = disp[i]; }
+    for (let i = 1; i < melhores.length; i++) {
+      const diff = Math.abs(valorFaturado - melhores[i].saldoPago);
+      if (diff < menorDiff) { menorDiff = diff; melhor = melhores[i]; }
     }
     return melhor;
   }
 
-  // Helper: separar codigoGlosa (numérico curto) de motivoGlosa (texto longo)
+  // Helper: separar codigoGlosa (numérico curto) de motivoGlosa (texto longo) e mapear textos comuns para códigos TISS
   function parseGlosa(raw: string | null): { codigoGlosa: string | null; motivoGlosa: string | null } {
     if (!raw) return { codigoGlosa: null, motivoGlosa: null };
     const s = String(raw).trim();
     if (s.length <= 20 && /^\d+$/.test(s)) return { codigoGlosa: s, motivoGlosa: null };
-    return { codigoGlosa: null, motivoGlosa: s };
+    
+    // Dicionário básico de conversão de texto de demonstrativo para código TISS
+    let codigo = null;
+    const txt = s.toUpperCase();
+    if (txt.includes('ASSINATURA DO TITULAR') || txt.includes('RESPONSÁVEL INEXISTENTE') || txt.includes('RESPONSAVEL INEXISTENTE')) {
+      codigo = '1010'; // Assinatura do titular/responsável inexistente
+    } else if (txt.includes('VALOR COBRADO MAIOR') || txt.includes('VALOR INCORRETO')) {
+      codigo = '1004'; // Valor cobrado a maior
+    } else if (txt.includes('FALTA DE AUTORIZAÇÃO') || txt.includes('SEM AUTORIZACAO')) {
+      codigo = '1006'; // Procedimento sem autorização
+    } else if (txt.includes('COBRANÇA INDEVIDA') || txt.includes('COBRANCA INDEVIDA')) {
+      codigo = '1008'; // Cobrança indevida
+    } else if (txt.includes('GUIA NÃO ENVIADA') || txt.includes('GUIA NAO ENVIADA')) {
+      codigo = '1009'; // Guia não enviada
+    } else if (txt.includes('PROCEDIMENTO NÃO COBERTO') || txt.includes('NAO COBERTO')) {
+      codigo = '1012'; // Procedimento não coberto
+    } else {
+      codigo = '5007'; // Código TISS genérico (divergência de valores / glosa automática) quando não identificar
+    }
+    
+    return { codigoGlosa: codigo, motivoGlosa: s };
   }
 
   // ==========================================
@@ -149,13 +184,23 @@ export function executarMatchingMultiFase(
     }
     // 4. Paciente + código
     if (!recMatch && paciente && codigoNorm) {
-      recMatch = encontrarMelhorMatch(indexPacienteCodigo.get(`${paciente}|${codigoNorm}`), valorFaturado);
-      if (recMatch) metodo = 'paciente_codigo';
+      const possivel = encontrarMelhorMatch(indexPacienteCodigo.get(`${paciente}|${codigoNorm}`), valorFaturado);
+      if (possivel) {
+        if (!possivel.numero_guia || possivel.numero_guia === guia || Math.abs(possivel.saldoPago - valorFaturado) < 0.01) {
+          recMatch = possivel;
+          metodo = 'paciente_codigo';
+        }
+      }
     }
     // 5. Carteira + código
     if (!recMatch && carteira && codigoNorm) {
-      recMatch = encontrarMelhorMatch(indexCarteiraCodigo.get(`${carteira}|${codigoNorm}`), valorFaturado);
-      if (recMatch) metodo = 'carteira_codigo';
+      const possivel = encontrarMelhorMatch(indexCarteiraCodigo.get(`${carteira}|${codigoNorm}`), valorFaturado);
+      if (possivel) {
+        if (!possivel.numero_guia || possivel.numero_guia === guia || Math.abs(possivel.saldoPago - valorFaturado) < 0.01) {
+          recMatch = possivel;
+          metodo = 'carteira_codigo';
+        }
+      }
     }
     // 6. Valor exato na mesma guia
     if (!recMatch && guia && valorFaturado > 0) {
@@ -192,6 +237,7 @@ export function executarMatchingMultiFase(
       // Pegar no MÁXIMO o valor faturado (nunca mais!)
       const valorRecebido = Math.min(valorFaturado, recMatch.saldoPago);
       recMatch.saldoPago -= valorRecebido;
+      recMatch.utilizado = true;
 
       const diferenca = valorFaturado - valorRecebido;
       const pctDif = valorFaturado > 0 ? Math.min(9999.99, (Math.abs(diferenca) / valorFaturado) * 100) : 0;
@@ -199,7 +245,8 @@ export function executarMatchingMultiFase(
       // Enriquecer com dados do recebimento
       if (recMatch.nomeBeneficiario) baseInsert.pacienteNome = String(recMatch.nomeBeneficiario);
       if (recMatch.descricaoItem) baseInsert.descricaoItem = String(recMatch.descricaoItem);
-      if (recMatch.tipoLancamento) baseInsert.tipoItem = String(recMatch.tipoLancamento);
+      // Removido: Não sobrescrever o tipo do faturamento (MAT/MED) com o tipo financeiro do demonstrativo (CRÉDITO)
+      // if (recMatch.tipoLancamento) baseInsert.tipoItem = String(recMatch.tipoLancamento);
       const glosa = parseGlosa(recMatch.codigoGlosa);
       baseInsert.codigoGlosa = glosa.codigoGlosa;
       baseInsert.motivoGlosa = glosa.motivoGlosa;
@@ -299,7 +346,7 @@ export function executarMatchingMultiFase(
     const candidatos = indexGuiaCodigo.get(chave);
     if (!candidatos) continue;
 
-    const disp = candidatos.filter((c: any) => c.saldoPago > 0.01);
+    const disp = candidatos.filter((c: any) => c.saldoPago > 0.01 || (Number(c.valorPago) === 0 && !c.utilizado));
     let recAgrupado = disp.find((c: any) => Math.abs((Number(c.quantidade) || 0) - somaQtd) < 0.01);
     if (!recAgrupado) {
       recAgrupado = disp.find((c: any) => somaValor > 0 && Math.abs(c.saldoPago - somaValor) / somaValor <= tolerancia / 100);
@@ -308,6 +355,7 @@ export function executarMatchingMultiFase(
 
     const valorRecTotal = Math.min(recAgrupado.saldoPago, somaValor);
     recAgrupado.saldoPago -= valorRecTotal;
+    recAgrupado.utilizado = true;
     const glosaTotal = Number(recAgrupado.valorGlosa) || 0;
     const glosa = parseGlosa(recAgrupado.codigoGlosa);
 
@@ -350,7 +398,7 @@ export function executarMatchingMultiFase(
     if (!guia || !codigo) continue;
     const cands = indexGuiaCodigo.get(`${guia}|${codigo}`);
     if (!cands) continue;
-    const naoUsados = cands.filter((c: any) => c.saldoPago > 0.01);
+    const naoUsados = cands.filter((c: any) => c.saldoPago > 0.01 || (Number(c.valorPago) === 0 && !c.utilizado));
     if (naoUsados.length === 0) continue;
 
     let somaPago = ins.valorPago;
@@ -366,7 +414,10 @@ export function executarMatchingMultiFase(
     }
 
     if (Math.abs(ins.valorFaturado - somaPago) < Math.abs(ins.valorFaturado - ins.valorPago)) {
-      for (const u of usados) u.rec.saldoPago -= u.add;
+      for (const u of usados) {
+        u.rec.saldoPago -= u.add;
+        u.rec.utilizado = true;
+      }
       const dif = ins.valorFaturado - somaPago;
       const pct = ins.valorFaturado > 0 ? Math.min(9999.99, (Math.abs(dif) / ins.valorFaturado) * 100) : 0;
       ins.valorPago = somaPago;

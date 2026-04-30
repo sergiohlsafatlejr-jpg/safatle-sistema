@@ -15,7 +15,7 @@ async function run() {
     };
     
     // We get the query from DB
-    const connection = await mysql.createConnection("mysql://root:@localhost:3306/safatle_sistema?timezone=Z");
+    const connection = await mysql.createConnection(process.env.DATABASE_URL!);
     const [rows] = await connection.execute("SELECT descricao, querySql FROM query_configuracoes WHERE descricao LIKE '%Pagamento%' AND tipoDados = 'bi_relatorio'");
     const querySql = (rows as any)[0].querySql;
     await connection.end();

@@ -2,7 +2,7 @@
  * Service para popular e manter a tabela faturamento_unificado
  * Unifica dados de duas fontes:
  * - WARLEINE (tabela integ_faturado): dados do faturamento do hospital via banco Warleine
- * - XML_TISS (tabela staging_faturamento_xml): dados dos XMLs enviados aos conv√™nios
+ * - XML_TISS (tabela staging_faturamento_xml): dados dos XMLs enviados aos convÍnios
  */
 
 import { getDb } from "./db";
@@ -11,46 +11,46 @@ import { warleineFaturamentoStaging } from "../drizzle/schema-integracao";
 import { executarMatchingMultiFase } from "./services/conciliacaoCruzadaEngine";
 
 // ============================================================
-// POPULA√á√ÉO A PARTIR DO WARLEINE (integ_faturado)
+// POPULA«√O A PARTIR DO WARLEINE (integ_faturado)
 // ============================================================
 
 /**
  * Popula faturamento_unificado a partir dos dados do integ_faturado (Warleine)
- * para um estabelecimento e compet√™ncia espec√≠ficos.
+ * para um estabelecimento e competÍncia especÌficos.
  * Mapeamento:
- *   integ_faturado._id ‚Üí origemId
- *   'WARLEINE' ‚Üí origemSistema
- *   numconta ‚Üí contaNumero
- *   guiacobra ‚Üí numeroGuia
- *   aihguia ‚Üí numeroGuiaOperadora
- *   protocolo ‚Üí protocolo
- *   numfatura ‚Üí lotePrestador
- *   matricula ‚Üí carteiraBeneficiario
- *   nomeconv ‚Üí convenio
- *   mesprod ‚Üí competencia (convertido de 2025/01 para 2025-01)
- *   nomeprest ‚Üí profissionalExecutante
- *   nomecc ‚Üí setor
- *   tipoproc ‚Üí tipoItem
- *   procdisco ‚Üí codigoItem
- *   codproprio ‚Üí codigoItemTuss
- *   descricao ‚Üí descricaoItem
- *   data ‚Üí dataExecucao
- *   quantidade ‚Üí quantidade
- *   vl_unitario ‚Üí valorUnitario
- *   vl_faturado ‚Üí valorFaturado
+ *   integ_faturado._id ? origemId
+ *   'WARLEINE' ? origemSistema
+ *   numconta ? contaNumero
+ *   guiacobra ? numeroGuia
+ *   aihguia ? numeroGuiaOperadora
+ *   protocolo ? protocolo
+ *   numfatura ? lotePrestador
+ *   matricula ? carteiraBeneficiario
+ *   nomeconv ? convenio
+ *   mesprod ? competencia (convertido de 2025/01 para 2025-01)
+ *   nomeprest ? profissionalExecutante
+ *   nomecc ? setor
+ *   tipoproc ? tipoItem
+ *   procdisco ? codigoItem
+ *   codproprio ? codigoItemTuss
+ *   descricao ? descricaoItem
+ *   data ? dataExecucao
+ *   quantidade ? quantidade
+ *   vl_unitario ? valorUnitario
+ *   vl_faturado ? valorFaturado
  */
 export async function popularDeIntegFaturado(
   estabelecimentoId: number,
   competencia?: string
 ): Promise<{ inseridos: number; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const compFilter = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
   const compWarleineFilter = competencia ? `AND ig.mesprod LIKE '${competencia.replace('-', '/').replace(/'/g, "''")}%'` : '';
 
   // PASSO 1: Deletar APENAS itens com statusConciliacao = 'pendente'
-  // Itens j√° processados (conciliado, divergente, nao_recebido, glosado) s√£o preservados
+  // Itens j· processados (conciliado, divergente, nao_recebido, glosado) s„o preservados
   const deleteQuery = `
     DELETE FROM faturamento_unificado 
     WHERE origemSistema = 'WARLEINE' 
@@ -60,8 +60,8 @@ export async function popularDeIntegFaturado(
   `;
   await db.execute(sql.raw(deleteQuery));
 
-  // PASSO 2: Inserir apenas itens que N√ÉO existem ainda no faturamento_unificado
-  // Usa LEFT JOIN para detectar itens j√° existentes (por origemId + origemSistema)
+  // PASSO 2: Inserir apenas itens que N√O existem ainda no faturamento_unificado
+  // Usa LEFT JOIN para detectar itens j· existentes (por origemId + origemSistema)
   const insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -122,11 +122,11 @@ export async function popularDeIntegFaturado(
 }
 
 // ============================================================
-// POPULA√á√ÉO A PARTIR DO TASY (faturadoTasy) - LEGADO
+// POPULA«√O A PARTIR DO TASY (faturadoTasy) - LEGADO
 // ============================================================
 
 /**
- * @deprecated Use popularDeIntegFaturado() em vez desta fun√ß√£o.
+ * @deprecated Use popularDeIntegFaturado() em vez desta funÁ„o.
  * Mantida para compatibilidade. Popula a partir do faturadoTasy.
  */
 export async function popularDeTasy(
@@ -134,11 +134,11 @@ export async function popularDeTasy(
   competencia?: string
 ): Promise<{ inseridos: number; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const compFilter = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
 
-  // Limpar APENAS registros TASY pendentes (preservar itens j√° processados)
+  // Limpar APENAS registros TASY pendentes (preservar itens j· processados)
   const deleteQuery = `
     DELETE FROM faturamento_unificado 
     WHERE origemSistema = 'TASY' 
@@ -148,7 +148,7 @@ export async function popularDeTasy(
   `;
   await db.execute(sql.raw(deleteQuery));
 
-  // Inserir apenas itens que N√ÉO existem ainda (evitar duplica√ß√£o)
+  // Inserir apenas itens que N√O existem ainda (evitar duplicaÁ„o)
   let insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -213,13 +213,13 @@ export async function popularDeTasy(
 }
 
 // ============================================================
-// CONTAGEM DE DADOS TASY STAGING (j√° populados via importa√ß√£o)
+// CONTAGEM DE DADOS TASY STAGING (j· populados via importaÁ„o)
 // ============================================================
 
 /**
- * Conta os dados TASY_STAGING j√° existentes na faturamento_unificado.
- * Os dados do tasy_faturado_staging s√£o importados diretamente para a
- * faturamento_unificado via processo de importa√ß√£o, n√£o precisam ser
+ * Conta os dados TASY_STAGING j· existentes na faturamento_unificado.
+ * Os dados do tasy_faturado_staging s„o importados diretamente para a
+ * faturamento_unificado via processo de importaÁ„o, n„o precisam ser
  * re-populados como Warleine ou XML_TISS.
  */
 export async function contarTasyStaging(
@@ -227,7 +227,7 @@ export async function contarTasyStaging(
   competencia?: string
 ): Promise<{ total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const compFilter = competencia
     ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`
@@ -245,24 +245,24 @@ export async function contarTasyStaging(
 }
 
 // ============================================================
-// POPULA√á√ÉO A PARTIR DO XML TISS (staging_faturamento_xml)
+// POPULA«√O A PARTIR DO XML TISS (staging_faturamento_xml)
 // ============================================================
 
 /**
  * Popula faturamento_unificado a partir dos dados do staging_faturamento_xml (XML)
- * para um estabelecimento e data de refer√™ncia espec√≠ficos.
+ * para um estabelecimento e data de referÍncia especÌficos.
  */
 export async function popularDeXmlTiss(
   estabelecimentoId: number,
   dataReferencia?: string
 ): Promise<{ inseridos: number; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const compFilter = dataReferencia ? `AND competencia = '${dataReferencia.replace(/'/g, "''")}' ` : '';
 
   // PASSO 1: Deletar APENAS itens XML_TISS com statusConciliacao = 'pendente'
-  // Itens j√° processados (conciliado, divergente, nao_recebido, glosado) s√£o preservados
+  // Itens j· processados (conciliado, divergente, nao_recebido, glosado) s„o preservados
   const deleteQuery = `
     DELETE FROM faturamento_unificado 
     WHERE origemSistema = 'XML_TISS' 
@@ -272,8 +272,8 @@ export async function popularDeXmlTiss(
   `;
   await db.execute(sql.raw(deleteQuery));
 
-  // PASSO 2: Inserir apenas itens que N√ÉO existem ainda (evitar duplica√ß√£o)
-  // Usa LEFT JOIN com faturamento_unificado para detectar itens j√° existentes
+  // PASSO 2: Inserir apenas itens que N√O existem ainda (evitar duplicaÁ„o)
+  // Usa LEFT JOIN com faturamento_unificado para detectar itens j· existentes
   let insertQuery = `
     INSERT INTO faturamento_unificado (
       origemSistema, origemId, estabelecimentoId,
@@ -347,14 +347,14 @@ export async function popularDeXmlTiss(
 
 // ============================================================
 // ============================================================
-// POPULA√á√ÉO A PARTIR DO TASY BI (tasy_faturado_itens_bi)
+// POPULA«√O A PARTIR DO TASY BI (tasy_faturado_itens_bi)
 // ============================================================
 export async function popularDeTasyBi(
   estabelecimentoId: number,
   competencia?: string
 ): Promise<{ inseridos: number; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const compFU = competencia ? `AND competencia LIKE '${competencia.replace(/'/g, "''")}%'` : '';
   const compTB = competencia ? `AND tb.COMPETENCIA LIKE '${competencia.replace(/'/g, "''")}%'` : '';
@@ -440,15 +440,15 @@ export async function popularDeTasyBi(
 }
 
 // ============================================================
-// POPULA√á√ÉO COMPLETA (todas as fontes)
+// POPULA«√O COMPLETA (todas as fontes)
 // ============================================================
 
 /**
  * Popula faturamento_unificado a partir de todas as fontes:
  * - WARLEINE (integ_faturado): dados do faturamento do hospital
- * - XML_TISS (staging_faturamento_xml): dados dos XMLs enviados aos conv√™nios
- * - TASY_BI (tasy_faturado_itens_bi): dados do Tasy via relat√≥rio BI (Oracle)
- * - TASY_STAGING: dados j√° importados do Tasy (apenas contagem, n√£o re-popula)
+ * - XML_TISS (staging_faturamento_xml): dados dos XMLs enviados aos convÍnios
+ * - TASY_BI (tasy_faturado_itens_bi): dados do Tasy via relatÛrio BI (Oracle)
+ * - TASY_STAGING: dados j· importados do Tasy (apenas contagem, n„o re-popula)
  */
 export async function popularFaturamentoUnificado(
   estabelecimentoId: number,
@@ -482,11 +482,11 @@ export async function popularFaturamentoUnificado(
 }
 
 // ============================================================
-// CONSULTAS PARA CONCILIA√á√ÉO
+// CONSULTAS PARA CONCILIA«√O
 // ============================================================
 
 /**
- * Lista o faturamento unificado com filtros para concilia√ß√£o
+ * Lista o faturamento unificado com filtros para conciliaÁ„o
  */
 export async function listarFaturamentoUnificado(params: {
   estabelecimentoId: number;
@@ -500,7 +500,7 @@ export async function listarFaturamentoUnificado(params: {
   offset?: number;
 }): Promise<{ itens: any[]; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -545,14 +545,14 @@ export async function listarFaturamentoUnificado(params: {
 }
 
 /**
- * Resumo do faturamento unificado agrupado por conv√™nio
+ * Resumo do faturamento unificado agrupado por convÍnio
  */
 export async function resumoFaturamentoPorConvenio(params: {
   estabelecimentoId: number;
   competencia?: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -586,7 +586,7 @@ export async function resumoFaturamentoPorConvenio(params: {
 
 /**
  * Resumo do faturamento unificado agrupado por guia/conta
- * para visualiza√ß√£o na tela de concilia√ß√£o
+ * para visualizaÁ„o na tela de conciliaÁ„o
  */
 export async function resumoFaturamentoPorGuia(params: {
   estabelecimentoId: number;
@@ -601,7 +601,7 @@ export async function resumoFaturamentoPorGuia(params: {
   offset?: number;
 }): Promise<{ contas: any[]; total: number; resumo: any }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -712,7 +712,7 @@ export async function resumoFaturamentoPorGuia(params: {
 }
 
 /**
- * Itens detalhados de uma guia/conta espec√≠fica
+ * Itens detalhados de uma guia/conta especÌfica
  */
 export async function itensPorGuia(params: {
   estabelecimentoId: number;
@@ -720,7 +720,7 @@ export async function itensPorGuia(params: {
   numeroGuia?: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.contaNumero) {
@@ -741,13 +741,13 @@ export async function itensPorGuia(params: {
 }
 
 /**
- * Compet√™ncias dispon√≠veis no faturamento unificado
+ * CompetÍncias disponÌveis no faturamento unificado
  */
 export async function competenciasDisponiveis(
   estabelecimentoId: number
 ): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const query = `
     SELECT
@@ -765,14 +765,14 @@ export async function competenciasDisponiveis(
 }
 
 /**
- * Conv√™nios dispon√≠veis no faturamento unificado
+ * ConvÍnios disponÌveis no faturamento unificado
  */
 export async function conveniosDisponiveis(params: {
   estabelecimentoId: number;
   competencia?: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -796,7 +796,7 @@ export async function conveniosDisponiveis(params: {
 }
 
 /**
- * Atualizar status de concilia√ß√£o de um item
+ * Atualizar status de conciliaÁ„o de um item
  */
 export async function atualizarStatusConciliacao(params: {
   id: number;
@@ -805,7 +805,7 @@ export async function atualizarStatusConciliacao(params: {
   recebimentoOrigem?: string;
 }): Promise<void> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let setClause = `statusConciliacao = '${params.statusConciliacao.replace(/'/g, "''")}'`;
   setClause += `, atualizadoEm = NOW()`;
@@ -822,7 +822,7 @@ export async function atualizarStatusConciliacao(params: {
 
 /**
  * Vincular manualmente uma guia do faturamento com um recebimento
- * Usado quando as guias do mesmo paciente t√™m n√∫meros diferentes
+ * Usado quando as guias do mesmo paciente tÍm n˙meros diferentes
  */
 export async function vincularGuiaManual(params: {
   faturamentoIds: number[];
@@ -830,7 +830,7 @@ export async function vincularGuiaManual(params: {
   recebimentoOrigem: 'excel' | 'xml';
 }): Promise<{ atualizados: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   if (params.faturamentoIds.length === 0) return { atualizados: 0 };
 
@@ -849,7 +849,7 @@ export async function vincularGuiaManual(params: {
 }
 
 /**
- * Buscar recebimentos candidatos para vincula√ß√£o manual
+ * Buscar recebimentos candidatos para vinculaÁ„o manual
  * Busca por nome do paciente, carteira ou guia similar
  */
 export async function buscarRecebimentosCandidatos(params: {
@@ -859,7 +859,7 @@ export async function buscarRecebimentosCandidatos(params: {
   competencia?: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE re.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.pacienteNome) {
@@ -898,7 +898,7 @@ export async function buscarRecebimentosCandidatos(params: {
 
 
 // ============================================================
-// CONCILIA√á√ÉO AUTOM√ÅTICA
+// CONCILIA«√O AUTOM¡TICA
 // ============================================================
 
 export interface ConciliacaoResultado {
@@ -928,34 +928,34 @@ export interface ConciliacaoResultado {
 }
 
 /**
- * Executa a concilia√ß√£o autom√°tica cruzando faturamento_unificado com recebimentos_excel.
+ * Executa a conciliaÁ„o autom·tica cruzando faturamento_unificado com recebimentos_excel.
  * 
- * Estrat√©gia de matching (em ordem de prioridade):
+ * EstratÈgia de matching (em ordem de prioridade):
  * 1. Match exato: numero_guia + codigoItem
  * 2. Match TUSS: numero_guia + codigoItemTuss
- * 3. Match com vinculacao_codigos (tabela de-para): numero_guia + c√≥digo traduzido
+ * 3. Match com vinculacao_codigos (tabela de-para): numero_guia + cÛdigo traduzido
  * 4. Match por paciente: pacienteNome + codigoItem (fallback quando guia diverge)
- * 5. Match por carteira: carteiraBeneficiario + codigoItem (fallback quando guias s√£o incompat√≠veis)
+ * 5. Match por carteira: carteiraBeneficiario + codigoItem (fallback quando guias s„o incompatÌveis)
  * 
  * Status resultante:
- * - conciliado: match encontrado e valores compat√≠veis (diferen√ßa < 1%)
- * - divergente: match encontrado mas valores diferentes (diferen√ßa >= 1%)
+ * - conciliado: match encontrado e valores compatÌveis (diferenÁa < 1%)
+ * - divergente: match encontrado mas valores diferentes (diferenÁa >= 1%)
  * - nao_recebido: faturado sem match no recebimento
  */
 export async function executarConciliacaoAutomatica(params: {
   estabelecimentoId: number;
   competencia?: string;
   convenioId?: number;
-  toleranciaPercentual?: number; // Toler√¢ncia para considerar valores iguais (default 1%)
+  toleranciaPercentual?: number; // Toler‚ncia para considerar valores iguais (default 1%)
 }): Promise<ConciliacaoResultado> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
-  // NOTA: O processamento em lotes por compet√™ncia agora √© feito pelo
-  // conciliacaoJobManager.ts (processamento ass√≠ncrono em background).
-  // Esta fun√ß√£o processa UMA compet√™ncia por vez.
+  // NOTA: O processamento em lotes por competÍncia agora È feito pelo
+  // conciliacaoJobManager.ts (processamento assÌncrono em background).
+  // Esta funÁ„o processa UMA competÍncia por vez.
 
-  const tolerancia = params.toleranciaPercentual ?? 1; // 1% de toler√¢ncia por padr√£o
+  const tolerancia = params.toleranciaPercentual ?? 1; // 1% de toler‚ncia por padr„o
 
   const resultado: ConciliacaoResultado = {
     totalProcessados: 0,
@@ -976,7 +976,7 @@ export async function executarConciliacaoAutomatica(params: {
   };
 
   // -------------------------------------------------------
-  // PASSO 0.5: Deletar concilia√ß√µes anteriores para evitar duplicatas
+  // PASSO 0.5: Deletar conciliaÁıes anteriores para evitar duplicatas
   // -------------------------------------------------------
   let whereDelete = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -994,8 +994,8 @@ export async function executarConciliacaoAutomatica(params: {
   await db.execute(sql.raw(`DELETE FROM conciliados_automatico ${whereDelete}`));
 
   // -------------------------------------------------------
-  // PASSO 1: Buscar itens do faturamento_unificado para concilia√ß√£o
-  // Busca todos os itens (n√£o apenas pendentes) pois a concilia√ß√£o anterior
+  // PASSO 1: Buscar itens do faturamento_unificado para conciliaÁ„o
+  // Busca todos os itens (n„o apenas pendentes) pois a conciliaÁ„o anterior
   // foi deletada acima
   // -------------------------------------------------------
   let whereFat = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
@@ -1013,8 +1013,8 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // DEDUPLICA√á√ÉO: Excluir TASY_BI quando TASY_STAGING existe para a mesma conta.
-  // Passo 1: Buscar contas que t√™m dados TASY_STAGING
+  // DEDUPLICA«√O: Excluir TASY_BI quando TASY_STAGING existe para a mesma conta.
+  // Passo 1: Buscar contas que tÍm dados TASY_STAGING
   // Passo 2: Excluir TASY_BI dessas contas na query principal
   // -------------------------------------------------------
   const [stagingContas] = await db.execute(sql.raw(`
@@ -1056,9 +1056,9 @@ export async function executarConciliacaoAutomatica(params: {
   }
 
   // -------------------------------------------------------
-  // PASSO 1.5: Buscar c√≥digos de prestadores PR√ìPRIOS cadastrados
-  // Itens cujo codigoPrestadorExecutante N√ÉO est√° entre os pr√≥prios
-  // s√£o considerados terceiros e n√£o devem ser glosados
+  // PASSO 1.5: Buscar cÛdigos de prestadores PR”PRIOS cadastrados
+  // Itens cujo codigoPrestadorExecutante N√O est· entre os prÛprios
+  // s„o considerados terceiros e n„o devem ser glosados
   // -------------------------------------------------------
   const [propriosRows] = await db.execute(sql.raw(
     `SELECT DISTINCT codigoPrestador FROM convenioEstabelecimentoPrestador 
@@ -1067,9 +1067,9 @@ export async function executarConciliacaoAutomatica(params: {
   const codigosProprios = new Set((propriosRows as unknown as any[]).map(r => String(r.codigoPrestador)));
 
   // -------------------------------------------------------
-  // PASSO 2: Buscar recebimentos_excel do mesmo estabelecimento/conv√™nio
-  // N√ÉO filtra por compet√™ncia nos recebimentos, pois o pagamento pode
-  // vir em m√™s posterior ao faturamento (ex: faturado 11/2025, pago 01/2026)
+  // PASSO 2: Buscar recebimentos_excel do mesmo estabelecimento/convÍnio
+  // N√O filtra por competÍncia nos recebimentos, pois o pagamento pode
+  // vir em mÍs posterior ao faturamento (ex: faturado 11/2025, pago 01/2026)
   // -------------------------------------------------------
   let whereRec = `WHERE re.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.convenioId) {
@@ -1102,7 +1102,7 @@ export async function executarConciliacaoAutomatica(params: {
   }));
 
   // -------------------------------------------------------
-  // PASSO 3: Carregar tabela de vincula√ß√£o de c√≥digos (de-para)
+  // PASSO 3: Carregar tabela de vinculaÁ„o de cÛdigos (de-para)
   // -------------------------------------------------------
   let whereVinc = `WHERE vc.estabelecimentoId = ${params.estabelecimentoId} AND vc.ativo = 'sim'`;
   if (params.convenioId) {
@@ -1118,14 +1118,14 @@ export async function executarConciliacaoAutomatica(params: {
   const [vincRows] = await db.execute(sql.raw(queryVinculacao));
   const vinculacoes = vincRows as unknown as any[];
 
-  // Criar mapa de vincula√ß√£o: codigoHospital ‚Üí codigoConvenio
+  // Criar mapa de vinculaÁ„o: codigoHospital ? codigoConvenio
   const mapaVinculacao = new Map<string, string>();
   for (const v of vinculacoes) {
     mapaVinculacao.set(v.codigoHospital, v.codigoConvenio);
   }
 
   // -------------------------------------------------------
-  // PASSO 4 & 5: Executar Motor de Concilia√ß√£o Multi-Fase (Greedy)
+  // PASSO 4 & 5: Executar Motor de ConciliaÁ„o Multi-Fase (Greedy)
   // -------------------------------------------------------
   const engineResult = executarMatchingMultiFase(
     itensFaturamento as any[],
@@ -1137,14 +1137,14 @@ export async function executarConciliacaoAutomatica(params: {
   
   const inserts = engineResult.inserts;
   
-  // Mesclar resultado estat√≠stico
+  // Mesclar resultado estatÌstico
   Object.assign(resultado, engineResult.resultado);
 
   
   // -------------------------------------------------------
   // PASSO 6: INSERT em MEGA-BATCH na tabela conciliados_automatico
   // Usa batches de 5000 para minimizar roundtrips ao banco
-  // (concilia√ß√µes anteriores j√° foram deletadas no PASSO 0.5)
+  // (conciliaÁıes anteriores j· foram deletadas no PASSO 0.5)
   // -------------------------------------------------------
   let _firstErrLogged = false;
   const sn = (v) => isNaN(Number(v)) || !isFinite(Number(v)) ? 0 : Number(v);
@@ -1181,7 +1181,7 @@ export async function executarConciliacaoAutomatica(params: {
           await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${sub.map(toRow).join(',')}`));
         } catch (subErr: any) {
           console.error(`[Conciliacao] Erro sub-batch ${i+j}: ${subErr.message?.substring(0, 100)}`);
-          // √öltimo recurso: um a um
+          // ⁄ltimo recurso: um a um
           for (const r of sub) {
             try {
               await db.execute(sql.raw(`INSERT INTO conciliados_automatico ${INSERT_COLS} VALUES ${toRow(r)}`));
@@ -1193,7 +1193,7 @@ export async function executarConciliacaoAutomatica(params: {
       }
     }
   }
-  console.log(`[Conciliacao] INSERT conclu√≠do em ${((Date.now()-t0)/1000).toFixed(1)}s`);
+  console.log(`[Conciliacao] INSERT concluÌdo em ${((Date.now()-t0)/1000).toFixed(1)}s`);
 
   // -------------------------------------------------------
   // PASSO 7: UPDATE em massa do statusConciliacao no faturamento_unificado
@@ -1210,7 +1210,7 @@ export async function executarConciliacaoAutomatica(params: {
   const updatePromises: Promise<void>[] = [];
   for (const [status, ids] of porStatus) {
     if (ids.length === 0) continue;
-    // Chunks de 2000 para queries menores e mais r√°pidas
+    // Chunks de 2000 para queries menores e mais r·pidas
     for (let i = 0; i < ids.length; i += 2000) {
       const chunk = ids.slice(i, i + 2000);
       updatePromises.push(
@@ -1220,18 +1220,18 @@ export async function executarConciliacaoAutomatica(params: {
       );
     }
   }
-  // Executar em paralelo (max 4 simult√¢neos)
+  // Executar em paralelo (max 4 simult‚neos)
   for (let i = 0; i < updatePromises.length; i += 4) {
     await Promise.all(updatePromises.slice(i, i + 4));
   }
-  console.log(`[Conciliacao] UPDATE conclu√≠do em ${((Date.now()-t1)/1000).toFixed(1)}s`);
+  console.log(`[Conciliacao] UPDATE concluÌdo em ${((Date.now()-t1)/1000).toFixed(1)}s`);
 
   // -------------------------------------------------------
   // PASSO 8: Atualizar a View Materializada de Guias (fato_conciliacao_guias)
-  // Essencial para carregar a p√°gina da UI quase instantaneamente
+  // Essencial para carregar a p·gina da UI quase instantaneamente
   // -------------------------------------------------------
   try {
-    console.log(`[Conciliacao] Atualizando fato_conciliacao_guias para compet√™ncia ${params.competencia}...`);
+    console.log(`[Conciliacao] Atualizando fato_conciliacao_guias para competÍncia ${params.competencia}...`);
     const t2 = Date.now();
     let compWhere = `estabelecimentoId = ${params.estabelecimentoId}`;
     if (params.competencia) {
@@ -1281,7 +1281,7 @@ export async function executarConciliacaoAutomatica(params: {
 }
 
 /**
- * Reseta a concilia√ß√£o: deleta registros da conciliados_automatico
+ * Reseta a conciliaÁ„o: deleta registros da conciliados_automatico
  */
 export async function resetarConciliacao(params: {
   estabelecimentoId: number;
@@ -1289,7 +1289,7 @@ export async function resetarConciliacao(params: {
   convenioId?: number;
 }): Promise<{ resetados: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -1306,7 +1306,7 @@ export async function resetarConciliacao(params: {
   const total = Number((countRows as any)?.[0]?.total || 0);
 
   // Resetar statusConciliacao no faturamento_unificado para 'pendente'
-  // Primeiro buscar os IDs do faturamento_unificado que ser√£o afetados
+  // Primeiro buscar os IDs do faturamento_unificado que ser„o afetados
   const [idsRows] = await db.execute(sql.raw(
     `SELECT DISTINCT faturamentoUnificadoId FROM conciliados_automatico ${whereClause}`
   ));
@@ -1322,7 +1322,7 @@ export async function resetarConciliacao(params: {
     }
   }
 
-  // Deletar registros de concilia√ß√£o
+  // Deletar registros de conciliaÁ„o
   const query = `DELETE FROM conciliados_automatico ${whereClause}`;
   await db.execute(sql.raw(query));
 
@@ -1330,7 +1330,7 @@ export async function resetarConciliacao(params: {
 }
 
 /**
- * Lista os resultados da concilia√ß√£o autom√°tica com filtros
+ * Lista os resultados da conciliaÁ„o autom·tica com filtros
  */
 export async function listarConciliadosAutomatico(params: {
   estabelecimentoId: number;
@@ -1342,7 +1342,7 @@ export async function listarConciliadosAutomatico(params: {
   offset?: number;
 }): Promise<{ items: any[]; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -1395,7 +1395,7 @@ export async function listarConciliadosAutomatico(params: {
 }
 
 /**
- * Resumo dos resultados da concilia√ß√£o autom√°tica por status
+ * Resumo dos resultados da conciliaÁ„o autom·tica por status
  */
 export async function resumoConciliadosAutomatico(params: {
   estabelecimentoId: number;
@@ -1412,7 +1412,7 @@ export async function resumoConciliadosAutomatico(params: {
   valorTotalDiferenca: number;
 }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fcg.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -1456,13 +1456,13 @@ export async function resumoConciliadosAutomatico(params: {
 // ============================================================
 
 /**
- * Compet√™ncias dispon√≠veis na tabela conciliados_automatico
- * Tamb√©m inclui compet√™ncias do faturamento_unificado que ainda n√£o foram conciliadas
+ * CompetÍncias disponÌveis na tabela conciliados_automatico
+ * TambÈm inclui competÍncias do faturamento_unificado que ainda n„o foram conciliadas
  */
 export async function competenciasConciliados(estabelecimentoId: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
-  // Query r√°pida: buscar compet√™ncias distintas de cada tabela separadamente
+  if (!db) throw new Error("Database n„o disponÌvel");
+  // Query r·pida: buscar competÍncias distintas de cada tabela separadamente
   const [rowsConc] = await db.execute(sql.raw(
     `SELECT competencia, COUNT(*) as total
      FROM conciliados_automatico
@@ -1475,7 +1475,7 @@ export async function competenciasConciliados(estabelecimentoId: number) {
      WHERE estabelecimentoId = ${estabelecimentoId}
      GROUP BY competencia`
   ));
-  // Combinar em JS (muito mais r√°pido que UNION ALL + GROUP BY no SQL)
+  // Combinar em JS (muito mais r·pido que UNION ALL + GROUP BY no SQL)
   const mapa = new Map<string, number>();
   for (const r of rowsConc as unknown as any[]) {
     if (r.competencia) mapa.set(r.competencia, (mapa.get(r.competencia) || 0) + Number(r.total));
@@ -1489,11 +1489,11 @@ export async function competenciasConciliados(estabelecimentoId: number) {
 }
 
 /**
- * Conv√™nios dispon√≠veis na tabela conciliados_automatico
+ * ConvÍnios disponÌveis na tabela conciliados_automatico
  */
 export async function conveniosConciliados(estabelecimentoId: number, competencia?: string) {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
   let where = `WHERE estabelecimentoId = ${estabelecimentoId}`;
   if (competencia) {
     where += ` AND competencia LIKE '${competencia.replace(/'/g, "''")}%'`;
@@ -1509,8 +1509,8 @@ export async function conveniosConciliados(estabelecimentoId: number, competenci
 }
 
 /**
- * Resumo agrupado por GUIA dos conciliados autom√°ticos
- * Retorna: guia, paciente, conv√™nio, compet√™ncia, totalItens, valorFaturado, valorPago, valorGlosa, diferen√ßa, status
+ * Resumo agrupado por GUIA dos conciliados autom·ticos
+ * Retorna: guia, paciente, convÍnio, competÍncia, totalItens, valorFaturado, valorPago, valorGlosa, diferenÁa, status
  */
 export async function resumoConciliadosPorGuia(params: {
   estabelecimentoId: number;
@@ -1524,7 +1524,7 @@ export async function resumoConciliadosPorGuia(params: {
   offset?: number;
 }): Promise<{ items: any[]; total: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE fcg.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia) {
@@ -1584,7 +1584,7 @@ export async function resumoConciliadosPorGuia(params: {
   const [rows] = await db.execute(sql.raw(query));
   const items = rows as any[];
 
-  // ENRIQUECIMENTO: Buscar lotes e protocolos apenas para a p√°gina atual (muito mais r√°pido que fazer JOIN na query principal inteira)
+  // ENRIQUECIMENTO: Buscar lotes e protocolos apenas para a p·gina atual (muito mais r·pido que fazer JOIN na query principal inteira)
   if (items.length > 0) {
     const guias = items.map(i => i.numeroGuia).filter(Boolean);
     const contas = items.map(i => i.contaNumero).filter(Boolean);
@@ -1663,7 +1663,7 @@ export async function itensConciliadosPorGuia(params: {
   contaNumero?: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let whereClause = `WHERE ca.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.numeroGuia && params.contaNumero && params.numeroGuia === params.contaNumero) {
@@ -1678,6 +1678,8 @@ export async function itensConciliadosPorGuia(params: {
       whereClause += ` AND ca.contaNumero = '${params.contaNumero.replace(/'/g, "''")}'`;
     }
   }
+
+  whereClause += ` AND (ca.metodoConciliacao != 'manual_auxiliar' OR ca.metodoConciliacao IS NULL)`;
 
   const query = `
     SELECT 
@@ -1694,7 +1696,7 @@ export async function itensConciliadosPorGuia(params: {
       COALESCE(ca.valorPago, 0) as valorPago,
       COALESCE(ca.valorGlosa, 0) as valorGlosa,
       ca.codigoGlosa,
-      COALESCE(mg.descricao, ca.motivoGlosa) as motivoGlosa,
+      COALESCE(ca.motivoGlosa, mg.descricao) as motivoGlosa,
       mg.grupo as grupoGlosa,
       ca.statusConciliacao, ca.metodoConciliacao,
       COALESCE(ca.diferenca, 0) as diferenca,
@@ -1766,7 +1768,7 @@ async function atualizarFatoGuia(estabelecimentoId: number, guias: string[]): Pr
 }
 
 // ============================================================
-// GLOSAR ITENS N√ÉO RECEBIDOS
+// GLOSAR ITENS N√O RECEBIDOS
 // ============================================================
 
 /**
@@ -1780,7 +1782,7 @@ export async function glosarItens(params: {
   codigoGlosa?: string;
 }): Promise<{ atualizados: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   if (params.ids.length === 0) return { atualizados: 0 };
 
@@ -1817,7 +1819,7 @@ export async function glosarItens(params: {
 }
 
 /**
- * Glosar TODOS os itens n√£o recebidos e divergentes de uma guia
+ * Glosar TODOS os itens n„o recebidos e divergentes de uma guia
  */
 export async function glosarTodosNaoRecebidosPorGuia(params: {
   estabelecimentoId: number;
@@ -1827,7 +1829,7 @@ export async function glosarTodosNaoRecebidosPorGuia(params: {
   codigoGlosa?: string;
 }): Promise<{ atualizados: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   const esc = (v: string | null | undefined) => v ? `'${v.replace(/'/g, "''")}' ` : 'NULL';
 
@@ -1871,28 +1873,45 @@ export async function reverterGlosa(params: {
   estabelecimentoId: number;
 }): Promise<{ atualizados: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   if (params.ids.length === 0) return { atualizados: 0 };
 
   const ids = params.ids.join(',');
 
-  // Reverter: se o item tinha valorPago > 0, volta para 'divergente'; sen√£o volta para 'nao_recebido'
+  // Reverter: limpar vÌnculo de recebimento (para que a sobra volte a ficar disponÌvel)
+  // Se foi vinculado manualmente, limpar completamente para permitir re-vinculaÁ„o
   const query = `
     UPDATE conciliados_automatico 
-    SET statusConciliacao = CASE WHEN valorPago > 0 THEN 'divergente' ELSE 'nao_recebido' END,
+    SET statusConciliacao = 'nao_recebido',
+        valorPago = 0,
         valorGlosa = 0,
-        diferenca = CASE WHEN valorPago > 0 THEN valorFaturado - valorPago ELSE 0 END,
-        percentualDiferenca = CASE WHEN valorPago > 0 AND valorFaturado > 0 THEN ROUND(((valorFaturado - valorPago) / valorFaturado) * 100, 2) ELSE 0 END,
+        diferenca = 0,
+        percentualDiferenca = 0,
         motivoGlosa = NULL,
-        codigoGlosa = NULL
+        codigoGlosa = NULL,
+        recebimentoId = NULL,
+        recebimentoOrigem = NULL,
+        metodoConciliacao = NULL
     WHERE id IN (${ids})
       AND estabelecimentoId = ${params.estabelecimentoId}
-      AND statusConciliacao = 'glosado'
+      AND statusConciliacao IN ('glosado', 'divergente')
   `;
 
   const [result] = await db.execute(sql.raw(query));
   const atualizados = (result as any)?.affectedRows || 0;
+
+  // Limpar registros auxiliares (manual_auxiliar) que foram criados pela vinculaÁ„o multi-sobra
+  if (atualizados > 0) {
+    await db.execute(sql.raw(`
+      DELETE FROM conciliados_automatico 
+      WHERE metodoConciliacao = 'manual_auxiliar' 
+        AND estabelecimentoId = ${params.estabelecimentoId}
+        AND faturamentoUnificadoId IN (
+          SELECT faturamentoUnificadoId FROM (SELECT faturamentoUnificadoId FROM conciliados_automatico WHERE id IN (${ids})) AS sub
+        )
+    `));
+  }
 
   // Refresh fato_conciliacao_guias para as guias afetadas
   if (atualizados > 0) {
@@ -1907,11 +1926,11 @@ export async function reverterGlosa(params: {
 }
 
 // ============================================================
-// FUN√á√ïES AUXILIARES
+// FUN«’ES AUXILIARES
 // ============================================================
 
 /**
- * Normaliza nome para compara√ß√£o (remove acentos, lowercase, trim)
+ * Normaliza nome para comparaÁ„o (remove acentos, lowercase, trim)
  */
 function normalizarNome(nome: string): string {
   return nome
@@ -1923,7 +1942,7 @@ function normalizarNome(nome: string): string {
 }
 
 /**
- * Remove zeros √† esquerda para compara√ß√£o de c√≥digos
+ * Remove zeros ‡ esquerda para comparaÁ„o de cÛdigos
  */
 function normalizarCodigo(codigo: string | null | undefined): string {
   if (!codigo) return '';
@@ -1934,7 +1953,7 @@ function normalizarCodigo(codigo: string | null | undefined): string {
 
 /**
  * Encontra o melhor match entre uma lista de recebimentos candidatos.
- * Prioriza recebimentos com valor mais pr√≥ximo do faturado.
+ * Prioriza recebimentos com valor mais prÛximo do faturado.
  */
 function encontrarMelhorMatch(
   candidatos: any[] | undefined,
@@ -1946,7 +1965,7 @@ function encontrarMelhorMatch(
   const disponiveis = candidatos.filter(c => c.saldoPago > 0.01);
   if (disponiveis.length === 0) return null;
 
-  // Se s√≥ tem um, retorna ele
+  // Se sÛ tem um, retorna ele
   if (disponiveis.length === 1) return disponiveis[0];
 
   // Priorizar por proximidade de valor/saldo
@@ -1965,18 +1984,18 @@ function encontrarMelhorMatch(
 }
 
 // ============================================================
-// VINCULA√á√ÉO MANUAL DE ITENS
+// VINCULA«√O MANUAL DE ITENS
 // ============================================================
 
 /**
- * Lista sobras (itens do demonstrativo que n√£o foram conciliados) para uma guia
+ * Lista sobras (itens do demonstrativo que n„o foram conciliados) para uma guia
  */
 export async function listarSobrasPorGuia(params: {
   estabelecimentoId: number;
   numeroGuia: string;
 }): Promise<any[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   console.log('--- listarSobrasPorGuia CHAMADO ---', params);
 
@@ -1999,46 +2018,72 @@ export async function listarSobrasPorGuia(params: {
 }
 
 /**
- * Vincular manualmente um item da conciliados_automatico a um item de recebimentos_excel
+ * Vincular manualmente um item da conciliados_automatico a um ou mais itens de recebimentos_excel.
+ * Suporta vincular m˙ltiplas sobras do demonstrativo a um mesmo item de faturamento
+ * (ex: convÍnio troca cÛdigo e devolve em linhas separadas).
  */
 export async function vincularItemManual(params: {
   estabelecimentoId: number;
   conciliadoId: number;
-  recebimentoId: number;
+  recebimentoId?: number;
+  recebimentoIds?: number[];
   criarRegraDePara?: boolean;
 }): Promise<{ sucesso: boolean }> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
-  // 1. Buscar detalhes do item conciliado e do recebimento
+  // Suporte a single recebimentoId (retrocompatÌvel) ou array recebimentoIds
+  const recIds = params.recebimentoIds?.length
+    ? params.recebimentoIds
+    : params.recebimentoId
+      ? [params.recebimentoId]
+      : [];
+  if (recIds.length === 0) throw new Error("Nenhum recebimento selecionado para vincular");
+
+  // 1. Buscar detalhes do item conciliado
   const [concRows] = await db.execute(sql.raw(`SELECT * FROM conciliados_automatico WHERE id = ${params.conciliadoId} AND estabelecimentoId = ${params.estabelecimentoId}`));
   const conc = (concRows as any[])[0];
-  if (!conc) throw new Error("Item conciliado n√£o encontrado");
+  if (!conc) throw new Error("Item conciliado n„o encontrado");
 
-  const [recRows] = await db.execute(sql.raw(`SELECT * FROM recebimentos_excel WHERE id = ${params.recebimentoId} AND estabelecimentoId = ${params.estabelecimentoId}`));
-  const rec = (recRows as any[])[0];
-  if (!rec) throw new Error("Item recebimento n√£o encontrado");
+  // 1b. Se o item j· tinha um recebimento vinculado (re-vinculaÁ„o), limpar auxiliares antigos
+  if (conc.recebimentoId) {
+    await db.execute(sql.raw(`
+      DELETE FROM conciliados_automatico 
+      WHERE metodoConciliacao = 'manual_auxiliar' 
+        AND estabelecimentoId = ${params.estabelecimentoId}
+        AND faturamentoUnificadoId = ${conc.faturamentoUnificadoId || 0}
+        AND id != ${conc.id}
+    `));
+  }
 
-  // 2. Calcular novos valores
+  // 2. Buscar TODOS os recebimentos selecionados
+  const [recRows] = await db.execute(sql.raw(`SELECT * FROM recebimentos_excel WHERE id IN (${recIds.join(',')}) AND estabelecimentoId = ${params.estabelecimentoId}`));
+  const recs = recRows as any[];
+  if (recs.length === 0) throw new Error("Nenhum item recebimento encontrado");
+
+  // 3. Somar valores de TODOS os recebimentos vinculados
   const valorFaturado = Number(conc.valorFaturado) || 0;
-  const valorRecebido = Math.min(valorFaturado, Number(rec.valor_pagamento) || 0);
+  const totalPagoRecebimentos = recs.reduce((acc: number, r: any) => acc + (Number(r.valor_pagamento) || 0), 0);
+  const valorRecebido = totalPagoRecebimentos;
   const diferenca = valorFaturado - valorRecebido;
-  const pctDif = valorFaturado > 0 ? (diferenca / valorFaturado) * 100 : 0;
+  const pctDif = valorFaturado > 0 ? Math.abs(diferenca / valorFaturado) * 100 : 0;
   
-  // Status: conciliado se diferen√ßa <= 1%, glosado se h√° diferen√ßa positiva, sen√£o divergente
+  // Status: conciliado se diferenÁa <= 1%, glosado se pagou menos, divergente se pagou mais
   let novoStatus = 'conciliado';
   if (pctDif > 1) {
     novoStatus = diferenca > 0 ? 'glosado' : 'divergente';
   }
 
-  // Propagar c√≥digo de glosa do recebimento (se existir)
-  const codigoGlosaRec = rec.codigo_glosa ? `'${String(rec.codigo_glosa).replace(/'/g, "''")}'` : 'NULL';
-  const motivoGlosaRec = rec.erro_tiss ? `'${String(rec.erro_tiss).replace(/'/g, "''")}'` : 'NULL';
+  // Propagar cÛdigo de glosa do primeiro recebimento que tenha (se existir)
+  const recComGlosa = recs.find((r: any) => r.codigo_glosa);
+  const codigoGlosaRec = recComGlosa?.codigo_glosa ? `'${String(recComGlosa.codigo_glosa).replace(/'/g, "''")}'` : 'NULL';
+  const motivoGlosaRec = recComGlosa?.erro_tiss ? `'${String(recComGlosa.erro_tiss).replace(/'/g, "''")}'` : 'NULL';
+  const nomeBeneficiario = recs.find((r: any) => r.nome_beneficiario)?.nome_beneficiario || '';
 
-  // 3. Atualizar conciliados_automatico
+  // 4. Atualizar conciliados_automatico - vincular ao primeiro recebimentoId (referÍncia principal)
   await db.execute(sql.raw(`
     UPDATE conciliados_automatico
-    SET recebimentoId = ${rec.id},
+    SET recebimentoId = ${recs[0].id},
         recebimentoOrigem = 'excel',
         valorPago = ${valorRecebido},
         valorGlosa = CASE WHEN ${diferenca} > 0 THEN ${diferenca} ELSE 0 END,
@@ -2048,39 +2093,75 @@ export async function vincularItemManual(params: {
         metodoConciliacao = 'manual',
         codigoGlosa = ${codigoGlosaRec},
         motivoGlosa = ${motivoGlosaRec},
-        pacienteNome = COALESCE(pacienteNome, '${(rec.nome_beneficiario || '').replace(/'/g, "''")}')
+        pacienteNome = COALESCE(pacienteNome, '${nomeBeneficiario.replace(/'/g, "''")}')
     WHERE id = ${conc.id}
   `));
 
-  // 4. Criar regra De-Para se solicitado
-  if (params.criarRegraDePara && conc.convenioId && conc.codigoItem && rec.item) {
-    const codHosp = conc.codigoItem;
-    const codConv = rec.item;
-    
-    const [exist] = await db.execute(sql.raw(`
-      SELECT id FROM vinculacao_codigos 
-      WHERE estabelecimentoId = ${params.estabelecimentoId} 
-        AND convenioId = ${conc.convenioId} 
-        AND codigoHospital = '${codHosp}'
-    `));
-    
-    if (!(exist as any[])[0]) {
-      await db.execute(sql.raw(`
-        INSERT INTO vinculacao_codigos (estabelecimentoId, convenioId, codigoHospital, codigoConvenio, ativo)
-        VALUES (${params.estabelecimentoId}, ${conc.convenioId}, '${codHosp}', '${codConv}', 'sim')
-      `));
-    } else {
-      await db.execute(sql.raw(`
-        UPDATE vinculacao_codigos 
-        SET codigoConvenio = '${codConv}', ativo = 'sim'
-        WHERE estabelecimentoId = ${params.estabelecimentoId} 
-          AND convenioId = ${conc.convenioId} 
-          AND codigoHospital = '${codHosp}'
-      `));
+  // 4b. Marcar os recebimentos extras (2∫ em diante) como vinculados tambÈm,
+  // criando um registro auxiliar na conciliados_automatico vinculado ao mesmo faturamento.
+  // Isso impede que apareÁam como "sobra" de novo.
+  if (recs.length > 1) {
+    for (let i = 1; i < recs.length; i++) {
+      const r = recs[i];
+      // Verificar se esse recebimento j· est· vinculado
+      const [checkVinc] = await db.execute(sql.raw(`SELECT id FROM conciliados_automatico WHERE recebimentoId = ${r.id} AND estabelecimentoId = ${params.estabelecimentoId} LIMIT 1`));
+      if (!(checkVinc as any[])[0]) {
+        // Criar um registro auxiliar apontando para o mesmo faturamentoUnificadoId
+        await db.execute(sql.raw(`
+          INSERT INTO conciliados_automatico (
+            faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia,
+            pacienteNome, convenio, convenioId, competencia,
+            codigoItem, codigoItemTuss, descricaoItem, tipoItem, origemSistema,
+            valorFaturado, quantidade,
+            recebimentoId, recebimentoOrigem, valorPago, valorGlosa,
+            statusConciliacao, metodoConciliacao, diferenca, percentualDiferenca, criadoEm
+          )
+          SELECT
+            faturamentoUnificadoId, estabelecimentoId, contaNumero, numeroGuia,
+            pacienteNome, convenio, convenioId, competencia,
+            '${(r.item || '').replace(/'/g, "''")}', codigoItemTuss,
+            '${(r.item_desc || '').replace(/'/g, "''")}', tipoItem, origemSistema,
+            0, 0,
+            ${r.id}, 'excel', 0, 0,
+            'conciliado', 'manual_auxiliar', 0, 0, NOW()
+          FROM conciliados_automatico WHERE id = ${conc.id}
+        `));
+      }
     }
   }
 
-  // 5. Refresh fato_conciliacao_guias para a guia afetada
+  // 5. Criar regra De-Para se solicitado
+  if (params.criarRegraDePara && conc.convenioId && conc.codigoItem) {
+    // Pegar os cÛdigos distintos dos recebimentos vinculados
+    const codigosConvenio = [...new Set(recs.map((r: any) => r.item).filter(Boolean))];
+    const codHosp = String(conc.codigoItem).replace(/'/g, "''");
+    const descHosp = String(conc.descricaoItem || '').replace(/'/g, "''");
+    
+    for (const codConv of codigosConvenio) {
+      if (!codConv || String(codConv).trim() === '') continue;
+      const codConvEsc = String(codConv).replace(/'/g, "''");
+      const descConv = String(recs.find((r: any) => r.item === codConv)?.item_desc || '').replace(/'/g, "''");
+      
+      // Verificar existÍncia com codigoHospital + codigoConvenio + convenioId
+      const [exist] = await db.execute(sql.raw(`
+        SELECT id FROM vinculacao_codigos 
+        WHERE estabelecimentoId = ${params.estabelecimentoId} 
+          AND convenioId = ${conc.convenioId} 
+          AND codigoHospital = '${codHosp}'
+          AND codigoConvenio = '${codConvEsc}'
+      `));
+      
+      if (!(exist as any[])[0]) {
+        await db.execute(sql.raw(`
+          INSERT INTO vinculacao_codigos (estabelecimentoId, convenioId, codigoHospital, descricaoHospital, codigoConvenio, descricaoConvenio, ativo, metodo_match)
+          VALUES (${params.estabelecimentoId}, ${conc.convenioId}, '${codHosp}', '${descHosp}', '${codConvEsc}', '${descConv}', 'sim', 'manual')
+        `));
+        console.log(`[De-Para] Criada regra: ${codHosp} ? ${codConvEsc} (convenioId=${conc.convenioId})`);
+      }
+    }
+  }
+
+  // 6. Refresh fato_conciliacao_guias para a guia afetada
   const guia = conc.numeroGuia || conc.contaNumero;
   if (guia) {
     await atualizarFatoGuia(params.estabelecimentoId, [guia]);
@@ -2091,11 +2172,11 @@ export async function vincularItemManual(params: {
 
 
 // ============================================================
-// LOTES DISPON√çVEIS PARA FILTROS
+// LOTES DISPONÕVEIS PARA FILTROS
 // ============================================================
 
 /**
- * Lista lotes do demonstrativo (lote_prestador) para filtro na concilia√ß√£o cruzada
+ * Lista lotes do demonstrativo (lote_prestador) para filtro na conciliaÁ„o cruzada
  */
 export async function lotesRetornoDisponiveis(params: {
   estabelecimentoId: number;
@@ -2103,11 +2184,11 @@ export async function lotesRetornoDisponiveis(params: {
   convenioId?: number;
 }): Promise<{ lote: string; protocolo: string; total: number }[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   let where = `WHERE d.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia && params.competencia !== 'todos') {
-    // Usar range de datas em vez de DATE_FORMAT para aproveitar √≠ndice
+    // Usar range de datas em vez de DATE_FORMAT para aproveitar Ìndice
     const [ano, mes] = params.competencia.split(/[\/\-]/);
     if (ano && mes) {
       const dataInicio = `${ano}-${mes.padStart(2, '0')}-01`;
@@ -2132,7 +2213,7 @@ export async function lotesRetornoDisponiveis(params: {
 }
 
 /**
- * Lista lotes do XML TISS (numero_lote) para filtro na concilia√ß√£o cruzada
+ * Lista lotes do XML TISS (numero_lote) para filtro na conciliaÁ„o cruzada
  */
 export async function lotesXmlTissDisponiveis(params: {
   estabelecimentoId: number;
@@ -2140,10 +2221,10 @@ export async function lotesXmlTissDisponiveis(params: {
   convenioId?: number;
 }): Promise<{ lote: string; total: number }[]> {
   const db = await getDb();
-  if (!db) throw new Error("Database n√£o dispon√≠vel");
+  if (!db) throw new Error("Database n„o disponÌvel");
 
   // Buscar lotes direto do faturamento_unificado usando lotePrestador
-  // que j√° tem √≠ndice por estabelecimentoId
+  // que j· tem Ìndice por estabelecimentoId
   let where = `WHERE fu.estabelecimentoId = ${params.estabelecimentoId}`;
   if (params.competencia && params.competencia !== 'todos') {
     where += ` AND fu.competencia = '${params.competencia.replace(/'/g, "''")}'`;
@@ -2166,23 +2247,23 @@ export async function lotesXmlTissDisponiveis(params: {
 
 
 // ============================================================
-// POPULA√á√ÉO A PARTIR DOS NOVOS STAGINGS (Rob√¥s ETL a definir)
+// POPULA«√O A PARTIR DOS NOVOS STAGINGS (RobÙs ETL a definir)
 // ============================================================
 
 export async function popularDeOmni(estabelecimentoId: number, competencia?: string) {
   // TODO: Implementar mapeamento DE-PARA da staging_faturamento_omni para faturamento_unificado
-  console.log('ETL: Omni -> Unificado (N√£o implementado)');
+  console.log('ETL: Omni -> Unificado (N„o implementado)');
   return { inseridos: 0, total: 0 };
 }
 
 export async function popularDePromedico(estabelecimentoId: number, competencia?: string) {
   // TODO: Implementar mapeamento DE-PARA da staging_faturamento_promedico para faturamento_unificado
-  console.log('ETL: Promedico -> Unificado (N√£o implementado)');
+  console.log('ETL: Promedico -> Unificado (N„o implementado)');
   return { inseridos: 0, total: 0 };
 }
 
 export async function popularDeEasyvision(estabelecimentoId: number, competencia?: string) {
   // TODO: Implementar mapeamento DE-PARA da staging_faturamento_easyvision para faturamento_unificado
-  console.log('ETL: Easyvision -> Unificado (N√£o implementado)');
+  console.log('ETL: Easyvision -> Unificado (N„o implementado)');
   return { inseridos: 0, total: 0 };
 }

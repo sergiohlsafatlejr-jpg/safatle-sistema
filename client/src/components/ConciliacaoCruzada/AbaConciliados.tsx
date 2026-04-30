@@ -57,7 +57,7 @@ export function AbaConciliados({
   // Estados para Vinculação Manual
   const [modalVinculacaoAberto, setModalVinculacaoAberto] = useState(false);
   const [conciliadosSelecionados, setConciliadosSelecionados] = useState<Set<number>>(new Set());
-  const [sobraSelecionada, setSobraSelecionada] = useState<number | null>(null);
+  const [sobrasSelecionadas, setSobrasSelecionadas] = useState<Set<number>>(new Set());
   const [criarRegraDePara, setCriarRegraDePara] = useState(true);
 
   const utils = trpc.useUtils();
@@ -77,20 +77,20 @@ export function AbaConciliados({
       utils.faturamentoUnificado.listarSobrasPorGuia.invalidate();
       utils.faturamentoUnificado.resumoConciliadosPorGuia.invalidate();
       setConciliadosSelecionados(new Set());
-      setSobraSelecionada(null);
+      setSobrasSelecionadas(new Set());
     },
     onError: (err) => toast.error(err.message || "Erro ao vincular item")
   });
 
   const handleVincular = () => {
-    if (conciliadosSelecionados.size === 0 || !sobraSelecionada) {
-      toast.error("Selecione pelo menos um item do faturamento e uma sobra do demonstrativo.");
+    if (conciliadosSelecionados.size === 0 || sobrasSelecionadas.size === 0) {
+      toast.error("Selecione pelo menos um item do faturamento e uma ou mais sobras do demonstrativo.");
       return;
     }
     vincularMut.mutate({
       estabelecimentoId,
       conciliadoIds: Array.from(conciliadosSelecionados),
-      recebimentoId: sobraSelecionada,
+      recebimentoIds: Array.from(sobrasSelecionadas),
       criarRegraDePara
     });
   };
@@ -224,14 +224,14 @@ export function AbaConciliados({
                     </>
                   )}
                   {/* Botão vincular manual */}
-                  {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido') && (
+                  {itensConciliadosGuia && itensConciliadosGuia.some((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'divergente' || i.statusConciliacao === 'glosado') && (
                     <Button
                       size="sm"
                       variant="outline"
                       className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
                       onClick={() => {
                         setConciliadosSelecionados(new Set());
-                        setSobraSelecionada(null);
+                        setSobrasSelecionadas(new Set());
                         setModalVinculacaoAberto(true);
                       }}
                     >
@@ -332,10 +332,12 @@ export function AbaConciliados({
                           <td className="p-3 text-right font-medium text-blue-600">{formatarMoeda(Number(item.valorFaturado))}</td>
                           <td className="p-3 text-right font-medium text-green-600">{formatarMoeda(Number(item.valorPago))}</td>
                           <td className="p-3 text-right font-medium text-red-600">{formatarMoeda(Number(item.valorGlosa))}</td>
-                          <td className="p-3 text-sm max-w-[250px]" title={item.codigoGlosa ? `Cód: ${item.codigoGlosa}${item.motivoGlosa ? ' - ' + item.motivoGlosa : ''}${item.grupoGlosa ? ' [' + item.grupoGlosa + ']' : ''}` : ''}>
-                            {item.codigoGlosa ? (
+                          <td className="p-3 text-sm max-w-[250px]" title={item.codigoGlosa || item.motivoGlosa ? `Cód: ${item.codigoGlosa || '-'}${item.motivoGlosa ? ' - ' + item.motivoGlosa : ''}${item.grupoGlosa ? ' [' + item.grupoGlosa + ']' : ''}` : ''}>
+                            {item.codigoGlosa || item.motivoGlosa ? (
                               <div className="text-red-600">
-                                <span className="font-mono text-xs bg-red-100 dark:bg-red-950 px-1 py-0.5 rounded">{item.codigoGlosa}</span>
+                                {item.codigoGlosa && (
+                                  <span className="font-mono text-xs bg-red-100 dark:bg-red-950 px-1 py-0.5 rounded mr-1">{item.codigoGlosa}</span>
+                                )}
                                 {item.motivoGlosa && (
                                   <p className="text-xs mt-0.5 leading-tight line-clamp-2">{item.motivoGlosa}</p>
                                 )}
@@ -645,7 +647,7 @@ export function AbaConciliados({
                 <div className="overflow-y-auto flex-1 pr-2 space-y-2 max-h-[500px]">
                   {/* Selecionar/Desmarcar Todos */}
                   {(() => {
-                    const pendentes = itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido') || [];
+                    const pendentes = itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'divergente' || i.statusConciliacao === 'glosado') || [];
                     if (pendentes.length <= 1) return null;
                     const todosSelecionados = pendentes.length > 0 && pendentes.every((i: any) => conciliadosSelecionados.has(i.id));
                     return (
@@ -662,7 +664,7 @@ export function AbaConciliados({
                       </div>
                     );
                   })()}
-                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido').map((item: any) => (
+                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'divergente' || i.statusConciliacao === 'glosado').map((item: any) => (
                     <div 
                       key={item.id}
                       onClick={() => {
@@ -690,7 +692,7 @@ export function AbaConciliados({
                       </div>
                     </div>
                   ))}
-                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido').length === 0 && (
+                  {itensConciliadosGuia?.filter((i: any) => i.statusConciliacao === 'nao_recebido' || i.statusConciliacao === 'divergente' || i.statusConciliacao === 'glosado').length === 0 && (
                     <div className="text-center p-8 text-muted-foreground text-sm">Nenhum item pendente no faturamento.</div>
                   )}
                 </div>
@@ -706,27 +708,55 @@ export function AbaConciliados({
                   {isLoadingSobras ? (
                     <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
                   ) : sobrasGuia && sobrasGuia.length > 0 ? (
-                    sobrasGuia.map((item: any) => (
-                      <div 
-                        key={item.id}
-                        onClick={() => setSobraSelecionada(item.id)}
-                        className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                          sobraSelecionada === item.id 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500' 
-                            : 'border-border hover:border-blue-300 bg-background'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
-                          <span className="font-bold text-green-600">{formatarMoeda(Number(item.valorPago))}</span>
+                    <>
+                      {/* Selecionar/Desmarcar Todos sobras */}
+                      {sobrasGuia.length > 1 && (
+                        <div className="flex items-center gap-2 pb-2 border-b mb-1">
+                          <Checkbox
+                            checked={sobrasGuia.length > 0 && sobrasGuia.every((i: any) => sobrasSelecionadas.has(i.id))}
+                            onCheckedChange={(checked) => {
+                              const novos = new Set(sobrasSelecionadas);
+                              sobrasGuia.forEach((i: any) => { if (checked) novos.add(i.id); else novos.delete(i.id); });
+                              setSobrasSelecionadas(novos);
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground">Selecionar todas ({sobrasGuia.length} sobras)</span>
+                          {sobrasSelecionadas.size > 0 && (
+                            <span className="text-xs font-medium text-green-600 ml-auto">
+                              Total: {formatarMoeda(sobrasGuia.filter((i: any) => sobrasSelecionadas.has(i.id)).reduce((s: number, i: any) => s + Number(i.valorPago || 0), 0))}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{item.descricaoItem}</p>
-                        <div className="mt-2 text-xs flex gap-3">
-                          <span>Qtd: {item.quantidade}</span>
-                          {Number(item.valorInformado) > 0 && <span>Informado: {formatarMoeda(Number(item.valorInformado))}</span>}
+                      )}
+                      {sobrasGuia.map((item: any) => (
+                        <div 
+                          key={item.id}
+                          onClick={() => {
+                            const novos = new Set(sobrasSelecionadas);
+                            if (novos.has(item.id)) novos.delete(item.id); else novos.add(item.id);
+                            setSobrasSelecionadas(novos);
+                          }}
+                          className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                            sobrasSelecionadas.has(item.id)
+                              ? 'border-green-500 bg-green-50 dark:bg-green-950/40 ring-1 ring-green-500' 
+                              : 'border-border hover:border-green-300 bg-background'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked={sobrasSelecionadas.has(item.id)} tabIndex={-1} />
+                              <span className="font-mono text-sm font-semibold">{item.codigoItem}</span>
+                            </div>
+                            <span className="font-bold text-green-600">{formatarMoeda(Number(item.valorPago))}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2 ml-6">{item.descricaoItem}</p>
+                          <div className="mt-2 text-xs flex gap-3 ml-6">
+                            <span>Qtd: {item.quantidade}</span>
+                            {Number(item.valorInformado) > 0 && <span>Informado: {formatarMoeda(Number(item.valorInformado))}</span>}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </>
                   ) : (
                     <div className="text-center p-8 text-muted-foreground text-sm">Nenhuma sobra disponível neste demonstrativo.</div>
                   )}
@@ -749,12 +779,12 @@ export function AbaConciliados({
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setModalVinculacaoAberto(false)}>Cancelar</Button>
               <Button 
-                disabled={conciliadosSelecionados.size === 0 || !sobraSelecionada || vincularMut.isPending}
+                disabled={conciliadosSelecionados.size === 0 || sobrasSelecionadas.size === 0 || vincularMut.isPending}
                 onClick={handleVincular}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {vincularMut.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
-                Vincular {conciliadosSelecionados.size > 1 ? `${conciliadosSelecionados.size} Itens` : 'Item'}
+                Vincular {conciliadosSelecionados.size > 1 ? `${conciliadosSelecionados.size} Itens` : 'Item'}{sobrasSelecionadas.size > 1 ? ` ↔ ${sobrasSelecionadas.size} Sobras` : ''}
               </Button>
             </div>
           </DialogFooter>

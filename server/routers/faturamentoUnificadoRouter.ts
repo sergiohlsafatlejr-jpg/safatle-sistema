@@ -394,7 +394,8 @@ export const faturamentoUnificadoRouter = router({
       estabelecimentoId: z.number(),
       conciliadoId: z.number().optional(),
       conciliadoIds: z.array(z.number()).optional(),
-      recebimentoId: z.number(),
+      recebimentoId: z.number().optional(),
+      recebimentoIds: z.array(z.number()).optional(),
       criarRegraDePara: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -406,12 +407,20 @@ export const faturamentoUnificadoRouter = router({
           : [];
       if (ids.length === 0) throw new Error("Nenhum item selecionado para vincular");
       
+      // Array de recebimentoIds (multi-select no demonstrativo)
+      const recIds = input.recebimentoIds?.length
+        ? input.recebimentoIds
+        : input.recebimentoId
+          ? [input.recebimentoId]
+          : [];
+      if (recIds.length === 0) throw new Error("Nenhum recebimento selecionado");
+      
       let vinculados = 0;
       for (const conciliadoId of ids) {
         await faturamentoService.vincularItemManual({
           estabelecimentoId: input.estabelecimentoId,
           conciliadoId,
-          recebimentoId: input.recebimentoId,
+          recebimentoIds: recIds,
           criarRegraDePara: input.criarRegraDePara,
         });
         vinculados++;
