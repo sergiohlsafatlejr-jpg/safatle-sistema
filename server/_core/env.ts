@@ -7,7 +7,7 @@ export const ENV = {
   ownerEmail: process.env.OWNER_EMAIL ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
   pgAtendimentosHost: process.env.PG_ATENDIMENTOS_HOST ?? "",
   pgAtendimentosPort: process.env.PG_ATENDIMENTOS_PORT ?? "5432",
   pgAtendimentosDatabase: process.env.PG_ATENDIMENTOS_DATABASE ?? "",

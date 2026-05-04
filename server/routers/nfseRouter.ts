@@ -611,13 +611,18 @@ const notasRouter = router({
       const fileBuffer = Buffer.from(input.fileBase64, "base64");
       const { url: pdfUrl } = await storagePut(fileKey, fileBuffer, "application/pdf");
 
+      // Ler texto do PDF
+      const pdfParse = (await import("pdf-parse")).default;
+      const pdfData = await pdfParse(fileBuffer);
+      const pdfText = pdfData.text;
+
       // Chamar LLM para extrair dados do PDF
       const response = await invokeLLM({
         messages: [
           {
             role: "system",
             content: `Você é um assistente especializado em extrair informações de notas fiscais hospitalares brasileiras.
-Analise este documento PDF e extraia as seguintes informações:
+Analise o texto extraído do documento PDF e extraia as seguintes informações:
 - numero_nf: número da nota fiscal
 - data_emissao: data de emissão (formato YYYY-MM-DD)
 - data_faturamento: data de faturamento se houver (formato YYYY-MM-DD)
@@ -631,16 +636,7 @@ Retorne APENAS um JSON válido com os campos que conseguir identificar. Se não 
           },
           {
             role: "user",
-            content: [
-              { type: "text", text: "Extraia os dados desta nota fiscal:" },
-              {
-                type: "file_url",
-                file_url: {
-                  url: pdfUrl,
-                  mime_type: "application/pdf",
-                },
-              },
-            ],
+            content: `Extraia os dados desta nota fiscal com base no texto extraído:\n\n${pdfText}`,
           },
         ],
         response_format: {

@@ -563,6 +563,16 @@ export const integradorDadosRouter = router({
             if (!result.sucesso) {
               throw new Error(result.mensagem || "Erro ao sincronizar via DataSyncEngine");
             }
+
+            // Atualiza data da última sincronização para TASY/Omni etc.
+            await db
+              .update(queryConfiguracoes)
+              .set({
+                ultimaSincronizacao: new Date(),
+                totalRegistrosSincronizados: registrosProcessados,
+              })
+              .where(eq(queryConfiguracoes.id, input.configId));
+
           } catch(error) {
              logger.error({
               message: `Erro durante sincronização ${config.sistema.toUpperCase()}`,

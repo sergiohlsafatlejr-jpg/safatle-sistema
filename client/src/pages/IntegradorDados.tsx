@@ -679,6 +679,11 @@ export function IntegradorDados() {
                               Destino: {config.conexaoConfig.tabelaDestinoBi}
                             </span>
                           )}
+                          {config.ultimaSincronizacao && (
+                            <span className="text-xs text-muted-foreground mt-1">
+                              Última Sinc.: {formatDateTimeBR(config.ultimaSincronizacao)}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right space-x-2">
@@ -703,19 +708,21 @@ export function IntegradorDados() {
                             <Play className="h-4 w-4" />
                           )}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleTransformar(config.id)}
-                          disabled={transformarParaAtendimentos.isPending}
-                          title="Transformar para tabela unificada"
-                        >
-                          {transformarParaAtendimentos.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
+                        {config.tipoDados !== 'bi_relatorio' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleTransformar(config.id)}
+                            disabled={transformarParaAtendimentos.isPending}
+                            title="Transformar para tabela unificada"
+                          >
+                            {transformarParaAtendimentos.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"

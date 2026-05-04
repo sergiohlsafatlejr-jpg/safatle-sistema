@@ -54,7 +54,7 @@ export default function PrevisaoRecebimentos() {
   const [searchConvenio, setSearchConvenio] = useState("");
   const [selectedMes, setSelectedMes] = useState<string | null>(null);
 
-  const { data, isLoading, error } = trpc.tasy.getPrevisaoRecebimentos.useQuery(
+  const { data, isLoading, error, refetch, isRefetching } = trpc.tasy.getPrevisaoRecebimentos.useQuery(
     { estabelecimentoId },
     { enabled: estabelecimentoId > 0, staleTime: 60_000 }
   );
@@ -162,13 +162,28 @@ export default function PrevisaoRecebimentos() {
     <DashboardLayout>
     <div style={{ padding: "24px 32px", maxWidth: 1400, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          📊 Previsão de Recebimentos
-        </h1>
-        <p style={{ color: "#64748b", marginTop: 4, fontSize: 14 }}>
-          Projeção financeira baseada nos protocolos de {estabelecimentoAtual?.nome || "—"}
-        </p>
+      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1e293b", margin: 0 }}>
+            📊 Previsão de Recebimentos
+          </h1>
+          <p style={{ color: "#64748b", marginTop: 4, fontSize: 14 }}>
+            Projeção financeira baseada nos protocolos de {estabelecimentoAtual?.nome || "—"}
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isRefetching || isLoading}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 16px",
+            background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+            fontSize: 14, fontWeight: 500, color: "#475569", cursor: (isRefetching || isLoading) ? "not-allowed" : "pointer",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+          }}
+        >
+          <span style={{ fontSize: 16 }}>{isRefetching ? "⏳" : "🔄"}</span>
+          {isRefetching ? "Atualizando..." : "Atualizar Dados"}
+        </button>
       </div>
 
       {isLoading && (
@@ -479,7 +494,7 @@ function PagamentosTab() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id || 0;
   
-  const { data, isLoading, error } = trpc.tasy.getPagamentosBi.useQuery(
+  const { data, isLoading, error, refetch, isRefetching } = trpc.tasy.getPagamentosBi.useQuery(
     { estabelecimentoId },
     { enabled: estabelecimentoId > 0, staleTime: 60_000 }
   );
@@ -528,6 +543,14 @@ function PagamentosTab() {
            <p className="text-sm text-slate-500">Compare os créditos em conta com as conciliações sistêmicas para identificar Pendências a Vincular.</p>
          </div>
          <div className="flex gap-2 items-center">
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching || isLoading}
+              className="mr-2 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="text-base">{isRefetching ? "⏳" : "🔄"}</span>
+              {isRefetching ? "Atualizando..." : "Atualizar"}
+            </button>
             <span className="text-sm font-medium text-slate-500">Filtrar Competência:</span>
             <select
               value={selectedMes}
