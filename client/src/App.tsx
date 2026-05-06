@@ -91,6 +91,7 @@ const BiFinanceiroTasy = lazy(() => import("./pages/BiFinanceiroTasy"));
 const RelatorioProtocolos = lazy(() => import("./pages/RelatorioProtocolos"));
 const PrevisaoRecebimentos = lazy(() => import("./pages/PrevisaoRecebimentos"));
 const AnaliseFaturamentosBi = lazy(() => import("./pages/AnaliseFaturamentosBi"));
+const FluxoCaixaBI = lazy(() => import("./pages/FluxoCaixaBI"));
 
 function PageLoader() {
   return (
@@ -193,6 +194,8 @@ function Router() {
         <Route path={"/relatorio-protocolos"} component={RelatorioProtocolos} />
         <Route path={"/previsao-recebimentos"} component={PrevisaoRecebimentos} />
         <Route path={"/analise-faturamento-itens"} component={AnaliseFaturamentosBi} />
+        <Route path={"/fluxo-caixa-bi"} component={FluxoCaixaBI} />
+        <Route path={"/relatorios-glosas-bi"} component={RelatoriosBI} />
         <Route path={"/faturamento-externo"} component={FaturamentoExterno} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
         <Route path={"/relatorio-custos"} component={RelatorioCustos} />

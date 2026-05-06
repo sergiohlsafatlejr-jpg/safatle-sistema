@@ -569,7 +569,8 @@ export const tasyRouter = router({
       const estabId = Number(input.estabelecimentoId);
 
       // Build filtros dinâmicos
-      const C = (col: string) => `CAST(NULLIF(TRIM(REPLACE(${col}, ',', '.')), '') AS DECIMAL(15,2))`;
+      // Simplified CAST for massive performance gain
+      const C = (col: string) => `CAST(${col} AS DECIMAL(15,2))`;
       let filtros = `AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')`;
       if (input.competencia && input.competencia !== 'todas') {
         filtros += ` AND COMPETENCIA = '${String(input.competencia).replace(/'/g, "''")}'`;
@@ -585,100 +586,92 @@ export const tasyRouter = router({
       const glosaWhere = `${baseWhere} AND ${C('VL_GLOSA')} > 0`;
       const profWhere  = `${glosaWhere} AND PROF_EXEC IS NOT NULL`;
 
-      const FATURADO_EXPR = `CASE WHEN STATUS_PROT = '2' THEN ${C('VL_PRODUZIDO')} ELSE 0 END`;
+      const FATURADO_EXPR = `${C('VL_PRODUZIDO')}`;
       const PROVISORIO_EXPR = `CASE WHEN STATUS_PROT = '1' THEN ${C('VL_PRODUZIDO')} ELSE 0 END`;
 
       // ─── KPIs PRINCIPAIS ───────────────────────────────────────────────────
-      const [resumoRows] = await db.execute(sql.raw(`
+      const pResumo = db.execute(sql.raw(`
         SELECT 
           SUM(${FATURADO_EXPR}) as totalFaturado,
           SUM(${PROVISORIO_EXPR}) as totalProvisorio,
           SUM(${C('A_RECEBER')}) as totalAReceber,
-          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as totalRecebido,
+          SUM(${C('VL_PAGO')}) as totalRecebido,
           SUM(${C('VL_GLOSA')}) as totalGlosado,
           SUM(${C('VL_MEDICO')}) as totalMedico,
           COUNT(*) as qtdTotal,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtdGlosados
         FROM tasy_faturado_itens_bi
         ${baseWhere}
-      `)) as any;
-      const rv = resumoRows[0] || {};
-      const totalFaturado = Number(rv.totalFaturado) || 0;
-      const totalProvisorio = Number(rv.totalProvisorio) || 0;
-      const totalAReceber = Number(rv.totalAReceber) || 0;
-      const totalRecebido = Number(rv.totalRecebido) || 0;
-      const totalGlosado  = Number(rv.totalGlosado)  || 0;
-      const totalMedico   = Number(rv.totalMedico)   || 0;
-      const qtdTotal      = Number(rv.qtdTotal)      || 0;
-      const qtdGlosados   = Number(rv.qtdGlosados)   || 0;
-      const taxaGlosa     = totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0;
+      `));
+
 
       // ─── EVOLUÇÃO MENSAL ───────────────────────────────────────────────────
       const evolMensal = `WHERE estabelecimentoId = ${estabId}
           AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')
           ${input.ano && input.ano !== 'todos' ? `AND COMPETENCIA LIKE '${input.ano}/%'` : ''}`;
-      const [evolucaoRows] = await db.execute(sql.raw(`
+      const pEvolucao = db.execute(sql.raw(`
         SELECT COMPETENCIA as competencia,
           SUM(${FATURADO_EXPR}) as faturado,
-          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_PAGO')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           SUM(${C('A_RECEBER')}) as a_receber,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados
         FROM tasy_faturado_itens_bi ${evolMensal}
         GROUP BY COMPETENCIA ORDER BY COMPETENCIA ASC LIMIT 60
-      `)) as any;
+      `));
 
       // ─── POR CONVÊNIO ──────────────────────────────────────────────────────
-      const [convenioRows] = await db.execute(sql.raw(`
+      const pConvenio = db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(CONVENIO), ''), 'Não informado') as convenio,
           SUM(${FATURADO_EXPR}) as faturado,
-          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_PAGO')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           SUM(${C('A_RECEBER')}) as a_receber,
+          SUM(${C('VL_AMAIOR')}) as a_maior,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
           (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY CONVENIO ORDER BY faturado DESC LIMIT 20
-      `)) as any;
+      `));
 
       // ─── POR SETOR ─────────────────────────────────────────────────────────
-      const [setorRows] = await db.execute(sql.raw(`
+      const pSetor = db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(SETOR), ''), 'Não informado') as setor,
           SUM(${FATURADO_EXPR}) as faturado,
-          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_PAGO')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
           (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY SETOR ORDER BY glosado DESC LIMIT 30
-      `)) as any;
+      `));
 
       // ─── POR TIPO DE ITEM ──────────────────────────────────────────────────
-      const [tipoItemRows] = await db.execute(sql.raw(`
+      const pTipoItem = db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(TIPO_ITEM), ''), 'Não informado') as tipo_item,
           SUM(${FATURADO_EXPR}) as faturado,
-          SUM(${C('VL_PAGO')} + ${C('VL_AMAIOR')}) as recebido,
+          SUM(${C('VL_PAGO')}) as recebido,
           SUM(${C('VL_GLOSA')}) as glosado,
           COUNT(*) as qtd_itens,
           COUNT(CASE WHEN ${C('VL_GLOSA')} > 0 THEN 1 END) as qtd_glosados,
           (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${baseWhere}
         GROUP BY TIPO_ITEM ORDER BY faturado DESC
-      `)) as any;
+      `));
 
       // ─── TOP MOTIVOS DE GLOSA ──────────────────────────────────────────────
-      const [motivosRows] = await db.execute(sql.raw(`
+      const pMotivos = db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA), ''), 'Sem motivo informado') as motivo,
           SUM(${C('VL_GLOSA')}) as vl_glosa,
           COUNT(*) as qtd_glosada
         FROM tasy_faturado_itens_bi ${glosaWhere}
         GROUP BY MOTIVO_GLOSA ORDER BY vl_glosa DESC LIMIT 20
-      `)) as any;
+      `));
 
       // ─── TOP ITENS GLOSADOS ────────────────────────────────────────────────
-      const [glosasRows] = await db.execute(sql.raw(`
+      const pGlosas = db.execute(sql.raw(`
         SELECT COALESCE(DESCRICAO, 'Sem descrição') as descricao,
           COALESCE(CD_ITEM, '') as codigo,
           COALESCE(CD_ITEM_TUSS, '') as codigo_tuss,
@@ -691,10 +684,10 @@ export const tasyRouter = router({
         FROM tasy_faturado_itens_bi ${glosaWhere}
         GROUP BY DESCRICAO, CD_ITEM, CD_ITEM_TUSS, CONVENIO, SETOR, TIPO_ITEM
         ORDER BY vl_glosa DESC LIMIT 100
-      `)) as any;
+      `));
 
       // ─── TOP PROFISSIONAIS ─────────────────────────────────────────────────
-      const [profRows] = await db.execute(sql.raw(`
+      const pProf = db.execute(sql.raw(`
         SELECT COALESCE(NULLIF(TRIM(PROF_EXEC), ''), 'Não informado') as profissional,
           COALESCE(CRM, '') as crm,
           SUM(${FATURADO_EXPR}) as faturado,
@@ -703,24 +696,51 @@ export const tasyRouter = router({
           (SUM(${C('VL_GLOSA')}) / NULLIF(SUM(${FATURADO_EXPR}), 0)) * 100 as pct_glosa
         FROM tasy_faturado_itens_bi ${profWhere}
         GROUP BY PROF_EXEC, CRM ORDER BY glosado DESC LIMIT 20
-      `)) as any;
+      `));
 
       // ─── FILTROS DISPONÍVEIS ───────────────────────────────────────────────
-      const [competenciasRows] = await db.execute(sql.raw(`
+      const pComp = db.execute(sql.raw(`
         SELECT DISTINCT COMPETENCIA as competencia FROM tasy_faturado_itens_bi
         WHERE estabelecimentoId = ${estabId} AND COMPETENCIA IS NOT NULL AND COMPETENCIA NOT LIKE '3%'
         ORDER BY COMPETENCIA DESC
-      `)) as any;
-      const [conveniosRows] = await db.execute(sql.raw(`
+      `));
+      const pConvOpts = db.execute(sql.raw(`
         SELECT DISTINCT CONVENIO as convenio FROM tasy_faturado_itens_bi
         WHERE estabelecimentoId = ${estabId} AND CONVENIO IS NOT NULL AND TRIM(CONVENIO) != ''
         ORDER BY CONVENIO ASC
-      `)) as any;
-      const [setoresRows] = await db.execute(sql.raw(`
+      `));
+      const pSetorOpts = db.execute(sql.raw(`
         SELECT DISTINCT SETOR as setor FROM tasy_faturado_itens_bi
         WHERE estabelecimentoId = ${estabId} AND SETOR IS NOT NULL AND TRIM(SETOR) != ''
         ORDER BY SETOR ASC
-      `)) as any;
+      `));
+
+      const [resResumo, resEvolucao, resConvenio, resSetor, resTipoItem, resMotivos, resGlosas, resProf, resComp, resConvOpts, resSetorOpts] = await Promise.all([
+        pResumo, pEvolucao, pConvenio, pSetor, pTipoItem, pMotivos, pGlosas, pProf, pComp, pConvOpts, pSetorOpts
+      ]);
+
+      const resumoRows = (resResumo as any)[0];
+      const evolucaoRows = (resEvolucao as any)[0];
+      const convenioRows = (resConvenio as any)[0];
+      const setorRows = (resSetor as any)[0];
+      const tipoItemRows = (resTipoItem as any)[0];
+      const motivosRows = (resMotivos as any)[0];
+      const glosasRows = (resGlosas as any)[0];
+      const profRows = (resProf as any)[0];
+      const competenciasRows = (resComp as any)[0];
+      const conveniosRows = (resConvOpts as any)[0];
+      const setoresRows = (resSetorOpts as any)[0];
+
+      const rv = resumoRows[0] || {};
+      const totalFaturado = Number(rv.totalFaturado) || 0;
+      const totalProvisorio = Number(rv.totalProvisorio) || 0;
+      const totalAReceber = Number(rv.totalAReceber) || 0;
+      const totalRecebido = Number(rv.totalRecebido) || 0;
+      const totalGlosado  = Number(rv.totalGlosado)  || 0;
+      const totalMedico   = Number(rv.totalMedico)   || 0;
+      const qtdTotal      = Number(rv.qtdTotal)      || 0;
+      const qtdGlosados   = Number(rv.qtdGlosados)   || 0;
+      const taxaGlosa     = totalFaturado > 0 ? (totalGlosado / totalFaturado) * 100 : 0;
 
       const n = (v: any) => Number(v) || 0;
       return {
@@ -738,7 +758,8 @@ export const tasyRouter = router({
         })),
         porConvenio: (convenioRows || []).map((row: any) => ({
           convenio: row.convenio, faturado: n(row.faturado), recebido: n(row.recebido),
-          glosado: n(row.glosado), aReceber: n(row.a_receber), qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
+          glosado: n(row.glosado), aReceber: n(row.a_receber), a_maior: n(row.a_maior),
+          qtd_itens: n(row.qtd_itens), qtd_glosados: n(row.qtd_glosados),
           pct_glosa: Number(n(row.pct_glosa).toFixed(2))
         })),
         porSetor: (setorRows || []).map((row: any) => ({
@@ -768,7 +789,288 @@ export const tasyRouter = router({
         convenios: (conveniosRows || []).map((row: any) => row.convenio),
         setores: (setoresRows || []).map((row: any) => row.setor)
       };
-    })
+    }),
+
+  /**
+   * Geração Automática de Relatórios de Glosas
+   * Replica a lógica do script Python analisar_glosas.py
+   */
+  gerarRelatorioGlosas: protectedProcedure
+    .input(z.object({
+      estabelecimentoId: z.number(),
+      competencia: z.string().optional(),
+      convenio: z.string().optional(),
+      setor: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB offline");
+      const estabId = Number(input.estabelecimentoId);
+      if (!estabId || estabId <= 0) {
+        return { resumo: { linhas: 0, conveniosDistintos: 0, vlCobrado: 0, vlPago: 0, vlGlosa: 0, vlAReceber: 0, compIni: '', compFim: '', pctGlosa: 0 },
+          porMotivo: [], porConvenio: [], porSetor: [], porItem: [], evolucaoMensal: [], oportunidades: [], competencias: [], convenios: [] };
+      }
+      const C = (col: string) => `CAST(${col} AS DECIMAL(15,2))`;
+      const emptyResult = { resumo: { linhas: 0, conveniosDistintos: 0, vlCobrado: 0, vlPago: 0, vlGlosa: 0, vlAReceber: 0, compIni: '', compFim: '', pctGlosa: 0 },
+        porMotivo: [], porConvenio: [], porSetor: [], porItem: [], evolucaoMensal: [], oportunidades: [], competencias: [], convenios: [], fonte: 'nenhuma' as string };
+
+      // AUTO-DETECT: Check if tasy_faturado_itens_bi has data for this establishment
+      const [tasyCheck] = await db.execute(sql.raw(`SELECT COUNT(*) as cnt FROM tasy_faturado_itens_bi WHERE estabelecimentoId = ${estabId} LIMIT 1`));
+      const hasTasy = Number((tasyCheck as any)[0]?.cnt) > 0;
+
+      // Check demonstrativo table
+      const [demoCheck] = await db.execute(sql.raw(`SELECT COUNT(*) as cnt FROM demonstrativo WHERE estabelecimentoId = ${estabId} LIMIT 1`));
+      const hasDemo = Number((demoCheck as any)[0]?.cnt) > 0;
+
+      if (!hasTasy && !hasDemo) return emptyResult;
+
+      const n = (v: any) => Number(v) || 0;
+      const mapRows = (res: any, mapper: (row: any) => any) => ((res as any)[0] || []).map(mapper);
+      const esc = (s: string) => String(s).replace(/'/g, "''");
+
+      // ═══ SOURCE: TASY BI ═══
+      if (hasTasy) {
+        let filtros = `AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')`;
+        if (input.competencia && input.competencia !== 'todas') filtros += ` AND COMPETENCIA = '${esc(input.competencia)}'`;
+        if (input.convenio && input.convenio !== 'todos') filtros += ` AND CONVENIO = '${esc(input.convenio)}'`;
+        if (input.setor && input.setor !== 'todos') filtros += ` AND SETOR = '${esc(input.setor)}'`;
+        const bw = `WHERE estabelecimentoId = ${estabId} ${filtros}`;
+        const gw = `${bw} AND ${C('VL_GLOSA')} > 0`;
+        const T = 'tasy_faturado_itens_bi';
+
+        const [rR, rM, rC, rS, rI, rE, rO, rComp, rConv] = await Promise.all([
+          db.execute(sql.raw(`SELECT COUNT(*) as linhas, COUNT(DISTINCT CONVENIO) as conv_d, SUM(${C('VL_PRODUZIDO')}) as vl_cob, SUM(${C('VL_PAGO')}) as vl_pag, SUM(${C('VL_GLOSA')}) as vl_gl, SUM(${C('A_RECEBER')}) as vl_ar, MIN(COMPETENCIA) as ci, MAX(COMPETENCIA) as cf FROM ${T} ${bw}`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA),''),'Sem motivo') as motivo, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY MOTIVO_GLOSA ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(CONVENIO),''),'N/I') as convenio, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, SUM(${C('VL_PAGO')}) as vp, COUNT(*) as q, COUNT(CASE WHEN ${C('VL_GLOSA')}>0 THEN 1 END) as qg FROM ${T} ${bw} GROUP BY CONVENIO ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(SETOR),''),'N/I') as setor, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY SETOR ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(DESCRICAO,'S/D') as descricao, COALESCE(CD_ITEM,'') as codigo, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY DESCRICAO, CD_ITEM ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COMPETENCIA as comp, SUM(${C('VL_PRODUZIDO')}) as vc, SUM(${C('VL_PAGO')}) as vp, SUM(${C('VL_GLOSA')}) as vg, COUNT(*) as q FROM ${T} ${bw} GROUP BY COMPETENCIA ORDER BY COMPETENCIA ASC LIMIT 60`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(CONVENIO),''),'N/I') as convenio, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY MOTIVO_GLOSA, CONVENIO ORDER BY vg DESC LIMIT 30`)),
+          db.execute(sql.raw(`SELECT DISTINCT COMPETENCIA as comp FROM ${T} WHERE estabelecimentoId=${estabId} AND COMPETENCIA IS NOT NULL AND COMPETENCIA NOT LIKE '3%' ORDER BY COMPETENCIA DESC`)),
+          db.execute(sql.raw(`SELECT DISTINCT CONVENIO as conv FROM ${T} WHERE estabelecimentoId=${estabId} AND CONVENIO IS NOT NULL AND TRIM(CONVENIO)!='' ORDER BY CONVENIO ASC`)),
+        ]);
+        const r = (rR as any)[0]?.[0] || {};
+        const tg = n(r.vl_gl);
+        return {
+          fonte: 'tasy_bi',
+          resumo: { linhas: n(r.linhas), conveniosDistintos: n(r.conv_d), vlCobrado: n(r.vl_cob), vlPago: n(r.vl_pag), vlGlosa: tg, vlAReceber: n(r.vl_ar), compIni: r.ci||'', compFim: r.cf||'', pctGlosa: n(r.vl_cob)>0?(tg/n(r.vl_cob))*100:0 },
+          porMotivo: mapRows(rM, (r:any) => ({ motivo:r.motivo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0, participacao:tg>0?(n(r.vg)/tg)*100:0 })),
+          porConvenio: mapRows(rC, (r:any) => ({ convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), vlPago:n(r.vp), qtd:n(r.q), qtdGlosados:n(r.qg), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+          porSetor: mapRows(rS, (r:any) => ({ setor:r.setor, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+          porItem: mapRows(rI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
+          evolucaoMensal: mapRows(rE, (r:any) => ({ comp:r.comp, vlCobrado:n(r.vc), vlPago:n(r.vp), vlGlosa:n(r.vg), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+          oportunidades: mapRows(rO, (r:any) => ({ motivo:r.motivo, convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+          competencias: ((rComp as any)[0]||[]).map((r:any)=>r.comp),
+          convenios: ((rConv as any)[0]||[]).map((r:any)=>r.conv),
+        };
+      }
+
+      // ═══ SOURCE: DEMONSTRATIVO (PSI, Urológico, etc) ═══
+      const D = 'demonstrativo';
+      const compExpr = `DATE_FORMAT(${D}.data_referencia, '%Y/%m')`;
+      let df = `WHERE ${D}.estabelecimentoId = ${estabId}`;
+      if (input.competencia && input.competencia !== 'todas') df += ` AND ${compExpr} = '${esc(input.competencia)}'`;
+      if (input.convenio && input.convenio !== 'todos') df += ` AND ${D}.convenio_id IN (SELECT id FROM convenios WHERE nome = '${esc(input.convenio)}')`;
+      const dg = `${df} AND COALESCE(${D}.valor_glosa, 0) > 0`;
+
+      // Join with convenios to get name
+      const convJoin = `LEFT JOIN convenios cv ON ${D}.convenio_id = cv.id`;
+      const convName = `COALESCE(cv.nome, 'N/I')`;
+
+      // Cobrado = valor_pago + valor_glosa (com COALESCE para NULLs)
+      const vp = `COALESCE(${D}.valor_pago, 0)`;
+      const vg = `COALESCE(${D}.valor_glosa, 0)`;
+      const vlCob = `(${vp} + ${vg})`;
+
+      const [dR, dM, dC, dI, dE, dComp, dConv] = await Promise.all([
+        db.execute(sql.raw(`SELECT COUNT(*) as linhas, COUNT(DISTINCT ${D}.convenio_id) as conv_d, SUM(${vlCob}) as vc, SUM(${vp}) as vp, SUM(${vg}) as vg, MIN(${compExpr}) as ci, MAX(${compExpr}) as cf FROM ${D} ${df}`)),
+        db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(${D}.codigo_glosa),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(${D}.situacao_item),''), '') as situacao, SUM(${vg}) as vg, SUM(${vlCob}) as vc, COUNT(*) as q FROM ${D} ${dg} GROUP BY ${D}.codigo_glosa, ${D}.situacao_item ORDER BY vg DESC LIMIT 20`)),
+        db.execute(sql.raw(`SELECT ${convName} as convenio, SUM(${vg}) as vg, SUM(${vlCob}) as vc, SUM(${vp}) as vp, COUNT(*) as q, COUNT(CASE WHEN ${vg}>0 THEN 1 END) as qg FROM ${D} ${convJoin} ${df} GROUP BY cv.nome ORDER BY vg DESC LIMIT 20`)),
+        db.execute(sql.raw(`SELECT COALESCE(${D}.descricao_item,'S/D') as descricao, COALESCE(${D}.codigo_item,'') as codigo, SUM(${vg}) as vg, SUM(${vlCob}) as vc, COUNT(*) as q FROM ${D} ${dg} GROUP BY ${D}.descricao_item, ${D}.codigo_item ORDER BY vg DESC LIMIT 20`)),
+        db.execute(sql.raw(`SELECT ${compExpr} as comp, SUM(${vlCob}) as vc, SUM(${vp}) as vp, SUM(${vg}) as vg, COUNT(*) as q FROM ${D} ${df} GROUP BY ${compExpr} ORDER BY comp ASC LIMIT 60`)),
+        db.execute(sql.raw(`SELECT DISTINCT ${compExpr} as comp FROM ${D} WHERE ${D}.estabelecimentoId=${estabId} AND ${D}.data_referencia IS NOT NULL ORDER BY comp DESC`)),
+        db.execute(sql.raw(`SELECT DISTINCT cv.nome as conv FROM ${D} ${convJoin} WHERE ${D}.estabelecimentoId=${estabId} AND cv.nome IS NOT NULL ORDER BY cv.nome ASC`)),
+      ]);
+
+      // Dicionário TISS completo de códigos de glosa
+      const tissGlosa: Record<string, string> = {
+        '1001':'Lote não identificado','1002':'Procedimento não coberto','1003':'Procedimento não autorizado',
+        '1004':'Procedimento não habilitado','1005':'Prestador não credenciado','1006':'Beneficiário não identificado',
+        '1007':'Beneficiário inelegível','1008':'Período de carência','1009':'Doença preexistente',
+        '1010':'Procedimento não compatível com diagnóstico','1011':'Quantidade excede o permitido',
+        '1012':'Procedimento não compatível com sexo','1013':'Quantidade não autorizada',
+        '1014':'Quantidade acima do permitido','1015':'Procedimento não compatível com faixa etária',
+        '1102':'Procedimento já pago','1103':'Pagamento duplicado','1104':'Conta já paga',
+        '1301':'Valor unitário acima do contratado','1302':'Valor total acima do contratado',
+        '1303':'Valor unitário diferente do informado','1304':'Valor acima do contratado',
+        '1305':'Valor acima da tabela','1306':'Valor informado incorreto',
+        '1307':'Valor não negociado','1308':'Desconto contratual','1309':'Coparticipação',
+        '1310':'Franquia','1311':'Valor acima do autorizado','1312':'Valor já pago',
+        '1313':'Taxa/acomodação não autorizada','1314':'Valor excede limite contratual',
+        '1315':'Valor não previsto em contrato',
+        '1601':'Guia duplicada','1602':'Sequencial repetido','1603':'Guia cancelada',
+        '1604':'Data de execução inválida','1605':'Guia vencida','1606':'Beneficiário não ativo',
+        '1607':'Procedimento sem cobertura','1608':'Fora do prazo de entrega',
+        '1609':'Guia inválida','1610':'Glosa do prestador','1611':'Senha inválida/expirada',
+        '1612':'Guia não autorizada','1613':'Procedimento não confere com autorização',
+        '1614':'Procedimento duplicado','1615':'Valor informado divergente','1616':'Guia incompleta',
+        '1617':'Erro de cobrança','1618':'Protocolo não encontrado',
+        '1619':'Código não encontrado','1620':'Código inválido','1621':'Data fora da vigência',
+        '1622':'Ausência de justificativa técnica',
+        '1701':'Autorização não encontrada','1702':'Sem autorização prévia',
+        '1703':'Autorização vencida','1704':'Autorização cancelada',
+        '1705':'Não confere com tipo de guia','1706':'Profissional não habilitado',
+        '1707':'Solicitante não autorizado',
+        '1801':'Código de tabela inválido','1802':'Tabela não vigente','1803':'Código TUSS inválido',
+        '1810':'Pacote incluso','1811':'Item já cobrado em outro procedimento',
+        '1812':'Limite de sessões atingido','1813':'Item incluso no pacote/diária',
+        '1814':'Material incluso no procedimento','1815':'Medicamento incluso',
+        '1816':'Taxa já inclusa','1817':'Procedimento incluso na diária',
+        '1818':'Item incluso na taxa de sala','1819':'Componente do porte',
+        '1820':'Componente do kit',
+        '1901':'Fora da cobertura contratual','1902':'Limite financeiro atingido',
+        '1903':'Limite de quantidade atingido','1904':'Período não coberto',
+        '1914':'Item cobrado em duplicidade',
+        '2001':'Outros','2002':'Pendência de documentação','2003':'Auditoria médica',
+      };
+      const resolveMotivo = (code: string, situacao?: string) => {
+        const c = String(code).trim();
+        if (tissGlosa[c]) return `${c} - ${tissGlosa[c]}`;
+        if (situacao && situacao !== c) return `${c} - ${situacao}`;
+        return c;
+      };
+
+      const dr = (dR as any)[0]?.[0] || {};
+      const dtg = n(dr.vg);
+      const dtc = n(dr.vc);
+      return {
+        fonte: 'demonstrativo',
+        resumo: { linhas: n(dr.linhas), conveniosDistintos: n(dr.conv_d), vlCobrado: dtc, vlPago: n(dr.vp), vlGlosa: dtg, vlAReceber: Math.max(0, dtc-n(dr.vp)), compIni: dr.ci||'', compFim: dr.cf||'', pctGlosa: dtc>0?(dtg/dtc)*100:0 },
+        porMotivo: mapRows(dM, (r:any) => ({ motivo: resolveMotivo(r.motivo, r.situacao), vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0, participacao:dtg>0?(n(r.vg)/dtg)*100:0 })),
+        porConvenio: mapRows(dC, (r:any) => ({ convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), vlPago:n(r.vp), qtd:n(r.q), qtdGlosados:n(r.qg), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+        porSetor: [],
+        porItem: mapRows(dI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
+        evolucaoMensal: mapRows(dE, (r:any) => ({ comp:r.comp, vlCobrado:n(r.vc), vlPago:n(r.vp), vlGlosa:n(r.vg), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
+        oportunidades: [],
+        competencias: ((dComp as any)[0]||[]).map((r:any)=>r.comp),
+        convenios: ((dConv as any)[0]||[]).map((r:any)=>r.conv),
+      };
+    }),
+
+  // ═══════════════════════════════════════════
+  // Análise IA para Relatórios PDF/PPTX
+  // ═══════════════════════════════════════════
+  gerarAnaliseIA: publicProcedure
+    .input(z.object({
+      nomeEstabelecimento: z.string(),
+      resumo: z.object({
+        vlCobrado: z.number(), vlPago: z.number(), vlGlosa: z.number(),
+        pctGlosa: z.number(), linhas: z.number(), conveniosDistintos: z.number(),
+        compIni: z.string().optional(), compFim: z.string().optional(),
+      }),
+      topMotivos: z.array(z.object({
+        motivo: z.string(), vlGlosa: z.number(), participacao: z.number(), pctGlosa: z.number(),
+      })).optional(),
+      topConvenios: z.array(z.object({
+        convenio: z.string(), vlGlosa: z.number(), vlCobrado: z.number(), pctGlosa: z.number(),
+      })).optional(),
+      topItens: z.array(z.object({
+        descricao: z.string(), vlGlosa: z.number(), qtd: z.number(),
+      })).optional(),
+      evolucao: z.array(z.object({
+        comp: z.string(), pctGlosa: z.number(), vlGlosa: z.number(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('../_core/llm');
+      const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      const prompt = `Você é um consultor sênior de faturamento hospitalar e auditoria de contas médicas.
+Analise os dados financeiros abaixo do hospital "${input.nomeEstabelecimento}" e gere um RELATÓRIO EXECUTIVO completo e profissional.
+
+DADOS DO PERÍODO (${input.resumo.compIni || 'N/D'} a ${input.resumo.compFim || 'N/D'}):
+- Valor Cobrado: ${fmtBRL(input.resumo.vlCobrado)}
+- Valor Pago: ${fmtBRL(input.resumo.vlPago)}
+- Valor Glosado: ${fmtBRL(input.resumo.vlGlosa)}
+- Taxa de Glosa: ${input.resumo.pctGlosa.toFixed(2)}%
+- Itens analisados: ${input.resumo.linhas}
+- Convênios distintos: ${input.resumo.conveniosDistintos}
+
+TOP MOTIVOS DE GLOSA:
+${(input.topMotivos || []).slice(0, 10).map((m, i) => `${i+1}. ${m.motivo} — ${fmtBRL(m.vlGlosa)} (${m.participacao.toFixed(1)}% do total, ${m.pctGlosa.toFixed(1)}% do cobrado)`).join('\n')}
+
+TOP CONVÊNIOS COM GLOSA:
+${(input.topConvenios || []).slice(0, 8).map((c, i) => `${i+1}. ${c.convenio} — Cobrado: ${fmtBRL(c.vlCobrado)}, Glosado: ${fmtBRL(c.vlGlosa)} (${c.pctGlosa.toFixed(1)}%)`).join('\n')}
+
+TOP ITENS GLOSADOS:
+${(input.topItens || []).slice(0, 8).map((it, i) => `${i+1}. ${it.descricao} — ${fmtBRL(it.vlGlosa)} (${it.qtd} ocorrências)`).join('\n')}
+
+EVOLUÇÃO MENSAL:
+${(input.evolucao || []).slice(-6).map(e => `${e.comp}: Glosa ${fmtBRL(e.vlGlosa)} (${e.pctGlosa.toFixed(1)}%)`).join('\n')}
+
+GERE O RELATÓRIO no formato JSON com EXATAMENTE estas chaves:
+{
+  "sumarioExecutivo": "Parágrafo de 4-6 linhas com visão geral do cenário financeiro, destacando pontos críticos e a magnitude do problema de glosas.",
+  "analiseMotivos": "Parágrafo de 4-6 linhas analisando os principais motivos de glosa, identificando padrões e causas-raiz. Cite os motivos específicos e seus impactos.",
+  "analiseConvenios": "Parágrafo de 3-5 linhas sobre os convênios mais impactados, com recomendações específicas para cada um.",
+  "analiseItens": "Parágrafo de 3-5 linhas sobre os itens de alto custo glosados, com análise de por que são recorrentes.",
+  "tendencia": "Parágrafo de 2-3 linhas sobre a tendência mensal (está melhorando ou piorando?).",
+  "estrategiaReducao": "Parágrafo de 4-6 linhas com estratégia detalhada de redução de glosas, priorizando ações de maior impacto.",
+  "acoes": [
+    {"area": "Nome da área", "problema": "Problema identificado", "acao": "Ação proposta detalhada", "meta": "Meta mensurável", "prazo": "Prazo sugerido"},
+    {"area": "...", "problema": "...", "acao": "...", "meta": "...", "prazo": "..."}
+  ],
+  "conclusao": "Parágrafo de 3-4 linhas com conclusão e meta de economia projetada."
+}
+
+IMPORTANTE: 
+- Seja ESPECÍFICO com os dados fornecidos. Cite valores, percentuais e nomes reais.
+- Use linguagem profissional e assertiva, como se estivesse apresentando para a diretoria do hospital.
+- Nas ações, seja prático e realista (mínimo 4, máximo 8 ações).
+- Calcule economia potencial baseada em cenários de redução de 10% e 20%.
+- Responda APENAS com o JSON válido, sem markdown, sem backticks, sem explicações.`;
+
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'Você é um consultor de faturamento hospitalar. Responda apenas com JSON válido.' },
+            { role: 'user', content: prompt },
+          ],
+        });
+
+        const raw = response.choices[0]?.message?.content || '{}';
+        // Limpa possíveis backticks markdown
+        const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        const analise = JSON.parse(cleaned);
+        return { success: true, analise };
+      } catch (error: any) {
+        console.error('[gerarAnaliseIA] Erro:', error?.message);
+        // Fallback com textos genéricos baseados nos dados
+        const fG = fmtBRL(input.resumo.vlGlosa);
+        const fC = fmtBRL(input.resumo.vlCobrado);
+        const pct = input.resumo.pctGlosa.toFixed(2);
+        const topM = (input.topMotivos || [])[0]?.motivo || 'N/A';
+        const topC = (input.topConvenios || [])[0]?.convenio || 'N/A';
+        return {
+          success: false,
+          analise: {
+            sumarioExecutivo: `O hospital ${input.nomeEstabelecimento} apresentou uma taxa de glosa de ${pct}% no período analisado, totalizando ${fG} em glosas sobre um faturamento de ${fC}. Este patamar requer atenção da gestão hospitalar para implementação de medidas corretivas e preventivas visando a recuperação de receita.`,
+            analiseMotivos: `O principal motivo de glosa identificado foi "${topM}", que concentra a maior parcela do valor glosado. A recorrência deste motivo indica falhas sistêmicas que podem ser corrigidas com revisão de processos internos e treinamento das equipes de faturamento.`,
+            analiseConvenios: `O convênio ${topC} apresenta o maior volume de glosas, demandando uma abordagem específica de negociação e adequação de processos. Recomenda-se agendar reunião técnica para alinhamento de regras contratuais.`,
+            analiseItens: `Os itens de maior valor glosado concentram-se em procedimentos e materiais de alto custo, exigindo atenção redobrada na documentação e autorização prévia.`,
+            tendencia: `A análise da evolução mensal indica a necessidade de monitoramento contínuo para identificação precoce de desvios.`,
+            estrategiaReducao: `A estratégia prioritária deve focar na correção dos motivos mais recorrentes, com meta de redução de 10% no próximo trimestre, gerando economia estimada de ${fmtBRL(input.resumo.vlGlosa * 0.10)}.`,
+            acoes: [
+              { area: 'Faturamento', problema: 'Glosas por itens inclusos em pacote', acao: 'Revisar matriz de pacotes e regras de cobrança', meta: 'Reduzir 15% das glosas por este motivo', prazo: '30 dias' },
+              { area: 'Auditoria', problema: 'Itens de alto custo glosados', acao: 'Implementar dupla checagem antes do envio', meta: 'Zero glosas por falta de documentação', prazo: '15 dias' },
+              { area: 'Autorização', problema: 'Ausência de autorização prévia', acao: 'Checklist obrigatório na internação', meta: 'Reduzir 20% das glosas por autorização', prazo: '30 dias' },
+              { area: 'Gestão de Recurso', problema: 'Baixa taxa de recuperação', acao: 'Padronizar argumentações por motivo e convênio', meta: 'Aumentar taxa de deferimento em 10%', prazo: '45 dias' },
+            ],
+            conclusao: `Com a implementação das ações propostas, estima-se uma recuperação potencial de ${fmtBRL(input.resumo.vlGlosa * 0.10)} a ${fmtBRL(input.resumo.vlGlosa * 0.20)} no próximo ciclo, representando ganho significativo para a sustentabilidade financeira do hospital.`,
+          },
+        };
+      }
+    }),
 });
 
 /**

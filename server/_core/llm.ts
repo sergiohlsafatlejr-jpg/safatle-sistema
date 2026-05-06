@@ -209,10 +209,7 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const resolveApiUrl = () => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
@@ -280,7 +277,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: "gemini-1.5-flash",
     messages: messages.map(normalizeMessage),
   };
 
@@ -309,21 +306,38 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  let lastError: Error | null = null;
+  const maxRetries = 5;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const currentModel = "gemini-2.5-flash-lite";
+    payload.model = currentModel;
+
+    const response = await fetch(resolveApiUrl(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // Se for 503 (Serviço Indisponível) ou 429 (Too Many Requests), tenta novamente
+      if ((response.status === 503 || response.status === 429) && attempt < maxRetries - 1) {
+        // Backoff exponencial: 3s, 6s, 12s...
+        await new Promise(r => setTimeout(r, 3000 * Math.pow(2, attempt)));
+        continue;
+      }
+      
+      throw new Error(
+        `LLM invoke failed [${currentModel}]: ${response.status} ${response.statusText} – ${errorText}`
+      );
+    }
+
+    return (await response.json()) as InvokeResult;
   }
 
-  return (await response.json()) as InvokeResult;
+  throw lastError || new Error(`LLM invoke failed after ${maxRetries} retries`);
 }

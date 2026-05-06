@@ -216,61 +216,61 @@ export const integradorDadosRouter = router({
   listarConfiguracoes: protectedProcedure
     .input(z.object({ estabelecimentoId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    try {
-      if (!(await isAdminOrEstabAdmin(ctx, input?.estabelecimentoId))) {
-        return {
-          configuracoes: [],
-          total: 0,
-        };
-      }
-
-      const db = await getDb();
-      if (!db) {
-        return {
-          configuracoes: [],
-          total: 0,
-        };
-      }
-
-      const estabId = input?.estabelecimentoId;
-      const configs = estabId
-        ? await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.estabelecimentoId, estabId))
-        : await db.select().from(queryConfiguracoes);
-
-      return {
-        configuracoes: configs.map((c) => {
-          let conexao = c.conexaoConfig;
-          while (typeof conexao === 'string') {
-            try { conexao = JSON.parse(conexao); } catch(e) { break; }
-          }
+      try {
+        if (!(await isAdminOrEstabAdmin(ctx, input?.estabelecimentoId))) {
           return {
-            id: c.id,
-            estabelecimentoId: c.estabelecimentoId,
-            sistema: c.sistema,
-            tipoDados: c.tipoDados,
-            querySql: c.querySql,
-            frequencia: c.frequencia,
-            descricao: c.descricao,
-            ativo: c.ativo,
-            conexaoConfig: conexao as any,
-            ultimaSincronizacao: c.ultimaSincronizacao,
-            proximaSincronizacao: c.proximaSincronizacao,
+            configuracoes: [],
+            total: 0,
           };
-        }),
-        total: configs.length,
-      };
-    } catch (error) {
-      logger.error({
-        message: "Erro ao listar configurações",
-        error: error instanceof Error ? error.message : String(error),
-      });
+        }
 
-      return {
-        configuracoes: [],
-        total: 0,
-      };
-    }
-  }),
+        const db = await getDb();
+        if (!db) {
+          return {
+            configuracoes: [],
+            total: 0,
+          };
+        }
+
+        const estabId = input?.estabelecimentoId;
+        const configs = estabId
+          ? await db.select().from(queryConfiguracoes).where(eq(queryConfiguracoes.estabelecimentoId, estabId))
+          : await db.select().from(queryConfiguracoes);
+
+        return {
+          configuracoes: configs.map((c) => {
+            let conexao = c.conexaoConfig;
+            while (typeof conexao === 'string') {
+              try { conexao = JSON.parse(conexao); } catch (e) { break; }
+            }
+            return {
+              id: c.id,
+              estabelecimentoId: c.estabelecimentoId,
+              sistema: c.sistema,
+              tipoDados: c.tipoDados,
+              querySql: c.querySql,
+              frequencia: c.frequencia,
+              descricao: c.descricao,
+              ativo: c.ativo,
+              conexaoConfig: conexao as any,
+              ultimaSincronizacao: c.ultimaSincronizacao,
+              proximaSincronizacao: c.proximaSincronizacao,
+            };
+          }),
+          total: configs.length,
+        };
+      } catch (error) {
+        logger.error({
+          message: "Erro ao listar configurações",
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        return {
+          configuracoes: [],
+          total: 0,
+        };
+      }
+    }),
 
   /**
    * Obtém status de sincronização
@@ -421,7 +421,7 @@ export const integradorDadosRouter = router({
             if (config.conexaoConfig) {
               let parsed = config.conexaoConfig;
               while (typeof parsed === 'string') {
-                try { parsed = JSON.parse(parsed); } catch(e) { break; }
+                try { parsed = JSON.parse(parsed); } catch (e) { break; }
               }
               conexao = parsed as any;
             }
@@ -483,7 +483,7 @@ export const integradorDadosRouter = router({
                   console.log(`[DEBUG] Tentando inserir lote ${Math.floor(i / BATCH_SIZE) + 1} com ${valuesToInsert.length} registros na ${stagingTableName}`);
                   const result = await db.insert(stagingTable).values(valuesToInsert);
                   console.log(`[DEBUG] Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido com sucesso`, result);
-                  
+
                   logger.info({
                     message: `Lote ${Math.floor(i / BATCH_SIZE) + 1} inserido`,
                     registrosNoLote: batch.length,
@@ -516,7 +516,7 @@ export const integradorDadosRouter = router({
             // Atualizar última sincronização
             await db
               .update(queryConfiguracoes)
-              .set({ 
+              .set({
                 ultimaSincronizacao: new Date(),
                 totalRegistrosSincronizados: registrosProcessados,
               })
@@ -542,7 +542,7 @@ export const integradorDadosRouter = router({
             if (config.conexaoConfig) {
               let parsed = config.conexaoConfig;
               while (typeof parsed === 'string') {
-                try { parsed = JSON.parse(parsed); } catch(e) { break; }
+                try { parsed = JSON.parse(parsed); } catch (e) { break; }
               }
               conexao = parsed as any;
             }
@@ -573,8 +573,8 @@ export const integradorDadosRouter = router({
               })
               .where(eq(queryConfiguracoes.id, input.configId));
 
-          } catch(error) {
-             logger.error({
+          } catch (error) {
+            logger.error({
               message: `Erro durante sincronização ${config.sistema.toUpperCase()}`,
               error: error instanceof Error ? error.message : String(error),
               configId: input.configId,
@@ -899,7 +899,7 @@ export const integradorDadosRouter = router({
 
         // Verificar o tipoDados para direcionar para a tabela correta
         const isFaturamento = config.tipoDados?.toLowerCase().includes('faturamento');
-        
+
         if (config.tipoDados === 'bi_relatorio') {
           return {
             sucesso: true,
@@ -981,38 +981,38 @@ export const integradorDadosRouter = router({
         } else {
           // ATENDIMENTOS: transformar de staging para atendimentos_unificados
           const stagingTable = config.sistema === 'warleine' ? warleineAtendimentosStaging :
-                               config.sistema === 'tasy' ? tasyMaternidadeElaAtendimentosStaging :
-                               warleineAtendimentosStaging; // Default
+            config.sistema === 'tasy' ? tasyMaternidadeElaAtendimentosStaging :
+              warleineAtendimentosStaging; // Default
 
           const stagingData = await db
             .select()
             .from(stagingTable)
             .where(eq(stagingTable.configId, input.configId));
-          
+
           console.log(`[DEBUG] Transformando ${stagingData.length} registros de ATENDIMENTOS`);
           let registrosTransformados = 0;
           const BATCH_SIZE = 100;
-          
+
           for (let i = 0; i < stagingData.length; i += BATCH_SIZE) {
             const batch = stagingData.slice(i, i + BATCH_SIZE);
-            
+
             // Identificar as Chaves Únicas (origemId)
             const batchMapped = batch.map(row => {
-               const dados = typeof row.dadosBrutos === 'string' ? JSON.parse(row.dadosBrutos) : (row.dadosBrutos as any);
-               let uuid = '';
-               if (config.sistema === 'warleine') {
-                 uuid = String(dados?.numatend || '');
-               } else if (config.sistema === 'tasy') {
-                 uuid = String(dados?.numeroAtendimento || dados?.NR_ATENDIMENTO || dados?.CD_PROCEDIMENTO || dados?.NR_SEQUENCIA || '');
-               } else {
-                 uuid = String(row.id);
-               }
-               
-               return { row, dados, origemId: uuid };
+              const dados = typeof row.dadosBrutos === 'string' ? JSON.parse(row.dadosBrutos) : (row.dadosBrutos as any);
+              let uuid = '';
+              if (config.sistema === 'warleine') {
+                uuid = String(dados?.numatend || '');
+              } else if (config.sistema === 'tasy') {
+                uuid = String(dados?.numeroAtendimento || dados?.NR_ATENDIMENTO || dados?.CD_PROCEDIMENTO || dados?.NR_SEQUENCIA || '');
+              } else {
+                uuid = String(row.id);
+              }
+
+              return { row, dados, origemId: uuid };
             }).filter((b: any) => b.origemId !== '');
-            
+
             const origemIds = batchMapped.map((b: any) => b.origemId);
-            
+
             // Buscar existentes no banco unificado para evitar duplicatas (UPSERT manual)
             const existingRows = origemIds.length > 0 ? await db.select({ id: atendimentos.id, origemId: atendimentos.origemId })
               .from(atendimentos)
@@ -1020,9 +1020,9 @@ export const integradorDadosRouter = router({
                 eq(atendimentos.origemSistema, config.sistema.toUpperCase()),
                 inArray(atendimentos.origemId, origemIds)
               )) : [];
-              
+
             const existingMap = new Map(existingRows.map((e: any) => [e.origemId, e.id]));
-            
+
             // Processar um por um
             for (const b of batchMapped) {
               const values = {
@@ -1043,7 +1043,7 @@ export const integradorDadosRouter = router({
                 destino_conta: b.dados?.codcc_destino || b.dados?.centroCusto || b.dados?.CD_SETOR_DESTINO || null,
                 atualizadoEm: new Date()
               };
-              
+
               const existingId = existingMap.get(b.origemId);
               if (existingId) {
                 // UPDATE
@@ -1375,7 +1375,7 @@ export const integradorDadosRouter = router({
         if (config.tipoDados === 'bi_relatorio') {
           let conexao = config.conexaoConfig;
           while (typeof conexao === 'string') {
-            try { conexao = JSON.parse(conexao); } catch(e) { break; }
+            try { conexao = JSON.parse(conexao); } catch (e) { break; }
           }
           const tabelaDestino = (conexao as any)?.tabelaDestinoBi;
           if (tabelaDestino) {
@@ -1627,7 +1627,7 @@ export const integradorDadosRouter = router({
         try {
           const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
           let rows: Record<string, any>[] = [];
-          
+
           let rawQuery = input.querySql.trim().replace(/;$/, "");
           if (!/^SELECT\b/i.test(rawQuery) && !/^WITH\b/i.test(rawQuery)) {
             rawQuery = "SELECT " + rawQuery;
@@ -1788,7 +1788,7 @@ export const integradorDadosRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
-        
+
         // 1. Criar registro na tabela de metadados
         const tabelaId = await dbIntegrador.criarTabela({
           nome: input.nome,
@@ -1849,14 +1849,14 @@ export const integradorDadosRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
-        
+
         // 1. Executar a query para detectar campos
         const conexao = await dbIntegrador.obterConexao(input.conexaoId);
         if (!conexao) throw new Error("Conexão não encontrada");
-        
+
         const senha = Buffer.from(conexao.senhaEncriptada, "base64").toString("utf-8");
         let rows: Record<string, any>[] = [];
-        
+
         let rawQuery = input.querySql.trim().replace(/;$/, "");
         if (!/^SELECT\b/i.test(rawQuery) && !/^WITH\b/i.test(rawQuery)) {
           rawQuery = "SELECT " + rawQuery;
@@ -1913,11 +1913,11 @@ export const integradorDadosRouter = router({
         } catch (error) {
           throw new Error(`Erro ao executar query: ${error instanceof Error ? error.message : String(error)}`);
         }
-        
+
         if (!rows || rows.length === 0) {
           throw new Error("A query não retornou registros. Verifique a query e tente novamente.");
         }
-        
+
         // 2. Detectar campos e tipos automaticamente
         const primeiroRegistro = rows[0];
         const camposDetectados = Object.keys(primeiroRegistro).map((campo, idx) => {
@@ -1925,7 +1925,7 @@ export const integradorDadosRouter = router({
           let tipoDetectado = "varchar";
           let tamanho: number | null = 255;
           let precisao: number | null = null;
-          
+
           if (valor === null || valor === undefined) {
             tipoDetectado = "varchar";
             tamanho = 500;
@@ -1969,10 +1969,10 @@ export const integradorDadosRouter = router({
               tamanho = Math.max(255, Math.ceil(maxLen * 1.5));
             }
           }
-          
+
           // Converter nome do campo para snake_case seguro
           const nomeSafe = campo.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
-          
+
           return {
             nome: nomeSafe || `campo_${idx}`,
             nomeExibicao: campo,
@@ -1984,7 +1984,7 @@ export const integradorDadosRouter = router({
             valorPadrao: null,
           };
         });
-        
+
         // 3. Criar registro na tabela de metadados
         const tabelaId = await dbIntegrador.criarTabela({
           nome: input.nomeTabela,
@@ -1993,7 +1993,7 @@ export const integradorDadosRouter = router({
           estabelecimentoId: input.estabelecimentoId || null,
           criadaNoBanco: "nao",
         });
-        
+
         // 4. Salvar colunas nos metadados
         await dbIntegrador.criarColunasEmLote(
           camposDetectados.map((col, idx) => ({
@@ -2009,7 +2009,7 @@ export const integradorDadosRouter = router({
             ordem: idx,
           }))
         );
-        
+
         // 5. Criar tabela física no MySQL
         try {
           await dbIntegrador.executarDDLCriarTabela(input.nomeTabela, camposDetectados.map(col => ({
@@ -2025,7 +2025,7 @@ export const integradorDadosRouter = router({
         } catch (error) {
           logger.error({ message: "Erro ao criar tabela física no MySQL", error: error instanceof Error ? error.message : String(error) });
         }
-        
+
         // 6. Criar mapeamento automático vinculado à tabela para re-execução
         let mapeamentoId: number | null = null;
         try {
@@ -2057,7 +2057,7 @@ export const integradorDadosRouter = router({
         } catch (error) {
           logger.error({ message: "Erro ao criar mapeamento automático", error: error instanceof Error ? error.message : String(error) });
         }
-        
+
         return {
           sucesso: true,
           id: tabelaId,
@@ -2152,7 +2152,7 @@ export const integradorDadosRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         if (!(await isAdminOrEstabAdmin(ctx))) throw new Error("Acesso negado");
-        
+
         // Buscar mapeamento vinculado à tabela
         const mapeamento = await dbIntegrador.buscarMapeamentoPorTabela(input.tabelaId);
         if (!mapeamento) {
@@ -2495,8 +2495,8 @@ export const integradorDadosRouter = router({
         const colunasDestino = await dbIntegrador.listarColunas(tabela.id);
 
         // Determinar se é importação incremental
-        const isIncremental = mapeamento.modoImportacao === "incremental" 
-          && mapeamento.colunaControle 
+        const isIncremental = mapeamento.modoImportacao === "incremental"
+          && mapeamento.colunaControle
           && mapeamento.ultimoValorControle
           && !input.forcarCompleta;
 
@@ -2568,7 +2568,7 @@ export const integradorDadosRouter = router({
               host: conexao.host, port: conexao.porta, database: conexao.banco, user: conexao.usuario, password: senha, ssl: false,
             });
           }
-          
+
           const ok = await connector.conectar();
           if (!ok) throw new Error("Falha ao conectar à origem de dados");
           const dados = await connector.executarQuery(query);
@@ -2598,7 +2598,7 @@ export const integradorDadosRouter = router({
               timedOut = true;
               console.log(`[EXEC] Fatia ${label}: TIMEOUT após ${FATIA_TIMEOUT_MS / 1000}s`);
               logger.warn({ message: `Timeout na fatia ${label}: forçando desconexão após ${FATIA_TIMEOUT_MS / 1000}s` });
-              try { client.end().catch(() => {}); } catch {}
+              try { client.end().catch(() => { }); } catch { }
             }, FATIA_TIMEOUT_MS);
 
             try {
@@ -2608,11 +2608,11 @@ export const integradorDadosRouter = router({
               const result = await client.query(query);
               console.log(`[EXEC] Fatia ${label}: query retornou ${result.rows.length} registros`);
               clearTimeout(timer);
-              await client.end().catch(() => {});
+              await client.end().catch(() => { });
               return result.rows;
             } catch (err) {
               clearTimeout(timer);
-              try { await client.end().catch(() => {}); } catch {}
+              try { await client.end().catch(() => { }); } catch { }
               const errMsg = err instanceof Error ? err.message : String(err);
               console.error(`[EXEC] Fatia ${label}: erro na execução:`, errMsg);
               if (timedOut) {

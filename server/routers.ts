@@ -40,6 +40,7 @@ import * as dbConvMap from "./db-convenioMapeamento";
 import { auditSystemRouter } from "./routers/auditSystemRouter";
 import { tasyRouter } from "./routers/tasyRouter";
 import { contratosConveniosRouter } from "./routers/contratosConveniosRouter";
+import { dashboardBiRouter } from "./routers/dashboardBiRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -8508,6 +8509,9 @@ export const appRouter = router({
         return await dbConvMap.estatisticasMapeamento(input.estabelecimentoId);
       }),
   }),
+  
+  // ==================== DASHBOARDS BI (Power BI Clone) ====================
+  dashboardBi: dashboardBiRouter,
 });
 
 function calcularDiasParado(datasai: string | null): number {
