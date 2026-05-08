@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, FileSpreadsheet, BarChart3, TrendingDown, AlertTriangle, Target, Printer } from "lucide-react";
+import { FileText, Download, FileSpreadsheet, BarChart3, TrendingDown, AlertTriangle, Target, Printer, ArrowLeftRight, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
   Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line
@@ -42,6 +42,13 @@ export default function RelatoriosBI() {
   const [convenio, setConvenio] = useState<string>("todos");
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // ═══ COMPARAÇÃO DE MESES ═══
+  const [modoComparativo, setModoComparativo] = useState(false);
+  const [mesA, setMesA] = useState<string>("");
+  const [mesB, setMesB] = useState<string>("");
+  const [analiseComparativa, setAnaliseComparativa] = useState<any>(null);
+  const [loadingComparacao, setLoadingComparacao] = useState(false);
+
   const { data, isLoading } = trpc.tasy.gerarRelatorioGlosas.useQuery({
     estabelecimentoId,
     competencia: competencia !== "todas" ? competencia : undefined,
@@ -50,6 +57,19 @@ export default function RelatoriosBI() {
 
   const resumo = data?.resumo;
   const fonte = (data as any)?.fonte || 'nenhuma';
+
+  // Queries para comparação de meses
+  const { data: dadosMesA } = trpc.tasy.gerarRelatorioGlosas.useQuery({
+    estabelecimentoId, competencia: mesA || undefined,
+    convenio: convenio !== "todos" ? convenio : undefined,
+  }, { refetchOnWindowFocus: false, enabled: estabelecimentoId > 0 && !!mesA && modoComparativo });
+
+  const { data: dadosMesB } = trpc.tasy.gerarRelatorioGlosas.useQuery({
+    estabelecimentoId, competencia: mesB || undefined,
+    convenio: convenio !== "todos" ? convenio : undefined,
+  }, { refetchOnWindowFocus: false, enabled: estabelecimentoId > 0 && !!mesB && modoComparativo });
+
+  const gerarComparativaMut = trpc.tasy.gerarAnaliseComparativaIA.useMutation();
 
   // Pareto acumulado para motivos
   const motivosComPareto = useMemo(() => {
@@ -60,6 +80,52 @@ export default function RelatoriosBI() {
       return { ...m, paretoAcum: acc };
     });
   }, [data?.porMotivo]);
+
+  // Handler para gerar análise comparativa
+  const handleCompararMeses = async () => {
+    if (!mesA || !mesB || !dadosMesA?.resumo || !dadosMesB?.resumo) {
+      toast.error('Selecione dois meses com dados disponíveis');
+      return;
+    }
+    setLoadingComparacao(true);
+    toast.info('🤖 Gerando análise comparativa com IA... aguarde ~15s');
+    try {
+      const res = await gerarComparativaMut.mutateAsync({
+        nomeEstabelecimento,
+        mesA: {
+          competencia: mesA,
+          vlCobrado: dadosMesA.resumo.vlCobrado, vlPago: dadosMesA.resumo.vlPago,
+          vlGlosa: dadosMesA.resumo.vlGlosa, pctGlosa: dadosMesA.resumo.pctGlosa,
+          linhas: dadosMesA.resumo.linhas, conveniosDistintos: dadosMesA.resumo.conveniosDistintos,
+          topMotivos: dadosMesA.porMotivo?.slice(0, 5),
+          topConvenios: dadosMesA.porConvenio?.slice(0, 5),
+          topItens: dadosMesA.porItem?.slice(0, 5),
+        },
+        mesB: {
+          competencia: mesB,
+          vlCobrado: dadosMesB.resumo.vlCobrado, vlPago: dadosMesB.resumo.vlPago,
+          vlGlosa: dadosMesB.resumo.vlGlosa, pctGlosa: dadosMesB.resumo.pctGlosa,
+          linhas: dadosMesB.resumo.linhas, conveniosDistintos: dadosMesB.resumo.conveniosDistintos,
+          topMotivos: dadosMesB.porMotivo?.slice(0, 5),
+          topConvenios: dadosMesB.porConvenio?.slice(0, 5),
+          topItens: dadosMesB.porItem?.slice(0, 5),
+        },
+      });
+      setAnaliseComparativa(res.analise);
+      toast.success('✅ Análise comparativa gerada!');
+    } catch {
+      toast.error('Falha ao gerar análise comparativa');
+    } finally {
+      setLoadingComparacao(false);
+    }
+  };
+
+  // Helper para variação
+  const varDelta = (a: number, b: number) => {
+    const d = b - a;
+    const pct = a > 0 ? (d / a) * 100 : 0;
+    return { delta: d, pct };
+  };
 
   // Export Excel
   const handleExportExcel = () => {
@@ -90,7 +156,7 @@ export default function RelatoriosBI() {
     }))), "Por Setor");
     // Itens
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.porItem.map((i: any) => ({
-      Descrição: i.descricao, Código: i.codigo, "Vl Glosa": i.vlGlosa, "Vl Cobrado": i.vlCobrado, Qtd: i.qtd,
+      Descrição: i.descricao, Código: i.codigo, "Motivo Glosa": i.motivo || 'N/I', "Vl Glosa": i.vlGlosa, "Vl Cobrado": i.vlCobrado, Qtd: i.qtd,
     }))), "Por Item");
     // Evolução Mensal
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.evolucaoMensal.map((e: any) => ({
@@ -198,8 +264,8 @@ export default function RelatoriosBI() {
     doc.addPage(); hdr('4. ITENS DE ALTO VALOR GLOSADO');
     y = 24;
     autoTable(doc, { startY: y, theme: 'grid', headStyles: { fillColor: [16,185,129], fontSize: 8, textColor: [255,255,255] }, bodyStyles: { fontSize: 7 },
-      head: [['Código', 'Descrição', 'Vl Glosa', 'Qtd', 'Ticket Médio']],
-      body: data.porItem.slice(0,20).map((i: any) => [i.codigo, i.descricao?.substring(0,60), fmtCur(i.vlGlosa), String(i.qtd), fmtCur(i.qtd>0 ? i.vlGlosa/i.qtd : 0)]),
+      head: [['Código', 'Descrição', 'Motivo Glosa', 'Vl Glosa', 'Qtd', 'Ticket Médio']],
+      body: data.porItem.slice(0,20).map((i: any) => [i.codigo, i.descricao?.substring(0,50), (i.motivo||'N/I')?.substring(0,40), fmtCur(i.vlGlosa), String(i.qtd), fmtCur(i.qtd>0 ? i.vlGlosa/i.qtd : 0)]),
     });
     y = (doc as any).lastAutoTable.finalY + 6;
     if (ia?.analiseItens) { y = sectionTitle('Análise dos Itens', y); y = addBlock(ia.analiseItens, y); }
@@ -352,13 +418,15 @@ export default function RelatoriosBI() {
     slide = pptx.addSlide(); slide.background = { color: bg };
     slide.addText('TOP ITENS E EVOLUÇÃO MENSAL', { x:0.5, y:0.2, w:12, fontSize:22, color:'FFFFFF', bold:true });
     const iRows = data.porItem.slice(0,8).map((i: any) => [
-      { text:i.descricao?.substring(0,28)||'S/D', options:{fontSize:8,color:'FFFFFF'} },
-      { text:fmtCur(i.vlGlosa), options:{fontSize:8,color:rose,align:'right' as const} },
+      { text:i.descricao?.substring(0,24)||'S/D', options:{fontSize:7,color:'FFFFFF'} },
+      { text:(i.motivo||'N/I')?.substring(0,22), options:{fontSize:7,color:amber} },
+      { text:fmtCur(i.vlGlosa), options:{fontSize:7,color:rose,align:'right' as const} },
     ]);
     slide.addTable(
       [[{ text:'Item', options:{bold:true,fontSize:8,color:'FFFFFF',fill:{color:green}} },
+        { text:'Motivo', options:{bold:true,fontSize:8,color:'FFFFFF',fill:{color:green}} },
         { text:'Glosa', options:{bold:true,fontSize:8,color:'FFFFFF',fill:{color:green},align:'right' as const} }],
-      ...iRows], { x:0.5, y:0.8, w:5, colW:[3.2,1.8], border:{type:'solid',pt:0.5,color:'2A3A5E'}, rowH:0.3 });
+      ...iRows], { x:0.5, y:0.8, w:5.5, colW:[2.2,1.8,1.5], border:{type:'solid',pt:0.5,color:'2A3A5E'}, rowH:0.3 });
     const eRows = data.evolucaoMensal.slice(-8).map((e: any) => [
       { text:e.comp, options:{fontSize:8,color:'FFFFFF'} },
       { text:fmtCur(e.vlGlosa), options:{fontSize:8,color:rose,align:'right' as const} },
@@ -455,8 +523,189 @@ export default function RelatoriosBI() {
             <Button onClick={handleExportPPTX} variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
               <Printer className="h-4 w-4 mr-2" /> PowerPoint
             </Button>
+            <Button
+              onClick={() => { setModoComparativo(!modoComparativo); setAnaliseComparativa(null); }}
+              variant={modoComparativo ? "default" : "outline"}
+              className={modoComparativo ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white" : "border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"}
+            >
+              <ArrowLeftRight className="h-4 w-4 mr-2" /> Comparar Meses
+            </Button>
           </div>
         </div>
+
+        {/* ═══ PAINEL COMPARATIVO ═══ */}
+        {modoComparativo && (
+          <Card className="bg-gradient-to-br from-[#0a1628] to-[#0d1b3e] border-cyan-500/20 shadow-lg shadow-cyan-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5 text-cyan-400" />
+                ANÁLISE COMPARATIVA ENTRE MESES
+              </CardTitle>
+              <CardDescription className="text-cyan-300/50">Selecione dois meses para comparar e gerar análise com IA</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Seletores */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-white/50 uppercase tracking-wider">Mês A (Base)</label>
+                  <Select value={mesA} onValueChange={setMesA}>
+                    <SelectTrigger className="w-[160px] bg-[#162350] border-blue-500/20 text-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {data?.competencias?.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <ArrowLeftRight className="h-5 w-5 text-cyan-400/50 mb-2" />
+                <div className="space-y-1">
+                  <label className="text-xs text-white/50 uppercase tracking-wider">Mês B (Comparação)</label>
+                  <Select value={mesB} onValueChange={setMesB}>
+                    <SelectTrigger className="w-[160px] bg-[#162350] border-purple-500/20 text-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {data?.competencias?.filter((c: string) => c !== mesA).map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleCompararMeses}
+                  disabled={!mesA || !mesB || loadingComparacao || !dadosMesA?.resumo || !dadosMesB?.resumo}
+                  className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
+                >
+                  {loadingComparacao ? (
+                    <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" /> Analisando...</>
+                  ) : (
+                    <><BarChart3 className="h-4 w-4 mr-2" /> Gerar Análise Comparativa</>
+                  )}
+                </Button>
+              </div>
+
+              {/* KPIs Comparativos lado a lado */}
+              {dadosMesA?.resumo && dadosMesB?.resumo && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {([
+                      { label: "Valor Cobrado", a: dadosMesA.resumo.vlCobrado, b: dadosMesB.resumo.vlCobrado, fmt: fmtCur, colorA: "text-blue-400", colorB: "text-blue-300" },
+                      { label: "Valor Pago", a: dadosMesA.resumo.vlPago, b: dadosMesB.resumo.vlPago, fmt: fmtCur, colorA: "text-emerald-400", colorB: "text-emerald-300" },
+                      { label: "Valor Glosado", a: dadosMesA.resumo.vlGlosa, b: dadosMesB.resumo.vlGlosa, fmt: fmtCur, colorA: "text-rose-400", colorB: "text-rose-300", invertDelta: true },
+                      { label: "Taxa de Glosa", a: dadosMesA.resumo.pctGlosa, b: dadosMesB.resumo.pctGlosa, fmt: fmtPct, colorA: "text-amber-400", colorB: "text-amber-300", invertDelta: true },
+                    ] as const).map((kpi, i) => {
+                      const d = varDelta(kpi.a, kpi.b);
+                      const good = kpi.invertDelta ? d.delta < 0 : d.delta > 0;
+                      return (
+                        <Card key={i} className="bg-[#162350]/80 border-white/5">
+                          <CardContent className="p-3">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider mb-2">{kpi.label}</p>
+                            <div className="flex justify-between items-baseline gap-1">
+                              <div className="text-center flex-1">
+                                <p className="text-[9px] text-white/30">{mesA}</p>
+                                <p className={`text-sm font-bold ${kpi.colorA}`}>{kpi.fmt(kpi.a)}</p>
+                              </div>
+                              <div className="text-center flex-1">
+                                <p className="text-[9px] text-white/30">{mesB}</p>
+                                <p className={`text-sm font-bold ${kpi.colorB}`}>{kpi.fmt(kpi.b)}</p>
+                              </div>
+                            </div>
+                            <div className={`mt-2 text-center text-xs font-medium flex items-center justify-center gap-1 ${good ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {good ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                              {d.pct >= 0 ? '+' : ''}{d.pct.toFixed(1)}%
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+
+                  {/* Gráfico comparativo */}
+                  <Card className="bg-[#162350]/50 border-white/5">
+                    <CardContent className="p-4 h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[
+                          { name: mesA, Cobrado: dadosMesA.resumo.vlCobrado, Pago: dadosMesA.resumo.vlPago, Glosado: dadosMesA.resumo.vlGlosa },
+                          { name: mesB, Cobrado: dadosMesB.resumo.vlCobrado, Pago: dadosMesB.resumo.vlPago, Glosado: dadosMesB.resumo.vlGlosa },
+                        ]} barGap={4}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+                          <XAxis dataKey="name" tick={{ fill: "#ffffff80", fontSize: 12 }} />
+                          <YAxis tick={{ fill: "#ffffff60", fontSize: 10 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                          <RTooltip contentStyle={{ background: "#0d1b3e", border: "1px solid #ffffff15", borderRadius: 8 }} formatter={(v: number) => fmtCur(v)} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Bar dataKey="Cobrado" fill="#3b82f6" radius={[4,4,0,0]} />
+                          <Bar dataKey="Pago" fill="#10b981" radius={[4,4,0,0]} />
+                          <Bar dataKey="Glosado" fill="#f43f5e" radius={[4,4,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Análise IA Comparativa */}
+              {analiseComparativa && (
+                <div className="space-y-4 mt-4">
+                  <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                    <span className="text-emerald-400">✦</span> Análise Comparativa por Inteligência Artificial
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {([
+                      { title: "Visão Geral", content: analiseComparativa.visaoGeral, color: "border-blue-500/30" },
+                      { title: "Análise das Variações", content: analiseComparativa.analiseVariacoes, color: "border-purple-500/30" },
+                      { title: "Comparativo de Motivos", content: analiseComparativa.comparativoMotivos, color: "border-rose-500/30" },
+                      { title: "Comparativo de Convênios", content: analiseComparativa.comparativoConvenios, color: "border-amber-500/30" },
+                      { title: "Diagnóstico", content: analiseComparativa.diagnostico, color: "border-cyan-500/30" },
+                      { title: "Recomendações", content: analiseComparativa.recomendacoes, color: "border-emerald-500/30" },
+                    ]).map((sec, i) => (
+                      <Card key={i} className={`bg-[#162350]/60 ${sec.color}`}>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-white/80">{sec.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-xs text-white/60 leading-relaxed">{sec.content}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Ações Prioritárias */}
+                  {analiseComparativa.acoesPrioritarias?.length > 0 && (
+                    <Card className="bg-[#162350]/60 border-rose-500/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-white/80">🎯 Ações Prioritárias</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Table>
+                          <TableHeader><TableRow className="border-white/5">
+                            <TableHead className="text-white/60 text-xs">Área</TableHead>
+                            <TableHead className="text-white/60 text-xs">Situação</TableHead>
+                            <TableHead className="text-white/60 text-xs">Ação</TableHead>
+                            <TableHead className="text-white/60 text-xs text-right">Impacto Estimado</TableHead>
+                          </TableRow></TableHeader>
+                          <TableBody>
+                            {analiseComparativa.acoesPrioritarias.map((a: any, i: number) => (
+                              <TableRow key={i} className="border-white/5">
+                                <TableCell className="text-cyan-300 text-xs font-medium">{a.area}</TableCell>
+                                <TableCell className="text-white/50 text-xs">{a.situacao}</TableCell>
+                                <TableCell className="text-white/60 text-xs">{a.acao}</TableCell>
+                                <TableCell className="text-emerald-400 text-xs text-right font-medium">{a.impactoEstimado}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Conclusão */}
+                  {analiseComparativa.conclusao && (
+                    <Card className="bg-gradient-to-r from-[#162350]/80 to-[#0d1b3e]/80 border-emerald-500/20">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Conclusão</p>
+                        <p className="text-sm text-white/70 leading-relaxed">{analiseComparativa.conclusao}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[40vh]">
@@ -624,17 +873,19 @@ export default function RelatoriosBI() {
               <Card className="bg-[#0d1b3e] border-white/5">
                 <CardHeader className="pb-2"><CardTitle className="text-white text-sm">💊 TOP ITENS GLOSADOS</CardTitle></CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[280px]">
+                  <ScrollArea className="h-[350px]">
                     <Table>
                       <TableHeader><TableRow className="border-white/5">
                         <TableHead className="text-white/60 text-xs">Item</TableHead>
+                        <TableHead className="text-white/60 text-xs">Motivo Glosa</TableHead>
                         <TableHead className="text-white/60 text-xs text-right">Vl Glosa</TableHead>
                         <TableHead className="text-white/60 text-xs text-right">Qtd</TableHead>
                       </TableRow></TableHeader>
                       <TableBody>
                         {data?.porItem?.map((it: any, i: number) => (
                           <TableRow key={i} className="border-white/5 hover:bg-white/5">
-                            <TableCell className="text-blue-100 text-xs py-1.5 max-w-[220px] truncate">{it.descricao}</TableCell>
+                            <TableCell className="text-blue-100 text-xs py-1.5 max-w-[180px] truncate">{it.descricao}</TableCell>
+                            <TableCell className="text-amber-300/80 text-xs py-1.5 max-w-[180px] truncate">{it.motivo || 'N/I'}</TableCell>
                             <TableCell className="text-rose-400 text-xs py-1.5 text-right font-medium">{fmtCur(it.vlGlosa)}</TableCell>
                             <TableCell className="text-white/50 text-xs py-1.5 text-right">{fmtNum(it.qtd)}</TableCell>
                           </TableRow>

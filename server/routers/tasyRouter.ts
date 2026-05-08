@@ -678,11 +678,12 @@ export const tasyRouter = router({
           COALESCE(CONVENIO, '') as convenio,
           COALESCE(SETOR, '') as setor,
           COALESCE(TIPO_ITEM, '') as tipo_item,
+          COALESCE(NULLIF(TRIM(MOTIVO_GLOSA), ''), 'Sem motivo') as motivo_glosa,
           SUM(${C('VL_GLOSA')}) as vl_glosa,
           SUM(${FATURADO_EXPR}) as vl_faturado,
           COUNT(*) as qtd_glosada
         FROM tasy_faturado_itens_bi ${glosaWhere}
-        GROUP BY DESCRICAO, CD_ITEM, CD_ITEM_TUSS, CONVENIO, SETOR, TIPO_ITEM
+        GROUP BY DESCRICAO, CD_ITEM, CD_ITEM_TUSS, CONVENIO, SETOR, TIPO_ITEM, MOTIVO_GLOSA
         ORDER BY vl_glosa DESC LIMIT 100
       `));
 
@@ -775,6 +776,7 @@ export const tasyRouter = router({
         topGlosas: (glosasRows || []).map((row: any) => ({
           descricao: row.descricao, codigo: row.codigo, codigo_tuss: row.codigo_tuss,
           convenio: row.convenio, setor: row.setor, tipo_item: row.tipo_item,
+          motivo_glosa: row.motivo_glosa || 'Sem motivo',
           vl_glosa: n(row.vl_glosa), vl_faturado: n(row.vl_faturado), qtd_glosada: n(row.qtd_glosada)
         })),
         topMotivos: (motivosRows || []).map((row: any) => ({
@@ -830,24 +832,34 @@ export const tasyRouter = router({
 
       // ═══ SOURCE: TASY BI ═══
       if (hasTasy) {
-        let filtros = `AND (COMPETENCIA IS NULL OR COMPETENCIA NOT LIKE '3%')`;
-        if (input.competencia && input.competencia !== 'todas') filtros += ` AND COMPETENCIA = '${esc(input.competencia)}'`;
-        if (input.convenio && input.convenio !== 'todos') filtros += ` AND CONVENIO = '${esc(input.convenio)}'`;
-        if (input.setor && input.setor !== 'todos') filtros += ` AND SETOR = '${esc(input.setor)}'`;
-        const bw = `WHERE estabelecimentoId = ${estabId} ${filtros}`;
-        const gw = `${bw} AND ${C('VL_GLOSA')} > 0`;
         const T = 'tasy_faturado_itens_bi';
+        // Expressão para resolver MOTIVO_GLOSA: "0"→Não informado, código curto→JOIN motivosglosa, texto longo→usar direto
+        const motivoExpr = `CASE
+          WHEN t.MOTIVO_GLOSA IS NULL OR TRIM(t.MOTIVO_GLOSA) = '' OR TRIM(t.MOTIVO_GLOSA) = '0' THEN 'Não informado'
+          WHEN t.MOTIVO_GLOSA REGEXP '^[0-9]+$' AND mg.descricao IS NOT NULL THEN CONCAT(t.MOTIVO_GLOSA, ' - ', mg.descricao)
+          WHEN t.MOTIVO_GLOSA REGEXP '^[0-9]+$' THEN CONCAT('Código ', t.MOTIVO_GLOSA)
+          ELSE SUBSTRING_INDEX(t.MOTIVO_GLOSA, ' / ', 1)
+        END`;
+        const motivoJoin = `LEFT JOIN motivosglosa mg ON mg.codigo = TRIM(t.MOTIVO_GLOSA)`;
+
+        // WHERE com alias t para queries com JOIN
+        let filtrosT = `AND (t.COMPETENCIA IS NULL OR t.COMPETENCIA NOT LIKE '3%')`;
+        if (input.competencia && input.competencia !== 'todas') filtrosT += ` AND t.COMPETENCIA = '${esc(input.competencia)}'`;
+        if (input.convenio && input.convenio !== 'todos') filtrosT += ` AND t.CONVENIO = '${esc(input.convenio)}'`;
+        if (input.setor && input.setor !== 'todos') filtrosT += ` AND t.SETOR = '${esc(input.setor)}'`;
+        const bwT = `WHERE t.estabelecimentoId = ${estabId} ${filtrosT}`;
+        const gwT = `${bwT} AND CAST(t.VL_GLOSA AS DECIMAL(15,2)) > 0`;
 
         const [rR, rM, rC, rS, rI, rE, rO, rComp, rConv] = await Promise.all([
-          db.execute(sql.raw(`SELECT COUNT(*) as linhas, COUNT(DISTINCT CONVENIO) as conv_d, SUM(${C('VL_PRODUZIDO')}) as vl_cob, SUM(${C('VL_PAGO')}) as vl_pag, SUM(${C('VL_GLOSA')}) as vl_gl, SUM(${C('A_RECEBER')}) as vl_ar, MIN(COMPETENCIA) as ci, MAX(COMPETENCIA) as cf FROM ${T} ${bw}`)),
-          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA),''),'Sem motivo') as motivo, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY MOTIVO_GLOSA ORDER BY vg DESC LIMIT 20`)),
-          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(CONVENIO),''),'N/I') as convenio, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, SUM(${C('VL_PAGO')}) as vp, COUNT(*) as q, COUNT(CASE WHEN ${C('VL_GLOSA')}>0 THEN 1 END) as qg FROM ${T} ${bw} GROUP BY CONVENIO ORDER BY vg DESC LIMIT 20`)),
-          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(SETOR),''),'N/I') as setor, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY SETOR ORDER BY vg DESC LIMIT 20`)),
-          db.execute(sql.raw(`SELECT COALESCE(DESCRICAO,'S/D') as descricao, COALESCE(CD_ITEM,'') as codigo, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY DESCRICAO, CD_ITEM ORDER BY vg DESC LIMIT 20`)),
-          db.execute(sql.raw(`SELECT COMPETENCIA as comp, SUM(${C('VL_PRODUZIDO')}) as vc, SUM(${C('VL_PAGO')}) as vp, SUM(${C('VL_GLOSA')}) as vg, COUNT(*) as q FROM ${T} ${bw} GROUP BY COMPETENCIA ORDER BY COMPETENCIA ASC LIMIT 60`)),
-          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(MOTIVO_GLOSA),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(CONVENIO),''),'N/I') as convenio, SUM(${C('VL_GLOSA')}) as vg, SUM(${C('VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} ${gw} GROUP BY MOTIVO_GLOSA, CONVENIO ORDER BY vg DESC LIMIT 30`)),
-          db.execute(sql.raw(`SELECT DISTINCT COMPETENCIA as comp FROM ${T} WHERE estabelecimentoId=${estabId} AND COMPETENCIA IS NOT NULL AND COMPETENCIA NOT LIKE '3%' ORDER BY COMPETENCIA DESC`)),
-          db.execute(sql.raw(`SELECT DISTINCT CONVENIO as conv FROM ${T} WHERE estabelecimentoId=${estabId} AND CONVENIO IS NOT NULL AND TRIM(CONVENIO)!='' ORDER BY CONVENIO ASC`)),
+          db.execute(sql.raw(`SELECT COUNT(*) as linhas, COUNT(DISTINCT t.CONVENIO) as conv_d, SUM(${C('t.VL_PRODUZIDO')}) as vl_cob, SUM(${C('t.VL_PAGO')}) as vl_pag, SUM(${C('t.VL_GLOSA')}) as vl_gl, SUM(${C('t.A_RECEBER')}) as vl_ar, MIN(t.COMPETENCIA) as ci, MAX(t.COMPETENCIA) as cf FROM ${T} t ${bwT}`)),
+          db.execute(sql.raw(`SELECT ${motivoExpr} as motivo, SUM(CAST(t.VL_GLOSA AS DECIMAL(15,2))) as vg, SUM(CAST(t.VL_PRODUZIDO AS DECIMAL(15,2))) as vc, COUNT(*) as q FROM ${T} t ${motivoJoin} ${gwT} GROUP BY motivo ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(t.CONVENIO),''),'N/I') as convenio, SUM(${C('t.VL_GLOSA')}) as vg, SUM(${C('t.VL_PRODUZIDO')}) as vc, SUM(${C('t.VL_PAGO')}) as vp, COUNT(*) as q, COUNT(CASE WHEN ${C('t.VL_GLOSA')}>0 THEN 1 END) as qg FROM ${T} t ${bwT} GROUP BY convenio ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(t.SETOR),''),'N/I') as setor, SUM(${C('t.VL_GLOSA')}) as vg, SUM(${C('t.VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} t ${gwT} GROUP BY setor ORDER BY vg DESC LIMIT 20`)),
+          db.execute(sql.raw(`SELECT COALESCE(t.DESCRICAO,'S/D') as descricao, COALESCE(t.CD_ITEM,'') as codigo, ${motivoExpr} as motivo, SUM(CAST(t.VL_GLOSA AS DECIMAL(15,2))) as vg, SUM(CAST(t.VL_PRODUZIDO AS DECIMAL(15,2))) as vc, COUNT(*) as q FROM ${T} t ${motivoJoin} ${gwT} GROUP BY descricao, codigo, motivo ORDER BY vg DESC LIMIT 30`)),
+          db.execute(sql.raw(`SELECT t.COMPETENCIA as comp, SUM(${C('t.VL_PRODUZIDO')}) as vc, SUM(${C('t.VL_PAGO')}) as vp, SUM(${C('t.VL_GLOSA')}) as vg, COUNT(*) as q FROM ${T} t ${bwT} GROUP BY comp ORDER BY comp ASC LIMIT 60`)),
+          db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(t.MOTIVO_GLOSA),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(t.CONVENIO),''),'N/I') as convenio, SUM(${C('t.VL_GLOSA')}) as vg, SUM(${C('t.VL_PRODUZIDO')}) as vc, COUNT(*) as q FROM ${T} t ${gwT} GROUP BY motivo, convenio ORDER BY vg DESC LIMIT 30`)),
+          db.execute(sql.raw(`SELECT DISTINCT t.COMPETENCIA as comp FROM ${T} t WHERE t.estabelecimentoId=${estabId} AND t.COMPETENCIA IS NOT NULL AND t.COMPETENCIA NOT LIKE '3%' ORDER BY comp DESC`)),
+          db.execute(sql.raw(`SELECT DISTINCT t.CONVENIO as conv FROM ${T} t WHERE t.estabelecimentoId=${estabId} AND t.CONVENIO IS NOT NULL AND TRIM(t.CONVENIO)!='' ORDER BY conv ASC`)),
         ]);
         const r = (rR as any)[0]?.[0] || {};
         const tg = n(r.vl_gl);
@@ -857,7 +869,7 @@ export const tasyRouter = router({
           porMotivo: mapRows(rM, (r:any) => ({ motivo:r.motivo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0, participacao:tg>0?(n(r.vg)/tg)*100:0 })),
           porConvenio: mapRows(rC, (r:any) => ({ convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), vlPago:n(r.vp), qtd:n(r.q), qtdGlosados:n(r.qg), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
           porSetor: mapRows(rS, (r:any) => ({ setor:r.setor, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
-          porItem: mapRows(rI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
+          porItem: mapRows(rI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, motivo:r.motivo||'Sem motivo', vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
           evolucaoMensal: mapRows(rE, (r:any) => ({ comp:r.comp, vlCobrado:n(r.vc), vlPago:n(r.vp), vlGlosa:n(r.vg), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
           oportunidades: mapRows(rO, (r:any) => ({ motivo:r.motivo, convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
           competencias: ((rComp as any)[0]||[]).map((r:any)=>r.comp),
@@ -886,7 +898,7 @@ export const tasyRouter = router({
         db.execute(sql.raw(`SELECT COUNT(*) as linhas, COUNT(DISTINCT ${D}.convenio_id) as conv_d, SUM(${vlCob}) as vc, SUM(${vp}) as vp, SUM(${vg}) as vg, MIN(${compExpr}) as ci, MAX(${compExpr}) as cf FROM ${D} ${df}`)),
         db.execute(sql.raw(`SELECT COALESCE(NULLIF(TRIM(${D}.codigo_glosa),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(${D}.situacao_item),''), '') as situacao, SUM(${vg}) as vg, SUM(${vlCob}) as vc, COUNT(*) as q FROM ${D} ${dg} GROUP BY ${D}.codigo_glosa, ${D}.situacao_item ORDER BY vg DESC LIMIT 20`)),
         db.execute(sql.raw(`SELECT ${convName} as convenio, SUM(${vg}) as vg, SUM(${vlCob}) as vc, SUM(${vp}) as vp, COUNT(*) as q, COUNT(CASE WHEN ${vg}>0 THEN 1 END) as qg FROM ${D} ${convJoin} ${df} GROUP BY cv.nome ORDER BY vg DESC LIMIT 20`)),
-        db.execute(sql.raw(`SELECT COALESCE(${D}.descricao_item,'S/D') as descricao, COALESCE(${D}.codigo_item,'') as codigo, SUM(${vg}) as vg, SUM(${vlCob}) as vc, COUNT(*) as q FROM ${D} ${dg} GROUP BY ${D}.descricao_item, ${D}.codigo_item ORDER BY vg DESC LIMIT 20`)),
+        db.execute(sql.raw(`SELECT COALESCE(${D}.descricao_item,'S/D') as descricao, COALESCE(${D}.codigo_item,'') as codigo, COALESCE(NULLIF(TRIM(${D}.codigo_glosa),''),'Sem motivo') as motivo, COALESCE(NULLIF(TRIM(${D}.situacao_item),''),'') as situacao, SUM(${vg}) as vg, SUM(${vlCob}) as vc, COUNT(*) as q FROM ${D} ${dg} GROUP BY ${D}.descricao_item, ${D}.codigo_item, ${D}.codigo_glosa, ${D}.situacao_item ORDER BY vg DESC LIMIT 30`)),
         db.execute(sql.raw(`SELECT ${compExpr} as comp, SUM(${vlCob}) as vc, SUM(${vp}) as vp, SUM(${vg}) as vg, COUNT(*) as q FROM ${D} ${df} GROUP BY ${compExpr} ORDER BY comp ASC LIMIT 60`)),
         db.execute(sql.raw(`SELECT DISTINCT ${compExpr} as comp FROM ${D} WHERE ${D}.estabelecimentoId=${estabId} AND ${D}.data_referencia IS NOT NULL ORDER BY comp DESC`)),
         db.execute(sql.raw(`SELECT DISTINCT cv.nome as conv FROM ${D} ${convJoin} WHERE ${D}.estabelecimentoId=${estabId} AND cv.nome IS NOT NULL ORDER BY cv.nome ASC`)),
@@ -949,7 +961,7 @@ export const tasyRouter = router({
         porMotivo: mapRows(dM, (r:any) => ({ motivo: resolveMotivo(r.motivo, r.situacao), vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0, participacao:dtg>0?(n(r.vg)/dtg)*100:0 })),
         porConvenio: mapRows(dC, (r:any) => ({ convenio:r.convenio, vlGlosa:n(r.vg), vlCobrado:n(r.vc), vlPago:n(r.vp), qtd:n(r.q), qtdGlosados:n(r.qg), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
         porSetor: [],
-        porItem: mapRows(dI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
+        porItem: mapRows(dI, (r:any) => ({ descricao:r.descricao, codigo:r.codigo, motivo: resolveMotivo(r.motivo, r.situacao), vlGlosa:n(r.vg), vlCobrado:n(r.vc), qtd:n(r.q) })),
         evolucaoMensal: mapRows(dE, (r:any) => ({ comp:r.comp, vlCobrado:n(r.vc), vlPago:n(r.vp), vlGlosa:n(r.vg), qtd:n(r.q), pctGlosa:n(r.vc)>0?(n(r.vg)/n(r.vc))*100:0 })),
         oportunidades: [],
         competencias: ((dComp as any)[0]||[]).map((r:any)=>r.comp),
@@ -1067,6 +1079,119 @@ IMPORTANTE:
               { area: 'Gestão de Recurso', problema: 'Baixa taxa de recuperação', acao: 'Padronizar argumentações por motivo e convênio', meta: 'Aumentar taxa de deferimento em 10%', prazo: '45 dias' },
             ],
             conclusao: `Com a implementação das ações propostas, estima-se uma recuperação potencial de ${fmtBRL(input.resumo.vlGlosa * 0.10)} a ${fmtBRL(input.resumo.vlGlosa * 0.20)} no próximo ciclo, representando ganho significativo para a sustentabilidade financeira do hospital.`,
+          },
+        };
+      }
+    }),
+  // ═══════════════════════════════════════════
+  // Análise Comparativa IA entre dois meses
+  // ═══════════════════════════════════════════
+  gerarAnaliseComparativaIA: publicProcedure
+    .input(z.object({
+      nomeEstabelecimento: z.string(),
+      mesA: z.object({
+        competencia: z.string(),
+        vlCobrado: z.number(), vlPago: z.number(), vlGlosa: z.number(), pctGlosa: z.number(),
+        linhas: z.number(), conveniosDistintos: z.number(),
+        topMotivos: z.array(z.object({ motivo: z.string(), vlGlosa: z.number(), participacao: z.number(), pctGlosa: z.number() })).optional(),
+        topConvenios: z.array(z.object({ convenio: z.string(), vlGlosa: z.number(), vlCobrado: z.number(), pctGlosa: z.number() })).optional(),
+        topItens: z.array(z.object({ descricao: z.string(), vlGlosa: z.number(), qtd: z.number() })).optional(),
+      }),
+      mesB: z.object({
+        competencia: z.string(),
+        vlCobrado: z.number(), vlPago: z.number(), vlGlosa: z.number(), pctGlosa: z.number(),
+        linhas: z.number(), conveniosDistintos: z.number(),
+        topMotivos: z.array(z.object({ motivo: z.string(), vlGlosa: z.number(), participacao: z.number(), pctGlosa: z.number() })).optional(),
+        topConvenios: z.array(z.object({ convenio: z.string(), vlGlosa: z.number(), vlCobrado: z.number(), pctGlosa: z.number() })).optional(),
+        topItens: z.array(z.object({ descricao: z.string(), vlGlosa: z.number(), qtd: z.number() })).optional(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('../_core/llm');
+      const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const { mesA, mesB } = input;
+
+      const deltaGlosa = mesB.vlGlosa - mesA.vlGlosa;
+      const deltaPct = mesB.pctGlosa - mesA.pctGlosa;
+      const deltaCobrado = mesB.vlCobrado - mesA.vlCobrado;
+
+      const prompt = `Você é um consultor sênior de faturamento hospitalar e auditoria de contas médicas.
+Analise a COMPARAÇÃO entre dois meses do hospital "${input.nomeEstabelecimento}" e gere um relatório comparativo completo.
+
+═══ MÊS A: ${mesA.competencia} ═══
+- Valor Cobrado: ${fmtBRL(mesA.vlCobrado)}
+- Valor Pago: ${fmtBRL(mesA.vlPago)}
+- Valor Glosado: ${fmtBRL(mesA.vlGlosa)}
+- Taxa de Glosa: ${mesA.pctGlosa.toFixed(2)}%
+- Itens: ${mesA.linhas} | Convênios: ${mesA.conveniosDistintos}
+Top Motivos: ${(mesA.topMotivos || []).slice(0, 5).map((m, i) => `${i+1}. ${m.motivo} — ${fmtBRL(m.vlGlosa)} (${m.participacao.toFixed(1)}%)`).join('; ')}
+Top Convênios: ${(mesA.topConvenios || []).slice(0, 5).map((c, i) => `${i+1}. ${c.convenio} — ${fmtBRL(c.vlGlosa)} (${c.pctGlosa.toFixed(1)}%)`).join('; ')}
+
+═══ MÊS B: ${mesB.competencia} ═══
+- Valor Cobrado: ${fmtBRL(mesB.vlCobrado)}
+- Valor Pago: ${fmtBRL(mesB.vlPago)}
+- Valor Glosado: ${fmtBRL(mesB.vlGlosa)}
+- Taxa de Glosa: ${mesB.pctGlosa.toFixed(2)}%
+- Itens: ${mesB.linhas} | Convênios: ${mesB.conveniosDistintos}
+Top Motivos: ${(mesB.topMotivos || []).slice(0, 5).map((m, i) => `${i+1}. ${m.motivo} — ${fmtBRL(m.vlGlosa)} (${m.participacao.toFixed(1)}%)`).join('; ')}
+Top Convênios: ${(mesB.topConvenios || []).slice(0, 5).map((c, i) => `${i+1}. ${c.convenio} — ${fmtBRL(c.vlGlosa)} (${c.pctGlosa.toFixed(1)}%)`).join('; ')}
+
+═══ VARIAÇÕES ═══
+- Δ Valor Glosado: ${fmtBRL(deltaGlosa)} (${deltaGlosa >= 0 ? '+' : ''}${mesA.vlGlosa > 0 ? ((deltaGlosa / mesA.vlGlosa) * 100).toFixed(1) : '0'}%)
+- Δ Taxa de Glosa: ${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(2)} p.p.
+- Δ Valor Cobrado: ${fmtBRL(deltaCobrado)}
+
+GERE O RELATÓRIO COMPARATIVO no formato JSON com EXATAMENTE estas chaves:
+{
+  "visaoGeral": "Parágrafo de 4-6 linhas comparando o desempenho geral entre os dois meses, destacando se houve melhora ou piora e os principais números.",
+  "analiseVariacoes": "Parágrafo de 4-6 linhas analisando as variações nos valores cobrados, pagos e glosados. O que causou as mudanças?",
+  "comparativoMotivos": "Parágrafo de 4-6 linhas comparando os motivos de glosa entre os dois meses. Quais motivos aumentaram, diminuíram ou surgiram novos?",
+  "comparativoConvenios": "Parágrafo de 3-5 linhas comparando os convênios entre os dois meses. Quais melhoraram, quais pioraram?",
+  "diagnostico": "Parágrafo de 3-5 linhas com o diagnóstico: o hospital está melhorando ou piorando? Quais são as causas?",
+  "recomendacoes": "Parágrafo de 4-6 linhas com recomendações específicas baseadas na comparação. O que precisa ser feito de diferente?",
+  "acoesPrioritarias": [
+    {"area": "Nome da área", "situacao": "O que mudou de um mês para outro", "acao": "Ação proposta", "impactoEstimado": "Impacto financeiro esperado"},
+    {"area": "...", "situacao": "...", "acao": "...", "impactoEstimado": "..."}
+  ],
+  "conclusao": "Parágrafo de 3-4 linhas com conclusão e projeção para o próximo mês."
+}
+
+IMPORTANTE:
+- Compare ESPECIFICAMENTE os dados dos dois meses. Cite valores, percentuais e nomes reais de ambos os períodos.
+- Use linguagem profissional, indicando claramente melhorias (▲) e pioras (▼).
+- Nas ações, seja prático e realista (mínimo 3, máximo 6 ações).
+- Responda APENAS com o JSON válido, sem markdown, sem backticks, sem explicações.`;
+
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'Você é um consultor de faturamento hospitalar especializado em análise comparativa. Responda apenas com JSON válido.' },
+            { role: 'user', content: prompt },
+          ],
+        });
+
+        const raw = response.choices[0]?.message?.content || '{}';
+        const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        const analise = JSON.parse(cleaned);
+        return { success: true, analise };
+      } catch (error: any) {
+        console.error('[gerarAnaliseComparativaIA] Erro:', error?.message);
+        const melhorou = deltaGlosa < 0;
+        return {
+          success: false,
+          analise: {
+            visaoGeral: `Comparando ${mesA.competencia} com ${mesB.competencia}, o hospital ${input.nomeEstabelecimento} apresentou ${melhorou ? 'melhora' : 'piora'} na taxa de glosa, passando de ${mesA.pctGlosa.toFixed(2)}% para ${mesB.pctGlosa.toFixed(2)}%. O valor glosado ${melhorou ? 'reduziu' : 'aumentou'} de ${fmtBRL(mesA.vlGlosa)} para ${fmtBRL(mesB.vlGlosa)}, uma variação de ${fmtBRL(deltaGlosa)}.`,
+            analiseVariacoes: `O faturamento cobrado variou de ${fmtBRL(mesA.vlCobrado)} para ${fmtBRL(mesB.vlCobrado)}. A taxa de glosa teve variação de ${deltaPct.toFixed(2)} pontos percentuais, indicando ${melhorou ? 'progresso nas ações de redução' : 'necessidade de intensificar medidas corretivas'}.`,
+            comparativoMotivos: `Os motivos de glosa precisam ser analisados individualmente para identificar padrões de melhoria ou piora entre os períodos.`,
+            comparativoConvenios: `A análise por convênio revela variações significativas que devem ser tratadas com estratégias individualizadas.`,
+            diagnostico: `O hospital está ${melhorou ? 'em trajetória de melhoria, mas precisa manter e intensificar as ações' : 'em tendência de piora, necessitando intervenção imediata nos processos de faturamento e auditoria'}.`,
+            recomendacoes: `Recomenda-se ${melhorou ? 'manter as ações que geraram resultado positivo e expandir para outras áreas' : 'revisar urgentemente os processos de faturamento, autorização prévia e documentação clínica'}. Foco nos motivos e convênios com maior variação negativa.`,
+            acoesPrioritarias: [
+              { area: 'Faturamento', situacao: `Taxa de glosa ${melhorou ? 'reduziu' : 'aumentou'} ${Math.abs(deltaPct).toFixed(2)} p.p.`, acao: 'Revisar processos de codificação e envio', impactoEstimado: fmtBRL(Math.abs(deltaGlosa) * 0.5) },
+              { area: 'Auditoria', situacao: 'Variação nos motivos de glosa', acao: 'Intensificar auditoria pré-faturamento', impactoEstimado: fmtBRL(mesB.vlGlosa * 0.10) },
+              { area: 'Negociação', situacao: 'Variação por convênio', acao: 'Renegociar com convênios de maior impacto', impactoEstimado: fmtBRL(mesB.vlGlosa * 0.15) },
+            ],
+            conclusao: `A análise comparativa revela que o hospital precisa ${melhorou ? 'consolidar os avanços obtidos' : 'implementar ações corretivas urgentes'}. A meta para o próximo período deve ser atingir taxa de glosa inferior a ${Math.max(0, mesB.pctGlosa - 2).toFixed(2)}%.`,
           },
         };
       }
