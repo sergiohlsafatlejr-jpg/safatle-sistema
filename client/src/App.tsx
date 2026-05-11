@@ -84,14 +84,19 @@ const FinanceiroModule = lazy(() => import("./pages/FinanceiroModule"));
 const ContratosModule = lazy(() => import("./pages/ContratosModule"));
 const ContratosConvenios = lazy(() => import("./pages/ContratosConvenios"));
 const PropostasModule = lazy(() => import("./pages/PropostasModule"));
-const PainelExecutivo = lazy(() => import("./pages/PainelExecutivo"));
-const PermissoesSafatle = lazy(() => import("./pages/PermissoesSafatle"));
-const LogAuditoriaSistema = lazy(() => import("./pages/LogAuditoriaSistema"));
+const PainelExecutivo = lazy(() => import("@/pages/PainelExecutivo"));
+const PermissoesSafatle = lazy(() => import("@/pages/PermissoesSafatle"));
+const LogAuditoriaSistema = lazy(() => import("@/pages/LogAuditoriaSistema"));
+const UploadFolhaRH = lazy(() => import("@/pages/rh/UploadFolha"));
+const FolhaPagamento = lazy(() => import("@/pages/rh/FolhaPagamento"));
 const BiFinanceiroTasy = lazy(() => import("./pages/BiFinanceiroTasy"));
 const RelatorioProtocolos = lazy(() => import("./pages/RelatorioProtocolos"));
 const PrevisaoRecebimentos = lazy(() => import("./pages/PrevisaoRecebimentos"));
 const AnaliseFaturamentosBi = lazy(() => import("./pages/AnaliseFaturamentosBi"));
 const FluxoCaixaBI = lazy(() => import("./pages/FluxoCaixaBI"));
+const RelatorioLaboratorio = lazy(() => import("./pages/RelatorioLaboratorio"));
+const RelatorioVisita = lazy(() => import("./pages/RelatorioVisita"));
+const RelatorioUltrassom = lazy(() => import("./pages/RelatorioUltrassom"));
 
 function PageLoader() {
   return (
@@ -195,6 +200,9 @@ function Router() {
         <Route path={"/previsao-recebimentos"} component={PrevisaoRecebimentos} />
         <Route path={"/analise-faturamento-itens"} component={AnaliseFaturamentosBi} />
         <Route path={"/fluxo-caixa-bi"} component={FluxoCaixaBI} />
+        <Route path={"/relatorio-laboratorio"} component={RelatorioLaboratorio} />
+        <Route path={"/relatorio-visita"} component={RelatorioVisita} />
+        <Route path={"/relatorio-ultrassom"} component={RelatorioUltrassom} />
         <Route path={"/relatorios-glosas-bi"} component={RelatoriosBI} />
         <Route path={"/faturamento-externo"} component={FaturamentoExterno} />
         <Route path={"/relatorio-atendimentos"} component={RelatorioAtendimentos} />
@@ -207,6 +215,8 @@ function Router() {
         <Route path={"/painel-executivo"} component={PainelExecutivo} />
         <Route path={"/permissoes-safatle"} component={PermissoesSafatle} />
         <Route path={"/auditoria-sistema"} component={LogAuditoriaSistema} />
+        <Route path={"/rh/upload"} component={UploadFolhaRH} />
+        <Route path={"/rh/folha-pagamento"} component={FolhaPagamento} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

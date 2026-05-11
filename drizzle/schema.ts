@@ -78,9 +78,9 @@ export type InsertConvenioEstabelecimentoPrestador = typeof convenioEstabelecime
 export const arquivos = mysqlTable("arquivos", {
   id: int("id").autoincrement().primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
-  tipoArquivo: mysqlEnum("tipoArquivo", ["xml", "excel", "pdf", "csv"]).notNull(),
-  direcao: mysqlEnum("direcao", ["enviado", "retornado"]).notNull(),
-  convenioId: int("convenioId").notNull(),
+  tipoArquivo: mysqlEnum("tipoArquivo", ["xml", "excel", "pdf", "csv", "rh_folha"]).notNull(),
+  direcao: mysqlEnum("direcao", ["enviado", "retornado", "rh"]).notNull(),
+  convenioId: int("convenioId"),
   estabelecimentoId: int("estabelecimentoId"),
   userId: int("userId").notNull(),
   s3Key: varchar("s3Key", { length: 512 }).notNull(),
@@ -4149,4 +4149,49 @@ export const contratosTabelasValores = mysqlTable("contratos_tabelas_valores", {
 
 export type ContratoTabelaValor = typeof contratosTabelasValores.$inferSelect;
 export type InsertContratoTabelaValor = typeof contratosTabelasValores.$inferInsert;
+
+
+/**
+ * RH: Dados da Folha de Pagamento
+ */
+export const rhFolhaPagamento = mysqlTable('rh_folha_pagamento', {
+  id: int('id').autoincrement().primaryKey(),
+  arquivoId: int('arquivoId').notNull(),
+  estabelecimentoId: int('estabelecimentoId').notNull(), // Deve ser associado ao estabelecimento (ex: Safatle)
+  competencia: varchar('competencia', { length: 20 }), // Ex: 2026-04
+  colaboradorNome: varchar('colaboradorNome', { length: 255 }),
+  colaboradorEmail: varchar('colaboradorEmail', { length: 255 }),
+  dataAdmissao: datetime('dataAdmissao'),
+  sexo: varchar('sexo', { length: 20 }),
+  filhos: varchar('filhos', { length: 10 }),
+  tipoContrato: varchar('tipoContrato', { length: 50 }),
+  empresa: varchar('empresa', { length: 255 }),
+  cnpj: varchar('cnpj', { length: 50 }),
+  unidade: varchar('unidade', { length: 255 }),
+  cpf: varchar('cpf', { length: 50 }),
+  dataNascimento: datetime('dataNascimento'),
+  cargo: varchar('cargo', { length: 255 }),
+  salarioBruto: decimal('salarioBruto', { precision: 12, scale: 2 }),
+  diasUteis: int('diasUteis'),
+  correcao: decimal('correcao', { precision: 12, scale: 2 }),
+  valorPagar: decimal('valorPagar', { precision: 12, scale: 2 }),
+  vt: decimal('vt', { precision: 12, scale: 2 }),
+  combustivel: decimal('combustivel', { precision: 12, scale: 2 }),
+  alimentacao: decimal('alimentacao', { precision: 12, scale: 2 }),
+  ajudaCusto: decimal('ajudaCusto', { precision: 12, scale: 2 }),
+  sobreAviso: decimal('sobreAviso', { precision: 12, scale: 2 }),
+  academia: decimal('academia', { precision: 12, scale: 2 }),
+  somaBeneficios: decimal('somaBeneficios', { precision: 12, scale: 2 }),
+  descontoFixo: decimal('descontoFixo', { precision: 12, scale: 2 }),
+  descontosVariaveis: decimal('descontosVariaveis', { precision: 12, scale: 2 }),
+  descontoUniforme: decimal('descontoUniforme', { precision: 12, scale: 2 }),
+  unimed: decimal('unimed', { precision: 12, scale: 2 }),
+  coparticipacao: decimal('coparticipacao', { precision: 12, scale: 2 }),
+  cargoConfianca: varchar('cargoConfianca', { length: 255 }),
+  pontualidade: varchar('pontualidade', { length: 255 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+
+export type RHFolhaPagamento = typeof rhFolhaPagamento.$inferSelect;
+export type InsertRHFolhaPagamento = typeof rhFolhaPagamento.$inferInsert;
 

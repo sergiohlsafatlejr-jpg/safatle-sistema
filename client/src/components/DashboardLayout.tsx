@@ -81,6 +81,8 @@ import {
   ClipboardCheck,
   FileCheck,
   CalendarClock,
+  FlaskConical,
+  Stethoscope,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -171,6 +173,9 @@ const menuItems: MenuItem[] = [
       { icon: TrendingUp, label: "Previsão de Glosa", path: "/previsao-glosa", modulo: "relPrevisaoGlosa" },
       { icon: FileSpreadsheet, label: "Faturamento Externo", path: "/faturamento-externo", modulo: "faturamentoExterno" },
       { icon: FileText, label: "Relatórios de Glosas", path: "/relatorios-glosas-bi", modulo: "relFaturadoRecebido" },
+      { icon: FlaskConical, label: "Rel. Laboratório", path: "/relatorio-laboratorio", modulo: "relFaturadoRecebido" },
+      { icon: Activity, label: "Rel. Ultrassom", path: "/relatorio-ultrassom", modulo: "relFaturadoRecebido" },
+      { icon: Stethoscope, label: "Rel. Visita Hospitalar", path: "/relatorio-visita", modulo: "relFaturadoRecebido" },
     ]},
     // Subpasta: Recepção
     { icon: Users, label: "Recepção", path: "/relatorio-atendimentos", modulo: "relatoriosBi", children: [
@@ -205,6 +210,12 @@ const menuItems: MenuItem[] = [
   { icon: Building2, label: "Contratos Hosp x Convênio", path: "/contratos-convenios", adminOnly: false },
   { icon: FileSpreadsheet, label: "Propostas", path: "/propostas", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
   { icon: Shield, label: "Permissões Safatle", path: "/permissoes-safatle", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
+  
+  // RH Safatle
+  { icon: Users, label: "Recursos Humanos", path: "/rh/folha-pagamento", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID], children: [
+    { icon: Upload, label: "Importar Folha", path: "/rh/upload", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
+    { icon: FileSpreadsheet, label: "Folha de Pagamento", path: "/rh/folha-pagamento", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
+  ]},
 
 ];
 

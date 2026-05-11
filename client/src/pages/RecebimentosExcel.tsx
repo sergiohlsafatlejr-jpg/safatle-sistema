@@ -127,13 +127,13 @@ export default function RecebimentosExcel() {
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files);
-    // Apenas Excel
+    // Apenas Excel e CSV
     const validFiles = fileArray.filter(file => {
       const ext = file.name.split(".").pop()?.toLowerCase();
-      return ext === "xlsx" || ext === "xls";
+      return ext === "xlsx" || ext === "xls" || ext === "csv";
     });
     if (validFiles.length !== fileArray.length) {
-      toast.warning("Apenas arquivos Excel (.xlsx, .xls) são aceitos nesta tela. Outros formatos foram ignorados.");
+      toast.warning("Apenas arquivos Excel (.xlsx, .xls) ou CSV (.csv) são aceitos nesta tela. Outros formatos foram ignorados.");
     }
     if (validFiles.length === 0) return;
 
@@ -537,7 +537,7 @@ export default function RecebimentosExcel() {
                     onDrop={handleDrop}
                   >
                     <div className={`absolute inset-0 bg-gradient-to-br from-emerald-100/20 via-teal-100/10 to-green-100/20 opacity-0 transition-opacity duration-700 ${isDragOver ? 'opacity-100' : 'group-hover:opacity-100'}`} />
-                    <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" multiple />
+                    <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" multiple />
                     
                     <div className="relative z-10">
                       {isDragOver ? (
@@ -576,7 +576,7 @@ export default function RecebimentosExcel() {
                             <p className="text-sm text-slate-500 font-medium">ou <span className="text-emerald-600 hover:text-emerald-700 hover:underline decoration-emerald-300 underline-offset-4">procure no seu computador</span></p>
                           </div>
                           <div className="flex gap-2 justify-center mt-2">
-                            <Badge variant="outline" className="bg-slate-50/50 text-slate-600 border-slate-200">Excel</Badge>
+                            <Badge variant="outline" className="bg-slate-50/50 text-slate-600 border-slate-200">Excel / CSV</Badge>
                           </div>
                         </div>
                       )}
@@ -698,7 +698,7 @@ export default function RecebimentosExcel() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900">Selecione as planilhas de retorno</p>
-                        <p className="text-sm text-slate-500">Arraste ou clique para selecionar até {MAX_FILES} arquivos Excel de retorno do convênio</p>
+                        <p className="text-sm text-slate-500">Arraste ou clique para selecionar até {MAX_FILES} arquivos Excel ou CSV de retorno do convênio</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -795,7 +795,7 @@ function ArquivosImportadosExcelTab({
     },
   });
 
-  const arquivosList = (arquivos as any[])?.filter((a: any) => a.direcao === "retornado" && (a.tipoArquivo === "excel" || a.nome?.toLowerCase().endsWith(".xlsx") || a.nome?.toLowerCase().endsWith(".xls"))) || [];
+  const arquivosList = (arquivos as any[])?.filter((a: any) => a.direcao === "retornado" && (a.tipoArquivo === "excel" || a.tipoArquivo === "csv" || a.nome?.toLowerCase().endsWith(".xlsx") || a.nome?.toLowerCase().endsWith(".xls") || a.nome?.toLowerCase().endsWith(".csv"))) || [];
 
   return (
     <Card className="border-0 shadow-sm">

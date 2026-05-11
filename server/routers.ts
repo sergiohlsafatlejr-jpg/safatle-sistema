@@ -97,10 +97,13 @@ function mapTipoDespesaParaTipoItem(tipoDespesa?: string): string {
   }
 }
 
+import { rhRouter } from "./routers/rhRouter";
+
 export const appRouter = router({
   system: systemRouter,
   relatorioAtendimentos: relatorioAtendimentosRouter,
   relatorioCustos: relatorioCustosRouter,
+  rh: rhRouter,
   relatorioFaturamento: relatorioFaturamentoRouter,
   faturamentoExterno: faturamentoExternoRouter,
   nfse: nfseRouter,
@@ -457,8 +460,8 @@ export const appRouter = router({
         z
           .object({
             convenioId: z.number().optional(),
-            direcao: z.enum(["enviado", "retornado"]).optional(),
-            tipoArquivo: z.enum(["xml", "excel", "pdf"]).optional(),
+            direcao: z.enum(["enviado", "retornado", "rh"]).optional(),
+            tipoArquivo: z.enum(["xml", "excel", "pdf", "csv", "rh_folha"]).optional(),
             status: z.enum(["pendente", "processado", "erro"]).optional(),
             dataInicio: z.string().optional(),
             dataFim: z.string().optional(),
@@ -598,8 +601,8 @@ export const appRouter = router({
       .input(
         z.object({
           nome: z.string(),
-          tipoArquivo: z.enum(["xml", "excel", "pdf"]),
-          direcao: z.enum(["enviado", "retornado"]),
+          tipoArquivo: z.enum(["xml", "excel", "pdf", "csv", "rh_folha"]),
+          direcao: z.enum(["enviado", "retornado", "rh"]),
           convenioId: z.number(),
           estabelecimentoId: z.number(), // Estabelecimento associado ao arquivo
           conteudo: z.string(), // Base64 encoded
@@ -659,15 +662,17 @@ export const appRouter = router({
           arquivoId = arquivoExistente.id;
           
           // Gerar nova chave S3 para o arquivo atualizado
-          const ext = input.tipoArquivo === "excel" ? "xlsx" : input.tipoArquivo;
+          const ext = input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha" ? "xlsx" : input.tipoArquivo === "csv" ? "csv" : input.tipoArquivo === "rh_folha" ? "xlsx" : input.tipoArquivo;
           s3Key = `arquivos/${ctx.user.id}/${nanoid()}-${sanitizedNome}.${ext}`;
           
           // Upload to S3
           const contentType =
             input.tipoArquivo === "xml"
               ? "application/xml"
-              : input.tipoArquivo === "excel"
+              : input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha"
               ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              : input.tipoArquivo === "csv"
+              ? "text/csv"
               : "application/pdf";
           
           const uploadResult = await storagePut(s3Key, buffer, contentType);
@@ -749,15 +754,17 @@ export const appRouter = router({
           });
         } else {
           // Novo arquivo: criar registro
-          const ext = input.tipoArquivo === "excel" ? "xlsx" : input.tipoArquivo;
+          const ext = input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha" ? "xlsx" : input.tipoArquivo === "csv" ? "csv" : input.tipoArquivo;
           s3Key = `arquivos/${ctx.user.id}/${nanoid()}-${sanitizedNome}.${ext}`;
           
           // Upload to S3
           const contentType =
             input.tipoArquivo === "xml"
               ? "application/xml"
-              : input.tipoArquivo === "excel"
+              : input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha"
               ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              : input.tipoArquivo === "csv"
+              ? "text/csv"
               : "application/pdf";
           
           const uploadResult = await storagePut(s3Key, buffer, contentType);
@@ -877,7 +884,7 @@ export const appRouter = router({
               await db.updateArquivoProgresso(arquivoId, 0, 0, totalItensToProcess);
               
               // Suportar tanto XML quanto Excel como arquivo enviado
-              if (input.direcao === "enviado" && (input.tipoArquivo === "xml" || input.tipoArquivo === "excel")) {
+              if (input.direcao === "enviado" && (input.tipoArquivo === "xml" || input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha")) {
                 try {
                   console.log('[Upload] Populando staging_faturamento_xml diretamente do XML enviado...');
                   const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
@@ -1134,16 +1141,59 @@ export const appRouter = router({
             // Processar arquivos de retorno: Excel -> recebimentos_excel, XML -> recebimento_tiss
             // IMPORTANTE: Este bloco deve executar INDEPENDENTE do resultado do parseFile()
             // porque XMLs de retorno têm estrutura diferente e o parser genérico não extrai procedimentos
-            if (input.direcao === "retornado") {
+            if (input.direcao === "retornado" || input.direcao === "rh") {
                 try {
-                  // Converter datas do input
                   const dataReferenciaUpload = input.dataReferencia ? new Date(input.dataReferencia) : undefined;
                   const dataPagamentoUpload = input.dataPagamento ? new Date(input.dataPagamento) : undefined;
                   
-                  // SEPARAÇÃO: Excel vai para recebimentos_excel, XML vai para recebimento_tiss
-                  if (input.tipoArquivo === "excel") {
-                    // Arquivos Excel de retorno -> tabela recebimentos_excel
-                    console.log('[Upload] Processando arquivo Excel de retorno para recebimentos_excel:', arquivoId);
+                  // SEPARAÇÃO: Excel e CSV vão para recebimentos_excel, XML vai para recebimento_tiss
+                  if (input.tipoArquivo === "rh_folha") {
+                    console.log(`[Upload] Processando folha de RH:`, arquivoId);
+                    const { rhFolhaPagamento } = await import('../drizzle/schema');
+                    const { eq } = await import('drizzle-orm');
+                    const { getDb } = await import('./db');
+                    const drizzleDb = await getDb();
+                    if (!drizzleDb) throw new Error("DB indisponível");
+
+                    if (isReimportacao) {
+                      await drizzleDb.delete(rhFolhaPagamento).where(eq(rhFolhaPagamento.arquivoId, arquivoId));
+                    }
+                    
+                    try {
+                      const { parseRhFolhaExcel } = await import('./rhFolhaParser');
+                      const competenciaUpload = input.dataReferencia ? input.dataReferencia.substring(0, 7) : new Date().toISOString().substring(0, 7);
+                      
+                      const records = parseRhFolhaExcel(
+                        buffer,
+                        arquivoId,
+                        input.estabelecimentoId,
+                        competenciaUpload
+                      );
+                      
+                      await db.updateArquivoProgresso(arquivoId, 20, 0, records.length);
+                      
+                      if (records.length > 0) {
+                        const batchSize = 100;
+                        let totalInserted = 0;
+                        for (let i = 0; i < records.length; i += batchSize) {
+                          const batch = records.slice(i, i + batchSize);
+                          await drizzleDb.insert(rhFolhaPagamento).values(batch);
+                          totalInserted += batch.length;
+                          const progresso = Math.round(20 + (totalInserted / records.length) * 80);
+                          await db.updateArquivoProgresso(arquivoId, Math.min(progresso, 100), totalInserted, records.length);
+                        }
+                        console.log(`[Upload] Folha RH importada: ${totalInserted} itens`);
+                      }
+                      
+                      await db.updateArquivoStatus(arquivoId, "processado");
+                    } catch (err: any) {
+                      console.error('[Upload] Erro ao importar folha RH:', err);
+                      await db.updateArquivoStatus(arquivoId, "erro", err.message);
+                      throw err;
+                    }
+                  } else if (input.tipoArquivo === "excel" || input.tipoArquivo === "rh_folha" || input.tipoArquivo === "csv") {
+                    // Arquivos Excel/CSV de retorno -> tabela recebimentos_excel
+                    console.log(`[Upload] Processando arquivo ${input.tipoArquivo} de retorno para recebimentos_excel:`, arquivoId);
                     
                     // Excluir dados antigos deste arquivo se for reimportação
                     if (isReimportacao) {
@@ -7257,6 +7307,441 @@ export const appRouter = router({
             total: 0,
             error: error instanceof Error ? error.message : 'Erro desconhecido'
           };
+        }
+      }),
+  }),
+
+  // ============ RELATÓRIO LABORATÓRIO (Pronto Socorro) ============
+  relatorioLaboratorio: router({
+    // Lista de convênios disponíveis
+    convenios: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          const [rows] = await conn.execute(
+            `SELECT DISTINCT d.convenio_id, c.nome as convenio_nome
+             FROM demonstrativo d
+             LEFT JOIN convenios c ON c.id = d.convenio_id
+             WHERE d.estabelecimentoId = ?
+             AND (d.codigo_item LIKE '402%' OR d.codigo_item LIKE '403%')
+             AND d.convenio_id IS NOT NULL
+             ORDER BY c.nome`,
+            [input.estabelecimentoId]
+          );
+          return (rows as any[]).map((r: any) => ({
+            id: r.convenio_id,
+            nome: r.convenio_nome || `Convênio ${r.convenio_id}`,
+          }));
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+
+    // Dados do relatório
+    dados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        convenioId: z.number().optional(),
+        statusFiltro: z.enum(['todos', 'pago', 'glosado', 'parcial']).optional(),
+      }))
+      .query(async ({ input }) => {
+        console.log('[relatorioLaboratorio.dados] Input:', JSON.stringify(input));
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+
+          // Filtro base: faixa TUSS de laboratório (402xx e 403xx)
+          let whereExtra = '';
+          const params: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            whereExtra += ` AND MONTH(data_referencia) = ? AND YEAR(data_referencia) = ?`;
+            params.push(input.mesReferencia, input.anoReferencia);
+          }
+          if (input.convenioId) {
+            whereExtra += ` AND d.convenio_id = ?`;
+            params.push(input.convenioId);
+          }
+          if (input.statusFiltro && input.statusFiltro !== 'todos') {
+            if (input.statusFiltro === 'pago') whereExtra += ` AND UPPER(d.situacao_item) = 'PAGO'`;
+            else if (input.statusFiltro === 'glosado') whereExtra += ` AND UPPER(d.situacao_item) = 'GLOSADO'`;
+            else if (input.statusFiltro === 'parcial') whereExtra += ` AND UPPER(d.situacao_item) = 'PARCIAL'`;
+          }
+
+          const baseWhere = `d.estabelecimentoId = ? AND (d.codigo_item LIKE '402%' OR d.codigo_item LIKE '403%')`;
+          const baseParams = [input.estabelecimentoId];
+
+          // Queries em paralelo
+          const [
+            [porCodigo],
+            [resumoRows],
+            [competencias],
+            [porSituacao],
+            [porConvenio]
+          ] = await Promise.all([
+            conn.execute(
+              `SELECT d.codigo_item, MIN(d.descricao_item) as descricao, d.situacao_item,
+                      COUNT(*) as qtd,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago,
+                      SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra}
+               GROUP BY d.codigo_item, d.situacao_item ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT COUNT(*) as total_itens,
+                      COUNT(DISTINCT d.codigo_item) as codigos_unicos,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago,
+                      SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa,
+                      SUM(CAST(d.valor_informado AS DECIMAL(12,2))) as total_informado
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra}`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT DISTINCT DATE_FORMAT(d.data_referencia, '%m-%Y') as competencia,
+                      MONTH(d.data_referencia) as mes, YEAR(d.data_referencia) as ano,
+                      COUNT(*) as total
+               FROM demonstrativo d WHERE ${baseWhere}
+               GROUP BY DATE_FORMAT(d.data_referencia, '%m-%Y'), MONTH(d.data_referencia), YEAR(d.data_referencia)
+               ORDER BY ano DESC, mes DESC`,
+              [...baseParams]
+            ),
+            conn.execute(
+              `SELECT d.situacao_item, COUNT(*) as total,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as vl_pago,
+                      SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as vl_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra}
+               GROUP BY d.situacao_item`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT d.convenio_id, c.nome as convenio_nome,
+                      COUNT(*) as qtd,
+                      COUNT(DISTINCT d.codigo_item) as codigos,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago,
+                      SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d
+               LEFT JOIN convenios c ON c.id = d.convenio_id
+               WHERE ${baseWhere} ${whereExtra}
+               GROUP BY d.convenio_id, c.nome
+               ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+          ]);
+
+          // Itens individuais apenas com filtro de competência
+          let itens: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            const [itensResult] = await conn.execute(
+              `SELECT d.id, d.codigo_item, d.descricao_item, d.situacao_item,
+                      CAST(d.valor_pago AS DECIMAL(12,2)) as valor_pago,
+                      CAST(d.valor_glosa AS DECIMAL(12,2)) as valor_glosa,
+                      CAST(d.valor_informado AS DECIMAL(12,2)) as valor_informado,
+                      d.numero_guia, d.nome_beneficiario, d.data_execucao, d.data_referencia, d.data_pagamento,
+                      d.codigo_glosa, d.convenio_id, c.nome as convenio_nome
+               FROM demonstrativo d
+               LEFT JOIN convenios c ON c.id = d.convenio_id
+               WHERE ${baseWhere} ${whereExtra}
+               ORDER BY d.codigo_item, d.data_referencia DESC`,
+              [...baseParams, ...params]
+            );
+            itens = itensResult as any[];
+          }
+
+          const r = (resumoRows as any[])[0] || {};
+          console.log('[relatorioLaboratorio.dados] Resumo:', JSON.stringify(r));
+
+          return {
+            itens,
+            porCodigo: porCodigo as any[],
+            porSituacao: porSituacao as any[],
+            porConvenio: (porConvenio as any[]).map((c: any) => ({
+              convenioId: c.convenio_id,
+              convenioNome: c.convenio_nome || `Convênio ${c.convenio_id}`,
+              qtd: Number(c.qtd),
+              codigos: Number(c.codigos),
+              totalPago: Number(c.total_pago || 0),
+              totalGlosa: Number(c.total_glosa || 0),
+            })),
+            resumo: {
+              totalItens: Number(r.total_itens || 0),
+              totalPago: Number(r.total_pago || 0),
+              totalGlosa: Number(r.total_glosa || 0),
+              totalInformado: Number(r.total_informado || 0),
+              codigosUnicos: Number(r.codigos_unicos || 0),
+            },
+            competencias: (competencias as any[]).map((c: any) => ({
+              value: `${c.mes}-${c.ano}`,
+              label: `${String(c.mes).padStart(2, '0')}/${c.ano}`,
+              total: Number(c.total),
+              mes: Number(c.mes),
+              ano: Number(c.ano),
+            })),
+          };
+        } catch (err) {
+          console.error('[relatorioLaboratorio.dados] ERRO:', err);
+          throw err;
+    } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+  }),
+
+  // ============ RELATÓRIO VISITA (Pronto Socorro) ============
+  relatorioVisita: router({
+    convenios: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          const [rows] = await conn.execute(
+            `SELECT DISTINCT d.convenio_id, c.nome as convenio_nome
+             FROM demonstrativo d
+             LEFT JOIN convenios c ON c.id = d.convenio_id
+             WHERE d.estabelecimentoId = ?
+             AND d.codigo_item = '10102019'
+             AND d.convenio_id IS NOT NULL
+             ORDER BY c.nome`,
+            [input.estabelecimentoId]
+          );
+          return (rows as any[]).map((r: any) => ({
+            id: r.convenio_id,
+            nome: r.convenio_nome || `Convênio ${r.convenio_id}`,
+          }));
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+
+    dados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        convenioId: z.number().optional(),
+        statusFiltro: z.enum(['todos', 'pago', 'glosado', 'parcial']).optional(),
+      }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          let whereExtra = '';
+          const params: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            whereExtra += ` AND MONTH(data_referencia) = ? AND YEAR(data_referencia) = ?`;
+            params.push(input.mesReferencia, input.anoReferencia);
+          }
+          if (input.convenioId) {
+            whereExtra += ` AND d.convenio_id = ?`;
+            params.push(input.convenioId);
+          }
+          if (input.statusFiltro && input.statusFiltro !== 'todos') {
+            if (input.statusFiltro === 'pago') whereExtra += ` AND UPPER(d.situacao_item) = 'PAGO'`;
+            else if (input.statusFiltro === 'glosado') whereExtra += ` AND UPPER(d.situacao_item) = 'GLOSADO'`;
+            else if (input.statusFiltro === 'parcial') whereExtra += ` AND UPPER(d.situacao_item) = 'PARCIAL'`;
+          }
+
+          const baseWhere = `d.estabelecimentoId = ? AND d.codigo_item = '10102019'`;
+          const baseParams = [input.estabelecimentoId];
+
+          const [
+            [porCodigo],
+            [resumoRows],
+            [competencias],
+            [porSituacao],
+            [porConvenio]
+          ] = await Promise.all([
+            conn.execute(
+              `SELECT d.codigo_item, MIN(d.descricao_item) as descricao, d.situacao_item,
+                      COUNT(*) as qtd, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra} GROUP BY d.codigo_item, d.situacao_item ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT COUNT(*) as total_itens, COUNT(DISTINCT d.codigo_item) as codigos_unicos,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa, SUM(CAST(d.valor_informado AS DECIMAL(12,2))) as total_informado
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra}`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT DISTINCT DATE_FORMAT(d.data_referencia, '%m-%Y') as competencia, MONTH(d.data_referencia) as mes, YEAR(d.data_referencia) as ano, COUNT(*) as total
+               FROM demonstrativo d WHERE ${baseWhere} GROUP BY DATE_FORMAT(d.data_referencia, '%m-%Y'), MONTH(d.data_referencia), YEAR(d.data_referencia) ORDER BY ano DESC, mes DESC`,
+              [...baseParams]
+            ),
+            conn.execute(
+              `SELECT d.situacao_item, COUNT(*) as total, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as vl_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as vl_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra} GROUP BY d.situacao_item`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT d.convenio_id, c.nome as convenio_nome, COUNT(*) as qtd, COUNT(DISTINCT d.codigo_item) as codigos, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d LEFT JOIN convenios c ON c.id = d.convenio_id WHERE ${baseWhere} ${whereExtra} GROUP BY d.convenio_id, c.nome ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+          ]);
+
+          let itens: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            const [itensResult] = await conn.execute(
+              `SELECT d.id, d.codigo_item, d.descricao_item, d.situacao_item, CAST(d.valor_pago AS DECIMAL(12,2)) as valor_pago, CAST(d.valor_glosa AS DECIMAL(12,2)) as valor_glosa, CAST(d.valor_informado AS DECIMAL(12,2)) as valor_informado, d.numero_guia, d.nome_beneficiario, d.data_execucao, d.data_referencia, d.data_pagamento, d.codigo_glosa, d.convenio_id, c.nome as convenio_nome
+               FROM demonstrativo d LEFT JOIN convenios c ON c.id = d.convenio_id WHERE ${baseWhere} ${whereExtra} ORDER BY d.codigo_item, d.data_referencia DESC`,
+              [...baseParams, ...params]
+            );
+            itens = itensResult as any[];
+          }
+
+          const r = (resumoRows as any[])[0] || {};
+          return {
+            itens,
+            porCodigo: porCodigo as any[],
+            porSituacao: porSituacao as any[],
+            porConvenio: (porConvenio as any[]).map((c: any) => ({
+              convenioId: c.convenio_id, convenioNome: c.convenio_nome || `Convênio ${c.convenio_id}`, qtd: Number(c.qtd), codigos: Number(c.codigos), totalPago: Number(c.total_pago || 0), totalGlosa: Number(c.total_glosa || 0),
+            })),
+            resumo: {
+              totalItens: Number(r.total_itens || 0), totalPago: Number(r.total_pago || 0), totalGlosa: Number(r.total_glosa || 0), totalInformado: Number(r.total_informado || 0), codigosUnicos: Number(r.codigos_unicos || 0),
+            },
+            competencias: (competencias as any[]).map((c: any) => ({
+              value: `${c.mes}-${c.ano}`, label: `${String(c.mes).padStart(2, '0')}/${c.ano}`, total: Number(c.total), mes: Number(c.mes), ano: Number(c.ano),
+            })),
+          };
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+  }),
+
+  // ============ RELATÓRIO ULTRASSOM (Pronto Socorro) ============
+  relatorioUltrassom: router({
+    convenios: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          const [rows] = await conn.execute(
+            `SELECT DISTINCT d.convenio_id, c.nome as convenio_nome
+             FROM demonstrativo d
+             LEFT JOIN convenios c ON c.id = d.convenio_id
+             WHERE d.estabelecimentoId = ?
+             AND d.codigo_item IN ('40901122', '40901351', '40901769', '40901033', '40901114', '40901386', '40901203', '40901211', '40901181')
+             AND d.convenio_id IS NOT NULL
+             ORDER BY c.nome`,
+            [input.estabelecimentoId]
+          );
+          return (rows as any[]).map((r: any) => ({
+            id: r.convenio_id,
+            nome: r.convenio_nome || `Convênio ${r.convenio_id}`,
+          }));
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+
+    dados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        mesReferencia: z.number().min(1).max(12).optional(),
+        anoReferencia: z.number().min(2000).max(2100).optional(),
+        convenioId: z.number().optional(),
+        statusFiltro: z.enum(['todos', 'pago', 'glosado', 'parcial']).optional(),
+      }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          let whereExtra = '';
+          const params: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            whereExtra += ` AND MONTH(data_referencia) = ? AND YEAR(data_referencia) = ?`;
+            params.push(input.mesReferencia, input.anoReferencia);
+          }
+          if (input.convenioId) {
+            whereExtra += ` AND d.convenio_id = ?`;
+            params.push(input.convenioId);
+          }
+          if (input.statusFiltro && input.statusFiltro !== 'todos') {
+            if (input.statusFiltro === 'pago') whereExtra += ` AND UPPER(d.situacao_item) = 'PAGO'`;
+            else if (input.statusFiltro === 'glosado') whereExtra += ` AND UPPER(d.situacao_item) = 'GLOSADO'`;
+            else if (input.statusFiltro === 'parcial') whereExtra += ` AND UPPER(d.situacao_item) = 'PARCIAL'`;
+          }
+
+          const baseWhere = `d.estabelecimentoId = ? AND d.codigo_item IN ('40901122', '40901351', '40901769', '40901033', '40901114', '40901386', '40901203', '40901211', '40901181')`;
+          const baseParams = [input.estabelecimentoId];
+
+          const [
+            [porCodigo],
+            [resumoRows],
+            [competencias],
+            [porSituacao],
+            [porConvenio]
+          ] = await Promise.all([
+            conn.execute(
+              `SELECT d.codigo_item, MIN(d.descricao_item) as descricao, d.situacao_item,
+                      COUNT(*) as qtd, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra} GROUP BY d.codigo_item, d.situacao_item ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT COUNT(*) as total_itens, COUNT(DISTINCT d.codigo_item) as codigos_unicos,
+                      SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa, SUM(CAST(d.valor_informado AS DECIMAL(12,2))) as total_informado
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra}`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT DISTINCT DATE_FORMAT(d.data_referencia, '%m-%Y') as competencia, MONTH(d.data_referencia) as mes, YEAR(d.data_referencia) as ano, COUNT(*) as total
+               FROM demonstrativo d WHERE ${baseWhere} GROUP BY DATE_FORMAT(d.data_referencia, '%m-%Y'), MONTH(d.data_referencia), YEAR(d.data_referencia) ORDER BY ano DESC, mes DESC`,
+              [...baseParams]
+            ),
+            conn.execute(
+              `SELECT d.situacao_item, COUNT(*) as total, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as vl_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as vl_glosa
+               FROM demonstrativo d WHERE ${baseWhere} ${whereExtra} GROUP BY d.situacao_item`,
+              [...baseParams, ...params]
+            ),
+            conn.execute(
+              `SELECT d.convenio_id, c.nome as convenio_nome, COUNT(*) as qtd, COUNT(DISTINCT d.codigo_item) as codigos, SUM(CAST(d.valor_pago AS DECIMAL(12,2))) as total_pago, SUM(CAST(d.valor_glosa AS DECIMAL(12,2))) as total_glosa
+               FROM demonstrativo d LEFT JOIN convenios c ON c.id = d.convenio_id WHERE ${baseWhere} ${whereExtra} GROUP BY d.convenio_id, c.nome ORDER BY total_pago DESC`,
+              [...baseParams, ...params]
+            ),
+          ]);
+
+          let itens: any[] = [];
+          if (input.mesReferencia && input.anoReferencia) {
+            const [itensResult] = await conn.execute(
+              `SELECT d.id, d.codigo_item, d.descricao_item, d.situacao_item, CAST(d.valor_pago AS DECIMAL(12,2)) as valor_pago, CAST(d.valor_glosa AS DECIMAL(12,2)) as valor_glosa, CAST(d.valor_informado AS DECIMAL(12,2)) as valor_informado, d.numero_guia, d.nome_beneficiario, d.data_execucao, d.data_referencia, d.data_pagamento, d.codigo_glosa, d.convenio_id, c.nome as convenio_nome
+               FROM demonstrativo d LEFT JOIN convenios c ON c.id = d.convenio_id WHERE ${baseWhere} ${whereExtra} ORDER BY d.codigo_item, d.data_referencia DESC`,
+              [...baseParams, ...params]
+            );
+            itens = itensResult as any[];
+          }
+
+          const r = (resumoRows as any[])[0] || {};
+          return {
+            itens,
+            porCodigo: porCodigo as any[],
+            porSituacao: porSituacao as any[],
+            porConvenio: (porConvenio as any[]).map((c: any) => ({
+              convenioId: c.convenio_id, convenioNome: c.convenio_nome || `Convênio ${c.convenio_id}`, qtd: Number(c.qtd), codigos: Number(c.codigos), totalPago: Number(c.total_pago || 0), totalGlosa: Number(c.total_glosa || 0),
+            })),
+            resumo: {
+              totalItens: Number(r.total_itens || 0), totalPago: Number(r.total_pago || 0), totalGlosa: Number(r.total_glosa || 0), totalInformado: Number(r.total_informado || 0), codigosUnicos: Number(r.codigos_unicos || 0),
+            },
+            competencias: (competencias as any[]).map((c: any) => ({
+              value: `${c.mes}-${c.ano}`, label: `${String(c.mes).padStart(2, '0')}/${c.ano}`, total: Number(c.total), mes: Number(c.mes), ano: Number(c.ano),
+            })),
+          };
+        } finally {
+          if (conn) await conn.end().catch(() => {});
         }
       }),
   }),
