@@ -4162,6 +4162,7 @@ export const rhFolhaPagamento = mysqlTable('rh_folha_pagamento', {
   colaboradorNome: varchar('colaboradorNome', { length: 255 }),
   colaboradorEmail: varchar('colaboradorEmail', { length: 255 }),
   dataAdmissao: datetime('dataAdmissao'),
+  dataDemissao: datetime('dataDemissao'),
   sexo: varchar('sexo', { length: 20 }),
   filhos: varchar('filhos', { length: 10 }),
   tipoContrato: varchar('tipoContrato', { length: 50 }),
@@ -4194,4 +4195,13 @@ export const rhFolhaPagamento = mysqlTable('rh_folha_pagamento', {
 
 export type RHFolhaPagamento = typeof rhFolhaPagamento.$inferSelect;
 export type InsertRHFolhaPagamento = typeof rhFolhaPagamento.$inferInsert;
+
+export const rhCargosSalarios = mysqlTable('rh_cargos_salarios', {
+  id: int('id').autoincrement().primaryKey(),
+  estabelecimentoId: int('estabelecimentoId').notNull(),
+  cargo: varchar('cargo', { length: 255 }).notNull(),
+  salarioBase: decimal('salarioBase', { precision: 12, scale: 2 }),
+  tetoSalarial: decimal('tetoSalarial', { precision: 12, scale: 2 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
 

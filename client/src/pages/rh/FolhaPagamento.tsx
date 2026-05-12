@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, DollarSign, Building2 } from "lucide-react";
+import { Users, DollarSign, Building2, BarChart3, AlertTriangle, Briefcase, Activity, PieChart as PieChartIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
+import { useMemo } from "react";
 
 export default function FolhaPagamento() {
   const { estabelecimentoAtual } = useEstabelecimento();
@@ -32,15 +34,83 @@ export default function FolhaPagamento() {
     { enabled: !!estabelecimentoAtual }
   );
 
+  const [unidadeSelecionada, setUnidadeSelecionada] = useState<string>("todas");
+
+  const unidadesUnicas = useMemo(() => {
+    const units = new Set<string>();
+    folhaData.forEach(row => units.add(row.unidade || "Não Informada"));
+    return Array.from(units).sort();
+  }, [folhaData]);
+
+  const folhaExibida = useMemo(() => {
+    if (unidadeSelecionada === "todas") return folhaData;
+    return folhaData.filter(row => (row.unidade || "Não Informada") === unidadeSelecionada);
+  }, [folhaData, unidadeSelecionada]);
+
   const formatCurrency = (val: string | null | undefined) => {
     if (!val) return "R$ 0,00";
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(val));
   };
 
-  const totalSalarioBruto = folhaData.reduce((acc, row) => acc + (parseFloat(row.salarioBruto || "0") || 0), 0);
-  const totalBeneficios = folhaData.reduce((acc, row) => acc + (parseFloat(row.somaBeneficios || "0") || 0), 0);
-  const totalDescUnimed = folhaData.reduce((acc, row) => acc + (parseFloat(row.unimed || "0") || 0), 0);
-  const totalDescontos = folhaData.reduce((acc, row) => acc + (parseFloat(row.descontoFixo || "0") || 0) + (parseFloat(row.descontosVariaveis || "0") || 0), 0);
+  const totalSalarioBruto = folhaExibida.reduce((acc, row) => acc + (parseFloat(row.salarioBruto || "0") || 0), 0);
+  const totalBeneficios = folhaExibida.reduce((acc, row) => acc + (parseFloat(row.somaBeneficios || "0") || 0), 0);
+  const totalDescUnimed = folhaExibida.reduce((acc, row) => acc + (parseFloat(row.unimed || "0") || 0), 0);
+  const totalDescontos = folhaExibida.reduce((acc, row) => acc + (parseFloat(row.descontoFixo || "0") || 0) + (parseFloat(row.descontosVariaveis || "0") || 0), 0);
+
+  const resumoUnidade = useMemo(() => {
+    const mapa = new Map<string, { unidade: string, salarioBruto: number, beneficios: number, total: number }>();
+    folhaData.forEach(row => {
+      const uni = row.unidade || "Não Informada";
+      const sBruto = parseFloat(row.salarioBruto || "0") || 0;
+      const ben = parseFloat(row.somaBeneficios || "0") || 0;
+      if (!mapa.has(uni)) mapa.set(uni, { unidade: uni, salarioBruto: 0, beneficios: 0, total: 0 });
+      const curr = mapa.get(uni)!;
+      curr.salarioBruto += sBruto;
+      curr.beneficios += ben;
+      curr.total += (sBruto + ben);
+    });
+    return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
+  }, [folhaData]);
+
+  const resumoCargos = useMemo(() => {
+    const mapa = new Map<string, { cargo: string, custo: number, qtde: number }>();
+    folhaExibida.forEach(row => {
+      const c = row.cargo || "Sem Cargo";
+      const sBruto = parseFloat(row.salarioBruto || "0") || 0;
+      if (!mapa.has(c)) mapa.set(c, { cargo: c, custo: 0, qtde: 0 });
+      const curr = mapa.get(c)!;
+      curr.custo += sBruto;
+      curr.qtde += 1;
+    });
+    return Array.from(mapa.values()).sort((a, b) => b.custo - a.custo).slice(0, 7); // Top 7
+  }, [folhaExibida]);
+
+  const resumoBeneficios = useMemo(() => {
+    let vt = 0, alimentacao = 0, combustivel = 0, ajudaCusto = 0, academia = 0;
+    folhaExibida.forEach(row => {
+      vt += parseFloat(row.vt || "0") || 0;
+      alimentacao += parseFloat(row.alimentacao || "0") || 0;
+      combustivel += parseFloat(row.combustivel || "0") || 0;
+      ajudaCusto += parseFloat(row.ajudaCusto || "0") || 0;
+      academia += parseFloat(row.academia || "0") || 0;
+    });
+    return [
+      { name: 'Alimentação', value: alimentacao, color: '#f59e0b' },
+      { name: 'Vale Transp.', value: vt, color: '#3b82f6' },
+      { name: 'Combustível', value: combustivel, color: '#ef4444' },
+      { name: 'Ajuda Custo', value: ajudaCusto, color: '#8b5cf6' },
+      { name: 'Academia', value: academia, color: '#10b981' },
+    ].filter(i => i.value > 0);
+  }, [folhaExibida]);
+
+  const inconsistencias = useMemo(() => {
+    return folhaExibida.filter(row => {
+      const liquido = parseFloat(row.valorPagar || "0") || 0;
+      const bruto = parseFloat(row.salarioBruto || "0") || 0;
+      const descontos = (parseFloat(row.descontoFixo || "0") || 0) + (parseFloat(row.descontosVariaveis || "0") || 0) + (parseFloat(row.unimed || "0") || 0);
+      return liquido < 0 || (bruto > 0 && descontos > bruto * 0.7); // Desconto maior que 70% do salário
+    });
+  }, [folhaExibida]);
 
   if (!estabelecimentoAtual) {
     return (
@@ -54,7 +124,7 @@ export default function FolhaPagamento() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-4 p-8 overflow-hidden">
+    <div className="flex flex-col gap-4 p-8 overflow-y-auto min-h-full">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Folha de Pagamento - RH</h1>
@@ -64,6 +134,23 @@ export default function FolhaPagamento() {
         </div>
 
         <div className="flex gap-4 items-center">
+          <Select 
+            value={unidadeSelecionada} 
+            onValueChange={setUnidadeSelecionada}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Unidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as Unidades</SelectItem>
+              {unidadesUnicas.map(u => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select 
             value={competenciaSelecionada} 
             onValueChange={setCompetenciaSelecionada}
@@ -90,7 +177,7 @@ export default function FolhaPagamento() {
             <Users className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{folhaData.length}</div>
+            <div className="text-2xl font-bold">{folhaExibida.length}</div>
           </CardContent>
         </Card>
         
@@ -115,11 +202,110 @@ export default function FolhaPagamento() {
         </Card>
       </div>
 
-      <Card className="flex-1 flex flex-col overflow-hidden border-border mt-2">
+      {inconsistencias.length > 0 && (
+        <Card className="shrink-0 bg-red-500/10 border-red-500/20 text-red-600 p-4 mt-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            <h3 className="font-bold">Atenção! Foram encontradas inconsistências na folha:</h3>
+          </div>
+          <ul className="mt-2 text-sm list-disc pl-8">
+            {inconsistencias.map((inc, idx) => (
+              <li key={idx}>
+                <strong>{inc.colaboradorNome}</strong>: Líquido negativo ou Descontos acima de 70% do Bruto.
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 shrink-0 mt-2">
+        <Card className="col-span-1 xl:col-span-2 p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-4 shrink-0">
+            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <h2 className="font-semibold">Valor Salário + Benefícios por Unidade</h2>
+          </div>
+          <div className="h-[250px] w-full mt-auto">
+            {resumoUnidade.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={resumoUnidade} 
+                  margin={{ top: 5, right: 30, left: 20, bottom: 50 }}
+                  onClick={(e: any) => {
+                    if (e?.activePayload?.[0]?.payload?.unidade) {
+                      setUnidadeSelecionada(e.activePayload[0].payload.unidade);
+                    }
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="unidade" type="category" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={60} />
+                  <YAxis type="number" tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { notation: "compact", compactDisplay: "short" }).format(value)} />
+                  <Tooltip formatter={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} />
+                  <Legend verticalAlign="top" height={36}/>
+                  <Bar dataKey="salarioBruto" name="Salário Bruto" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="beneficios" name="Benefícios" stackId="a" fill="#eab308" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">Sem dados para exibir</div>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-4 shrink-0">
+            <PieChartIcon className="h-5 w-5 text-muted-foreground" />
+            <h2 className="font-semibold">Composição de Benefícios</h2>
+          </div>
+          <div className="h-[250px] w-full mt-auto">
+            {resumoBeneficios.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={resumoBeneficios} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {resumoBeneficios.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">Sem dados para exibir</div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 shrink-0 mt-2">
+        <Card className="col-span-1 xl:col-span-3 p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-4 shrink-0">
+            <Briefcase className="h-5 w-5 text-muted-foreground" />
+            <h2 className="font-semibold">Top 7 Cargos mais Onerosos</h2>
+          </div>
+          <div className="h-[250px] w-full mt-auto">
+            {resumoCargos.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={resumoCargos} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { notation: "compact", compactDisplay: "short" }).format(value)} />
+                  <YAxis dataKey="cargo" type="category" width={150} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} />
+                  <Bar dataKey="custo" name="Custo Total Bruto" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">Sem dados para exibir</div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="flex flex-col border-border mt-2 mb-8">
         <div className="p-1 border-b bg-muted/20 flex justify-between items-center px-4 py-2 shrink-0">
           <h2 className="font-semibold">Detalhamento por Colaborador</h2>
         </div>
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-auto">
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
@@ -139,14 +325,14 @@ export default function FolhaPagamento() {
                     Carregando dados...
                   </TableCell>
                 </TableRow>
-              ) : folhaData.length === 0 ? (
+              ) : folhaExibida.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
-                    Nenhum colaborador encontrado para a competência selecionada.
+                    Nenhum colaborador encontrado para a seleção atual.
                   </TableCell>
                 </TableRow>
               ) : (
-                folhaData.map((row) => {
+                folhaExibida.map((row) => {
                   const descTotal = (parseFloat(row.descontoFixo || "0") || 0) + (parseFloat(row.descontosVariaveis || "0") || 0);
                   
                   return (
@@ -179,7 +365,7 @@ export default function FolhaPagamento() {
               </TableRow>
             </TableFooter>
           </Table>
-        </ScrollArea>
+        </div>
       </Card>
     </div>
   );

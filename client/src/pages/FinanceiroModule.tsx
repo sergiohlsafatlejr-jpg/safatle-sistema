@@ -18,9 +18,10 @@ import {
   Banknote, Receipt, CircleDollarSign, Percent, ArrowDownRight, ArrowUpRight,
   Clock, CheckCircle, XCircle, Eye, Landmark, List, Upload, Target, Edit, ToggleLeft,
   RefreshCw, AlertCircle, CheckCircle2, WifiOff, ExternalLink, Loader2, MapPin,
-  Filter, SortAsc, X, FileSpreadsheet, Copy
+  FileSearch, Copy, Filter, SortAsc, X
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { CustoReceitaUnidade } from "./financeiro/CustoReceitaUnidade";
 import { formatDateBR, safeParseDate, toInputDateValue } from "@/lib/dateUtils";
 
 // ==================== HELPERS ====================
@@ -1400,7 +1401,6 @@ function ContasReceber() {
           })()}
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
@@ -2835,6 +2835,7 @@ export default function FinanceiroModule() {
           <TabsTrigger value="cadastros"><Building2 className="h-4 w-4 mr-1" /> Cadastros</TabsTrigger>
           <TabsTrigger value="banco-inter"><Landmark className="h-4 w-4 mr-1" /> Banco Inter</TabsTrigger>
           <TabsTrigger value="dre"><FileText className="h-4 w-4 mr-1" /> DRE</TabsTrigger>
+          <TabsTrigger value="custo-receita"><Building2 className="h-4 w-4 mr-1" /> Custo x Receita</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard"><FinDashboard /></TabsContent>
@@ -2846,6 +2847,7 @@ export default function FinanceiroModule() {
         <TabsContent value="cadastros"><Cadastros /></TabsContent>
         <TabsContent value="banco-inter"><BancoInterView /></TabsContent>
         <TabsContent value="dre"><DREView /></TabsContent>
+        <TabsContent value="custo-receita"><CustoReceitaUnidade /></TabsContent>
       </Tabs>
     </div>
   );

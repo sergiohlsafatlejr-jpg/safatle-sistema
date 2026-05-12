@@ -6,6 +6,7 @@ import { consultarSaldo, consultarExtrato, consultarExtratoCompleto, exportarExt
 import { enviarBoletoPorEmail, enviarNotaFiscalPorEmail } from "../services/emailService";
 import fs from "fs/promises";
 import path from "path";
+import pdfParse from "pdf-parse";
 import {
   finEmpresas, finClientes, finCategorias, finTiposPagamento,
   finTiposRecebivel, finBancos, finCustos, finTransacoes,
@@ -474,6 +475,176 @@ const recebiveisRouter = router({
     const result = await db.selectDistinct({ tipoServico: finRecebiveis.tipoServico }).from(finRecebiveis).where(sql`${finRecebiveis.tipoServico} IS NOT NULL AND ${finRecebiveis.tipoServico} != ''`).orderBy(finRecebiveis.tipoServico);
     return result.map(r => r.tipoServico).filter(Boolean) as string[];
   }),
+  importarSaudeCaixaPdf: protectedProcedure
+    .input(z.object({
+      base64File: z.string()
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const buffer = Buffer.from(input.base64File, "base64");
+        const data = await pdfParse(buffer);
+        const lines = data.text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+        
+        const extracted = [];
+        let numId = 1;
+
+        // Helper: parse a Brazilian number string ("1.234,56" -> 1234.56)
+        const parseBR = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", "."));
+
+        // Helper: detect if a string is a "Grau de Participação" (small integer like "12", "00")
+        // vs a monetary value which always has a comma (like "13,84", "-170,00")
+        const isGrauParticipacao = (s: string) => /^\d{1,2}$/.test(s);
+
+        for (let i = 0; i < lines.length; i++) {
+          // Each item block starts with a date line (dd/mm/yyyy)
+          if (!/^\d{2}\/\d{2}\/\d{4}$/.test(lines[i])) continue;
+
+          // lines[i]   = Data de realização
+          // lines[i+1] = Tabela (e.g. "22")
+          // lines[i+2] = Código do procedimento
+          const codeLine = lines[i + 2];
+          if (!codeLine || !/^(\d\.\d{2}\.\d{2}\.\d{3}|\d{10,})$/.test(codeLine)) continue;
+
+          const date = lines[i];
+          const descricao = lines[i + 3] || "";
+
+          // After description, there may or may not be a "Grau de Participação" (integer)
+          // Structure WITH grau:    [desc] [grau] [valorInf] [qtd] [valorProc] [valorLib] [valorGlosa?] [codGlosa?]
+          // Structure WITHOUT grau: [desc] [valorInf] [qtd] [valorProc] [valorLib] [valorGlosa?] [codGlosa?]
+          const field4 = lines[i + 4] || "";
+          let offset: number;
+
+          if (isGrauParticipacao(field4)) {
+            // Has "Grau de Participação" — skip it
+            offset = i + 5;
+          } else {
+            // No grau, field4 is already the valor informado
+            offset = i + 4;
+          }
+
+          const valorInfStr = lines[offset] || "0";
+          const qtyStr = lines[offset + 1] || "0";
+          const valorProcStr = lines[offset + 2] || "0";
+          const valorLibStr = lines[offset + 3] || "0";
+
+          const isNegative = valorInfStr.startsWith("-");
+
+          // For negative blocks (glosa reversals), we still parse but flag them
+          const valorInformado = parseBR(valorInfStr);
+          const quantidade = parseBR(qtyStr);
+          const valorProcessado = parseBR(valorProcStr);
+          const valorLiberado = parseBR(valorLibStr);
+
+          // Detect glosa: check fields after valorLiberado
+          let valorGlosa = 0;
+          let motivoGlosa = "";
+
+          if (isNegative) {
+            // Negative block: glosa reversal
+            // After valorLib comes the glosa amount and code
+            valorGlosa = Math.abs(valorProcessado);
+            const glosaCodeField = lines[offset + 4] || "";
+            // Next line might be glosa value (negative) and after that the code
+            if (/^\d+$/.test(glosaCodeField)) {
+              motivoGlosa = glosaCodeField;
+            }
+          } else {
+            // Positive block: check if valorProcessado > valorLiberado (partial glosa)
+            if (valorProcessado > valorLiberado && valorLiberado >= 0) {
+              valorGlosa = valorProcessado - valorLiberado;
+              // Look for glosa code after valorLiberado
+              const possibleGlosaVal = lines[offset + 4] || "";
+              const possibleGlosaCode = lines[offset + 5] || "";
+              if (possibleGlosaVal.startsWith("-")) {
+                motivoGlosa = possibleGlosaCode;
+              }
+            }
+          }
+
+          extracted.push({
+            id: numId++,
+            dataFaturamento: date,
+            codigo: codeLine,
+            descricao,
+            quantidade: String(Math.abs(quantidade)),
+            valorApresentado: Math.abs(valorProcessado),
+            valorPago: Math.abs(valorLiberado),
+            valorGlosa: Math.abs(valorGlosa),
+            motivoGlosa,
+            isGlosa: isNegative || valorGlosa > 0,
+            isNegativeBlock: isNegative
+          });
+        }
+        
+        return { success: true, items: extracted };
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao processar PDF: " + err.message });
+      }
+    }),
+  salvarSaudeCaixaNoDemonstrativo: protectedProcedure
+    .input(z.object({
+      itens: z.array(z.any()),
+      arquivoId: z.number().optional(), 
+      convenioId: z.number().optional(),
+      dataReferencia: z.string().optional(),
+      dataPagamento: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = (await getDb())!;
+      const { arquivos, demonstrativo } = await import("../../drizzle/schema");
+
+      let arquivoId = input.arquivoId;
+
+      if (!arquivoId) {
+        const [arquivoResult] = await db.insert(arquivos).values({
+          nome: "Demonstrativo_Saude_Caixa_PDF.pdf",
+          tipoArquivo: 'pdf',
+          direcao: 'retornado',
+          convenioId: input.convenioId || null,
+          estabelecimentoId: ctx.user.estabelecimentoId || 1,
+          userId: ctx.user.id,
+          s3Key: "nao_se_aplica",
+          s3Url: "nao_se_aplica",
+          tamanho: 0,
+          status: 'processado',
+          totalItens: input.itens.length,
+          itensProcessados: input.itens.length,
+          dataReferencia: input.dataReferencia ? new Date(input.dataReferencia) : null,
+          dataPagamento: input.dataPagamento ? new Date(input.dataPagamento) : null,
+        });
+        arquivoId = arquivoResult.insertId;
+      }
+
+      // Parse dates from input
+      const dataRefGlobal = input.dataReferencia ? new Date(input.dataReferencia) : null;
+      const dataPagGlobal = input.dataPagamento ? new Date(input.dataPagamento) : null;
+
+      // Convert from PDF output to demonstrativo
+      const recordsToInsert = input.itens.map(item => ({
+        arquivoId: arquivoId!,
+        origemTipo: 'excel' as const, // Pretend it's excel since table doesn't have PDF enum
+        convenioId: input.convenioId || null,
+        estabelecimentoId: ctx.user.estabelecimentoId || 1,
+        dataPagamento: dataPagGlobal || (item.dataFaturamento ? new Date(item.dataFaturamento.split('/').reverse().join('-')) : null),
+        dataReferencia: dataRefGlobal || (item.dataFaturamento ? new Date(item.dataFaturamento.split('/').reverse().join('-')) : null),
+        codigoItem: item.codigo,
+        descricaoItem: item.descricao,
+        quantidade: String(item.quantidade),
+        valorInformado: String(item.valorApresentado),
+        valorPago: String(item.valorPago),
+        valorGlosa: String(item.valorGlosa), 
+        situacaoItem: item.valorGlosa > 0 && item.valorPago === 0 ? "GLOSADO" : item.valorGlosa > 0 ? "PARCIAL" : "PAGO",
+        codigoGlosa: item.motivoGlosa || null
+      }));
+
+      // chunk insert
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < recordsToInsert.length; i += BATCH_SIZE) {
+        await db.insert(demonstrativo).values(recordsToInsert.slice(i, i + BATCH_SIZE));
+      }
+
+      return { success: true, arquivoId };
+    }),
   criar: protectedProcedure
     .input(z.object({
       empresaId: z.number().optional(), clienteId: z.number().optional(), tipoId: z.number().optional(),

@@ -53,6 +53,7 @@ const DetalhesContaFaturada = lazy(() => import("./pages/DetalhesContaFaturada")
 const ContaConvenioDetalhes = lazy(() => import("./pages/ContaConvenioDetalhes"));
 const RecebimentosXml = lazy(() => import("./pages/RecebimentosXml"));
 const RecebimentosExcel = lazy(() => import("./pages/RecebimentosExcel"));
+const RecebimentosPdfSaudeCaixa = lazy(() => import("./pages/RecebimentosPdfSaudeCaixa"));
 const Atendimentos = lazy(() => import("./pages/Atendimentos"));
 const AtendimentosFaturar = lazy(() => import("./pages/AtendimentosFaturar"));
 const AtendimentosSemProtocolo = lazy(() => import("./pages/AtendimentosSemProtocolo"));
@@ -89,6 +90,8 @@ const PermissoesSafatle = lazy(() => import("@/pages/PermissoesSafatle"));
 const LogAuditoriaSistema = lazy(() => import("@/pages/LogAuditoriaSistema"));
 const UploadFolhaRH = lazy(() => import("@/pages/rh/UploadFolha"));
 const FolhaPagamento = lazy(() => import("@/pages/rh/FolhaPagamento"));
+const Colaboradores = lazy(() => import("@/pages/rh/Colaboradores"));
+const PlanoSalarios = lazy(() => import("@/pages/rh/PlanoSalarios"));
 const BiFinanceiroTasy = lazy(() => import("./pages/BiFinanceiroTasy"));
 const RelatorioProtocolos = lazy(() => import("./pages/RelatorioProtocolos"));
 const PrevisaoRecebimentos = lazy(() => import("./pages/PrevisaoRecebimentos"));
@@ -174,6 +177,7 @@ function Router() {
         <Route path={"/contas-faturadas/:conta"} component={DetalhesContaFaturada} />
         <Route path={"/recebimentos-xml"} component={RecebimentosXml} />
         <Route path={"/recebimentos-excel"} component={RecebimentosExcel} />
+        <Route path={"/recebimentos-pdf-saude-caixa"} component={RecebimentosPdfSaudeCaixa} />
         <Route path={"/atendimentos"} component={Atendimentos} />
         <Route path={"/atendimentos-faturar"} component={AtendimentosFaturar} />
         <Route path={"/atendimentos-com-protocolo"} component={AtendimentosSemProtocolo} />
@@ -217,6 +221,8 @@ function Router() {
         <Route path={"/auditoria-sistema"} component={LogAuditoriaSistema} />
         <Route path={"/rh/upload"} component={UploadFolhaRH} />
         <Route path={"/rh/folha-pagamento"} component={FolhaPagamento} />
+        <Route path={"/rh/colaboradores"} component={Colaboradores} />
+        <Route path={"/rh/plano-salarios"} component={PlanoSalarios} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

@@ -145,6 +145,7 @@ const menuItems: MenuItem[] = [
   { icon: Inbox, label: "Recebimentos", path: "/recebimentos-xml", modulo: "recebimentosXml", children: [
     { icon: FileCode2, label: "Upload XML", path: "/recebimentos-xml", modulo: "recebimentosXml" },
     { icon: FileSpreadsheet, label: "Upload Excel", path: "/recebimentos-excel", modulo: "recebimentosExcel" },
+    { icon: FileText, label: "Saúde Caixa (PDF)", path: "/recebimentos-pdf-saude-caixa", modulo: "recebimentosExcel" },
     { icon: FileText, label: "Demonstrativo", path: "/demonstrativo", modulo: "demonstrativo" },
     { icon: Receipt, label: "Repasse", path: "/repasse", modulo: "faturamento" },
   ]},
@@ -213,6 +214,8 @@ const menuItems: MenuItem[] = [
   
   // RH Safatle
   { icon: Users, label: "Recursos Humanos", path: "/rh/folha-pagamento", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID], children: [
+    { icon: Users, label: "Colaboradores", path: "/rh/colaboradores", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
+    { icon: FileSpreadsheet, label: "Plano de Salários", path: "/rh/plano-salarios", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
     { icon: Upload, label: "Importar Folha", path: "/rh/upload", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
     { icon: FileSpreadsheet, label: "Folha de Pagamento", path: "/rh/folha-pagamento", adminOnly: true, estabelecimentoIds: [SAFATLE_ESTABELECIMENTO_ID] },
   ]},
