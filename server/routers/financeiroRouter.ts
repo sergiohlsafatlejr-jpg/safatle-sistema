@@ -485,40 +485,142 @@ const recebiveisRouter = router({
         const data = await pdfParse(buffer);
         const lines = data.text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
         
-        const extracted = [];
-        let numId = 1;
-
         // Helper: parse a Brazilian number string ("1.234,56" -> 1234.56)
         const parseBR = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", "."));
 
         // Helper: detect if a string is a "Grau de Participação" (small integer like "12", "00")
-        // vs a monetary value which always has a comma (like "13,84", "-170,00")
         const isGrauParticipacao = (s: string) => /^\d{1,2}$/.test(s);
+
+        // Helper: detect if a string looks like a procedure code
+        const isProcedureCode = (s: string) => /^(\d\.\d{2}\.\d{2}\.\d{3}|\d{10,})$/.test(s);
+
+        // Helper: detect if string is a date dd/mm/yyyy
+        const isDate = (s: string) => /^\d{2}\/\d{2}\/\d{4}$/.test(s);
+
+        // Helper: detect if string is a time hh:mm
+        const isTime = (s: string) => /^\d{2}:\d{2}$/.test(s);
+
+        // Helper: detect if string is a CNPJ pattern
+        const isCNPJ = (s: string) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(s);
+
+        // Helper: detect if string looks like a long number (carteirinha)
+        const isCarteirinha = (s: string) => /^\d{13,}$/.test(s);
+
+        // ============================================================
+        // PASS 1: Extract guia headers
+        // Pattern: After "2338130" (CNES) or after page header, look for:
+        //   [lote] [protocolo] [dataProtocolo] [statusProtocolo]
+        //   [guiaPrestador] [guiaOperadora] [senha]
+        //   [nomePaciente] [carteirinha]
+        //   [dataInicio] [horaInicio] [dataFim] [horaFim] [statusGuia]
+        // ============================================================
+        interface GuiaHeader {
+          lineIndex: number;
+          lote: string;
+          protocolo: string;
+          guiaPrestador: string;
+          guiaOperadora: string;
+          senha: string;
+          pacienteNome: string;
+          carteirinha: string;
+          dataInicio: string;
+          dataFim: string;
+        }
+
+        const guiaHeaders: GuiaHeader[] = [];
+
+        for (let i = 0; i < lines.length - 10; i++) {
+          // Look for CNES "2338130" followed by lote/protocolo pattern
+          // The CNES appears after prestador name at fixed positions in header
+          // After CNES: [lote] [protocolo] [dataProtocolo] [statusCode]
+          // Then:       [guiaPrestador] [guiaOperadora] [senha]
+          // Then:       [pacienteNome] [carteirinha]
+          // Then:       [dataInicio] [horaInicio] [dataFim] [horaFim] [statusGuia]
+
+          // Detect guia section: look for a sequence that matches the pattern
+          // Heuristic: a line that's a long number (lote, ~9+ digits), followed by
+          // another number (protocolo), followed by a date, followed by a status code
+          if (/^\d{6,}$/.test(lines[i]) && // lote (e.g. 130093155)
+              /^\d{5,}$/.test(lines[i+1]) && // protocolo (e.g. 7214460)
+              isDate(lines[i+2]) && // data protocolo
+              /^\d{1}$/.test(lines[i+3]) && // status protocolo (e.g. "6")
+              /^\d{5,}$/.test(lines[i+4]) // guia prestador
+          ) {
+            const lote = lines[i];
+            const protocolo = lines[i+1];
+            // i+2 = data protocolo, i+3 = status
+            const guiaPrestador = lines[i+4];
+            const guiaOperadora = lines[i+5] || "";
+            const senha = lines[i+6] || "";
+
+            // Next should be paciente nome and carteirinha
+            const pacienteNome = lines[i+7] || "";
+            const carteirinha = lines[i+8] || "";
+
+            // Dates
+            let dataInicio = "";
+            let dataFim = "";
+            if (isDate(lines[i+9])) {
+              dataInicio = lines[i+9];
+              // i+10 = hora inicio
+              if (isDate(lines[i+11])) {
+                dataFim = lines[i+11];
+              }
+            }
+
+            guiaHeaders.push({
+              lineIndex: i,
+              lote,
+              protocolo,
+              guiaPrestador,
+              guiaOperadora,
+              senha,
+              pacienteNome: isCarteirinha(pacienteNome) ? "" : pacienteNome, // safety: don't use numbers as names
+              carteirinha: isCarteirinha(carteirinha) ? carteirinha : (isCarteirinha(pacienteNome) ? pacienteNome : ""),
+              dataInicio,
+              dataFim,
+            });
+          }
+        }
+
+        // ============================================================
+        // PASS 2: Extract procedure items and link to nearest guia
+        // ============================================================
+        const extracted = [];
+        let numId = 1;
+
+        // Find the guia header that applies to a given line index
+        const findGuia = (lineIdx: number): GuiaHeader | null => {
+          let best: GuiaHeader | null = null;
+          for (const g of guiaHeaders) {
+            if (g.lineIndex < lineIdx) {
+              if (!best || g.lineIndex > best.lineIndex) best = g;
+            }
+          }
+          return best;
+        };
 
         for (let i = 0; i < lines.length; i++) {
           // Each item block starts with a date line (dd/mm/yyyy)
-          if (!/^\d{2}\/\d{2}\/\d{4}$/.test(lines[i])) continue;
+          if (!isDate(lines[i])) continue;
 
-          // lines[i]   = Data de realização
-          // lines[i+1] = Tabela (e.g. "22")
+          // lines[i+1] = Tabela (e.g. "22", "18", "19", "20")
           // lines[i+2] = Código do procedimento
+          const tabelaLine = lines[i + 1];
           const codeLine = lines[i + 2];
-          if (!codeLine || !/^(\d\.\d{2}\.\d{2}\.\d{3}|\d{10,})$/.test(codeLine)) continue;
+          if (!tabelaLine || !/^\d{1,2}$/.test(tabelaLine)) continue;
+          if (!codeLine || !isProcedureCode(codeLine)) continue;
 
           const date = lines[i];
           const descricao = lines[i + 3] || "";
 
-          // After description, there may or may not be a "Grau de Participação" (integer)
-          // Structure WITH grau:    [desc] [grau] [valorInf] [qtd] [valorProc] [valorLib] [valorGlosa?] [codGlosa?]
-          // Structure WITHOUT grau: [desc] [valorInf] [qtd] [valorProc] [valorLib] [valorGlosa?] [codGlosa?]
+          // After description, there may or may not be a "Grau de Participação"
           const field4 = lines[i + 4] || "";
           let offset: number;
 
-          if (isGrauParticipacao(field4)) {
-            // Has "Grau de Participação" — skip it
+          if (isGrauParticipacao(field4) && !field4.includes(",") && lines[i + 5]?.includes(",")) {
             offset = i + 5;
           } else {
-            // No grau, field4 is already the valor informado
             offset = i + 4;
           }
 
@@ -528,38 +630,34 @@ const recebiveisRouter = router({
           const valorLibStr = lines[offset + 3] || "0";
 
           const isNegative = valorInfStr.startsWith("-");
-
-          // For negative blocks (glosa reversals), we still parse but flag them
           const valorInformado = parseBR(valorInfStr);
           const quantidade = parseBR(qtyStr);
           const valorProcessado = parseBR(valorProcStr);
           const valorLiberado = parseBR(valorLibStr);
 
-          // Detect glosa: check fields after valorLiberado
+          // Detect glosa
           let valorGlosa = 0;
           let motivoGlosa = "";
 
           if (isNegative) {
-            // Negative block: glosa reversal
-            // After valorLib comes the glosa amount and code
             valorGlosa = Math.abs(valorProcessado);
             const glosaCodeField = lines[offset + 4] || "";
-            // Next line might be glosa value (negative) and after that the code
-            if (/^\d+$/.test(glosaCodeField)) {
-              motivoGlosa = glosaCodeField;
-            }
+            if (/^\d+$/.test(glosaCodeField)) motivoGlosa = glosaCodeField;
           } else {
-            // Positive block: check if valorProcessado > valorLiberado (partial glosa)
             if (valorProcessado > valorLiberado && valorLiberado >= 0) {
               valorGlosa = valorProcessado - valorLiberado;
-              // Look for glosa code after valorLiberado
               const possibleGlosaVal = lines[offset + 4] || "";
               const possibleGlosaCode = lines[offset + 5] || "";
-              if (possibleGlosaVal.startsWith("-")) {
+              if (possibleGlosaVal.includes(",") && parseBR(possibleGlosaVal) < 0) {
+                motivoGlosa = possibleGlosaCode;
+              } else if (/^\d{3,4}$/.test(possibleGlosaCode)) {
                 motivoGlosa = possibleGlosaCode;
               }
             }
           }
+
+          // Link to guia header
+          const guia = findGuia(i);
 
           extracted.push({
             id: numId++,
@@ -572,7 +670,15 @@ const recebiveisRouter = router({
             valorGlosa: Math.abs(valorGlosa),
             motivoGlosa,
             isGlosa: isNegative || valorGlosa > 0,
-            isNegativeBlock: isNegative
+            isNegativeBlock: isNegative,
+            // Guia metadata
+            guiaPrestador: guia?.guiaPrestador || null,
+            guiaOperadora: guia?.guiaOperadora || null,
+            protocolo: guia?.protocolo || null,
+            lote: guia?.lote || null,
+            pacienteNome: guia?.pacienteNome || null,
+            carteirinha: guia?.carteirinha || null,
+            senha: guia?.senha || null,
           });
         }
         
@@ -627,6 +733,11 @@ const recebiveisRouter = router({
         estabelecimentoId: ctx.user.estabelecimentoId || 1,
         dataPagamento: dataPagGlobal || (item.dataFaturamento ? new Date(item.dataFaturamento.split('/').reverse().join('-')) : null),
         dataReferencia: dataRefGlobal || (item.dataFaturamento ? new Date(item.dataFaturamento.split('/').reverse().join('-')) : null),
+        numeroGuia: item.guiaPrestador || null,
+        protocolo: item.protocolo || null,
+        lotePrestador: item.lote || null,
+        nomeBeneficiario: item.pacienteNome || null,
+        carteiraBeneficiario: item.carteirinha || null,
         codigoItem: item.codigo,
         descricaoItem: item.descricao,
         quantidade: String(item.quantidade),

@@ -177,6 +177,7 @@ const menuItems: MenuItem[] = [
       { icon: FlaskConical, label: "Rel. Laboratório", path: "/relatorio-laboratorio", modulo: "relFaturadoRecebido" },
       { icon: Activity, label: "Rel. Ultrassom", path: "/relatorio-ultrassom", modulo: "relFaturadoRecebido" },
       { icon: Stethoscope, label: "Rel. Visita Hospitalar", path: "/relatorio-visita", modulo: "relFaturadoRecebido" },
+      { icon: Stethoscope, label: "Visitas Faturadas (XML)", path: "/relatorio-visita-xml", modulo: "relFaturadoRecebido" },
     ]},
     // Subpasta: Recepção
     { icon: Users, label: "Recepção", path: "/relatorio-atendimentos", modulo: "relatoriosBi", children: [

@@ -7326,7 +7326,7 @@ export const appRouter = router({
              FROM demonstrativo d
              LEFT JOIN convenios c ON c.id = d.convenio_id
              WHERE d.estabelecimentoId = ?
-             AND (d.codigo_item LIKE '402%' OR d.codigo_item LIKE '403%')
+             AND (REPLACE(d.codigo_item,'.','') LIKE '402%' OR REPLACE(d.codigo_item,'.','') LIKE '403%')
              AND d.convenio_id IS NOT NULL
              ORDER BY c.nome`,
             [input.estabelecimentoId]
@@ -7373,7 +7373,7 @@ export const appRouter = router({
             else if (input.statusFiltro === 'parcial') whereExtra += ` AND UPPER(d.situacao_item) = 'PARCIAL'`;
           }
 
-          const baseWhere = `d.estabelecimentoId = ? AND (d.codigo_item LIKE '402%' OR d.codigo_item LIKE '403%')`;
+          const baseWhere = `d.estabelecimentoId = ? AND (REPLACE(d.codigo_item,'.','') LIKE '402%' OR REPLACE(d.codigo_item,'.','') LIKE '403%')`;
           const baseParams = [input.estabelecimentoId];
 
           // Queries em paralelo
@@ -7506,7 +7506,7 @@ export const appRouter = router({
              FROM demonstrativo d
              LEFT JOIN convenios c ON c.id = d.convenio_id
              WHERE d.estabelecimentoId = ?
-             AND d.codigo_item = '10102019'
+             AND (d.codigo_item = '10102019' OR REPLACE(d.codigo_item,'.','') LIKE '10102%')
              AND d.convenio_id IS NOT NULL
              ORDER BY c.nome`,
             [input.estabelecimentoId]
@@ -7549,7 +7549,7 @@ export const appRouter = router({
             else if (input.statusFiltro === 'parcial') whereExtra += ` AND UPPER(d.situacao_item) = 'PARCIAL'`;
           }
 
-          const baseWhere = `d.estabelecimentoId = ? AND d.codigo_item = '10102019'`;
+          const baseWhere = `d.estabelecimentoId = ? AND (d.codigo_item = '10102019' OR REPLACE(d.codigo_item,'.','') LIKE '10102%')`;
           const baseParams = [input.estabelecimentoId];
 
           const [
@@ -7613,6 +7613,199 @@ export const appRouter = router({
               value: `${c.mes}-${c.ano}`, label: `${String(c.mes).padStart(2, '0')}/${c.ano}`, total: Number(c.total), mes: Number(c.mes), ano: Number(c.ano),
             })),
           };
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+  }),
+
+  // ============ RELATÓRIO VISITA XML (Faturamento/Enviado) ============
+  relatorioVisitaXml: router({
+    convenios: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          const [rows] = await conn.execute(
+            `SELECT DISTINCT s.convenioId, c.nome as convenio_nome
+             FROM staging_faturamento_xml s
+             LEFT JOIN convenios c ON c.id = s.convenioId
+             WHERE (s.estabelecimentoId = ? OR s.estabelecimento_id = ?)
+             AND REPLACE(s.codigo_item, '.', '') = '10102019'
+             AND s.convenioId IS NOT NULL
+             ORDER BY c.nome`,
+            [input.estabelecimentoId, input.estabelecimentoId]
+          );
+          return (rows as any[]).map((r: any) => ({
+            id: r.convenioId,
+            nome: r.convenio_nome || `Convênio ${r.convenioId}`,
+          }));
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+
+    competencias: protectedProcedure
+      .input(z.object({ estabelecimentoId: z.number() }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+          const [rows] = await conn.execute(
+            `SELECT competencia, COUNT(*) as total
+             FROM staging_faturamento_xml
+             WHERE (estabelecimentoId = ? OR estabelecimento_id = ?)
+             AND REPLACE(codigo_item, '.', '') = '10102019'
+             AND competencia IS NOT NULL
+             GROUP BY competencia
+             ORDER BY competencia DESC`,
+            [input.estabelecimentoId, input.estabelecimentoId]
+          );
+          return (rows as any[]).map((r: any) => {
+            const parts = (r.competencia || '').split('/');
+            return {
+              value: r.competencia,
+              label: r.competencia,
+              total: Number(r.total),
+              ano: parts[0] ? Number(parts[0]) : 0,
+              mes: parts[1] ? Number(parts[1]) : 0,
+            };
+          });
+        } finally {
+          if (conn) await conn.end().catch(() => {});
+        }
+      }),
+
+    dados: protectedProcedure
+      .input(z.object({
+        estabelecimentoId: z.number(),
+        competencia: z.string().optional(),
+        convenioId: z.number().optional(),
+        medico: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        let conn: any = null;
+        try {
+          const mysql2 = await import('mysql2/promise');
+          conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+
+          let whereExtra = '';
+          const params: any[] = [input.estabelecimentoId, input.estabelecimentoId];
+
+          if (input.competencia) {
+            whereExtra += ` AND s.competencia = ?`;
+            params.push(input.competencia);
+          }
+          if (input.convenioId) {
+            whereExtra += ` AND s.convenioId = ?`;
+            params.push(input.convenioId);
+          }
+          if (input.medico) {
+            whereExtra += ` AND s.nome_prof = ?`;
+            params.push(input.medico);
+          }
+
+          const baseWhere = `(s.estabelecimentoId = ? OR s.estabelecimento_id = ?) AND REPLACE(s.codigo_item, '.', '') = '10102019'`;
+
+          // Queries em paralelo
+          const [
+            [resumoRows],
+            [porMedico],
+            [porConvenio],
+            [itens]
+          ] = await Promise.all([
+            // Resumo geral
+            conn.execute(
+              `SELECT COUNT(*) as total_visitas,
+                      COUNT(DISTINCT s.numero_guia_prestador) as total_guias,
+                      COUNT(DISTINCT s.nome_prof) as total_medicos,
+                      SUM(CAST(s.valor_faturado AS DECIMAL(12,2))) as total_faturado
+               FROM staging_faturamento_xml s WHERE ${baseWhere} ${whereExtra}`,
+              [...params]
+            ),
+            // Por médico
+            conn.execute(
+              `SELECT s.nome_prof as medico, s.conselho_prof as crm,
+                      COUNT(*) as qtd_visitas,
+                      COUNT(DISTINCT s.numero_guia_prestador) as qtd_guias,
+                      SUM(CAST(s.valor_faturado AS DECIMAL(12,2))) as total_faturado
+               FROM staging_faturamento_xml s WHERE ${baseWhere} ${whereExtra}
+               AND s.nome_prof IS NOT NULL AND s.nome_prof != ''
+               GROUP BY s.nome_prof, s.conselho_prof ORDER BY qtd_visitas DESC`,
+              [...params]
+            ),
+            // Por convênio
+            conn.execute(
+              `SELECT s.convenioId, c.nome as convenio_nome,
+                      COUNT(*) as qtd_visitas,
+                      COUNT(DISTINCT s.numero_guia_prestador) as qtd_guias,
+                      SUM(CAST(s.valor_faturado AS DECIMAL(12,2))) as total_faturado
+               FROM staging_faturamento_xml s
+               LEFT JOIN convenios c ON c.id = s.convenioId
+               WHERE ${baseWhere} ${whereExtra}
+               GROUP BY s.convenioId, c.nome ORDER BY total_faturado DESC`,
+              [...params]
+            ),
+            // Itens individuais
+            conn.execute(
+              `SELECT s.id, s.numero_guia_prestador as guia, s.descricao_item as procedimento,
+                      CAST(s.valor_faturado AS DECIMAL(12,2)) as valor,
+                      s.nome_prof as medico, s.conselho_prof as crm,
+                      s.data_execucao as data_execucao,
+                      s.competencia,
+                      s.convenioId, c.nome as convenio_nome,
+                      s.carteira_beneficiario
+               FROM staging_faturamento_xml s
+               LEFT JOIN convenios c ON c.id = s.convenioId
+               WHERE ${baseWhere} ${whereExtra}
+               ORDER BY s.data_execucao DESC, s.nome_prof`,
+              [...params]
+            ),
+          ]);
+
+          const r = (resumoRows as any[])[0] || {};
+
+          return {
+            resumo: {
+              totalVisitas: Number(r.total_visitas || 0),
+              totalGuias: Number(r.total_guias || 0),
+              totalMedicos: Number(r.total_medicos || 0),
+              totalFaturado: Number(r.total_faturado || 0),
+            },
+            porMedico: (porMedico as any[]).map((m: any) => ({
+              medico: m.medico,
+              crm: m.crm,
+              qtdVisitas: Number(m.qtd_visitas),
+              qtdGuias: Number(m.qtd_guias),
+              totalFaturado: Number(m.total_faturado || 0),
+            })),
+            porConvenio: (porConvenio as any[]).map((c: any) => ({
+              convenioId: c.convenioId,
+              convenioNome: c.convenio_nome || `Convênio ${c.convenioId}`,
+              qtdVisitas: Number(c.qtd_visitas),
+              qtdGuias: Number(c.qtd_guias),
+              totalFaturado: Number(c.total_faturado || 0),
+            })),
+            itens: (itens as any[]).map((i: any) => ({
+              id: i.id,
+              guia: i.guia,
+              procedimento: i.procedimento,
+              valor: Number(i.valor || 0),
+              medico: i.medico,
+              crm: i.crm,
+              dataExecucao: i.data_execucao,
+              competencia: i.competencia,
+              convenioId: i.convenioId,
+              convenioNome: i.convenio_nome,
+              carteira: i.carteira_beneficiario,
+            })),
+          };
+        } catch (err) {
+          console.error('[relatorioVisitaXml.dados] ERRO:', err);
+          throw err;
         } finally {
           if (conn) await conn.end().catch(() => {});
         }

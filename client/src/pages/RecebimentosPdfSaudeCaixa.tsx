@@ -278,7 +278,9 @@ export default function RecebimentosPdfSaudeCaixa() {
                     <Table>
                       <TableHeader className="sticky top-0 bg-slate-50 shadow-sm">
                         <TableRow>
-                          <TableHead className="w-[100px]">Data</TableHead>
+                          <TableHead className="w-[80px]">Guia</TableHead>
+                          <TableHead className="w-[120px]">Paciente</TableHead>
+                          <TableHead className="w-[85px]">Data</TableHead>
                           <TableHead className="w-[100px]">Código</TableHead>
                           <TableHead>Descrição</TableHead>
                           <TableHead className="text-right">Qtd</TableHead>
@@ -296,11 +298,13 @@ export default function RecebimentosPdfSaudeCaixa() {
                               item.isGlosa && !item.isNegativeBlock && "bg-orange-50/40"
                             )}
                           >
+                            <TableCell className="text-xs font-mono text-blue-600">{item.guiaPrestador || "-"}</TableCell>
+                            <TableCell className="text-xs truncate max-w-[120px]" title={item.pacienteNome || ""}>{item.pacienteNome || "-"}</TableCell>
                             <TableCell className="text-xs">{item.dataFaturamento}</TableCell>
                             <TableCell className="font-mono text-xs text-slate-500">{item.codigo}</TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="font-medium text-sm truncate max-w-[250px]" title={item.descricao}>{item.descricao}</span>
+                                <span className="font-medium text-sm truncate max-w-[200px]" title={item.descricao}>{item.descricao}</span>
                                 {item.motivoGlosa && (
                                   <span className="text-[10px] text-orange-600 flex items-center gap-1 mt-0.5 font-medium">
                                     <AlertTriangle className="h-3 w-3" /> Motivo: {item.motivoGlosa}
