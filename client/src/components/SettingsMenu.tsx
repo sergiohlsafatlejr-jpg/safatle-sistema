@@ -16,6 +16,7 @@ import {
   Settings2,
   BookOpen,
   Brain,
+  Bot,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -92,6 +93,14 @@ const settingsMenuItems: SettingsMenuItem[] = [
     label: "Mapeamento Convênios",
     path: "/mapeamento-convenios",
     description: "Mapear códigos entre convênios",
+    section: "Integrações",
+    adminOnly: true,
+  },
+  {
+    icon: Bot,
+    label: "Central RPA (Robôs)",
+    path: "/rpa-manager",
+    description: "Testador manual de robôs e automações",
     section: "Integrações",
     adminOnly: true,
   },

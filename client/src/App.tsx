@@ -101,6 +101,7 @@ const RelatorioLaboratorio = lazy(() => import("./pages/RelatorioLaboratorio"));
 const RelatorioVisita = lazy(() => import("./pages/RelatorioVisita"));
 const RelatorioVisitaXml = lazy(() => import("./pages/RelatorioVisitaXml"));
 const RelatorioUltrassom = lazy(() => import("./pages/RelatorioUltrassom"));
+const RpaManager = lazy(() => import("./pages/RpaManager"));
 
 function PageLoader() {
   return (
@@ -170,6 +171,7 @@ function Router() {
         <Route path={"/nao-recebidos"} component={NaoRecebidos} />
         <Route path={"/envio-recursos-lote"} component={EnvioRecursosLote} />
         <Route path={"/regras-ia"} component={RegrasIA} />
+        <Route path={"/rpa-manager"} component={RpaManager} />
         <Route path={"/relatorios-bi"} component={RelatoriosBI} />
         <Route path={"/previsao-glosa"} component={PrevisaoGlosa} />
         <Route path={"/motor-regras"} component={DashboardMotorRegras} />

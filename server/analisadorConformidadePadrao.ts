@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 import { logger } from "./_core/logger";
 import { regrasNegocio, itensRegraNegocio } from "../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export interface ItemConta {
   codigoItem: string;
@@ -66,7 +66,39 @@ export class AnalisadorConformidadePadrao {
         throw new Error("Database connection failed");
       }
 
-      // 1. Buscar padrão de procedimento
+      const divergencias: DivergenciaItem[] = [];
+      let itensConformes = 0;
+
+      // 1.5 Buscar regras customizadas de alerta (Regras de Risco de Glosa) para os itens da conta
+      const codigosItensConta = conta.itens.map(i => i.codigoItem);
+      if (codigosItensConta.length > 0) {
+        const regrasGerais = await db
+          .select()
+          .from(regrasNegocio)
+          .where(
+            and(
+              inArray(regrasNegocio.codigoProcedimentoPrincipal, codigosItensConta),
+              eq(regrasNegocio.tipoVerificacao, "pode_conter" as any),
+              eq(regrasNegocio.acaoInconsistencia, "alerta" as any),
+              eq(regrasNegocio.ativo, "sim" as any)
+            )
+          );
+
+        for (const regra of regrasGerais) {
+          divergencias.push({
+            codigoItem: regra.codigoProcedimentoPrincipal,
+            descricaoItem: regra.descricaoProcedimentoPrincipal || "",
+            tipoItem: "alerta_glosa",
+            status: "faltante", // Classificação interna para exibir na interface
+            esperado: {},
+            encontrado: {},
+            severidade: regra.prioridade === 1 ? "critica" : regra.prioridade === 2 ? "alta" : "media",
+            mensagem: regra.descricao || `Alerta customizado de Risco de Glosa para o item ${regra.codigoProcedimentoPrincipal}`,
+          });
+        }
+      }
+
+      // 2. Buscar padrão de procedimento
       const padrao = await db
         .select()
         .from(regrasNegocio)
@@ -79,24 +111,25 @@ export class AnalisadorConformidadePadrao {
         .limit(1);
 
       if (!padrao || padrao.length === 0) {
+        // Se não tiver padrão, mas tiver alertas customizados, retorna os alertas
+        divergencias.push({
+          codigoItem: "",
+          descricaoItem: "Padrão não encontrado",
+          tipoItem: "",
+          status: "faltante",
+          esperado: {},
+          encontrado: {},
+          severidade: "critica",
+          mensagem: `Nenhum padrão de procedimento encontrado para o código ${conta.codigoProcedimento}`,
+        });
+
         return {
           contaId: conta.id,
           codigoProcedimento: conta.codigoProcedimento,
           padraoId: 0,
-          scoreConformidade: 0,
+          scoreConformidade: divergencias.length > 1 ? 50 : 0, // se tem outros alertas, não é 0 abs
           statusGeral: "nao_conforme",
-          divergencias: [
-            {
-              codigoItem: "",
-              descricaoItem: "Padrão não encontrado",
-              tipoItem: "",
-              status: "faltante",
-              esperado: {},
-              encontrado: {},
-              severidade: "critica",
-              mensagem: `Nenhum padrão de procedimento encontrado para o código ${conta.codigoProcedimento}`,
-            },
-          ],
+          divergencias: divergencias,
           itensConformes: 0,
           itensDivergentes: conta.itens.length,
           recomendacoes: ["Criar padrão de procedimento para este código"],
@@ -105,15 +138,11 @@ export class AnalisadorConformidadePadrao {
 
       const padraoReg = padrao[0];
 
-      // 2. Buscar itens esperados do padrão
+      // 2.5 Buscar itens esperados do padrão
       const itensEsperados = await db
         .select()
         .from(itensRegraNegocio)
         .where(eq(itensRegraNegocio.regraId, padraoReg.id));
-
-      // 3. Comparar itens
-      const divergencias: DivergenciaItem[] = [];
-      let itensConformes = 0;
 
       // Verificar itens esperados que faltam
       for (const itemEsperado of itensEsperados) {

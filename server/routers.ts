@@ -41,6 +41,7 @@ import { auditSystemRouter } from "./routers/auditSystemRouter";
 import { tasyRouter } from "./routers/tasyRouter";
 import { contratosConveniosRouter } from "./routers/contratosConveniosRouter";
 import { dashboardBiRouter } from "./routers/dashboardBiRouter";
+import { rpaRouter } from "./routers/rpaRouter";
 
 /**
  * Sanitize filename to remove special characters that can cause issues with S3/URLs
@@ -2722,6 +2723,11 @@ export const appRouter = router({
           convenioId: z.number(),
           codigoProcedimento: z.string().optional(),
           valorGlosado: z.string().optional(),
+          pacienteNome: z.string().optional(),
+          pacienteCarteirinha: z.string().optional(),
+          guiaNumero: z.string().optional(),
+          protocolo: z.string().optional(),
+          lotePrestador: z.string().optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -2731,6 +2737,11 @@ export const appRouter = router({
           codigoProcedimento: input.codigoProcedimento,
           valorGlosado: input.valorGlosado,
           userId: ctx.user.id,
+          pacienteNome: input.pacienteNome,
+          pacienteCarteirinha: input.pacienteCarteirinha,
+          guiaNumero: input.guiaNumero,
+          protocolo: input.protocolo,
+          lotePrestador: input.lotePrestador,
         });
       }),
 
@@ -9190,6 +9201,9 @@ export const appRouter = router({
   
   // ==================== DASHBOARDS BI (Power BI Clone) ====================
   dashboardBi: dashboardBiRouter,
+  
+  // ==================== RPA BOTS ====================
+  rpa: rpaRouter,
 });
 
 function calcularDiasParado(datasai: string | null): number {

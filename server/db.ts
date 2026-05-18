@@ -3690,6 +3690,11 @@ export async function sugerirArgumentoComIA(params: {
   codigoProcedimento?: string;
   valorGlosado?: string;
   userId: number;
+  pacienteNome?: string;
+  pacienteCarteirinha?: string;
+  guiaNumero?: string;
+  protocolo?: string;
+  lotePrestador?: string;
 }) {
   // Buscar informações do dicionário
   const infoGlosa = obterInfoGlosa(params.codigoGlosa);
@@ -3736,6 +3741,14 @@ DESCRIÇÃO DA GLOSA: ${infoGlosa?.descricao || traduzirCodigoGlosa(params.codig
 CONVÊNIO: ${convenio?.nome || "Não especificado"}
 ${params.codigoProcedimento ? `CÓDIGO DO PROCEDIMENTO: ${params.codigoProcedimento}` : ""}
 ${params.valorGlosado ? `VALOR GLOSADO: R$ ${params.valorGlosado}` : ""}
+
+DADOS DO ATENDIMENTO (METADADOS EXTRAÍDOS):
+${params.pacienteNome ? `- Paciente: ${params.pacienteNome}` : ""}
+${params.pacienteCarteirinha ? `- Carteirinha: ${params.pacienteCarteirinha}` : ""}
+${params.guiaNumero ? `- Guia: ${params.guiaNumero}` : ""}
+${params.protocolo ? `- Protocolo: ${params.protocolo}` : ""}
+${params.lotePrestador ? `- Lote: ${params.lotePrestador}` : ""}
+Utilize estes metadados do atendimento na justificativa caso tenham relação direta com o motivo da glosa (ex: se for glosa por "falta de carteirinha", mencione o número da carteirinha acima).
 
 ARGUMENTO PADRÃO DO DICIONÁRIO:
 ${argumentoPadrao}

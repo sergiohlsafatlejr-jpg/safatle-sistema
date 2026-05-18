@@ -13,6 +13,7 @@ import { useEstabelecimento } from "@/contexts/EstabelecimentoContext";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { useLocation } from "wouter";
 
 interface PadraoRecebimento {
   codigoItem: string;
@@ -96,6 +97,7 @@ const getRiscoIcon = (risco: string) => {
 export function PrevisaoGlosa() {
   const { estabelecimentoAtual } = useEstabelecimento();
   const estabelecimentoId = estabelecimentoAtual?.id;
+  const [, navigate] = useLocation();
 
   // Estados
   const [convenioId, setConvenioId] = useState<number | null>(null);
@@ -148,6 +150,15 @@ export function PrevisaoGlosa() {
     },
     onError: (error) => {
       toast.error("Erro ao identificar contas: " + error.message);
+    },
+  });
+
+  const criarRegraMutation = trpc.regrasNegocio.create.useMutation({
+    onSuccess: () => {
+      toast.success("Regra de alerta criada com sucesso no Motor de Regras!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao criar regra de alerta: " + error.message);
     },
   });
 
@@ -204,6 +215,20 @@ export function PrevisaoGlosa() {
     XLSX.utils.book_append_sheet(wb, ws, "Padrões");
     XLSX.writeFile(wb, `padroes-glosa-${convenioId}-${new Date().toISOString().split("T")[0]}.xlsx`);
     toast.success("Arquivo exportado com sucesso");
+  };
+
+  const handleCriarRegraRisco = (padrao: PadraoRecebimento) => {
+    const motivosStr = padrao.motivosGlosaFrequentes.map(m => m.descricao).join(", ");
+    criarRegraMutation.mutate({
+      convenioId: convenioId || undefined,
+      nome: `Alerta Risco de Glosa: ${padrao.codigoItem}`,
+      descricao: `Alerta automático de risco de glosa gerado com base no histórico. Taxa de glosa esperada: ${padrao.taxaGlosa.toFixed(2)}%. Motivos frequentes: ${motivosStr}`,
+      codigoProcedimentoPrincipal: padrao.codigoItem,
+      descricaoProcedimentoPrincipal: padrao.descricaoItem,
+      tipoVerificacao: "pode_conter", // Usamos pode_conter apenas como âncora para ativar a regra no item
+      acaoInconsistencia: "alerta",
+      prioridade: padrao.risco === "critico" ? 1 : padrao.risco === "alto" ? 2 : 3,
+    });
   };
 
   // Dados para gráficos
@@ -425,6 +450,7 @@ export function PrevisaoGlosa() {
                                 <TableHead className="text-right">Total Glosado</TableHead>
                                 <TableHead>Risco</TableHead>
                                 <TableHead>Motivos</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -447,6 +473,20 @@ export function PrevisaoGlosa() {
                                     {padrao.motivosGlosaFrequentes.slice(0, 2).map((m) => (
                                       <div key={m.codigo}>{m.descricao} ({m.frequencia}x)</div>
                                     ))}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {padrao.risco === "critico" || padrao.risco === "alto" ? (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleCriarRegraRisco(padrao)}
+                                        disabled={criarRegraMutation.isPending}
+                                        title="Criar Regra de Alerta no Motor de Negócios"
+                                      >
+                                        <AlertTriangle className="w-4 h-4 mr-1 text-orange-500" />
+                                        Gerar Alerta
+                                      </Button>
+                                    ) : null}
                                   </TableCell>
                                 </TableRow>
                               ))}
