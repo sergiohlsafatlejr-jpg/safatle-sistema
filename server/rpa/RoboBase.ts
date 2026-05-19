@@ -5,6 +5,7 @@ export interface CredenciaisConvenio {
   login?: string;
   senha?: string;
   url: string;
+  estabelecimentoId?: number | null;
 }
 
 export abstract class RoboBase {

@@ -1,0 +1,1 @@
+import 'dotenv/config'; import { getDb } from '../server/db'; import { arquivos } from '../drizzle/schema'; import { inArray } from 'drizzle-orm'; (async () => { const db = await getDb(); await db.update(arquivos).set({dataReferencia: new Date('2026-05-01T00:00:00Z')}).where(inArray(arquivos.id, [1800366, 1800367])); console.log('OK'); process.exit(0); })();

@@ -1,0 +1,1 @@
+import('mysql2/promise').then(async m => { const c = await m.createConnection(process.env.DATABASE_URL); const [t] = await c.query('SELECT c.nome as unidade, SUM(r.valor) as receita FROM fin_recebiveis r LEFT JOIN fin_clientes c ON r.clienteId = c.id WHERE DATE_FORMAT(r.dataVencimento, \'%Y-%m\') = ? GROUP BY c.nome', ['2026-05']); console.log(t); c.end(); })

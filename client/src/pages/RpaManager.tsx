@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bot, Play, ShieldAlert, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CredenciaisPortais from "@/components/CredenciaisPortais";
 
 export default function RpaManager() {
-  const [convenio, setConvenio] = useState<"UNIMED" | "SAUDE_CAIXA">("UNIMED");
+  const [convenio, setConvenio] = useState<"UNIMED" | "SAUDE_CAIXA" | "IPASGO" | "CASSI">("UNIMED");
   const [url, setUrl] = useState("https://www.unimedgoiania.coop.br/wps/portal/usuariosunimed");
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
@@ -41,10 +43,14 @@ export default function RpaManager() {
     });
   };
 
-  const handleConvenioChange = (value: "UNIMED" | "SAUDE_CAIXA") => {
+  const handleConvenioChange = (value: "UNIMED" | "SAUDE_CAIXA" | "IPASGO" | "CASSI") => {
     setConvenio(value);
     if (value === "UNIMED") {
       setUrl("https://www.unimedgoiania.coop.br/wps/portal/usuariosunimed");
+    } else if (value === "IPASGO") {
+      setUrl("https://www.ipasgo.go.gov.br/");
+    } else if (value === "CASSI") {
+      setUrl("https://www.cassi.com.br/prestador/");
     } else {
       setUrl("https://autenticacao.saude.caixa.gov.br/");
     }
@@ -65,7 +71,20 @@ export default function RpaManager() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Tabs defaultValue="testador" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="testador" className="flex items-center gap-2">
+              <Play className="w-4 h-4" />
+              Testador Manual
+            </TabsTrigger>
+            <TabsTrigger value="cofre" className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              Cofre de Senhas
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="testador" className="mt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border-t-4 border-t-primary shadow-md">
             <CardHeader>
               <CardTitle>Configuração do Teste</CardTitle>
@@ -82,6 +101,8 @@ export default function RpaManager() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="UNIMED">Unimed (FESP/Central/Regionais)</SelectItem>
+                    <SelectItem value="IPASGO">IPASGO</SelectItem>
+                    <SelectItem value="CASSI">CASSI</SelectItem>
                     <SelectItem value="SAUDE_CAIXA">Saúde Caixa</SelectItem>
                   </SelectContent>
                 </Select>
@@ -207,7 +228,13 @@ export default function RpaManager() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </DashboardLayout>
+      </TabsContent>
+
+      <TabsContent value="cofre" className="mt-0">
+        <CredenciaisPortais />
+      </TabsContent>
+    </Tabs>
+  </div>
+</DashboardLayout>
   );
 }

@@ -1,0 +1,1 @@
+import('mysql2/promise').then(async m => { const c = await m.createConnection(process.env.DATABASE_URL); const [r] = await c.query('SELECT filePath FROM arquivos ORDER BY id DESC LIMIT 1'); console.log(r); c.end(); })

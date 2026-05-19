@@ -18,6 +18,8 @@ import {
   InsertCodigoProcedimento,
   InsertCampoComparacao,
   InsertItemManual,
+  credenciaisPortais,
+  InsertCredencialPortal,
   historicoContestacoes,
   argumentosConvenio,
   estabelecimentos,
@@ -97,7 +99,8 @@ import {
   InsertStagingFaturamentoPromedico,
   staging_faturamento_easyvision,
   InsertStagingFaturamentoEasyvision,
-  faturadoTasy
+  faturadoTasy,
+  credenciaisPortais,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 

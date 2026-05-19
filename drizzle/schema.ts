@@ -54,6 +54,28 @@ export type Convenio = typeof convenios.$inferSelect;
 export type InsertConvenio = typeof convenios.$inferInsert;
 
 /**
+ * Credenciais dos Portais de Convênios
+ * Armazena usuários e senhas para acesso RPA
+ */
+export const credenciaisPortais = mysqlTable("credenciais_portais", {
+  id: int("id").autoincrement().primaryKey(),
+  convenioId: int("convenioId").notNull().references(() => convenios.id, { onDelete: 'cascade' }),
+  estabelecimentoId: int("estabelecimentoId"), // Opcional, caso a credencial seja específica de uma unidade
+  login: varchar("login", { length: 255 }).notNull(),
+  senha: text("senha").notNull(), // Deve ser salva criptografada/ofuscada
+  urlLogin: varchar("urlLogin", { length: 255 }), // URL opcional caso mude
+  ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  ultimoAcesso: timestamp("ultimoAcesso"),
+  statusAcesso: mysqlEnum("statusAcesso", ["sucesso", "erro", "pendente"]).default("pendente"),
+  mensagemErro: text("mensagemErro"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CredencialPortal = typeof credenciaisPortais.$inferSelect;
+export type InsertCredencialPortal = typeof credenciaisPortais.$inferInsert;
+
+/**
  * Relação Convênio-Estabelecimento-Prestador
  * Permite associar códigos de prestador específicos para cada combinação de convênio e estabelecimento
  */

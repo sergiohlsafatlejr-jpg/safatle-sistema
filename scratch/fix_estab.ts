@@ -1,0 +1,1 @@
+import 'dotenv/config'; import { getDb } from '../server/db'; import { demonstrativo } from '../drizzle/schema'; import { isNull } from 'drizzle-orm'; (async () => { const db = await getDb(); await db.update(demonstrativo).set({estabelecimentoId: 1}).where(isNull(demonstrativo.estabelecimentoId)); console.log('OK'); process.exit(0); })();

@@ -1,0 +1,1 @@
+import('mysql2/promise').then(async m => { const c = await m.createConnection(process.env.DATABASE_URL); const [t] = await c.query('SELECT SUM(valor) FROM fin_recebiveis WHERE DATE_FORMAT(dataVencimento, \'%Y-%m\') = ?', ['2026-05']); console.log(t); c.end(); })

@@ -1,0 +1,1 @@
+import('mysql2/promise').then(async m => { const c = await m.createConnection(process.env.DATABASE_URL); await c.query('UPDATE rh_folha_pagamento SET competencia=\'2025-12\' WHERE competencia=\'2026-12\''); console.log('Done'); c.end(); })

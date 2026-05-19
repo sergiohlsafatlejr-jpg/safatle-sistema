@@ -2,6 +2,9 @@ import { RoboBase, CredenciaisConvenio } from "../RoboBase";
 import { logger } from "../../_core/logger";
 import path from "path";
 import fs from "fs";
+import { getDb } from "../../db";
+import { arquivos } from "../../../drizzle/schema";
+import { like } from "drizzle-orm";
 
 export class RoboUnimed extends RoboBase {
   constructor() {
@@ -139,60 +142,88 @@ export class RoboUnimed extends RoboBase {
 
          logger.info({ message: `[${this.nome}] Buscando botões de Extrato XLSX na tabela (em todos os frames)...` });
          
-         let botoesXlsClicados = 0;
+         let arquivosBaixadosDaVez = 0;
+         const db = await getDb();
+
          for (const frame of this.page.frames()) {
             try {
-               const clicadosNoFrame = await frame.evaluate(() => {
-                  let clicados = 0;
-                  
-                  // Encontrar o índice da coluna que contém 'XLSX' (ou 'XLS')
+               // 1. Extrair os dados de cada linha
+               const linhasExtraidas = await frame.evaluate(() => {
+                  const rowsData: { rowIndex: number, numero: string, mesAno: string }[] = [];
                   const ths = Array.from(document.querySelectorAll('th'));
-                  const indexXlsx = ths.findIndex(th => 
-                     th.textContent?.toUpperCase().includes('XLSX') || 
-                     th.textContent?.toUpperCase().includes('XLS')
-                  );
+                  const indexXlsx = ths.findIndex(th => th.textContent?.toUpperCase().includes('XLSX') || th.textContent?.toUpperCase().includes('XLS'));
                   
                   if (indexXlsx > -1) {
-                     // Para cada linha da tabela
                      const trs = Array.from(document.querySelectorAll('tbody tr'));
-                     trs.forEach(tr => {
+                     trs.forEach((tr, idx) => {
                         const tds = tr.querySelectorAll('td');
-                        if (tds.length > indexXlsx) {
-                           const tdXlsx = tds[indexXlsx];
-                           // Procura o botão clicável dentro da célula (Angular usa span/svg com (click))
-                           const btn = tdXlsx.querySelector('span, svg, a, img');
-                           if (btn) {
-                              // Se for SVG, o clique pode falhar se não clicarmos no pai ou dispararmos o evento corretamente
-                              const target = (btn.closest('span') || btn.closest('a') || btn) as HTMLElement;
-                              target.click();
-                              clicados++;
-                           }
-                        }
-                     });
-                  } else {
-                     // Fallback: se não achar a tabela bonitinha, tenta do jeito antigo em botões isolados
-                     const links = Array.from(document.querySelectorAll('a, img'));
-                     links.forEach(el => {
-                        if (el.outerHTML.toLowerCase().includes('xls')) {
-                           (el as HTMLElement).click();
-                           clicados++;
+                        if (tds.length >= 3) { // Estrutura: Mês/Ano, Data Pagto, Nº Demonstrativo
+                           rowsData.push({
+                              rowIndex: idx,
+                              mesAno: tds[0].textContent?.trim() || '',
+                              numero: tds[2].textContent?.trim() || ''
+                           });
                         }
                      });
                   }
-                  
-                  return clicados;
+                  return { indexXlsx, rowsData };
                });
-               botoesXlsClicados += clicadosNoFrame;
+
+               if (linhasExtraidas.indexXlsx > -1 && linhasExtraidas.rowsData.length > 0) {
+                  // 2. Para cada linha, checar no banco e baixar se for novo
+                  for (const row of linhasExtraidas.rowsData) {
+                     if (!row.numero) continue;
+
+                     // Checa no banco se já existe algum arquivo com esse Nº de Demonstrativo no nome (ex: Extrato_297161.xlsx)
+                     let jaExiste = false;
+                     if (db) {
+                        const count = await db.select().from(arquivos).where(like(arquivos.nome, `%${row.numero}%`));
+                        if (count && count.length > 0) {
+                           jaExiste = true;
+                        }
+                     }
+
+                     if (jaExiste) {
+                        logger.info({ message: `[${this.nome}] Demonstrativo Nº ${row.numero} (${row.mesAno}) já consta no sistema. Pulando...` });
+                        continue; // Não faz o download deste!
+                     }
+
+                     logger.info({ message: `[${this.nome}] Novo demonstrativo encontrado: Nº ${row.numero} (${row.mesAno}). Iniciando download...` });
+
+                     // Dispara o clique especificamente nesta linha
+                     const clicou = await frame.evaluate((idxRow, idxCol) => {
+                        const trs = Array.from(document.querySelectorAll('tbody tr'));
+                        if (trs[idxRow]) {
+                           const tds = trs[idxRow].querySelectorAll('td');
+                           if (tds[idxCol]) {
+                              const btn = tds[idxCol].querySelector('span, svg, a, img');
+                              if (btn) {
+                                 const target = (btn.closest('span') || btn.closest('a') || btn) as HTMLElement;
+                                 target.click();
+                                 return true;
+                              }
+                           }
+                        }
+                        return false;
+                     }, row.rowIndex, linhasExtraidas.indexXlsx);
+
+                     if (clicou) {
+                        arquivosBaixadosDaVez++;
+                        // Aguarda 2 segundos entre cliques para não encavalar downloads
+                        await new Promise(r => setTimeout(r, 2000));
+                     }
+                  }
+               }
             } catch (e) {
                // Ignora erros de cross-origin frames
             }
          }
          
-         arquivosBaixados = botoesXlsClicados;
-         logger.info({ message: `[${this.nome}] Clicou em ${botoesXlsClicados} links de Extrato XLSX.` });
+         arquivosBaixados = arquivosBaixadosDaVez;
+         logger.info({ message: `[${this.nome}] Clicou em ${arquivosBaixados} links de Extrato XLSX inéditos.` });
          
          // Esperar os downloads concluírem (Até 15 minutos se for muito grande)
-         if (botoesXlsClicados > 0) {
+         if (arquivosBaixados > 0) {
             logger.info({ message: `[${this.nome}] Aguardando o download de arquivos pesados (timeout de 15 minutos)...` });
             
             let downloadTerminou = false;
@@ -214,6 +245,47 @@ export class RoboUnimed extends RoboBase {
             
             if (downloadTerminou) {
                logger.info({ message: `[${this.nome}] Downloads finalizados com sucesso!` });
+               
+               // === INJEÇÃO AUTOMÁTICA NO BANCO ===
+               try {
+                  const arquivosNaPastaFinal = fs.readdirSync(downloadPath);
+                  // Pega arquivos criados nos ultimos 16 minutos (15 de timeout + 1) e com ext xls/xlsx
+                  const tempoLimite = Date.now() - (16 * 60 * 1000);
+                  const xlsNovos = arquivosNaPastaFinal.filter(f => {
+                     if (!f.endsWith('.xls') && !f.endsWith('.xlsx')) return false;
+                     const stat = fs.statSync(path.join(downloadPath, f));
+                     return stat.mtimeMs > tempoLimite;
+                  });
+                  
+                  if (xlsNovos.length > 0) {
+                     logger.info({ message: `[${this.nome}] Encontrados ${xlsNovos.length} arquivos XLS/XLSX recentes. Iniciando injeção no banco...` });
+                     
+                     let idConvenio = 1; // Fallback
+                     const { convenios } = await import('../../../drizzle/schema');
+                     const drizzleDb = await getDb();
+                     if (drizzleDb) {
+                        const conveniosDb = await drizzleDb.select().from(convenios).where(like(convenios.nome, '%Unimed%Goiânia%'));
+                        if (conveniosDb.length > 0) {
+                           idConvenio = conveniosDb[0].id;
+                        } else {
+                           const conveniosDb2 = await drizzleDb.select().from(convenios).where(like(convenios.nome, '%Unimed%'));
+                           if (conveniosDb2.length > 0) {
+                              idConvenio = conveniosDb2[0].id;
+                           }
+                        }
+                     }
+                     
+                     const { processarArquivoRpa } = await import('../importador');
+                     
+                     for (const f of xlsNovos) {
+                        const filePath = path.join(downloadPath, f);
+                        await processarArquivoRpa(filePath, f, idConvenio, parametros?.competencia, credenciais.estabelecimentoId);
+                     }
+                  }
+               } catch (errDb: any) {
+                  logger.error({ message: `[${this.nome}] Erro ao injetar arquivos no banco: ${errDb.message}` });
+               }
+
             } else {
                logger.warn({ message: `[${this.nome}] Timeout de 15 minutos atingido e o download parece não ter terminado.` });
             }

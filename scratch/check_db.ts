@@ -1,0 +1,1 @@
+import 'dotenv/config'; import { getDb } from '../server/db'; import { arquivos } from '../drizzle/schema'; import { desc } from 'drizzle-orm'; (async () => { const db = await getDb(); const res = await db.select().from(arquivos).orderBy(desc(arquivos.id)).limit(5); console.log(res.map(r => ({id: r.id, nome: r.nome, estab: r.estabelecimentoId}))); process.exit(0); })();

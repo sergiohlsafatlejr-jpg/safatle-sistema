@@ -1,0 +1,1 @@
+import XLSX from 'xlsx'; const workbook = XLSX.readFile('uploads/demonstrativos/unimed/demonstrativo-0289384.xlsx'); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet, {range: 10, header: 1}); console.log(rows.slice(0, 5).map(r => r[4])); // column E is usually codigo prestador
