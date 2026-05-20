@@ -62,5 +62,10 @@ export abstract class RoboBase {
     throw new Error(`[${this.nome}] Falha no passo '${passo}': ${erro.message}`);
   }
 
+  /** Aguarda um tempo em milissegundos (substitui page.waitForTimeout que foi removido do Puppeteer) */
+  protected delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   abstract executar(credenciais: CredenciaisConvenio, parametros?: any): Promise<any>;
 }

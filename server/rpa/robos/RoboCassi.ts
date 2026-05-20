@@ -1,1 +1,51 @@
-import { RoboBase, CredenciaisConvenio } from '../RoboBase'; import { logger } from '../../_core/logger'; import path from 'path'; import fs from 'fs'; export class RoboCassi extends RoboBase { constructor() { super('Cassi_Bot'); } async executar(credenciais: CredenciaisConvenio, parametros?: { competencia: string }) { try { const isProducao = process.env.NODE_ENV === 'production'; await this.iniciarBrowser(!isProducao); if (!this.page) throw new Error('P·gina n„o iniciada'); const downloadPath = path.join(process.cwd(), 'uploads', 'demonstrativos', 'cassi'); if (!fs.existsSync(downloadPath)) { fs.mkdirSync(downloadPath, { recursive: true }); } const client = await this.page.target().createCDPSession(); await client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadPath }); const urlAlvo = credenciais.url || 'https://www.cassi.com.br/prestador/'; logger.info({ message: [] Acessando portal da Cassi:  }); await this.page.goto(urlAlvo, { waitUntil: 'networkidle2' }); logger.info({ message: [] Aguardando login... }); // TODO: NavegaÁ„o CASSI await this.page.waitForTimeout(5000); const screenshotPath = path.join(downloadPath, esultado_cassi_.png); await this.page.screenshot({ path: screenshotPath, fullPage: true }); return { status: 'sucesso', mensagem: 'RobÙ CASSI iniciado e acessou o portal. AutomaÁ„o pendente.', screenshotSalva: screenshotPath }; } catch (error: any) { logger.error({ message: [] Erro ao executar:  }); throw error; } finally { await this.fecharBrowser(); } } }
+import { RoboBase, CredenciaisConvenio } from '../RoboBase'; 
+import { logger } from '../../_core/logger'; 
+import path from 'path'; 
+import fs from 'fs'; 
+
+export class RoboCassi extends RoboBase { 
+  constructor() { 
+    super('Cassi_Bot'); 
+  } 
+
+  async executar(credenciais: CredenciaisConvenio, parametros?: { competencia: string }) { 
+    try { 
+      const isProducao = process.env.NODE_ENV === 'production'; 
+      await this.iniciarBrowser(!isProducao); 
+      if (!this.page) throw new Error('P√°gina n√£o iniciada'); 
+
+      const downloadPath = path.join(process.cwd(), 'uploads', 'demonstrativos', 'cassi'); 
+      if (!fs.existsSync(downloadPath)) { 
+        fs.mkdirSync(downloadPath, { recursive: true }); 
+      } 
+
+      const client = await this.page.target().createCDPSession(); 
+      await client.send('Page.setDownloadBehavior', { 
+        behavior: 'allow', 
+        downloadPath: downloadPath 
+      }); 
+
+      const urlAlvo = credenciais.url || 'https://www.cassi.com.br/prestador/'; 
+      logger.info({ message: `[${this.nome}] Acessando portal da Cassi: ${urlAlvo}` }); 
+      await this.page.goto(urlAlvo, { waitUntil: 'networkidle2' }); 
+      
+      logger.info({ message: `[${this.nome}] Aguardando login...` }); 
+      // TODO: Navega√ß√£o CASSI 
+      await this.delay(5000); 
+      
+      const screenshotPath = path.join(downloadPath, `resultado_cassi_${Date.now()}.png`); 
+      await this.page.screenshot({ path: screenshotPath, fullPage: true }); 
+      
+      return { 
+        status: 'sucesso', 
+        mensagem: 'Rob√¥ CASSI iniciado e acessou o portal. Automa√ß√£o pendente.', 
+        screenshotSalva: screenshotPath 
+      }; 
+    } catch (error: any) { 
+      logger.error({ message: `[${this.nome}] Erro ao executar: ${error.message}` }); 
+      throw error; 
+    } finally { 
+      await this.fecharBrowser(); 
+    } 
+  } 
+}
