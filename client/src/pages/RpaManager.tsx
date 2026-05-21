@@ -48,7 +48,7 @@ export default function RpaManager() {
     if (value === "UNIMED") {
       setUrl("https://www.unimedgoiania.coop.br/wps/portal/usuariosunimed");
     } else if (value === "IPASGO") {
-      setUrl("https://www.ipasgo.go.gov.br/");
+      setUrl("https://portalos.ipasgo.go.gov.br/Portal_Dominio/PrestadorLogin.aspx");
     } else if (value === "CASSI") {
       setUrl("https://www.cassi.com.br/prestador/");
     } else {
