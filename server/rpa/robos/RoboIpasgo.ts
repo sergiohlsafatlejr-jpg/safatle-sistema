@@ -283,22 +283,74 @@ export class RoboIpasgo extends RoboBase {
       await webplanPage.screenshot({ path: path.join(downloadPath, `relatorio_fatura_${Date.now()}.png`), fullPage: true });
       logger.info({ message: `[${this.nome}] Pagina de Relatorio. URL: ${webplanPage.url()}` });
 
-      // ====== PASSO 8: Clicar em "Pesquisar" ======
+      // ====== PASSO 8: Filtrar ultimos 3 meses e clicar em "Pesquisar" ======
+      
+      // Calcular competencias: ultimos 3 meses no formato MM/YYYY
+      const agora = new Date();
+      const compFinal = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
+      const tresMesesAtras = new Date(agora.getFullYear(), agora.getMonth() - 2, 1);
+      const compInicial = `${String(tresMesesAtras.getMonth() + 1).padStart(2, '0')}/${tresMesesAtras.getFullYear()}`;
+      
+      logger.info({ message: `[${this.nome}] Filtrando competencias de ${compInicial} a ${compFinal}` });
+
+      // Preencher campos de competencia via KnockoutJS observables
+      await webplanPage.evaluate(`
+        (function() {
+          // Buscar inputs de competencia pelo label/placeholder
+          var inputs = document.querySelectorAll('input[type="text"]');
+          for (var i = 0; i < inputs.length; i++) {
+            var input = inputs[i];
+            var parent = input.closest('[class*="col"]');
+            if (!parent) continue;
+            var labels = parent.querySelectorAll('label');
+            for (var j = 0; j < labels.length; j++) {
+              var labelText = (labels[j].textContent || '').toLowerCase();
+              if (labelText.indexOf('inicial') > -1) {
+                input.value = '${compInicial}';
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+                input.dispatchEvent(new Event('input', {bubbles: true}));
+              }
+              if (labelText.indexOf('final') > -1) {
+                input.value = '${compFinal}';
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+                input.dispatchEvent(new Event('input', {bubbles: true}));
+              }
+            }
+          }
+          // Fallback: tentar via KnockoutJS diretamente
+          try {
+            var ko = window.ko;
+            if (ko) {
+              var body = document.body;
+              var vm = ko.dataFor(body);
+              if (vm && vm.filtro) {
+                if (vm.filtro.competenciaInicial) vm.filtro.competenciaInicial('${compInicial}');
+                if (vm.filtro.competenciaFinal) vm.filtro.competenciaFinal('${compFinal}');
+              }
+            }
+          } catch(e) {}
+        })()
+      `);
+      
+      await this.delay(1000);
+      
       logger.info({ message: `[${this.nome}] Clicando em "Pesquisar"...` });
 
-      const pesquisarClicked = await webplanPage.evaluate(() => {
-        // Buscar botao "Pesquisar" - pode ser button, input ou link
-        const els = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
-        for (const el of els) {
-          const text = (el.textContent || '').trim().toLowerCase();
-          const val = ((el as HTMLInputElement).value || '').trim().toLowerCase();
-          if (text.includes('pesquisar') || val.includes('pesquisar')) {
-            (el as HTMLElement).click();
-            return true;
+      const pesquisarClicked = await webplanPage.evaluate(`
+        (function() {
+          var els = document.querySelectorAll('button, input[type="submit"], input[type="button"], a');
+          for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            var text = (el.textContent || '').trim().toLowerCase();
+            var val = (el.value || '').trim().toLowerCase();
+            if (text.indexOf('pesquisar') > -1 || val.indexOf('pesquisar') > -1) {
+              el.click();
+              return true;
+            }
           }
-        }
-        return false;
-      });
+          return false;
+        })()
+      `);
 
       if (pesquisarClicked) {
         logger.info({ message: `[${this.nome}] Botao "Pesquisar" clicado` });
@@ -333,96 +385,120 @@ export class RoboIpasgo extends RoboBase {
         logger.warn({ message: `[${this.nome}] Resultados nao carregaram apos 30s` });
       }
 
-      // Screenshot apos pesquisa
-      await webplanPage.screenshot({ path: path.join(downloadPath, `resultado_pesquisa_${Date.now()}.png`), fullPage: true });
+      // Screenshot apos pesquisa (sem fullPage para evitar timeout em paginas grandes)
+      try { await webplanPage.screenshot({ path: path.join(downloadPath, `resultado_pesquisa_${Date.now()}.png`) }); } catch(e) { logger.warn({ message: `[${this.nome}] Screenshot falhou: ${(e as any).message}` }); }
 
-      // ====== PASSO 9: Clicar no icone "X" de download Excel ======
-      // O icone usa a classe CSS "x-icon" (Font Awesome customizado pelo WebPlan)
-      // Aparece na linha de cada fatura, ao lado de outros icones de acao
-      logger.info({ message: `[${this.nome}] Buscando icone X (download Excel) nas faturas...` });
+      // ====== PASSO 9: Baixar Excel de cada fatura ======
+      // O icone de Excel usa a classe Font Awesome "fa-file-excel-o" (parece um "X")
+      // Cada card de fatura (div.card) tem esse icone na barra de acoes do header
+      logger.info({ message: `[${this.nome}] Buscando icones de download Excel (fa-file-excel-o) nas faturas...` });
 
       // Salvar HTML para debug
       const htmlPesquisa = await webplanPage.content();
       fs.writeFileSync(path.join(downloadPath, `pesquisa_html_${Date.now()}.txt`), htmlPesquisa);
 
-      // Buscar TODOS os icones "x-icon" na pagina de resultados (cada fatura tem um)
-      const xIconsInfo = await webplanPage.evaluate(() => {
-        const icons = Array.from(document.querySelectorAll('i.x-icon, [class*="x-icon"]'));
-        return icons.map((el, idx) => {
-          const parent = el.parentElement;
-          return {
-            index: idx,
-            class: el.className,
-            parentTag: parent?.tagName || 'none',
-            parentClass: parent?.className || 'none',
-            parentHref: parent?.getAttribute('href') || 'none',
-            parentOnclick: (parent?.getAttribute('onclick') || 'none').substring(0, 100),
-            parentDataBind: parent?.getAttribute('data-bind') || 'none'
-          };
-        });
-      });
-
-      logger.info({ message: `[${this.nome}] Icones x-icon encontrados: ${xIconsInfo.length}` });
-      logger.info({ message: `[${this.nome}] Detalhes: ${JSON.stringify(xIconsInfo)}` });
-
-      if (xIconsInfo.length > 0) {
-        // Filtrar: queremos os x-icon que estao dentro de botoes/links de acao das faturas
-        // (nao os de "Recusar" ou "Fechar" dos modals)
-        const clicked = await webplanPage.evaluate(() => {
-          const icons = Array.from(document.querySelectorAll('i.x-icon'));
-          for (const icon of icons) {
-            const parent = icon.parentElement;
-            if (!parent) continue;
-            // Pular botoes de modal (Recusar, Fechar)
-            const parentText = (parent.textContent || '').trim().toLowerCase();
-            if (parentText.includes('recusar') || parentText.includes('fechar')) continue;
-            // Pular botoes dentro de modals
-            const isInModal = parent.closest('.modal');
-            if (isInModal) continue;
-            // Este deve ser o icone X da fatura - clicar!
-            parent.click();
-            return true;
-          }
-          // Fallback: clicar no primeiro x-icon que nao esta em modal
-          for (const icon of icons) {
-            const parent = icon.parentElement;
-            if (parent && !parent.closest('.modal')) {
-              parent.click();
-              return true;
+      // Extrair metadados de todas as faturas encontradas
+      // NOTA: Usando evaluate com string JS pura para evitar que esbuild/tsx injete __name
+      const faturasInfo = await webplanPage.evaluate(`
+        (function() {
+          var cards = document.querySelectorAll('.card.mb-2');
+          var faturas = [];
+          for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var texto = card.textContent || '';
+            if (texto.indexOf('digo:') === -1 && texto.indexOf('Comp:') === -1) continue;
+            function extrair(label) {
+              var regex = new RegExp(label + '\\\\s*([^\\\\n]+)', 'i');
+              var match = texto.match(regex);
+              return match ? match[1].trim() : '';
             }
+            var excelIcon = card.querySelector('i.fa-file-excel-o');
+            faturas.push({
+              index: i,
+              codigo: extrair('C.digo:'),
+              competencia: extrair('Comp:'),
+              notaFiscal: extrair('Nota Fiscal:'),
+              valorBruto: extrair('Valor Bruto:'),
+              valorLiquido: extrair('Valor L.quido:'),
+              glosa: extrair('Glosa:'),
+              entrega: extrair('Entrega:'),
+              pagamento: extrair('Pagamento:'),
+              temExcelIcon: !!excelIcon
+            });
           }
-          return false;
-        });
+          return faturas;
+        })()
+      `) as any[];
 
-        if (clicked) {
-          logger.info({ message: `[${this.nome}] Icone X clicado! Aguardando download do Excel...` });
-          arquivosBaixados++;
-          await this.delay(15000);
-        } else {
-          logger.warn({ message: `[${this.nome}] Nenhum x-icon clicavel encontrado fora de modals` });
+      logger.info({ message: `[${this.nome}] Faturas encontradas: ${faturasInfo.length}` });
+      for (const fat of faturasInfo) {
+        logger.info({ message: `[${this.nome}] Fatura ${fat.codigo} | Comp: ${fat.competencia} | Bruto: ${fat.valorBruto} | Liquido: ${fat.valorLiquido} | Glosa: ${fat.glosa} | Excel: ${fat.temExcelIcon}` });
+      }
+
+      if (faturasInfo.length === 0) {
+        logger.warn({ message: `[${this.nome}] Nenhuma fatura encontrada na pagina de resultados` });
+        try { await webplanPage.screenshot({ path: path.join(downloadPath, `debug_sem_faturas_${Date.now()}.png`) }); } catch(e) {}
+      }
+
+      // Clicar no icone Excel de cada fatura e aguardar download
+      for (let fatIdx = 0; fatIdx < faturasInfo.length; fatIdx++) {
+        const fat = faturasInfo[fatIdx];
+        if (!fat.temExcelIcon) {
+          logger.warn({ message: `[${this.nome}] Fatura ${fat.codigo} nao tem icone Excel, pulando` });
+          continue;
         }
-      } else {
-        logger.warn({ message: `[${this.nome}] Nenhum icone x-icon encontrado na pagina` });
-        
-        // Debug: listar todos os icones da pagina
-        const allIcons = await webplanPage.evaluate(() => {
-          const results: string[] = [];
-          const allEls = Array.from(document.querySelectorAll('a[href], img[src], i[class], button'));
-          for (const el of allEls) {
-            const tag = el.tagName;
-            const cls = el.className || '';
-            const href = el.getAttribute('href') || '';
-            const title = el.getAttribute('title') || '';
-            if (cls || href || title) {
-              results.push(`<${tag} class="${cls}" href="${href}" title="${title}">`);
-            }
+
+        logger.info({ message: `[${this.nome}] Baixando Excel da fatura ${fat.codigo} (${fatIdx + 1}/${faturasInfo.length})...` });
+
+        // Contar arquivos antes do download para detectar novo arquivo
+        const arquivosAntes = new Set(fs.readdirSync(downloadPath));
+
+        // Clicar no icone fa-file-excel-o do card correspondente usando Puppeteer nativo
+        // O data-bind="click: $root.downloadCSV" esta no proprio <i>, nao no parent
+        // Precisamos usar page.click() do Puppeteer (nao evaluate .click()) para o KnockoutJS responder
+        const excelIcons = await webplanPage.$$('div.card.mb-2 i.fa-file-excel-o');
+        let clicou = false;
+        if (fatIdx < excelIcons.length) {
+          await excelIcons[fatIdx].click();
+          clicou = true;
+          logger.info({ message: `[${this.nome}] Icone Excel clicado via Puppeteer (fatura ${fatIdx + 1})` });
+        } else {
+          logger.warn({ message: `[${this.nome}] Icone Excel nao encontrado para fatura index ${fatIdx} (total icons: ${excelIcons.length})` });
+        }
+
+        if (!clicou) {
+          logger.warn({ message: `[${this.nome}] Falha ao clicar Excel da fatura ${fat.codigo}` });
+          continue;
+        }
+
+        // Aguardar o download completar (polling por novo arquivo, max 30s)
+        let downloadCompleto = false;
+        for (let tentativa = 0; tentativa < 15; tentativa++) {
+          await this.delay(2000);
+          const arquivosDepois = fs.readdirSync(downloadPath);
+          const novos = arquivosDepois.filter(f => !arquivosAntes.has(f));
+          // Verificar se tem arquivo novo que nao eh .crdownload (download parcial do Chrome)
+          const completados = novos.filter(f => !f.endsWith('.crdownload') && !f.endsWith('.tmp'));
+          if (completados.length > 0) {
+            logger.info({ message: `[${this.nome}] Download concluido: ${completados.join(', ')}` });
+            arquivosBaixados++;
+            downloadCompleto = true;
+            break;
           }
-          return results;
-        });
-        fs.writeFileSync(path.join(downloadPath, `debug_all_icons_${Date.now()}.txt`), allIcons.join('\n'));
-        logger.info({ message: `[${this.nome}] Total elementos interativos: ${allIcons.length}` });
-        
-        await webplanPage.screenshot({ path: path.join(downloadPath, `debug_excel_${Date.now()}.png`), fullPage: true });
+          // Verificar se tem download em andamento
+          const emAndamento = novos.filter(f => f.endsWith('.crdownload'));
+          if (emAndamento.length > 0 && tentativa < 14) {
+            logger.info({ message: `[${this.nome}] Download em andamento... (${tentativa + 1}/15)` });
+          }
+        }
+
+        if (!downloadCompleto) {
+          logger.warn({ message: `[${this.nome}] Timeout no download da fatura ${fat.codigo}` });
+          try { await webplanPage.screenshot({ path: path.join(downloadPath, `debug_timeout_${fat.codigo}_${Date.now()}.png`) }); } catch(e) {}
+        }
+
+        // Pequena pausa entre downloads para nao sobrecarregar o servidor
+        await this.delay(1000);
       }
 
       // ====== IMPORTACAO AUTOMATICA ======
@@ -431,7 +507,7 @@ export class RoboIpasgo extends RoboBase {
           const arquivosNaPasta = fs.readdirSync(downloadPath);
           const tempoLimite = Date.now() - (20 * 60 * 1000);
           const xlsNovos = arquivosNaPasta.filter(f => {
-            if (!f.endsWith('.xls') && !f.endsWith('.xlsx')) return false;
+            if (!f.endsWith('.xls') && !f.endsWith('.xlsx') && !f.endsWith('.csv')) return false;
             const stat = fs.statSync(path.join(downloadPath, f));
             return stat.mtimeMs > tempoLimite;
           });
@@ -467,9 +543,9 @@ export class RoboIpasgo extends RoboBase {
       // Screenshot final
       const screenshotPath = path.join(downloadPath, `resultado_ipasgo_${Date.now()}.png`);
       try {
-        await webplanPage.screenshot({ path: screenshotPath, fullPage: true });
+        await webplanPage.screenshot({ path: screenshotPath });
       } catch (e) {
-        await this.page.screenshot({ path: screenshotPath, fullPage: true });
+        try { await this.page.screenshot({ path: screenshotPath }); } catch(e2) {}
       }
 
       return {

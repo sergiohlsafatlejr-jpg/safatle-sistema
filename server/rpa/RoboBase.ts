@@ -22,6 +22,7 @@ export abstract class RoboBase {
     this.browser = await puppeteer.launch({
       headless,
       ignoreHTTPSErrors: true, // Ignorar problemas de SSL comuns em portais de saúde antigos
+      protocolTimeout: 120000, // 120s para evitar timeout em screenshots de paginas grandes
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
       defaultViewport: { width: 1280, height: 800 }
     });
